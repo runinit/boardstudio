@@ -13,6 +13,10 @@ fn open(engine: &mut CoreEngine, id: &str, document: &Value) -> Value {
     request(engine, json!({"kind":"open","id":id,"document":document}))
 }
 
+fn json_snapshot(engine: &mut CoreEngine) -> Value {
+    request(engine, json!({"kind":"snapshot","id":"snap"}))["document"].clone()
+}
+
 fn document() -> Value {
     let mut document = serde_json::to_value(boardstudio_core::model::ProjectDoc::empty(
         "aggregate-anchors",
@@ -654,8 +658,11 @@ fn aggregate_unknown_method_is_refused() {
         &mut document,
         json!(["matrix/main/r0c0", "matrix/main/r0c1", "matrix/main/r0c2"]),
     );
-    document["matrices"][1]["anchor"]["aggregate"]["method"] = json!("median");
     let mut engine = CoreEngine::new();
+    let reply = open(&mut engine, "baseline", &document);
+    assert_eq!(reply["kind"], "scene", "{reply}");
+    let accepted = json_snapshot(&mut engine);
+    document["matrices"][1]["anchor"]["aggregate"]["method"] = json!("median");
     let reply = open(&mut engine, "median", &document);
     assert_eq!(reply["kind"], "error", "{reply}");
     assert!(
@@ -665,6 +672,7 @@ fn aggregate_unknown_method_is_refused() {
             .contains("unknown variant"),
         "unknown methods must be refused at admission, got {reply}"
     );
+    assert_eq!(json_snapshot(&mut engine), accepted);
 }
 
 #[test]
@@ -689,10 +697,13 @@ fn aggregate_anchor_refuses_a_real_single_key_alongside_aggregate() {
     );
     // A real single key next to the aggregate arm: both arms are populated,
     // so the union grammar must refuse the document.
+    let mut engine = CoreEngine::new();
+    let reply = open(&mut engine, "baseline", &document);
+    assert_eq!(reply["kind"], "scene", "{reply}");
+    let accepted = json_snapshot(&mut engine);
     document["matrices"][1]["anchor"]["matrixId"] = json!("main");
     document["matrices"][1]["anchor"]["row"] = json!(0);
     document["matrices"][1]["anchor"]["column"] = json!(2);
-    let mut engine = CoreEngine::new();
     let reply = open(&mut engine, "both-arms", &document);
     assert_eq!(reply["kind"], "error", "{reply}");
     assert!(
@@ -702,6 +713,7 @@ fn aggregate_anchor_refuses_a_real_single_key_alongside_aggregate() {
             .contains("aggregate"),
         "both-arms refusal must name the aggregate arm, got {reply}"
     );
+    assert_eq!(json_snapshot(&mut engine), accepted);
 }
 
 fn intersect_anchor(parts: Vec<AnchorPart>) -> MatrixAnchor {
@@ -731,6 +743,19 @@ fn undone(engine: &mut CoreEngine) -> ProjectDoc {
     }
 }
 
+/// A refused edit pushes no history entry: nothing remains to undo.
+fn assert_no_history_entry(engine: &mut CoreEngine) {
+    assert!(
+        matches!(
+            engine.handle(CoreRequest::Undo {
+                id: "refusal-history".into()
+            }),
+            CoreReply::Error { message, .. } if message.contains("History is empty")
+        ),
+        "refused edit must leave no history entry"
+    );
+}
+
 fn added_thumb(engine: &mut CoreEngine, doc: &ProjectDoc) -> (SceneDelta, ProjectDoc) {
     typed_edit(
         engine,
@@ -758,6 +783,7 @@ fn aggregate_add_refuses_unknown_part_matrix_atomically() {
         "unexpected message: {message:?}"
     );
     assert_eq!(typed_snapshot(&mut engine), doc);
+    assert_no_history_entry(&mut engine);
 }
 
 #[test]
@@ -776,12 +802,13 @@ fn aggregate_add_refuses_out_of_range_part_key_atomically() {
         "unexpected message: {message:?}"
     );
     assert_eq!(typed_snapshot(&mut engine), doc);
+    assert_no_history_entry(&mut engine);
 }
 
 #[test]
 fn aggregate_set_anchor_refuses_empty_parts_atomically() {
-    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
-    let (_, doc) = added_thumb(&mut engine, &doc);
+    let (mut engine, _, opened) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let (_, doc) = added_thumb(&mut engine, &opened);
     let message = typed_error(
         &mut engine,
         &doc,
@@ -795,12 +822,19 @@ fn aggregate_set_anchor_refuses_empty_parts_atomically() {
         "unexpected message: {message:?}"
     );
     assert_eq!(typed_snapshot(&mut engine), doc);
+    // The refusal adds no history entry: one Undo returns to the opened
+    // document, and nothing remains to undo.
+    let undone_doc = undone(&mut engine);
+    assert_eq!(undone_doc.matrices, opened.matrices);
+    assert_eq!(undone_doc.layouts, opened.layouts);
+    assert_eq!(undone_doc.parts, opened.parts);
+    assert_no_history_entry(&mut engine);
 }
 
 #[test]
 fn aggregate_set_anchor_refuses_intersect_with_one_part_atomically() {
-    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
-    let (_, doc) = added_thumb(&mut engine, &doc);
+    let (mut engine, _, opened) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let (_, doc) = added_thumb(&mut engine, &opened);
     let message = typed_error(
         &mut engine,
         &doc,
@@ -814,12 +848,19 @@ fn aggregate_set_anchor_refuses_intersect_with_one_part_atomically() {
         "unexpected message: {message:?}"
     );
     assert_eq!(typed_snapshot(&mut engine), doc);
+    // The refusal adds no history entry: one Undo returns to the opened
+    // document, and nothing remains to undo.
+    let undone_doc = undone(&mut engine);
+    assert_eq!(undone_doc.matrices, opened.matrices);
+    assert_eq!(undone_doc.layouts, opened.layouts);
+    assert_eq!(undone_doc.parts, opened.parts);
+    assert_no_history_entry(&mut engine);
 }
 
 #[test]
 fn aggregate_set_anchor_refuses_intersect_with_three_parts_atomically() {
-    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
-    let (_, doc) = added_thumb(&mut engine, &doc);
+    let (mut engine, _, opened) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let (_, doc) = added_thumb(&mut engine, &opened);
     let message = typed_error(
         &mut engine,
         &doc,
@@ -837,6 +878,13 @@ fn aggregate_set_anchor_refuses_intersect_with_three_parts_atomically() {
         "unexpected message: {message:?}"
     );
     assert_eq!(typed_snapshot(&mut engine), doc);
+    // The refusal adds no history entry: one Undo returns to the opened
+    // document, and nothing remains to undo.
+    let undone_doc = undone(&mut engine);
+    assert_eq!(undone_doc.matrices, opened.matrices);
+    assert_eq!(undone_doc.layouts, opened.layouts);
+    assert_eq!(undone_doc.parts, opened.parts);
+    assert_no_history_entry(&mut engine);
 }
 
 #[test]
@@ -920,6 +968,11 @@ fn aggregate_removing_a_part_slot_detaches_keeping_the_world_frame() {
 fn aggregate_shrink_past_a_part_detaches_keeping_the_world_frame() {
     let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
     let (_, doc) = added_thumb(&mut engine, &doc);
+    let poses_before: Vec<(String, Pose2)> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose))
+        .collect();
     let mut shrunk = doc
         .matrices
         .iter()
@@ -938,9 +991,30 @@ fn aggregate_shrink_past_a_part_detaches_keeping_the_world_frame() {
     // Part (0,2) leaves the grid, so the dependant detaches with its frame:
     // the (19,0) mean with the (0,-19) relative origin below it.
     assert_eq!(anchor_of(&detached, "thumb"), None);
+    let thumb = detached
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "thumb")
+        .expect("thumb matrix");
+    assert_eq!(thumb.origin, Vec2 { x: 19.0, y: -19.0 });
+    for (id, pose) in &poses_before {
+        if id.starts_with("matrix/thumb/") {
+            assert_eq!(
+                detached
+                    .parts
+                    .iter()
+                    .find(|part| &part.id == id)
+                    .unwrap()
+                    .pose,
+                *pose,
+                "{id}"
+            );
+        }
+    }
+    // The detach rides the same edit: one Undo restores the aggregate anchor.
     assert_eq!(
-        at(&detached, &member("thumb", 0, 0)),
-        Vec2 { x: 19.0, y: -19.0 }
+        anchor_of(&undone(&mut engine), "thumb"),
+        anchor_of(&doc, "thumb")
     );
 }
 
