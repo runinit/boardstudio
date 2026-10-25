@@ -105,16 +105,17 @@ affected quick/browser checks.
   (gortex ~270%) required retries, and one stray chromium was killed.
 
 - Verify (so far): native `cargo test -p boardstudio-web-layout --lib`
-  (6G, RUST_TEST_THREADS=4): 112 passed, incl. 6 new omit tests +
-  `an_omitted_key_keeps_a_logical_pose_without_resurrecting_parts` (updated
-  text). `cargo check --workspace --all-targets` clean; layout clippy
-  `-D warnings` clean (one pre-existing `iter_next_slice` in untouched
+  (6G, RUST_TEST_THREADS=4): green incl. 5 new native omit tests + updated
+  relations text test. `cargo check --workspace --all-targets` clean; layout
+  clippy `-D warnings` clean (one pre-existing `iter_next_slice` in untouched
   `mirror_existing_half.rs`); rustfmt clean on touched files.
-- Mounted: `mirror_key_omit_rejoin_round_trip` + `mirror_key_omit_checkbox_...`
-  pass in isolation (direct runner, XDG redirect): omit records Omitted, hides
-  the key from the surface (scene member gone), keeps the logical pose, one
-  Undo restores, rejoin clears. Full layout browser suite in this environment:
-  `setup_guide desktop viewport` fails (environmental; no viewport overlap
-  with this ticket) and poisons later tests via the panic-hook cascade; the
-  omit tests pass when run directly.
+- Mounted: `mirror_key_omit_rejoin_round_trip` +
+  `mirror_key_omit_checkbox_toggles_half_exception` pass (direct runner):
+  omit records Omitted, hides the key from the surface (scene member gone),
+  keeps the logical pose, one Undo restores, rejoin clears. Neighboring
+  mounted Key-section tests pass in isolation: mixed_enabled, deleting_selected,
+  row/col delete, detach. Full layout browser suite in this environment:
+  `setup_guide desktop viewport` fails (environmental: headless viewport
+  detection; no viewport overlap with this ticket) and poisons later tests
+  via the panic-hook cascade; the omit tests pass when run directly.
 - Commits: `3b71398fd` feat(ergogen-34). Status: done (claimed through close).
