@@ -54,3 +54,27 @@ dashed outline, which stays distinct from amber edit previews.
   E0618 (clippy `-D warnings`); build/test/browser could not run past it.
   Ticket-15 browser coverage (chip navigation, chip violet hover, tab gone)
   is written but awaits a compilable tree to execute.
+- 2026-10-25 (ticket-15 agent): verified in isolated worktree
+  `/home/chris/.cache/t15-verify/tree` (at e3c8493 + 2 uncommitted
+  verification-only removals of foreign `split_gap: None,` lines, and one
+  uncommitted focus-return test entry in `layout_findings_state.rs`):
+  `check.py build` passes; native `check.py test` passes (all 2280 baselined
+  tests executed, 4 new); relations module green 14/14 (3 new ticket-15
+  tests: tab gone/facts beside fields, carries-chip navigation without
+  write/Undo, chip hover highlights only its keys). Full wasm suite remains
+  flaky under memory pressure (varying failures across reruns, sampled
+  inspector tests pass solo); `check.py` full green in one command not yet
+  achieved (repo gate flags another lane's uncommitted deferred-items docs;
+  lint blocked by ticket-14 clippy debt). Served the isolated debug build and
+  drove the live app (Split 42 demo, Column 1 selected):
+  `nav.m1-placement-crumbs[aria-label='How it is placed']` renders 12
+  crumbs above the fields; `#m1-relations-heading` "Relationships" lists
+  all 12 fact rows; zero buttons match /relation/i (Relations tab gone).
+  Hovering the "Carries Column 2" chip sets exactly 3
+  `.m1-matrix-key.is-relation-highlight` keys; clicking the chip reselects
+  to "Left . Column 2, 3 keys selected". Screenshots:
+  `.evidence/t15-breadcrumb.png` (breadcrumb above fields),
+  `.evidence/t15-chip-hover3.png` (hovered chip, violet-highlighted canvas
+  keys, Relationships section). Unresolved for the parent: the 2 `split_gap`
+  lines in 1ff5e4c6 (foreign to ticket 15), whether to port the isolated
+  focus-test entry as a follow-up, and the full-suite flake cleanup.
