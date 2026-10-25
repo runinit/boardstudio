@@ -117,4 +117,4 @@ affected quick/browser checks.
   `setup_guide desktop viewport` fails (environmental; no viewport overlap
   with this ticket) and poisons later tests via the panic-hook cascade; the
   omit tests pass when run directly.
-- Commits: (this ticket, to be filled at commit). Status: done (claimed through close).
+- Commits: `3b71398fd` feat(ergogen-34). Status: done (claimed through close).
