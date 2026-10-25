@@ -192,6 +192,35 @@ partial.mapping.push(...mapping('right', 'm', ['a'], ['r0'], 'mirror_'),
   ...mapping('right-thumb', 'thumb', ['a'], ['r0'], 'mirror_'));
 cases.push(partial);
 
+const average = grid('aggregate-average');
+average.ergogenConfig.points.zones.probe = {
+  anchor: { aggregate: { parts: [{ ref: 'm_a_r0' }, { ref: 'm_c_r0' }] } },
+  columns: { a: {} }, rows: { r0: {} },
+};
+average.boardStudioMatrices.push({ id: 'probe', rows: 1, columns: 1,
+  pitch: { x: 19, y: 19 }, origin: { x: 0, y: 0 },
+  anchor: { follow: ['x', 'y', 'rotation'],
+    aggregate: { method: 'average', parts: [
+      { matrixId: 'main', row: 0, column: 0 },
+      { matrixId: 'main', row: 0, column: 2 }] } } });
+average.mapping.push(...mapping('probe', 'probe', ['a'], ['r0']));
+cases.push(average);
+
+const intersect = grid('aggregate-intersect', { c: { rows: { r2: { rotate: 90 } } } }, {}, {},
+  { cells: [cell(2, 2, { bend: 90 })] });
+intersect.ergogenConfig.points.zones.probe = {
+  anchor: { aggregate: { method: 'intersect', parts: [{ ref: 'm_a_r0' }, { ref: 'm_c_r2' }] } },
+  columns: { a: {} }, rows: { r0: {} },
+};
+intersect.boardStudioMatrices.push({ id: 'probe', rows: 1, columns: 1,
+  pitch: { x: 19, y: 19 }, origin: { x: 0, y: 0 },
+  anchor: { follow: ['x', 'y', 'rotation'],
+    aggregate: { method: 'intersect', parts: [
+      { matrixId: 'main', row: 0, column: 0 },
+      { matrixId: 'main', row: 2, column: 2 }] } } });
+intersect.mapping.push(...mapping('probe', 'probe', ['a'], ['r0']));
+cases.push(intersect);
+
 const pose = (matrix, row, column, x, y, rotation = 0) => ({ matrix, row, column, pose: { x, y, rotation } });
 const quarter = matrix('main', { rows: 3, pitch: { x: 10, y: 10 }, columnLayout: [{}, { spread: 30, rotation: 90 }] });
 const held = [pose('main', 0, 0, 0, 0), pose('main', 1, 0, 0, 10),

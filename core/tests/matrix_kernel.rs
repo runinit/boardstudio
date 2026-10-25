@@ -3,7 +3,7 @@
 
 use boardstudio_core::layout_kernel::{
     ColumnLayout, Follow, FollowBasis, KeyLayout, LayoutInput, MatrixLayout, RawAnchorContext,
-    RowLayout, evaluate,
+    RowLayout, aggregate_average, aggregate_intersection, evaluate,
 };
 use boardstudio_core::model::{Pose2, Vec2};
 use serde::Deserialize;
@@ -130,16 +130,38 @@ fn fixture_layouts(case: &Value, matrices: &Value) -> BTreeMap<String, MatrixLay
                 .collect();
         }
         let context = if let Some(anchor) = matrix.get("anchor") {
-            let target = &layouts[anchor["matrixId"].as_str().unwrap()];
-            let pose = target
-                .cells
-                .iter()
-                .find(|c| {
-                    c.row == anchor["row"].as_u64().unwrap() as usize
-                        && c.column == anchor["column"].as_u64().unwrap() as usize
-                })
-                .unwrap()
-                .pose;
+            let part_pose = |part: &Value| {
+                layouts[part["matrixId"].as_str().unwrap()]
+                    .cells
+                    .iter()
+                    .find(|c| {
+                        c.row == part["row"].as_u64().unwrap() as usize
+                            && c.column == part["column"].as_u64().unwrap() as usize
+                    })
+                    .unwrap()
+                    .pose
+            };
+            // Aggregate anchors resolve every part before the matrix
+            // Origin/Rotation and Follow apply, exactly as upstream resolves
+            // `aggregate` before orient/shift/rotate/affect.
+            let pose = if let Some(aggregate) = anchor.get("aggregate") {
+                let poses: Vec<_> = aggregate["parts"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(part_pose)
+                    .collect();
+                match aggregate.get("method").and_then(Value::as_str).unwrap_or("average") {
+                    "average" => aggregate_average(&poses).unwrap(),
+                    "intersect" => {
+                        assert_eq!(poses.len(), 2);
+                        aggregate_intersection(poses[0], poses[1]).unwrap()
+                    }
+                    other => panic!("unknown aggregate method: {other}"),
+                }
+            } else {
+                part_pose(anchor)
+            };
             let follow = if let Some(v) = anchor.get("follow") {
                 let has = |s| v.as_array().unwrap().iter().any(|v| v == s);
                 Follow {
@@ -297,9 +319,9 @@ fn committed_fixtures_match_carried_layout() {
             );
         }
     }
-    assert_eq!(fixtures["cases"].as_array().unwrap().len(), 40);
+    assert_eq!(fixtures["cases"].as_array().unwrap().len(), 42);
     assert_eq!(fixtures["boardStudioOnly"].as_array().unwrap().len(), 4);
-    assert_eq!(count, 381, "all fixture poses must be consumed");
+    assert_eq!(count, 401, "all fixture poses must be consumed");
 }
 
 #[test]
@@ -362,7 +384,12 @@ fn production_core_actual_draft_and_materialized_keys_match_committed_fixtures()
                             let id =
                                 format!("matrix/{}/r{row}c{column}", input["id"].as_str().unwrap());
                             members.push(id.clone());
-                            parts.push(json!({"id":id,"definitionId":"key","reference":format!("SW{}", parts.len()+1),"pose":{"at":{"x":123.0,"y":-456.0},"rotation":17.0},"side":"front"}));
+                            // Deliberately wrong placeholder poses prove materialization
+                            // overwrites them; each placeholder is distinct so
+                            // aggregate intersection never sees a spurious parallel
+                            // pair before the refresh corrects them.
+                            let seed = parts.len() as f64;
+                            parts.push(json!({"id":id,"definitionId":"key","reference":format!("SW{}", parts.len()+1),"pose":{"at":{"x":123.0 + seed,"y":-456.0 - seed},"rotation":17.0 + seed},"side":"front"}));
                         }
                     }
                     input["partIds"] = json!(members);
@@ -454,7 +481,7 @@ fn production_core_actual_draft_and_materialized_keys_match_committed_fixtures()
             }
         }
     }
-    assert_eq!(count, 381);
+    assert_eq!(count, 401);
 }
 
 #[test]

@@ -8898,6 +8898,553 @@
           }
         }
       ]
+    },
+    {
+      "id": "aggregate-average",
+      "comparison": "match",
+      "ergogenConfig": {
+        "points": {
+          "zones": {
+            "m": {
+              "columns": {
+                "a": {},
+                "b": {},
+                "c": {}
+              },
+              "rows": {
+                "r0": {},
+                "r1": {},
+                "r2": {}
+              }
+            },
+            "probe": {
+              "anchor": {
+                "aggregate": {
+                  "parts": [
+                    {
+                      "ref": "m_a_r0"
+                    },
+                    {
+                      "ref": "m_c_r0"
+                    }
+                  ]
+                }
+              },
+              "columns": {
+                "a": {}
+              },
+              "rows": {
+                "r0": {}
+              }
+            }
+          }
+        }
+      },
+      "boardStudioMatrices": [
+        {
+          "id": "main",
+          "rows": 3,
+          "columns": 3,
+          "pitch": {
+            "x": 19,
+            "y": 19
+          },
+          "origin": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "probe",
+          "rows": 1,
+          "columns": 1,
+          "pitch": {
+            "x": 19,
+            "y": 19
+          },
+          "origin": {
+            "x": 0,
+            "y": 0
+          },
+          "anchor": {
+            "follow": [
+              "x",
+              "y",
+              "rotation"
+            ],
+            "aggregate": {
+              "method": "average",
+              "parts": [
+                {
+                  "matrixId": "main",
+                  "row": 0,
+                  "column": 0
+                },
+                {
+                  "matrixId": "main",
+                  "row": 0,
+                  "column": 2
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "mapping": [
+        {
+          "ergogenName": "m_a_r0",
+          "matrix": "main",
+          "row": 0,
+          "column": 0
+        },
+        {
+          "ergogenName": "m_a_r1",
+          "matrix": "main",
+          "row": 1,
+          "column": 0
+        },
+        {
+          "ergogenName": "m_a_r2",
+          "matrix": "main",
+          "row": 2,
+          "column": 0
+        },
+        {
+          "ergogenName": "m_b_r0",
+          "matrix": "main",
+          "row": 0,
+          "column": 1
+        },
+        {
+          "ergogenName": "m_b_r1",
+          "matrix": "main",
+          "row": 1,
+          "column": 1
+        },
+        {
+          "ergogenName": "m_b_r2",
+          "matrix": "main",
+          "row": 2,
+          "column": 1
+        },
+        {
+          "ergogenName": "m_c_r0",
+          "matrix": "main",
+          "row": 0,
+          "column": 2
+        },
+        {
+          "ergogenName": "m_c_r1",
+          "matrix": "main",
+          "row": 1,
+          "column": 2
+        },
+        {
+          "ergogenName": "m_c_r2",
+          "matrix": "main",
+          "row": 2,
+          "column": 2
+        },
+        {
+          "ergogenName": "probe_a_r0",
+          "matrix": "probe",
+          "row": 0,
+          "column": 0
+        }
+      ],
+      "expected": [
+        {
+          "ergogenName": "m_a_r0",
+          "matrix": "main",
+          "row": 0,
+          "column": 0,
+          "pose": {
+            "x": 0,
+            "y": 0,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_a_r1",
+          "matrix": "main",
+          "row": 1,
+          "column": 0,
+          "pose": {
+            "x": 0,
+            "y": 19,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_a_r2",
+          "matrix": "main",
+          "row": 2,
+          "column": 0,
+          "pose": {
+            "x": 0,
+            "y": 38,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_b_r0",
+          "matrix": "main",
+          "row": 0,
+          "column": 1,
+          "pose": {
+            "x": 19,
+            "y": 0,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_b_r1",
+          "matrix": "main",
+          "row": 1,
+          "column": 1,
+          "pose": {
+            "x": 19,
+            "y": 19,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_b_r2",
+          "matrix": "main",
+          "row": 2,
+          "column": 1,
+          "pose": {
+            "x": 19,
+            "y": 38,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_c_r0",
+          "matrix": "main",
+          "row": 0,
+          "column": 2,
+          "pose": {
+            "x": 38,
+            "y": 0,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_c_r1",
+          "matrix": "main",
+          "row": 1,
+          "column": 2,
+          "pose": {
+            "x": 38,
+            "y": 19,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_c_r2",
+          "matrix": "main",
+          "row": 2,
+          "column": 2,
+          "pose": {
+            "x": 38,
+            "y": 38,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "probe_a_r0",
+          "matrix": "probe",
+          "row": 0,
+          "column": 0,
+          "pose": {
+            "x": 19,
+            "y": 0,
+            "rotation": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "aggregate-intersect",
+      "comparison": "match",
+      "ergogenConfig": {
+        "points": {
+          "zones": {
+            "m": {
+              "columns": {
+                "a": {},
+                "b": {},
+                "c": {
+                  "rows": {
+                    "r2": {
+                      "rotate": 90
+                    }
+                  }
+                }
+              },
+              "rows": {
+                "r0": {},
+                "r1": {},
+                "r2": {}
+              }
+            },
+            "probe": {
+              "anchor": {
+                "aggregate": {
+                  "method": "intersect",
+                  "parts": [
+                    {
+                      "ref": "m_a_r0"
+                    },
+                    {
+                      "ref": "m_c_r2"
+                    }
+                  ]
+                }
+              },
+              "columns": {
+                "a": {}
+              },
+              "rows": {
+                "r0": {}
+              }
+            }
+          }
+        }
+      },
+      "boardStudioMatrices": [
+        {
+          "id": "main",
+          "rows": 3,
+          "columns": 3,
+          "pitch": {
+            "x": 19,
+            "y": 19
+          },
+          "origin": {
+            "x": 0,
+            "y": 0
+          },
+          "cells": [
+            {
+              "row": 2,
+              "column": 2,
+              "enabled": true,
+              "bend": 90
+            }
+          ]
+        },
+        {
+          "id": "probe",
+          "rows": 1,
+          "columns": 1,
+          "pitch": {
+            "x": 19,
+            "y": 19
+          },
+          "origin": {
+            "x": 0,
+            "y": 0
+          },
+          "anchor": {
+            "follow": [
+              "x",
+              "y",
+              "rotation"
+            ],
+            "aggregate": {
+              "method": "intersect",
+              "parts": [
+                {
+                  "matrixId": "main",
+                  "row": 0,
+                  "column": 0
+                },
+                {
+                  "matrixId": "main",
+                  "row": 2,
+                  "column": 2
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "mapping": [
+        {
+          "ergogenName": "m_a_r0",
+          "matrix": "main",
+          "row": 0,
+          "column": 0
+        },
+        {
+          "ergogenName": "m_a_r1",
+          "matrix": "main",
+          "row": 1,
+          "column": 0
+        },
+        {
+          "ergogenName": "m_a_r2",
+          "matrix": "main",
+          "row": 2,
+          "column": 0
+        },
+        {
+          "ergogenName": "m_b_r0",
+          "matrix": "main",
+          "row": 0,
+          "column": 1
+        },
+        {
+          "ergogenName": "m_b_r1",
+          "matrix": "main",
+          "row": 1,
+          "column": 1
+        },
+        {
+          "ergogenName": "m_b_r2",
+          "matrix": "main",
+          "row": 2,
+          "column": 1
+        },
+        {
+          "ergogenName": "m_c_r0",
+          "matrix": "main",
+          "row": 0,
+          "column": 2
+        },
+        {
+          "ergogenName": "m_c_r1",
+          "matrix": "main",
+          "row": 1,
+          "column": 2
+        },
+        {
+          "ergogenName": "m_c_r2",
+          "matrix": "main",
+          "row": 2,
+          "column": 2
+        },
+        {
+          "ergogenName": "probe_a_r0",
+          "matrix": "probe",
+          "row": 0,
+          "column": 0
+        }
+      ],
+      "expected": [
+        {
+          "ergogenName": "m_a_r0",
+          "matrix": "main",
+          "row": 0,
+          "column": 0,
+          "pose": {
+            "x": 0,
+            "y": 0,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_a_r1",
+          "matrix": "main",
+          "row": 1,
+          "column": 0,
+          "pose": {
+            "x": 0,
+            "y": 19,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_a_r2",
+          "matrix": "main",
+          "row": 2,
+          "column": 0,
+          "pose": {
+            "x": 0,
+            "y": 38,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_b_r0",
+          "matrix": "main",
+          "row": 0,
+          "column": 1,
+          "pose": {
+            "x": 19,
+            "y": 0,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_b_r1",
+          "matrix": "main",
+          "row": 1,
+          "column": 1,
+          "pose": {
+            "x": 19,
+            "y": 19,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_b_r2",
+          "matrix": "main",
+          "row": 2,
+          "column": 1,
+          "pose": {
+            "x": 19,
+            "y": 38,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_c_r0",
+          "matrix": "main",
+          "row": 0,
+          "column": 2,
+          "pose": {
+            "x": 38,
+            "y": 0,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_c_r1",
+          "matrix": "main",
+          "row": 1,
+          "column": 2,
+          "pose": {
+            "x": 38,
+            "y": 19,
+            "rotation": 0
+          }
+        },
+        {
+          "ergogenName": "m_c_r2",
+          "matrix": "main",
+          "row": 2,
+          "column": 2,
+          "pose": {
+            "x": 38,
+            "y": 38,
+            "rotation": 90
+          }
+        },
+        {
+          "ergogenName": "probe_a_r0",
+          "matrix": "probe",
+          "row": 0,
+          "column": 0,
+          "pose": {
+            "x": 0,
+            "y": 38,
+            "rotation": 0
+          }
+        }
+      ]
     }
   ],
   "boardStudioOnly": [
