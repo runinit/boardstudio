@@ -356,15 +356,6 @@ fn at(doc: &ProjectDoc, id: &str) -> Vec2 {
         .at
 }
 
-fn rotation_of(doc: &ProjectDoc, id: &str) -> f64 {
-    doc.parts
-        .iter()
-        .find(|part| part.id == id)
-        .unwrap_or_else(|| panic!("missing part {id}"))
-        .pose
-        .rotation
-}
-
 #[test]
 fn aggregate_average_follows_part_moves_through_the_mean() {
     let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
@@ -420,20 +411,30 @@ fn aggregate_evaluation_ignores_document_list_order() {
         vec![thumb.clone()],
         vec!["main", "thumb"],
     ));
-    // The dependant is listed before its parts here; evaluation still visits
-    // every part target first.
-    let reversed = {
-        let mut doc = typed_doc(typed_main(vec![]), vec![thumb], vec!["main", "thumb"]);
-        let thumb_index = doc
-            .matrices
+    // A genuinely different document order end to end: the dependant leads
+    // both the matrix list and the layout member list, as if authored first.
+    let reversed = typed_doc(typed_main(vec![]), vec![thumb], vec!["thumb", "main"]);
+    let mut doc = reversed;
+    let thumb_index = doc
+        .matrices
+        .iter()
+        .position(|matrix| matrix.id == "thumb")
+        .unwrap();
+    let thumb = doc.matrices.remove(thumb_index);
+    doc.matrices.insert(0, thumb);
+    let (_, reversed_scene, _) = typed_open(doc);
+    let order_of = |scene: &SceneDelta| {
+        scene
+            .matrix_scenes
             .iter()
-            .position(|matrix| matrix.id == "thumb")
-            .unwrap();
-        let thumb = doc.matrices.remove(thumb_index);
-        doc.matrices.insert(0, thumb);
-        doc
+            .map(|scene| scene.matrix_id.clone())
+            .collect::<Vec<_>>()
     };
-    let (_, reversed_scene, _) = typed_open(reversed);
+    // The premise the old list-only permutation never established:
+    // evaluation follows dependency order, not document order, so the
+    // dependant still evaluates after its parts in both documents.
+    assert_eq!(order_of(&ordered_scene), vec!["main", "thumb"]);
+    assert_eq!(order_of(&reversed_scene), vec!["main", "thumb"]);
     let cells = |scene: &SceneDelta| {
         scene
             .matrix_scenes
@@ -562,50 +563,80 @@ fn aggregate_parallel_intersect_refuses_without_mutation() {
 
 #[test]
 fn aggregate_follow_filters_the_completed_candidate() {
-    // The second part carries key rotation 90, so the aggregate pose is
-    // ((0+38)/2, 0, (0+90)/2) = (19,0,45): the naive rotation mean.
+    // Upstream partial-x-only golden (`base_a_r0` at (10,20,30°) with
+    // shift [5,0], rotate 10 and affect 'x' resolves to (14.330127,0,0)):
+    // the aggregate mean of ((0,0),0°) and ((20,40),60°) is ((10,20),30°),
+    // the (5,0) relative origin turned 10° completes the candidate
+    // (14.330127,22.5,40), and follow-x-only keeps (14.330127,0,0).
     let main = typed_main(vec![MatrixCell {
         shift: None,
         bend: None,
         deleted: false,
         row: 0,
-        column: 2,
+        column: 1,
         enabled: true,
         definition_id: None,
         variant: None,
-        offset: None,
-        rotation: Some(90.0),
+        offset: Some(Vec2 { x: 1.0, y: 40.0 }),
+        rotation: Some(60.0),
         assemblies: vec![],
         assemblies_local: None,
     }]);
-    let (mut engine, _, doc) = typed_open(typed_doc(main, vec![], vec!["main"]));
-    let mut anchor = average_anchor(vec![part("main", 0, 0), part("main", 0, 2)]);
+    let mut anchor = average_anchor(vec![part("main", 0, 0), part("main", 0, 1)]);
     anchor.follow = Follow {
         x: true,
         y: false,
         rotation: false,
     };
-    let (_, doc) = typed_edit(
-        &mut engine,
-        &doc,
-        EditOperation::AddAnchoredMatrix {
-            id: "thumb".into(),
-            anchor,
-        },
-    );
-    // The completed candidate turns the (0,-19) relative origin by the mean
-    // 45-degree heading: x = 19 + 19*sin(45). Follow keeps only X, so the
-    // unfollowed Y and rotation read world zero — the same shape as the
-    // upstream partial-x-only observation (14.330127,0,0).
-    let expected = 19.0 + 19.0 * std::f64::consts::FRAC_1_SQRT_2;
-    let actual = at(&doc, &member("thumb", 0, 0));
+    let thumb = Matrix {
+        id: "thumb".into(),
+        name: None,
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2 { x: 5.0, y: 0.0 },
+        definition_id: "switch".into(),
+        part_ids: vec![],
+        board_id: Some("board".into()),
+        mirror: None,
+        rotation: Some(10.0),
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: Some(anchor),
+        cells: vec![],
+    };
+    let mut doc = typed_doc(main, vec![thumb], vec!["main", "thumb"]);
+    // The second part pose must match its cell geometry exactly, like
+    // materialized production parts do.
+    doc.parts
+        .iter_mut()
+        .find(|part| part.id == member("main", 0, 1))
+        .unwrap()
+        .pose = Pose2 {
+        at: Vec2 { x: 20.0, y: 40.0 },
+        rotation: 60.0,
+    };
+    let (_, scene, _) = typed_open(doc);
+    let cell = scene
+        .matrix_scenes
+        .iter()
+        .find(|scene| scene.matrix_id == "thumb")
+        .expect("thumb scene")
+        .cells
+        .first()
+        .expect("thumb cell");
+    // The golden literal is upstream-observed, so the x comparison uses the
+    // upstream 1e-6 precedent (spec §10); unfollowed Y and rotation are
+    // exact world zeros from follow filtering, not computed values.
     assert!(
-        (actual.x - expected).abs() < 1e-9,
-        "expected x {expected}, got {}",
-        actual.x
+        (cell.pose.at.x - 14.330127).abs() < 1e-6,
+        "expected upstream golden x 14.330127, got {}",
+        cell.pose.at.x
     );
-    assert_eq!(actual.y, 0.0);
-    assert_eq!(rotation_of(&doc, &member("thumb", 0, 0)), 0.0);
+    assert_eq!(cell.pose.at.y, 0.0);
+    assert_eq!(cell.pose.rotation, 0.0);
 }
 
 #[test]

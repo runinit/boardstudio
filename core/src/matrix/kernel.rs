@@ -406,9 +406,10 @@ pub fn aggregate_intersection(first: Pose2, second: Pose2) -> Result<Pose2, &'st
     let d1 = heading(first);
     let d2 = heading(second);
     let denom = d1.x * d2.y - d1.y * d2.x;
-    // Same guard scale as the frame solver's determinant check in
-    // `evaluation::origin_delta`: exact parallels hit exactly zero.
-    if denom.abs() < 1e-12 {
+    // BoardStudio-only refusal threshold per spec §10 (1e-6 compares upstream
+    // poses, 1e-9 guards BoardStudio-only numerics): headings closer than
+    // ~1e-9 rad meet so far away that the crossing is not a usable anchor.
+    if denom.abs() < 1e-9 {
         return Err("aggregate anchor parts do not intersect");
     }
     let dx = second.at.x - first.at.x;
@@ -821,5 +822,16 @@ mod tests {
         assert!(aggregate_intersection(pose(0.0, 0.0, 0.0), pose(5.0, 0.0, 0.0)).is_err());
         // Upstream `o`/`o_five`: coincident axes also refuse upstream.
         assert!(aggregate_intersection(pose(0.0, 0.0, 0.0), pose(0.0, 5.0, 0.0)).is_err());
+    }
+
+    #[test]
+    fn aggregate_intersection_near_parallel_guard_uses_local_tolerance() {
+        // BoardStudio-only guard per spec §10 (1e-9): headings ~1e-10 rad
+        // apart meet absurdly far away, so they refuse like parallels.
+        assert!(aggregate_intersection(pose(0.0, 0.0, 0.0), pose(5.0, 0.0, 1e-8)).is_err());
+        // Headings ~1e-8 rad apart still resolve: the crossing is finite.
+        let crossing = aggregate_intersection(pose(0.0, 0.0, 0.0), pose(5.0, 0.0, 1e-6)).unwrap();
+        assert!(crossing.at.x.is_finite() && crossing.at.y.is_finite());
+        assert_eq!(crossing.rotation, 0.0);
     }
 }
