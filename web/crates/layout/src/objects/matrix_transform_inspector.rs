@@ -3,7 +3,7 @@ use crate::matrix_transform_operation::{
     MatrixTransformField, MatrixTransformFields, MatrixTransformValue, column_angle,
 };
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{Follow, MatrixAnchor, MatrixSplayAffect, Mirror, Vec2};
+use boardstudio_core::model::{AggregateMethod, Follow, MatrixAnchor, MatrixSplayAffect, Mirror, Vec2};
 use boardstudio_web_ui_shared::controls::{
     BoardButton, BoardCheckbox, BoardDisclosure, BoardNumberField, BoardSelectField,
 };
@@ -170,8 +170,18 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                 }
                 h3 { class: "m1-matrix-subtitle", "Anchor" }
                 if let Some(anchor) = anchor {
-                    p { class: "m1-matrix-anchor-target",
-                        "Anchored to {anchor.matrix_id} · row {anchor.row} · column {anchor.column}"
+                    if anchor.aggregate.is_some() {
+                        AggregateAnchorSection {
+                            owner: owner.clone(), snapshot_token, revision,
+                            anchor: anchor.clone(),
+                            request_sequence, editable: props.mount.editable,
+                            feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+                            on_navigate_anchor_part: props.on_navigate_anchor_part,
+                        }
+                    } else {
+                        p { class: "m1-matrix-anchor-target",
+                            "Anchored to {anchor.matrix_id} · row {anchor.row} · column {anchor.column}"
+                        }
                     }
                     p { class: "m1-matrix-anchor-follow", "{follows_label(&anchor.follow)}" }
                     FollowTransformField {
@@ -187,11 +197,13 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         confirm_pending: props.mount.one_shot_disabled(MatrixTransformField::MatrixDetachConfirm),
                         feedback: props.mount.feedback.clone(), splay_affect, on_edit,
                     }
-                    PickAnchorButton {
-                        editable: props.mount.editable,
-                        pending: props.anchor_pick_pending,
-                        on_pick_anchor: props.on_pick_anchor,
-                        on_cancel_anchor_pick: props.on_cancel_anchor_pick,
+                    if anchor.aggregate.is_none() {
+                        PickAnchorButton {
+                            editable: props.mount.editable,
+                            pending: props.anchor_pick_pending,
+                            on_pick_anchor: props.on_pick_anchor,
+                            on_cancel_anchor_pick: props.on_cancel_anchor_pick,
+                        }
                     }
                     if let Some(message) = props.mount.feedback.iter().rev().find(|item| {
                         item.owner == owner
@@ -1414,6 +1426,73 @@ fn PickAnchorButton(props: PickAnchorButtonProps) -> Element {
                 disabled: !props.editable,
                 onclick: move |_| props.on_pick_anchor.call(()),
                 "Pick anchor"
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct AggregateAnchorSectionProps {
+    owner: MatrixTransformInspectorOwner,
+    snapshot_token: SnapshotToken,
+    revision: u64,
+    anchor: MatrixAnchor,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    feedback: Vec<MatrixTransformFeedback>,
+    splay_affect: Signal<MatrixSplayAffect>,
+    on_edit: EventHandler<MatrixTransformRequest>,
+    on_navigate_anchor_part: EventHandler<TreeContext>,
+}
+
+/// The aggregate arm of the Anchor section: the Core-admitted method over N
+/// single-key parts, displayed from Core-published values only. Each part
+/// renders as a link that navigates to the part key without writing; the
+/// revision and history stay unchanged.
+#[component]
+fn AggregateAnchorSection(props: AggregateAnchorSectionProps) -> Element {
+    let Some(aggregate) = props.anchor.aggregate.as_ref() else {
+        return rsx! {};
+    };
+    let method = match aggregate.method {
+        AggregateMethod::Average => "Average",
+        AggregateMethod::Intersect => "Intersection",
+    };
+    let count = aggregate.parts.len();
+    let noun = if count == 1 { "key" } else { "keys" };
+    let parts: Vec<(TreeContext, String, String)> = aggregate
+        .parts
+        .iter()
+        .map(|part| {
+            (
+                TreeContext::Key {
+                    matrix_id: part.matrix_id.clone(),
+                    row: part.row,
+                    column: part.column,
+                },
+                format!("{} · row {} · column {}", part.matrix_id, part.row, part.column),
+                format!("{}-{}-{}", part.matrix_id, part.row, part.column),
+            )
+        })
+        .collect();
+    rsx! {
+        p { class: "m1-matrix-anchor-target",
+            "{method} of {count} {noun}"
+        }
+        ul { class: "m1-matrix-anchor-parts",
+            for (context, label, key) in parts.iter() {
+                li { key: "{key}",
+                    button {
+                        r#type: "button",
+                        class: "m1-inspector-secondary m1-matrix-anchor-part",
+                        onclick: {
+                            let context = context.clone();
+                            let on_navigate = props.on_navigate_anchor_part;
+                            move |_| on_navigate.call(context.clone())
+                        },
+                        "{label}"
+                    }
+                }
             }
         }
     }
