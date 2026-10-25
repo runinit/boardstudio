@@ -64,6 +64,9 @@ pub(crate) fn validate(doc: &ProjectDoc) -> Result<(), String> {
             if link.split_gap.is_some_and(|gap| !gap.is_finite()) {
                 return Err("Split gap must be finite".into());
             }
+            if link.spacing.is_some_and(|spacing| !spacing.is_finite()) {
+                return Err("Split spacing must be finite".into());
+            }
             validate_link(doc, source, layout, link)?;
         }
     }
@@ -375,15 +378,15 @@ fn gap_from_origin(axis_x: f64, origin_x: f64, pitch_x: f64, edge_gap: Option<Ve
     2.0 * (axis_x - origin_x) - (pitch_x - edge)
 }
 
-/// The link, axis, stored gap and side of the pair a matrix belongs to: `true`
-/// when the matrix lives on the mirror layout. Record-absent mirror members
-/// resolve through their correspondence.
-fn pair_frame(doc: &ProjectDoc, matrix_id: &str) -> Option<(f64, Option<f64>, bool)> {
+/// The link, axis, stored gap, current spacing and side of the pair a matrix
+/// belongs to: `true` when the matrix lives on the mirror layout.
+/// Record-absent mirror members resolve through their correspondence.
+fn pair_frame(doc: &ProjectDoc, matrix_id: &str) -> Option<(f64, Option<f64>, Option<f64>, bool)> {
     for layout in &doc.layouts {
         if let Some(link) = layout.mirror_link.as_ref()
             && layout.matrix_ids.iter().any(|id| id == matrix_id)
         {
-            return Some((link.axis_x, link.split_gap, true));
+            return Some((link.axis_x, link.split_gap, link.spacing, true));
         }
     }
     for layout in &doc.layouts {
@@ -395,7 +398,7 @@ fn pair_frame(doc: &ProjectDoc, matrix_id: &str) -> Option<(f64, Option<f64>, bo
             .iter()
             .filter_map(|other| other.mirror_link.as_ref())
             .find(|link| link.source_id == layout.id)?;
-        return Some((link.axis_x, link.split_gap, false));
+        return Some((link.axis_x, link.split_gap, link.spacing, false));
     }
     for layout in &doc.layouts {
         if let Some(link) = layout.mirror_link.as_ref()
@@ -403,7 +406,7 @@ fn pair_frame(doc: &ProjectDoc, matrix_id: &str) -> Option<(f64, Option<f64>, bo
                 record.kind == MirroredItemKind::Matrix && record.mirror_id == matrix_id
             })
         {
-            return Some((link.axis_x, link.split_gap, true));
+            return Some((link.axis_x, link.split_gap, link.spacing, true));
         }
     }
     None
@@ -411,15 +414,17 @@ fn pair_frame(doc: &ProjectDoc, matrix_id: &str) -> Option<(f64, Option<f64>, bo
 
 /// The stored Split gap of the pair a matrix belongs to, if the pair has one.
 pub(crate) fn pair_gap(doc: &ProjectDoc, matrix_id: &str) -> Option<f64> {
-    pair_frame(doc, matrix_id).and_then(|(_, gap, _)| gap)
+    pair_frame(doc, matrix_id).and_then(|(_, gap, _, _)| gap)
 }
 
 /// Board-space position of the half frame a matrix is placed in: the split
-/// axis offset by half the stored gap. `None` for unlinked matrices and legacy
-/// pairs without a stored gap, whose origins stay board-coordinate.
+/// axis offset by half the current spacing (the adapted `max(stored gap,
+/// minimum)`, or the stored gap before the first adaptive pass). `None` for
+/// unlinked matrices and legacy pairs without a stored gap, whose origins
+/// stay board-coordinate.
 pub(crate) fn half_offset(doc: &ProjectDoc, matrix_id: &str) -> Option<Vec2> {
-    let (axis_x, gap, mirror_side) = pair_frame(doc, matrix_id)?;
-    let gap = gap?;
+    let (axis_x, gap, spacing, mirror_side) = pair_frame(doc, matrix_id)?;
+    let gap = spacing.or(gap)?;
     Some(Vec2 {
         x: if mirror_side {
             axis_x + gap / 2.0
@@ -619,6 +624,464 @@ pub(crate) fn set_pair_gap(
         }
     }
     Ok(carriers)
+}
+
+/// Ticket 10: outline margin (mm) used for the adaptive minimum when the
+/// pair's board carries no PartEnvelope outline feature. Matches the
+/// prototype's clearance feel; recorded in ADR-0036.
+pub(crate) const DEFAULT_SPACING_MARGIN_MM: f64 = 3.0;
+/// Deficits at or below this (mm) count as clear.
+const SPACING_EPSILON: f64 = 1e-9;
+/// Backstop for the minimum search; the rigid-halves case converges in one step.
+const MAX_SPACING_PASSES: usize = 50;
+
+/// Ticket 10: bring every stored-gap pair's current spacing to
+/// `max(stored gap, minimum)` after a committed edit. The stored gap is never
+/// rewritten here; narrowing back stops at the stored floor. Adoptable legacy
+/// pairs adopt first (pose-preserving, like the matrix-edit tail), but stay
+/// unspaced until spacing is needed: a pair that already carries a stored gap
+/// re-spaces on every edit, while a newly adopted pair only gains a spacing
+/// when its envelopes touch. Fully anchored pairs stay legacy: with no
+/// unanchored matrix there is no implied gap to adopt. `accepted` is the
+/// pre-edit document: only pairs already gapped there follow the full rule.
+/// Returns the ids whose spacing changed.
+pub(crate) fn adapt_spacing(
+    doc: &mut ProjectDoc,
+    accepted: &ProjectDoc,
+) -> Result<Vec<String>, String> {
+    let pre_gapped: BTreeSet<String> = accepted
+        .layouts
+        .iter()
+        .filter_map(|layout| {
+            layout
+                .mirror_link
+                .as_ref()
+                .and_then(|link| link.split_gap.map(|_| layout.id.clone()))
+        })
+        .collect();
+    let mut changed = adopt_half_frames(doc)?;
+    let pairs: Vec<(String, String, f64, f64)> = doc
+        .layouts
+        .iter()
+        .filter_map(|layout| {
+            let link = layout.mirror_link.as_ref()?;
+            let floor = link.split_gap?;
+            Some((
+                link.source_id.clone(),
+                layout.id.clone(),
+                link.axis_x,
+                floor,
+            ))
+        })
+        .collect();
+    for (source_id, target_id, axis_x, floor) in pairs {
+        // Newly adopted pairs keep their placement until their envelopes
+        // touch; stored-gap pairs follow the minimum on every edit.
+        if !pre_gapped.contains(&target_id) {
+            let source_left = source_is_left(doc, &source_id, &target_id)?;
+            let touching = envelope_clear(doc, &source_id, &target_id, axis_x, source_left)?
+                .is_some_and(|clear| clear <= SPACING_EPSILON);
+            if !touching {
+                continue;
+            }
+        }
+        let board_id = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.id == target_id)
+            .map(|layout| layout.board_id.clone())
+            .ok_or("Linked layout is missing")?;
+        let margin = spacing_margin(doc, &board_id);
+        let current = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.id == target_id)
+            .and_then(|layout| layout.mirror_link.as_ref())
+            .and_then(|link| link.spacing)
+            .unwrap_or(floor);
+        let Some(minimum) = minimum_gap(doc, &source_id, &target_id, axis_x, margin)? else {
+            continue;
+        };
+        let next_gap = floor.max(minimum);
+        if next_gap != current {
+            if let Some(layout) = doc.layouts.iter_mut().find(|layout| layout.id == target_id)
+                && let Some(link) = layout.mirror_link.as_mut()
+            {
+                link.spacing = Some(next_gap);
+            }
+            changed.extend(pair_member_ids(doc, &source_id, &target_id));
+        }
+    }
+    changed.sort();
+    changed.dedup();
+    Ok(changed)
+}
+
+/// The clearance basis for one pair's board: the widest PartEnvelope margin on
+/// that board, or the default when the board carries no envelope feature.
+fn spacing_margin(doc: &ProjectDoc, board_id: &str) -> f64 {
+    let owned: BTreeSet<&str> = doc
+        .boards
+        .iter()
+        .find(|board| board.id == board_id)
+        .map(|board| board.outline_ids.iter().map(String::as_str).collect())
+        .unwrap_or_default();
+    doc.outline
+        .iter()
+        .filter_map(|feature| match feature {
+            OutlineFeature::PartEnvelope { id, margin, .. }
+                if owned.contains(id.as_str()) && margin.is_finite() && *margin >= 0.0 =>
+            {
+                Some(*margin)
+            }
+            _ => None,
+        })
+        .fold(None, |widest: Option<f64>, margin| {
+            Some(widest.map_or(margin, |known| known.max(margin)))
+        })
+        .unwrap_or(DEFAULT_SPACING_MARGIN_MM)
+}
+
+/// Layouts, matrices and member parts of one pair, for the changed-id report.
+fn pair_member_ids(doc: &ProjectDoc, source_id: &str, target_id: &str) -> Vec<String> {
+    let mut ids = vec![source_id.to_string(), target_id.to_string()];
+    for layout_id in [source_id, target_id] {
+        if let Some(layout) = doc.layouts.iter().find(|layout| layout.id == layout_id) {
+            for matrix_id in &layout.matrix_ids {
+                ids.push(matrix_id.clone());
+                if let Some(matrix) = doc.matrices.iter().find(|matrix| matrix.id == *matrix_id) {
+                    ids.extend(matrix.part_ids.iter().cloned());
+                }
+            }
+        }
+    }
+    ids
+}
+
+/// Half-plane x extents of one half: every item's overall min/max plus a
+/// presence count for the deficit terms.
+#[derive(Clone, Copy)]
+struct HalfExtents {
+    min: f64,
+    max: f64,
+    center_count: usize,
+}
+
+impl HalfExtents {
+    fn add(&mut self, min: f64, max: f64) {
+        self.min = self.min.min(min);
+        self.max = self.max.max(max);
+        self.center_count += 1;
+    }
+}
+
+fn empty_half() -> HalfExtents {
+    HalfExtents {
+        min: f64::INFINITY,
+        max: f64::NEG_INFINITY,
+        center_count: 0,
+    }
+}
+
+/// Axis-aligned x half-width of a centered rect after a degrees rotation.
+fn rotated_half_width(size: Vec2, rotation_deg: f64) -> f64 {
+    let (sin, cos) = rotation_deg.to_radians().sin_cos();
+    (size.x / 2.0 * cos).abs() + (size.y / 2.0 * sin).abs()
+}
+
+/// Which layout-owned half sits left of the split axis at the current spacing.
+/// The mapping is decided once per adaptive pass and held fixed through the
+/// minimum search, so coincident halves at gap zero cannot flip sides
+/// mid-search. Falls back to the source-left convention when a half has no
+/// keys to compare.
+fn source_is_left(doc: &ProjectDoc, source_id: &str, target_id: &str) -> Result<bool, String> {
+    let mut means = Vec::new();
+    for layout_id in [source_id, target_id] {
+        let Some(layout) = doc.layouts.iter().find(|layout| layout.id == layout_id) else {
+            means.push(None);
+            continue;
+        };
+        let mut sum = 0.0;
+        let mut count = 0usize;
+        for matrix_id in &layout.matrix_ids {
+            let Some(matrix) = doc.matrices.iter().find(|matrix| matrix.id == *matrix_id) else {
+                continue;
+            };
+            let evaluated = matrix::evaluated(matrix, doc)?;
+            let members = matrix::cell_members(matrix);
+            for cell in &evaluated.cells {
+                if members.contains_key(&(cell.row as u32, cell.column as u32)) {
+                    sum += cell.pose.at.x;
+                    count += 1;
+                }
+            }
+        }
+        means.push((count > 0).then_some(sum / count as f64));
+    }
+    Ok(match (means[0], means[1]) {
+        (Some(source_mean), Some(mirror_mean)) => source_mean <= mirror_mean,
+        _ => true,
+    })
+}
+
+/// Left/right key-plus-part x extents of one pair at the evaluated geometry.
+/// Keys join their half by layout ownership; parts join by board position.
+/// The caller supplies the frozen ownership-to-side mapping.
+fn collect_sides(
+    doc: &ProjectDoc,
+    source_id: &str,
+    target_id: &str,
+    axis_x: f64,
+    source_left: bool,
+) -> Result<(HalfExtents, HalfExtents), String> {
+    let source = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == source_id)
+        .ok_or("Linked layout is missing")?;
+    let target = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == target_id)
+        .ok_or("Linked layout is missing")?;
+    let mut source_half = empty_half();
+    let mut mirror_half = empty_half();
+    let mut left_parts = empty_half();
+    let mut right_parts = empty_half();
+    for (layout, half) in [(source, &mut source_half), (target, &mut mirror_half)] {
+        for matrix_id in &layout.matrix_ids {
+            let Some(matrix) = doc.matrices.iter().find(|matrix| matrix.id == *matrix_id) else {
+                continue;
+            };
+            let evaluated = matrix::evaluated(matrix, doc)?;
+            let members = matrix::cell_members(matrix);
+            let edge = matrix.edge_gap.unwrap_or(Vec2 {
+                x: super::DEFAULT_EDGE_GAP_MM,
+                y: super::DEFAULT_EDGE_GAP_MM,
+            });
+            let size = Vec2 {
+                x: matrix.pitch.x - edge.x,
+                y: matrix.pitch.y - edge.y,
+            };
+            for cell in &evaluated.cells {
+                if !members.contains_key(&(cell.row as u32, cell.column as u32)) {
+                    continue;
+                }
+                let half_width = rotated_half_width(size, cell.pose.rotation);
+                half.add(cell.pose.at.x - half_width, cell.pose.at.x + half_width);
+            }
+        }
+    }
+    // Independent parts ride their own board positions until ticket 12 moves
+    // them into the half frame. Matrix members and their companions follow
+    // their keys through the envelope above. Only the pair's own layouts
+    // count: other layouts sharing the board keep their fixed placement and
+    // never pin the pair's spacing.
+    let mut members: BTreeSet<String> = BTreeSet::new();
+    for layout in [source, target] {
+        for matrix_id in &layout.matrix_ids {
+            if let Some(matrix) = doc.matrices.iter().find(|matrix| matrix.id == *matrix_id) {
+                members.extend(matrix::cell_members(matrix).values().cloned());
+            }
+        }
+    }
+    let pair_parts: BTreeSet<&str> = [source, target]
+        .iter()
+        .flat_map(|layout| layout.part_ids.iter().map(String::as_str))
+        .collect();
+    let definitions: BTreeMap<&str, &PartDefinition> = doc
+        .definitions
+        .iter()
+        .map(|definition| (definition.id.as_str(), definition))
+        .collect();
+    for part in &doc.parts {
+        if !pair_parts.contains(part.id.as_str()) {
+            continue;
+        }
+        if members.contains(part.id.as_str())
+            || part
+                .id
+                .rsplit_once('/')
+                .is_some_and(|(head, _)| members.contains(head))
+        {
+            continue;
+        }
+        let Some(definition) = definitions.get(part.definition_id.as_str()) else {
+            continue;
+        };
+        if definition.kind == PartKind::Utility {
+            continue;
+        }
+        let (min, max) = part_extents(part, definition);
+        if part.pose.at.x < axis_x {
+            left_parts.add(min, max);
+        } else {
+            right_parts.add(min, max);
+        }
+    }
+    // Keys join their half by layout ownership; parts join by board position.
+    // The caller freezes the ownership-to-side mapping before the minimum
+    // search, so coincident halves cannot flip sides mid-search.
+    let mut left = if source_left {
+        source_half
+    } else {
+        mirror_half
+    };
+    let mut right = if source_left {
+        mirror_half
+    } else {
+        source_half
+    };
+    // Merge the part extents into their axis side.
+    for (side, parts) in [(&mut left, left_parts), (&mut right, right_parts)] {
+        if parts.center_count > 0 {
+            side.min = side.min.min(parts.min);
+            side.max = side.max.max(parts.max);
+            side.center_count += parts.center_count;
+        }
+    }
+    Ok((left, right))
+}
+
+/// Key-envelope air between the halves at the evaluated geometry (`None`
+/// when a half has no keys or parts). Order-free: touching or overlapping
+/// reads zero or negative under either side mapping.
+fn envelope_clear(
+    doc: &ProjectDoc,
+    source_id: &str,
+    target_id: &str,
+    axis_x: f64,
+    source_left: bool,
+) -> Result<Option<f64>, String> {
+    let (left, right) = collect_sides(doc, source_id, target_id, axis_x, source_left)?;
+    if left.center_count == 0 || right.center_count == 0 {
+        return Ok(None);
+    }
+    Ok(Some(right.min - left.max))
+}
+
+/// The prototype ticket-10 deficit at one candidate gap: the largest of the
+/// envelope-clearance shortfall against `4 * margin` and each present half's
+/// margin overhang past the split axis. Zero or less means the outlines clear
+/// by `2 * margin` with each outline on its own side.
+fn envelope_deficit(
+    doc: &ProjectDoc,
+    source_id: &str,
+    target_id: &str,
+    axis_x: f64,
+    margin: f64,
+    source_left: bool,
+) -> Result<f64, String> {
+    let (left, right) = collect_sides(doc, source_id, target_id, axis_x, source_left)?;
+    let need = 4.0 * margin;
+    let mut deficit = f64::NEG_INFINITY;
+    if left.center_count > 0 && right.center_count > 0 {
+        deficit = deficit.max(need - (right.min - left.max));
+    }
+    if left.center_count > 0 {
+        deficit = deficit.max(2.0 * (left.max + margin - axis_x));
+    }
+    if right.center_count > 0 {
+        deficit = deficit.max(2.0 * (axis_x + margin - right.min));
+    }
+    if deficit == f64::NEG_INFINITY {
+        deficit = 0.0;
+    }
+    Ok(deficit)
+}
+
+/// Board-space x extents of one independent part: its courtyard, or its
+/// keycap size, or its bare pose when neither is available.
+fn part_extents(part: &Part, definition: &PartDefinition) -> (f64, f64) {
+    let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
+    let project = |point: Vec2| {
+        let x = if part.side == Side::Back {
+            -point.x
+        } else {
+            point.x
+        };
+        Vec2 {
+            x: part.pose.at.x + x * cos - point.y * sin,
+            y: part.pose.at.y + x * sin + point.y * cos,
+        }
+    };
+    if !definition.courtyard.is_empty() {
+        let mut min = f64::INFINITY;
+        let mut max = f64::NEG_INFINITY;
+        for point in &definition.courtyard {
+            let placed = project(*point);
+            min = min.min(placed.x);
+            max = max.max(placed.x);
+        }
+        return (min, max);
+    }
+    if let Some(size) = part.keycap.or(definition.keycap) {
+        let half_width = rotated_half_width(size, part.pose.rotation);
+        return (part.pose.at.x - half_width, part.pose.at.x + half_width);
+    }
+    (part.pose.at.x, part.pose.at.x)
+}
+
+/// The deficit with the pair evaluated at one candidate gap. Temporarily
+/// swaps the stored spacing, then restores it, so callers see no mutation.
+fn deficit_at(
+    doc: &mut ProjectDoc,
+    source_id: &str,
+    target_id: &str,
+    axis_x: f64,
+    margin: f64,
+    gap: f64,
+    source_left: bool,
+) -> Result<f64, String> {
+    let saved = {
+        let layout = doc
+            .layouts
+            .iter_mut()
+            .find(|layout| layout.id == target_id)
+            .ok_or("Linked layout is missing")?;
+        let link = layout
+            .mirror_link
+            .as_mut()
+            .ok_or("Layout has no mirror link")?;
+        link.spacing.replace(gap)
+    };
+    let result = envelope_deficit(doc, source_id, target_id, axis_x, margin, source_left);
+    if let Some(layout) = doc.layouts.iter_mut().find(|layout| layout.id == target_id)
+        && let Some(link) = layout.mirror_link.as_mut()
+    {
+        link.spacing = saved;
+    }
+    result
+}
+
+/// The smallest gap whose deficit clears (`None` when no gap clears: keys
+/// that span the axis or fixed parts pinning an extent cannot be separated by
+/// symmetric widening, so the caller keeps the current spacing instead of
+/// thrashing the halves). Key halves move rigidly with the gap, so the
+/// satisfiable case converges in one exact step; the search stops as soon as
+/// the deficit stalls or the pass budget runs out.
+fn minimum_gap(
+    doc: &mut ProjectDoc,
+    source_id: &str,
+    target_id: &str,
+    axis_x: f64,
+    margin: f64,
+) -> Result<Option<f64>, String> {
+    let source_left = source_is_left(doc, source_id, target_id)?;
+    let mut gap = 0.0;
+    let mut previous = f64::INFINITY;
+    for _ in 0..MAX_SPACING_PASSES {
+        let deficit = deficit_at(doc, source_id, target_id, axis_x, margin, gap, source_left)?;
+        if deficit <= SPACING_EPSILON {
+            return Ok(Some(gap));
+        }
+        if previous - deficit <= SPACING_EPSILON {
+            return Ok(None);
+        }
+        previous = deficit;
+        gap += deficit;
+    }
+    Ok(None)
 }
 
 /// A companion's offset and turn are relative to its part, so the reflection only flips their

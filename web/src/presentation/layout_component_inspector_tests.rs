@@ -96,6 +96,7 @@ fn fixture_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
             source_id: "source-layout".into(),
             axis_x: 0.0,
             split_gap: None,
+            spacing: None,
         }),
     });
     configure(&mut document);
@@ -1640,6 +1641,7 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                     source_id: "component-layout".into(),
                     axis_x: 0.0,
                     split_gap: None,
+                    spacing: None,
                 }),
             });
             document.matrices.clear();

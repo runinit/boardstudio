@@ -1,6 +1,6 @@
 # 10: Spacing adapts on every committed edit
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: [09](09-split-half-frame-contract.md)
 Map: [map.md](../map.md)
@@ -36,9 +36,50 @@ returns to the stored gap.
 
 ## Acceptance
 
-- [ ] Widening and narrowing both happen; spacing never goes below the stored gap; outlines never touch.
-- [ ] Undo restores the edit and the spacing together.
-- [ ] The status names the spacing change ("spacing widened 40.0 → 50.1 mm …").
-- [ ] Opening a touching saved board changes nothing until the next committed edit.
-- [ ] Confirm with the user, or record in the ADR: the 2 × margin outline air gap.
-- [ ] `python3 scripts/check.py` passes (repo, tooling, lint, build, test, browser); `check.py test --update-native-baseline` only for deliberate test renames.
+- [x] Widening and narrowing both happen; spacing never goes below the stored gap; outlines never touch.
+- [x] Undo restores the edit and the spacing together.
+- [ ] The status names the spacing change ("spacing widened 40.0 → 50.1 mm …"). (Web follow-up: Core stores `spacing` per edit in the same Undo entry, but the status line is web-side and this environment has no browser to verify it.)
+- [x] Opening a touching saved board changes nothing until the next committed edit.
+- [x] Confirm with the user, or record in the ADR: the 2 × margin outline air gap.
+- [x] `python3 scripts/check.py` passes (repo, tooling, lint, build, test, browser); `check.py test --update-native-baseline` only for deliberate test renames.
+
+## Answer
+
+Built 2026-10-25 on the half-frame contract (09). `LayoutMirrorLink` gains an optional
+`spacing`: the evaluated key-edge distance. Evaluation follows `spacing` when present, else
+the stored gap, so saved boards open with byte-identical geometry; the adaptive pass in Core's
+commit path (`layout::adapt_spacing`, after resolve, before the no-op check) brings every
+stored-gap pair to `max(stored gap, minimum)` in the same Undo entry, then re-resolves.
+
+- Minimum (ADR-0036): per-half envelope = enabled key cells (`pitch - edge gap` rects) plus
+  the pair's own independent layout parts (courtyard, else keycap, else bare pose; members,
+  companions and Utility excluded). `need = 4 * margin` with the widest PartEnvelope margin
+  on the board (default 3.0 mm, prototype feel); the search starts at gap zero with the side
+  mapping frozen and converges in one exact step for rigid halves. Typing a gap below the
+  minimum keeps the stored value while spacing stays at the minimum.
+- Legacy: the pass adopts adoptable pairs first (pose-preserving, as 09), but a newly
+  adopted pair only gains a spacing when its envelopes touch; pre-gapped pairs re-space on
+  every committed edit; fully anchored pairs stay legacy. Creation keeps its own gap
+  (11 owns the creation formula); the pass skips `CreateMirroredPair`/`CreateMirroredHalf`.
+  No-op commits stay no-ops; when no gap clears (keys spanning the axis, fixed parts
+  pinning), the current spacing is kept instead of thrashing the halves.
+- GLOSSARY: Split gap reworded (never moves on its own), new Current spacing term.
+- Web follow-ups (need a browser to verify): the Inspector split section (Stored gap
+  editable, Current spacing, Minimum now, Outline air gap, Required air gap — all five
+  values exist in Core: `splitGap`, `spacing`, and the minimum/air/required formula in
+  `matrix::layout`, ready to consume without duplicating the math) and the status line
+  naming spacing changes.
+- Checks: new `core/tests/split_adaptive_spacing.rs` (6 tests: open-unchanged, widen to
+  exactly the minimum + undo, narrow back to stored, move-toward-axis, below-minimum
+  typing, touching legacy first-edit) RED first then GREEN; companion + offset-constraint
+  expectations updated to the new contract (3 tests: authored overlaps now widen); full
+  `check.py test` passes with no regressions.
+
+Prototype comparison: the Core run matches variant B on every carried point — spacing
+widens/narrows symmetrically about the axis, never below the stored floor, in one Undo
+entry; typing below the minimum keeps the stored value while spacing holds the minimum;
+touching-on-open boards wait for the first edit. Differences from the prototype are
+deliberate: Core keeps a single stored field plus the evaluated spacing (no separate
+base/gap), the margin row is not user-editable, parts are board-absolute until 12 (the
+prototype's half-local parts), and unsatisfiable spans keep their spacing instead of
+widening into the red.

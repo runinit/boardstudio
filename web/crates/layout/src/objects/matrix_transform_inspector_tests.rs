@@ -503,6 +503,7 @@ fn linked_detach_fixture() -> (ProjectDoc, TreeContext) {
             source_id: "layout".into(),
             axis_x: 10.0,
             split_gap: None,
+            spacing: None,
             correspondences: vec![
                 MirroredCorrespondence {
                     companion_mode: None,

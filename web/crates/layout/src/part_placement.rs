@@ -3811,6 +3811,7 @@ mod tests {
                     source_id: "layout-source".into(),
                     axis_x: 0.0,
                     split_gap: None,
+                    spacing: None,
                 }),
             },
         ];

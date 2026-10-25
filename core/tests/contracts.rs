@@ -62,6 +62,7 @@ fn boxed_public_payloads_keep_their_existing_json_shape() {
                 source_id: "left".into(),
                 axis_x: 0.0,
                 split_gap: None,
+                spacing: None,
             }),
         },
         matrix: Box::new(Matrix {

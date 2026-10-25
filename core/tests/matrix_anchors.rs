@@ -607,6 +607,7 @@ fn linked_anchored_fixture() -> (CoreEngine, ProjectDoc) {
             source_id: "layout".into(),
             axis_x: 10.0,
             split_gap: None,
+            spacing: None,
             correspondences: vec![
                 MirroredCorrespondence {
                     companion_mode: None,
@@ -945,6 +946,7 @@ fn adding_to_a_linked_layout_is_refused_until_ticket_20() {
                     source_id: "left-layout".into(),
                     axis_x: 10.0,
                     split_gap: None,
+                    spacing: None,
                     correspondences: vec![],
                     exceptions: vec![],
                 }),

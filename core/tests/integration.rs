@@ -131,3 +131,6 @@ mod matrix_aggregate_reflection;
 
 #[path = "split_half_frame.rs"]
 mod split_half_frame;
+
+#[path = "split_adaptive_spacing.rs"]
+mod split_adaptive_spacing;

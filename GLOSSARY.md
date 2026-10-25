@@ -352,8 +352,12 @@ companion moves with its key.
 _Avoid_: attach constraint (an attached companion is one that follows its key)
 
 **Split gap**:
-The stored editable distance between the two halves of a split board, measured key-edge to key-edge. It defaults from projected key envelopes at creation and widens symmetrically around the split axis when a placed part needs the space.
+The stored editable distance between the two halves of a split board, measured key-edge to key-edge. It defaults from projected key envelopes at creation and never moves on its own: the adaptive pass widens the Current spacing around it instead, and narrowing back stops at the stored floor.
 _Avoid_: spacing (when the stored half distance is meant)
+
+**Current spacing**:
+The evaluated key-edge distance between the two halves. It never goes below the Split gap: it widens when the halves need the space and narrows back toward the stored floor.
+_Avoid_: Split gap (when the evaluated half distance is meant)
 
 **Half frame**:
 Each half's own placement frame for its matrices, positioned from the split axis by half the Split gap. A matrix origin on a stored-gap half is a within-half value; changing the gap moves both halves symmetrically without rewriting it.

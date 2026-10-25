@@ -223,6 +223,7 @@ fn anchored_mirrored_doc() -> ProjectDoc {
             source_id: "layout".into(),
             axis_x: 10.0,
             split_gap: None,
+            spacing: None,
             correspondences: vec![mirror_kind("main"), mirror_kind("thumb")],
             exceptions: vec![],
         }),

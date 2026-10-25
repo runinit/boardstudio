@@ -1159,6 +1159,13 @@ pub struct LayoutMirrorLink {
     /// first committed geometry edit adopts the half frame.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub split_gap: Option<f64>,
+    /// Current spacing: the evaluated key-edge distance, always
+    /// `max(split_gap, minimum)` once a committed edit has run the adaptive
+    /// pass. Absent until the first committed edit after the half frame is
+    /// adopted; while absent, evaluation follows `split_gap` exactly so saved
+    /// boards open with byte-identical geometry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spacing: Option<f64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub correspondences: Vec<MirroredCorrespondence>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

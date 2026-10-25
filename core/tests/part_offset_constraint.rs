@@ -732,6 +732,7 @@ fn mirrored_pair_with_held_left_component(
                     source_id: "left-layout".into(),
                     axis_x: 10.0,
                     split_gap: None,
+                    spacing: None,
                 }),
             ),
             matrix: Box::new(left),
@@ -794,10 +795,6 @@ fn dragging_the_mirrored_half_retunes_a_held_part_offset_in_its_own_key_frame() 
         y: requested.y,
     };
     let landed = part(&after, "left-part").pose.at;
-    assert!(
-        (landed.x - mirrored.x).abs() < 1e-9 && (landed.y - mirrored.y).abs() < 1e-9,
-        "left component at {landed:?}, expected the mirror {mirrored:?}"
-    );
     // The left component's world move, rotated into the left key's frame at 30 degrees:
     // (dx cos 30 + dy sin 30, -dx sin 30 + dy cos 30).
     let left_start = part(&before, "left-part").pose.at;
@@ -814,6 +811,14 @@ fn dragging_the_mirrored_half_retunes_a_held_part_offset_in_its_own_key_frame() 
         (offset.x - (1.0 + dx * c + dy * s)).abs() < 1e-9
             && (offset.y - (-4.0 - dx * s + dy * c)).abs() < 1e-9,
         "offset {offset:?} is not the mirrored drag in the key's axes"
+    );
+    // Ticket 10: the halves sit spaced, so the landed pose is the key plus the
+    // retuned offset. It coincided with the mirror of the request while the
+    // key stood at the origin.
+    assert!(
+        (landed.x - (left_key.at.x + offset.x * c - offset.y * s)).abs() < 1e-9
+            && (landed.y - (left_key.at.y + offset.x * s + offset.y * c)).abs() < 1e-9,
+        "left component at {landed:?}, expected the key plus {offset:?}"
     );
 }
 
@@ -842,17 +847,7 @@ fn dragging_the_mirrored_half_retunes_a_held_board_offset_on_the_board_axes() {
             }],
         },
     );
-    // Dragging the mirror 3 mm along +X moves the left component 3 mm along -X.
-    let left_start = part(&before, "left-part").pose.at;
     let landed = part(&after, "left-part").pose.at;
-    assert!(
-        (landed.x - (left_start.x - 3.0)).abs() < 1e-9 && (landed.y - left_start.y).abs() < 1e-9,
-        "left component at {landed:?}, expected {:?}",
-        Vec2 {
-            x: left_start.x - 3.0,
-            y: left_start.y
-        }
-    );
     let Some(Constraint::Offset { offset, .. }) = after
         .constraints
         .iter()
@@ -864,6 +859,14 @@ fn dragging_the_mirrored_half_retunes_a_held_board_offset_on_the_board_axes() {
     assert!(
         (offset.x - -2.0).abs() < 1e-9 && (offset.y - -4.0).abs() < 1e-9,
         "offset {offset:?} is not the mirrored drag on the board's axes"
+    );
+    // Ticket 10: the halves sit spaced, so the landed pose is the key plus the
+    // retuned offset. It moved 3 mm along -X only while the key stood at the
+    // origin.
+    assert!(
+        (landed.x - (left_key.at.x + offset.x)).abs() < 1e-9
+            && (landed.y - (left_key.at.y + offset.y)).abs() < 1e-9,
+        "left component at {landed:?}, expected the key plus {offset:?}"
     );
 }
 

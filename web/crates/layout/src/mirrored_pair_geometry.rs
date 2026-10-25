@@ -136,6 +136,7 @@ pub fn project_mirrored_pair(
             source_id: left_layout.id.clone(),
             axis_x: center.x,
             split_gap: None,
+            spacing: None,
         }),
     };
 

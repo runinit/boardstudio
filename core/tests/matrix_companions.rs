@@ -517,6 +517,7 @@ fn linked_halves_list_their_own_companions() {
                     source_id: "left-layout".into(),
                     axis_x: 10.0,
                     split_gap: None,
+                    spacing: None,
                 }),
             },
             matrix: Box::new(matrix),
@@ -579,10 +580,21 @@ fn linked_halves_list_their_own_companions() {
             definitions: None,
         },
     );
-    assert_eq!(pose(&carried, &source_diode).at, Vec2 { x: 12.0, y: 11.0 });
+    // Ticket 10: the authored placement overlaps the halves (key envelopes
+    // meet at clear -8 mm), so the committed edit widens spacing to the
+    // 20 mm minimum in the same Undo entry. The carried diode and the mirror
+    // key ride their halves: (-5, 2) + (8, 9), and the axis reflection.
+    let carried_gap = carried
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "right-layout")
+        .and_then(|layout| layout.mirror_link.as_ref())
+        .and_then(|link| link.spacing);
+    assert_eq!(carried_gap, Some(20.0));
+    assert_eq!(pose(&carried, &source_diode).at, Vec2 { x: 3.0, y: 11.0 });
     assert_eq!(
         pose(&carried, &member("right-matrix", 0, 0)).at,
-        Vec2 { x: 16.0, y: 2.0 }
+        Vec2 { x: 25.0, y: 2.0 }
     );
     assert!(
         carried

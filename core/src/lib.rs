@@ -612,8 +612,8 @@ impl CoreEngine {
                 },
             );
         }
-        let next;
-        let changed;
+        let mut next;
+        let mut changed;
         if prepared_route {
             let accepted_contours;
             let board_contours: &[BoardContours] =
@@ -711,6 +711,34 @@ impl CoreEngine {
             matrix::placement::validate_translation(&self.document.parts, &next, &command.operation)
         {
             return self.error(id, &message);
+        }
+        // Ticket 10: every committed edit that changed the document re-runs the
+        // adaptive spacing pass. It runs after resolve so the minimum sees the
+        // final geometry, and before the no-op check so a genuine edit that
+        // only moves the halves still publishes. Skipped when the edit changed
+        // nothing, so no-op commits stay no-ops. Same Undo entry: the spacing
+        // lands in `next` before the undo snapshot is pushed. Creation owns
+        // its own gap (ticket 11); the pass never re-spaces a new pair.
+        if command.phase == EditPhase::Commit
+            && next != self.document
+            && !matches!(
+                command.operation,
+                EditOperation::CreateMirroredPair { .. } | EditOperation::CreateMirroredHalf { .. }
+            )
+        {
+            let accepted = self.document.clone();
+            let mut adapted = match layout::adapt_spacing(&mut next, &accepted) {
+                Ok(adapted) => adapted,
+                Err(message) => return self.error(id, &message),
+            };
+            if !adapted.is_empty() {
+                if let Err(message) = layout::resolve(&mut next) {
+                    return self.error(id, &message);
+                }
+                changed.append(&mut adapted);
+                changed.sort();
+                changed.dedup();
+            }
         }
         // Prepared edits can change document-level fields that have no entity ID. Use the
         // typed document as the no-op oracle rather than treating an empty changed-ID list as

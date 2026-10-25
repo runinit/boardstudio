@@ -207,6 +207,7 @@ fn linked_pair_fixture() -> (CoreEngine, ProjectDoc) {
             source_id: "layout".into(),
             axis_x: 10.0,
             split_gap: None,
+            spacing: None,
             correspondences: vec![MirroredCorrespondence {
                 companion_mode: None,
                 companion_tweak: None,

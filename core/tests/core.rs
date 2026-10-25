@@ -2718,6 +2718,7 @@ fn mirrored_pair_invalid_links_and_failed_previews_do_not_change_document() {
         source_id: "right-layout".into(),
         axis_x: 10.0,
         split_gap: None,
+        spacing: None,
     });
     assert!(matches!(
         engine.handle(edit(

@@ -122,6 +122,7 @@ pub(crate) fn prepare_existing_half(
                 source_id: source_layout.id,
                 axis_x,
                 split_gap: None,
+                spacing: None,
             }),
         });
     }

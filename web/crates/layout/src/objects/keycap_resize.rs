@@ -1430,6 +1430,7 @@ mod tests {
                 source_id: left.id.clone(),
                 axis_x: 0.0,
                 split_gap: None,
+                spacing: None,
             });
         let right_matrix_index = document
             .matrices

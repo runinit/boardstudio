@@ -405,6 +405,7 @@ fn split42_build(name: &str) -> Result<ProjectDoc, String> {
             source_id: "left".into(),
             axis_x: 0.0,
             split_gap: None,
+            spacing: None,
             correspondences,
             exceptions: Vec::new(),
         }),

@@ -3669,6 +3669,7 @@ mod tests {
                     source_id: "layout-left".into(),
                     axis_x: 50.0,
                     split_gap: None,
+                    spacing: None,
                     correspondences: vec![MirroredCorrespondence {
                         companion_mode: None,
                         companion_tweak: None,
