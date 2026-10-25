@@ -95,6 +95,8 @@ pub(super) struct InspectorInput {
     pub(super) on_pick_anchor: EventHandler<()>,
     pub(super) anchor_pick_pending: bool,
     pub(super) on_cancel_anchor_pick: EventHandler<()>,
+    /// Select an aggregate anchor part's key without writing.
+    pub(super) on_navigate_anchor_part: EventHandler<objects::TreeContext>,
     pub(super) inspector_tab: Signal<LayoutInspectorTab>,
     pub(super) matrix_relations: Option<boardstudio_web_layout::matrix_relations::MatrixRelations>,
     /// Resolves a Relations reference against the live accepted document at click time:
@@ -925,6 +927,10 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                     on_pick_anchor: input.on_pick_anchor,
                     anchor_pick_pending: input.anchor_pick_pending,
                     on_cancel_anchor_pick: input.on_cancel_anchor_pick,
+                    // Part links select the part key without writing; the
+                    // presentation-built handler guards currency the same way
+                    // Relations references do.
+                    on_navigate_anchor_part: input.on_navigate_anchor_part,
                 }
             }
             if let Some(projection) = input.outline_inspector {

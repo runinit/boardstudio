@@ -7994,6 +7994,30 @@ fn Editor() -> Element {
                 relation_scope: selected_tree_context
                     .as_ref()
                     .map(|selected| selected.scope.clone()),
+                on_navigate_anchor_part: {
+                    let runtime = runtime.clone();
+                    let scope = selected_tree_context
+                        .as_ref()
+                        .map(|selected| selected.scope.clone());
+                    let select = workspace_routing.select_tree;
+                    EventHandler::new(move |context: objects::TreeContext| {
+                        let Some(scope) = scope.clone() else {
+                            return;
+                        };
+                        let request = objects::TreeSelectRequest {
+                            scope,
+                            context,
+                            mode: boardstudio_application::SelectionMode::Replace,
+                            outline_action: None,
+                        };
+                        // A part key removed since the section was projected:
+                        // do nothing; the next accepted revision re-projects.
+                        let Some(request) = relation_target_request(&runtime, request) else {
+                            return;
+                        };
+                        select.call(request);
+                    })
+                },
                 on_select_context: workspace_routing.select_tree,
                 outline_inspector: outline_inspector.clone().map(Box::new),
                 findings_return_available: (layout_findings.return_target)().as_ref().is_some_and(

@@ -100,6 +100,9 @@ pub struct MatrixTransformInspectorProps {
     pub on_pick_anchor: EventHandler<()>,
     pub anchor_pick_pending: bool,
     pub on_cancel_anchor_pick: EventHandler<()>,
+    /// Navigate to an aggregate anchor part's key. The handler selects the
+    /// part key without writing, so the revision and history stay unchanged.
+    pub on_navigate_anchor_part: EventHandler<TreeContext>,
 }
 
 #[component]

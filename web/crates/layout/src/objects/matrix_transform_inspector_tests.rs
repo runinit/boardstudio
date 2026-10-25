@@ -6,9 +6,10 @@ use crate::runtime::Runtime;
 use crate::runtime::project_name_test_support as support;
 use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::{
-    Board, Follow, Layout, LayoutMirrorLink, Matrix, MatrixAnchor, MatrixAssembly, MatrixCell,
-    MirroredCorrespondence, MirroredException, MirroredExceptionState, MirroredItemKind, Part,
-    PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2,
+    AggregateAnchor, AggregateMethod, AnchorPart, Board, Follow, Layout, LayoutMirrorLink, Matrix,
+    MatrixAnchor, MatrixAssembly, MatrixCell, MirroredCorrespondence, MirroredException,
+    MirroredExceptionState, MirroredItemKind, Part, PartDefinition, PartKind, Pose2, ProjectDoc,
+    Side, Vec2,
 };
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use dioxus_web::WebEventExt;
@@ -33,6 +34,7 @@ struct Probe {
     adapter: Rc<RefCell<Option<crate::presentation::selection::SelectionAdapter>>>,
     mount: Rc<RefCell<Option<MatrixTransformInspectorMount>>>,
     render_count: Rc<Cell<u64>>,
+    navigated: Rc<RefCell<Vec<TreeContext>>>,
 }
 
 #[component]
@@ -142,6 +144,12 @@ fn matrix_transform_host() -> Element {
                 on_pick_anchor: |_| {},
                 anchor_pick_pending: false,
                 on_cancel_anchor_pick: |_| {},
+                on_navigate_anchor_part: EventHandler::new(move |context: TreeContext| {
+                    probe
+                        .navigated
+                        .borrow_mut()
+                        .push(context);
+                }),
             }
         }
     }
@@ -634,6 +642,7 @@ async fn mount_selection_probe_with_canvas(
         adapter: Rc::default(),
         mount: Rc::default(),
         render_count: Rc::default(),
+        navigated: Rc::default(),
     };
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
@@ -3573,6 +3582,158 @@ async fn key_selection_adds_an_anchored_matrix_with_one_undo() {
             .iter()
             .all(|matrix| matrix.id == "matrix"),
         "one Undo removes the added matrix"
+    );
+    root.remove();
+}
+
+/// Ticket 32 slice, RED: a 1x1 matrix with an average aggregate anchor over
+/// two earlier-matrix keys. Both parts join one Layout, which anchor
+/// validation requires; the dependant follows the parts' mean.
+fn aggregate_anchor_fixture() -> (ProjectDoc, TreeContext) {
+    let (mut document, _) = two_key_fixture(false);
+    document.layouts.push(Layout {
+        id: "layout".into(),
+        name: "Main".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["matrix".into(), "matrix-b".into()],
+        part_ids: vec![],
+        mirror_link: None,
+    });
+    let key_id = "matrix/matrix-b/r0c0";
+    document.boards[0].part_ids.push(key_id.into());
+    document.parts.push(Part {
+        keycap: None,
+        outline: None,
+        id: key_id.into(),
+        definition_id: "key-definition".into(),
+        reference: "K3".into(),
+        pose: Pose2 {
+            at: Vec2 { x: 60.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: Some(false),
+        properties: None,
+        generator_parameters: None,
+    });
+    document.matrices.push(Matrix {
+        id: "matrix-b".into(),
+        name: Some("Aggregated".into()),
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "key-definition".into(),
+        part_ids: vec![key_id.into()],
+        board_id: Some("board".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: Some(MatrixAnchor {
+            matrix_id: String::new(),
+            row: 0,
+            column: 0,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            },
+            aggregate: Some(AggregateAnchor {
+                method: AggregateMethod::Average,
+                parts: vec![
+                    AnchorPart {
+                        matrix_id: "matrix".into(),
+                        row: 0,
+                        column: 0,
+                    },
+                    AnchorPart {
+                        matrix_id: "matrix".into(),
+                        row: 0,
+                        column: 1,
+                    },
+                ],
+            }),
+        }),
+        cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
+            deleted: false,
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: Some("key-definition".into()),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        }],
+    });
+    (
+        document,
+        TreeContext::Matrix {
+            matrix_id: "matrix-b".into(),
+        },
+    )
+}
+
+/// Ticket 32 slice, RED: opening the Anchor section of an average-anchored
+/// matrix lists its two part links, and activating a part link navigates to
+/// the part key with the revision unchanged and no Undo entry.
+#[wasm_bindgen_test]
+async fn aggregate_anchor_section_lists_part_links_that_navigate_without_writing() {
+    let (document, context) = aggregate_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-parts-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let links = root.query_selector_all(".m1-matrix-anchor-part").unwrap();
+    assert_eq!(
+        links.length(),
+        2,
+        "the Anchor section lists one link per aggregate part"
+    );
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    links
+        .item(0)
+        .expect("the first part link exists")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        probe.navigated.borrow().as_slice(),
+        &[TreeContext::Key {
+            matrix_id: "matrix".into(),
+            row: 0,
+            column: 0,
+        }],
+        "activating a part link navigates to the part key"
+    );
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .revision,
+        revision_before,
+        "navigation writes nothing: no new revision, no Undo entry"
     );
     root.remove();
 }
