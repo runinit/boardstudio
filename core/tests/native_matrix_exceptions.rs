@@ -807,6 +807,213 @@ fn native_source_removal_retires_omitted_without_resurrection() {
     assert_eq!(snapshot(&mut engine), redone);
 }
 
+fn set_part_exception(
+    engine: &mut CoreEngine,
+    before: &Value,
+    id: &str,
+    mirror_id: &str,
+    state: &str,
+) -> Value {
+    commit(
+        engine,
+        before,
+        id,
+        json!({"kind":"set-half-exception","pairId":PAIR_ID,
+            "itemKind":"part","mirrorId":mirror_id,"state":state}),
+        &[mirror_id],
+    )
+}
+
+fn shrunk_to_two(document: &Value) -> Value {
+    // Dense shrink payload back to two columns.
+    let mut shrunk = matrix(document, SOURCE_MATRIX).clone();
+    shrunk["columns"] = json!(2);
+    let kept: Vec<Value> = shrunk["cells"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|cell| cell["column"].as_u64().unwrap() < 2)
+        .cloned()
+        .collect();
+    shrunk["cells"] = Value::Array(kept);
+    shrunk
+}
+
+#[test]
+fn native_local_key_flip_to_omitted_returns_to_shared_pose() {
+    // Ticket 29 slice B5 (mirrors ticket 21's key flip natively): an explicit
+    // Local key flipped to Omitted is suppressed, and flipping back to Linked
+    // materializes it again at the shared projected pose.
+    let (mut engine, before) = accepted_pair(PAIR_ID);
+    let key = "matrix/right-synthetic-keys/r0c0";
+    let source_key = "matrix/left-synthetic-keys/r0c0";
+    let shared_pose = part(&before, key)["pose"].clone();
+    let made_local = set_part_exception(&mut engine, &before, "native-key-local", key, "local");
+    assert_eq!(made_local["kind"], "scene", "{made_local}");
+    let omitted = set_part_exception(
+        &mut engine,
+        &made_local["document"],
+        "native-key-omitted",
+        key,
+        "omitted",
+    );
+    assert_eq!(omitted["kind"], "scene", "{omitted}");
+    let omitted_doc = omitted["document"].clone();
+    assert!(find_part(&omitted_doc, key).is_none());
+    let relinked = set_part_exception(
+        &mut engine,
+        &omitted_doc,
+        "native-key-relinked",
+        key,
+        "linked",
+    );
+    assert_eq!(relinked["kind"], "scene", "{relinked}");
+    let after = &relinked["document"];
+    assert_eq!(part(after, key)["pose"], shared_pose);
+    assert_eq!(
+        part(after, key)["pose"]["at"]["x"],
+        json!(200.0 - part(after, source_key)["pose"]["at"]["x"].as_f64().unwrap())
+    );
+    assert!(part_exception(after, key).is_none());
+}
+
+#[test]
+fn native_explicit_child_survives_omitted_rejoin() {
+    // Ticket 29 slice B5: an explicit Omitted child stays suppressed across
+    // a whole-matrix Omit and Rejoin while its siblings come back.
+    let (mut engine, before) = accepted_pair(PAIR_ID);
+    let key = "matrix/right-synthetic-keys/r0c0";
+    let keyed = set_part_exception(&mut engine, &before, "native-child-omit", key, "omitted");
+    assert_eq!(keyed["kind"], "scene", "{keyed}");
+    let omitted_doc = make_omitted(&mut engine, &keyed["document"]);
+    let rejoined = commit(
+        &mut engine,
+        &omitted_doc,
+        "native-rejoin-explicit",
+        json!({"kind":"set-half-exception","pairId":PAIR_ID,
+            "itemKind":"matrix","mirrorId":MIRROR_MATRIX,"state":"linked"}),
+        &[MIRROR_MATRIX],
+    );
+    assert_eq!(rejoined["kind"], "scene", "{rejoined}");
+    let after = &rejoined["document"];
+    assert!(matrix_exception(after).is_none());
+    assert!(find_part(after, key).is_none(), "explicit child stays suppressed");
+    assert!(part_exception(after, key).is_some(), "explicit child keeps its exception");
+    for key in ["r0c1", "r1c0", "r1c1"] {
+        assert!(
+            find_part(after, &format!("matrix/{MIRROR_MATRIX}/{key}")).is_some(),
+            "sibling {key} materializes"
+        );
+    }
+}
+
+#[test]
+fn native_omitted_mirror_edits_refuse_with_rejoin_guidance() {
+    // Ticket 29 slice B5: direct edits to an Omitted (absent) mirror refuse
+    // with Rejoin guidance instead of a bare missing-matrix error.
+    let (mut engine, before) = accepted_pair(PAIR_ID);
+    let omitted_doc = make_omitted(&mut engine, &before);
+    let mut ghost = matrix(&omitted_doc, SOURCE_MATRIX).clone();
+    ghost["id"] = json!(MIRROR_MATRIX);
+    let refused = try_commit(
+        &mut engine,
+        &omitted_doc,
+        "native-edit-absent",
+        json!({"kind":"set-matrix","matrix":ghost}),
+    );
+    assert_eq!(refused["kind"], "error", "{refused}");
+    assert!(
+        refused["message"].as_str().unwrap().to_lowercase().contains("rejoin"),
+        "refusal must name Rejoin: {refused}"
+    );
+    assert_eq!(snapshot(&mut engine), omitted_doc);
+}
+
+#[test]
+fn native_child_exception_on_absent_member_refuses() {
+    // Ticket 29 slice B5: excepting a member with no materialized mirror part
+    // is an invalid transition and refuses without changing anything.
+    let (mut engine, before) = accepted_pair(PAIR_ID);
+    let omitted_doc = make_omitted(&mut engine, &before);
+    let key = "matrix/right-synthetic-keys/r0c0";
+    let refused = try_commit(
+        &mut engine,
+        &omitted_doc,
+        "native-except-absent",
+        json!({"kind":"set-half-exception","pairId":PAIR_ID,
+            "itemKind":"part","mirrorId":key,"state":"local"}),
+    );
+    assert_eq!(refused["kind"], "error", "{refused}");
+    assert_eq!(snapshot(&mut engine), omitted_doc);
+}
+
+#[test]
+fn native_shrink_after_local_growth_keeps_mirror() {
+    // Ticket 29 slice B5 (second-operation hardening): members introduced
+    // under a Local mirror stay source-only, so a later shrink that removes
+    // them succeeds with the Local mirror byte-identical.
+    let (mut engine, before) = accepted_pair(PAIR_ID);
+    let local_doc = make_local(&mut engine, &before);
+    let mirror_before = matrix(&local_doc, MIRROR_MATRIX).clone();
+    let grown = commit(
+        &mut engine,
+        &local_doc,
+        "native-grow-then-shrink",
+        json!({"kind":"set-matrix","matrix":expanded_source(&local_doc)}),
+        &[],
+    );
+    assert_eq!(grown["kind"], "scene", "{grown}");
+    let shrunk = commit(
+        &mut engine,
+        &grown["document"],
+        "native-shrink-newcomers",
+        json!({"kind":"set-matrix","matrix":shrunk_to_two(&grown["document"])}),
+        &[],
+    );
+    assert_eq!(shrunk["kind"], "scene", "{shrunk}");
+    let after = &shrunk["document"];
+    assert_eq!(matrix(after, SOURCE_MATRIX)["columns"], json!(2));
+    assert_eq!(
+        matrix(after, MIRROR_MATRIX),
+        &mirror_before,
+        "Local mirror stays byte-identical across both operations"
+    );
+    assert!(
+        find_part(after, "matrix/left-synthetic-keys/r0c2").is_none(),
+        "newcomers are gone from the source"
+    );
+    assert_mirror_correspondences(after, "second shrink");
+}
+
+#[test]
+fn native_shrink_after_omitted_growth_stays_absent() {
+    // Ticket 29 slice B5: members introduced under an Omitted mirror stay
+    // source-only as well; removing them again succeeds with the mirror
+    // still absent and old links live.
+    let (mut engine, before) = accepted_pair(PAIR_ID);
+    let omitted_doc = make_omitted(&mut engine, &before);
+    let grown = commit(
+        &mut engine,
+        &omitted_doc,
+        "native-grow-omitted-then-shrink",
+        json!({"kind":"set-matrix","matrix":expanded_source(&omitted_doc)}),
+        &[],
+    );
+    assert_eq!(grown["kind"], "scene", "{grown}");
+    let shrunk = commit(
+        &mut engine,
+        &grown["document"],
+        "native-shrink-omitted-newcomers",
+        json!({"kind":"set-matrix","matrix":shrunk_to_two(&grown["document"])}),
+        &[],
+    );
+    assert_eq!(shrunk["kind"], "scene", "{shrunk}");
+    let after = &shrunk["document"];
+    assert_eq!(matrix(after, SOURCE_MATRIX)["columns"], json!(2));
+    assert_mirror_absent(after, "second shrink");
+    assert_live_correspondences(after, &[(0, 0), (0, 1), (1, 0), (1, 1)], "second shrink");
+}
+
 #[test]
 fn native_rejoin_missing_source_refuses_atomically() {
     // Ticket 29 slices B3/B4: Rejoin cannot adopt a removed source. The
