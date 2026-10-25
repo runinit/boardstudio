@@ -1,5 +1,4 @@
-//! Contextual Properties and Relations for one accepted standalone Layout part.
-use crate::presentation::layout_workspace::LayoutInspectorTab;
+//! Contextual Properties and Relationships for one accepted standalone Layout part.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{
     Constraint, ConstraintRelation, HalfExceptionState, MirrorAxis, OffsetAxes, PartOutline, Vec2,
@@ -283,7 +282,6 @@ pub enum LayoutComponentInspectorAction {
 #[derive(Props, Clone, PartialEq)]
 pub struct LayoutComponentInspectorProps {
     pub projection: LayoutComponentInspectorProjection,
-    pub inspector_tab: Signal<LayoutInspectorTab>,
     pub(in crate::presentation) pending_edits:
         Signal<super::super::layout_component_edits::LayoutComponentInspectorEdits>,
     pub(in crate::presentation) x: Signal<String>,
@@ -571,7 +569,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         let owner = owner.clone();
         move |_| latest_capture.set(owner.clone())
     }));
-    let mut tab = props.inspector_tab;
     let mut constraint_open = use_signal(|| projection.active_constraint.is_some());
     let mut x = props.x;
     let mut y = props.y;
@@ -786,76 +783,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             error.set(None);
         }
     }));
-    let reset_properties_drafts = {
-        let mut x = x;
-        let mut y = y;
-        let mut margin = margin;
-        let mut constraint_open = constraint_open;
-        let mut constraint_kind = constraint_kind;
-        let mut source_part_id = source_part_id;
-        let mut offset_axes = offset_axes;
-        let mut offset_x = offset_x;
-        let mut offset_y = offset_y;
-        let mut rotation = rotation;
-        let mut mirror_axis = mirror_axis;
-        let mut mirror_coordinate = mirror_coordinate;
-        let mut mirror_line_x = mirror_line_x;
-        let mut mirror_line_y = mirror_line_y;
-        let mut mirror_line_angle = mirror_line_angle;
-        let mut error = error;
-        let initial_margin = initial_outline.margin;
-        let initial_constraint = initial_constraint.clone();
-        let initial_drafts = drafts.clone();
-        move || {
-            x.set(format!("{:.2}", initial_position.x));
-            y.set(format!("{:.2}", initial_position.y));
-            margin.set(
-                initial_margin
-                    .map(|value| value.to_string())
-                    .unwrap_or_default(),
-            );
-            constraint_open.set(initial_constraint.is_some());
-            constraint_kind.set(match initial_constraint.as_ref() {
-                Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
-                Some(Constraint::Framed {
-                    relation: ConstraintRelation::MirrorLine { .. },
-                    ..
-                }) => ConstraintKind::MirrorLine,
-                _ => ConstraintKind::Offset,
-            });
-            let drafts = initial_drafts.clone();
-            source_part_id.set(drafts.source_part_id);
-            offset_axes.set(drafts.axes);
-            offset_x.set(drafts.offset_x);
-            offset_y.set(drafts.offset_y);
-            rotation.set(drafts.rotation);
-            match initial_constraint.as_ref() {
-                Some(Constraint::Mirror {
-                    axis, coordinate, ..
-                }) => {
-                    mirror_axis.set(axis.clone());
-                    mirror_coordinate.set(coordinate.to_string());
-                }
-                Some(Constraint::Framed {
-                    relation: ConstraintRelation::MirrorLine { at, angle },
-                    ..
-                }) => {
-                    mirror_line_x.set(at.x.to_string());
-                    mirror_line_y.set(at.y.to_string());
-                    mirror_line_angle.set(angle.to_string());
-                }
-                _ => {
-                    mirror_axis.set(MirrorAxis::Vertical);
-                    mirror_coordinate.set("0".to_owned());
-                    mirror_line_x.set("0".to_owned());
-                    mirror_line_y.set("0".to_owned());
-                    mirror_line_angle.set("90".to_owned());
-                }
-            }
-            error.set(None);
-        }
-    };
-
     pending.bind_field(
         super::super::layout_component_edits::InspectorField::X,
         x,
@@ -1147,11 +1074,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 h2 { "{projection.reference}" }
                 if projection.locked { span { class: "m1-inspector-lock", "Locked" } }
             }
-            div { role: "tablist", aria_label: "Inspector details", class: "m1-layout-component-tabs",
-                button { r#type: "button", role: "tab", aria_selected: "{tab() == LayoutInspectorTab::Properties}", onclick: { let mut reset = reset_properties_drafts; move |_| { if *tab.peek() != LayoutInspectorTab::Properties { reset(); } tab.set(LayoutInspectorTab::Properties); } }, "Properties" }
-                button { r#type: "button", role: "tab", aria_selected: "{tab() == LayoutInspectorTab::Relations}", onclick: move |_| tab.set(LayoutInspectorTab::Relations), "Relations" }
-            }
-            if tab() == LayoutInspectorTab::Properties {
+            {
                 if group_selection {
                     p { class: "m1-layout-component-selection-note", "{projection.selection_count} parts selected. Position edits apply to the selection." }
                 } else {
@@ -1390,11 +1313,11 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     let latest_capture = latest_capture; let action = props.on_action;
                     move |_| action.call(LayoutComponentInspectorAction::NavigateElectrical { owner: latest_capture() })
                 }, "Edit electrical connections" }
-            } else {
-                h2 { "Relationships" }
-                p { class: "m1-layout-component-relation-summary", "{projection.relationship_summary}" }
-                button { r#type: "button", onclick: move |_| tab.set(LayoutInspectorTab::Properties), "Go to Properties" }
-                p { class: "m1-layout-component-matrix-note", "Matrix rows and columns share pitch, stagger and splay. Edit those in Properties." }
+                section { class: "m1-layout-component-relationships", aria_labelledby: "m1-component-relationships-heading",
+                    h3 { id: "m1-component-relationships-heading", "Relationships" }
+                    p { class: "m1-layout-component-relation-summary", "{projection.relationship_summary}" }
+                    p { class: "m1-layout-component-matrix-note", "Matrix rows and columns share pitch, stagger and splay. Edit those in Properties." }
+                }
             }
         }
     }

@@ -3010,7 +3010,6 @@ fn Editor() -> Element {
     // never writes the document; only canvas clicks move it.
     let split_focus = layout_state.split_focus();
     let layout_snap_settings = layout_state.snap_settings();
-    let mut layout_context_tab = layout_state.inspector_tab();
     let layout_command_menu = layout_state.command_menu();
     let mut layout_transform_tool = layout_state.transform_tool();
     let layout_assembly_3d = layout_state.assembly_3d();
@@ -5319,7 +5318,6 @@ fn Editor() -> Element {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
-        let mut selected_tab = layout_context_tab;
         let select_tree = workspace_routing.select_tree;
         let mut findings_open = layout_findings.open;
         let mut return_target = layout_findings.return_target;
@@ -5343,7 +5341,6 @@ fn Editor() -> Element {
                 return_target.set(None);
                 return;
             };
-            selected_tab.set(layout_workspace::LayoutInspectorTab::Properties);
             findings_open.set(false);
             select_tree.call(objects::TreeSelectRequest {
                 scope,
@@ -7392,13 +7389,11 @@ fn Editor() -> Element {
                 let owner = layout_owner.clone();
                 let mut objects_open = objects_open;
                 let mut inspect_open = inspect_open;
-                let mut layout_context_tab = layout_context_tab;
                 move |_| {
                     if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
                         return;
                     }
                     pin_inspector_on_desktop(inspector_panel_settings);
-                    layout_context_tab.set(layout_workspace::LayoutInspectorTab::Properties);
                     objects_open.set(false);
                     inspect_open.set(true);
                 }
@@ -7505,7 +7500,6 @@ fn Editor() -> Element {
                     has_selection_context: matrix_transform_inspector.projection.is_some()
                         || component_inspector.is_some(),
                     on_show_relationships: EventHandler::new(move |()| {
-                        layout_context_tab.set(layout_workspace::LayoutInspectorTab::Relations);
                         inspect_open.set(true);
                     }),
                 },
@@ -8039,7 +8033,6 @@ fn Editor() -> Element {
                     let mut pending = pending_splay_origin_pick;
                     EventHandler::new(move |()| pending.set(None))
                 },
-                inspector_tab: layout_context_tab,
                 matrix_relations: matrix_context_relations(&model, selected_tree_context.as_ref()),
                 relation_target: {
                     let runtime = runtime.clone();

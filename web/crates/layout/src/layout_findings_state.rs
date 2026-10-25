@@ -211,7 +211,7 @@ pub fn focus_layout_finding_return_destination() -> bool {
         return false;
     };
     for selector in [
-        "#m1-inspector-panel-content .m1-layout-component-tabs [role='tab'][aria-selected='true']",
+        "#m1-inspector-panel-content .m1-layout-component-inspector :is(input, select, button):not(:disabled)",
         "#m1-inspector-panel-content .m1-board-inspector :is(input, select, button):not(:disabled)",
         "#m1-inspector-panel-content .m1-outline-inspector :is(input, select, button):not(:disabled)",
     ] {

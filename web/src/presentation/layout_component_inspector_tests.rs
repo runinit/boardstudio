@@ -95,6 +95,7 @@ fn fixture_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
             exceptions: vec![],
             source_id: "source-layout".into(),
             axis_x: 0.0,
+            split_gap: None,
         }),
     });
     configure(&mut document);
@@ -1053,7 +1054,6 @@ fn mounted_component_inspector_host() -> Element {
     *probe.render_generation.borrow_mut() = Some(render_generation);
     let workspace = use_signal(|| "Layout");
     let selection_kind = use_signal(objects::LayoutSelectionKind::default);
-    let inspector_tab = use_signal(super::layout_workspace::LayoutInspectorTab::default);
     let inspect_open = use_signal(|| true);
     let mut selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
     let mut show_component = use_signal(|| true);
@@ -1147,7 +1147,7 @@ fn mounted_component_inspector_host() -> Element {
         button { id: "component-inspector-toggle-view", onclick: move |_| show_component.set(!show_component()), "Toggle Inspector view" }
         if let Some(projection) = projection {
             if show_component() {
-                LayoutComponentInspector { projection, inspector_tab, pending_edits, x: x_draft, y: y_draft, margin: margin_draft, x_failure, y_failure, margin_failure, error, layout_pending, constraint_pending, remove_pending, mirrored_half_pending, on_action: action_handler }
+                LayoutComponentInspector { projection, pending_edits, x: x_draft, y: y_draft, margin: margin_draft, x_failure, y_failure, margin_failure, error, layout_pending, constraint_pending, remove_pending, mirrored_half_pending, on_action: action_handler }
             }
         }
         output { class: "m1-layout-component-test-generation", "{render_generation()}" }
@@ -1639,6 +1639,7 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                     exceptions: vec![],
                     source_id: "component-layout".into(),
                     axis_x: 0.0,
+                    split_gap: None,
                 }),
             });
             document.matrices.clear();
@@ -2047,28 +2048,23 @@ async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur
     );
     assert!(accepted_revision > initial_revision);
 
-    // The Relations tab holds its selection across a further unrelated acceptance on the
-    // same mounted Inspector these draft checks use.
-    click_component_inspector(probe.root_id, "button[role='tab']:nth-child(2)");
-    settle_mounted_component_inspector(&probe).await;
+    // The Relationships section beside the fields survives a further unrelated
+    // acceptance on the same mounted Inspector these draft checks use.
     let relations_revision = probe.accept_unrelated_revision().await;
     settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         probe.projection.borrow().as_ref().unwrap().owner.revision,
         relations_revision
     );
-    assert_eq!(
+    assert!(
         document
             .query_selector(&format!(
-                "#{} button[role='tab']:nth-child(2)",
+                "#{} #m1-component-relationships-heading",
                 probe.root_id
             ))
             .unwrap()
-            .unwrap()
-            .get_attribute("aria-selected")
-            .as_deref(),
-        Some("true"),
-        "Relations tab survives an unrelated accepted revision"
+            .is_some(),
+        "Relationships section survives an unrelated accepted revision"
     );
     root.remove();
 }
@@ -2625,15 +2621,15 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
     );
 
     // The reset: an unconstrained part's unsaved axes choice goes back to the default when
-    // Properties is shown again.
+    // another owner is shown again.
     click_component_inspector(root_id, "#component-inspector-select-source");
     settle_mounted_component_inspector(&probe).await;
     choose_offset_axes_in_form(root_id, "part");
     settle_mounted_component_inspector(&probe).await;
     assert_eq!(offset_form(root_id).1, "part", "the unsaved choice shows");
-    click_component_inspector(root_id, "button[role='tab']:nth-child(2)");
+    click_component_inspector(root_id, "#component-inspector-select-original");
     settle_mounted_component_inspector(&probe).await;
-    click_component_inspector(root_id, "button[role='tab']:nth-child(1)");
+    click_component_inspector(root_id, "#component-inspector-select-source");
     settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         offset_form(root_id),
@@ -2643,7 +2639,7 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
     root.remove();
 }
 
-// ---- Matrix Relations tab (ticket 09): the real Layout Inspector over a real Session ----
+// ---- Matrix Relationships section: the real Layout Inspector over a real Session ----
 
 mod matrix_relations_panel {
     use super::super::layout_workspace;
@@ -2753,11 +2749,6 @@ mod matrix_relations_panel {
                 .query_selector(&format!("#{} {selector}", self.root_id))
                 .unwrap()
                 .is_some()
-        }
-
-        async fn open_relations_tab(&self) {
-            self.click(".m1-layout-component-tabs button:nth-child(2)");
-            self.settle().await;
         }
 
         fn matrix(&self) -> boardstudio_core::model::Matrix {
@@ -2884,7 +2875,6 @@ mod matrix_relations_panel {
                 on_pick_anchor: EventHandler::new(|()| {}),
                 anchor_pick_pending: false,
                 on_cancel_anchor_pick: EventHandler::new(|()| {}),
-                inspector_tab: state.inspector_tab(),
                 matrix_relations: matrix_context_relations(&model, selected.as_ref()),
                 relation_target: {
                     let runtime = runtime.clone();
@@ -3034,7 +3024,6 @@ mod matrix_relations_panel {
         .await;
         probe.select(column_ctx(1));
         probe.land().await;
-        probe.open_relations_tab().await;
         assert!(probe.exists("[data-relation-departure='Column offset']"));
 
         probe.click("[data-relation-action='reset']");
@@ -3102,7 +3091,6 @@ mod matrix_relations_panel {
             .revision;
         probe.select(column_ctx(1));
         probe.land().await;
-        probe.open_relations_tab().await;
         assert!(
             probe.exists("[data-relation-departure='Column offset']"),
             "the departure is listed: {}",
@@ -3159,7 +3147,6 @@ mod matrix_relations_panel {
         let (probe, root) = mount("relations-precedence-test", document, None).await;
         probe.select(matrix_ctx());
         probe.land().await;
-        probe.open_relations_tab().await;
         let row = root
             .query_selector("[data-relation-constraint='tie']")
             .unwrap()
@@ -3227,7 +3214,6 @@ mod matrix_relations_panel {
         let (probe, root) = mount("relations-constraint-test", document, None).await;
         probe.select(matrix_ctx());
         probe.land().await;
-        probe.open_relations_tab().await;
         assert!(
             probe.exists("[data-relation-constraint='tie']"),
             "the constraint is listed: {}",
@@ -3240,7 +3226,6 @@ mod matrix_relations_panel {
 
         probe.select(matrix_ctx());
         probe.land().await;
-        probe.open_relations_tab().await;
         probe.click("[data-relation-constraint='tie'] [data-relation-role='target']");
         probe.land().await;
         assert!(
@@ -3282,7 +3267,6 @@ mod matrix_relations_panel {
         let (probe, root) = mount("relations-removed-test", document, None).await;
         probe.select(matrix_ctx());
         probe.land().await;
-        probe.open_relations_tab().await;
         let source = "[data-relation-constraint='tie'] [data-relation-role='source']";
         assert!(probe.exists(source), "{}", probe.text());
 
