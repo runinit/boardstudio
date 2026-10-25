@@ -29,6 +29,8 @@ mod layout_component_edits;
 #[cfg(test)]
 mod layout_component_inspector_tests;
 #[cfg(test)]
+mod layout_field_preview_tests;
+#[cfg(test)]
 mod layout_layers_tests;
 #[cfg(test)]
 mod layout_relation_highlight_tests;
@@ -57,8 +59,9 @@ pub(crate) use boardstudio_web_ui_model::selection::{
 pub(crate) use boardstudio_web_ui_model::state::use_empty_test_instance_selection;
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::{
-    CaseGenerationState, CompactPanelState, Drag, InstanceSelection, LayerVisibility,
-    LayoutOwnerIdentity, ProjectMenuPage, RelationHighlight, ResolvedTheme, WorkspaceState,
+    CaseGenerationState, CompactPanelState, Drag, FieldPreview, FieldPreviewSource,
+    FieldPreviewState, InstanceSelection, LayerVisibility, LayoutOwnerIdentity, ProjectMenuPage,
+    RelationHighlight, ResolvedTheme, WorkspaceState,
 };
 pub(crate) use boardstudio_web_ui_model::state::{PreferenceStorageWarning, ThemeState};
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
@@ -3279,6 +3282,31 @@ fn Editor() -> Element {
     );
     use_effect(use_reactive((&highlight_context,), move |(_,)| {
         RelationHighlight(relation_highlight).clear();
+    }));
+    // Ticket 16: the amber at-rest field preview is transient view state too,
+    // but separate from the violet reference above: hovering or focusing an
+    // Inspector number field shows it, and leave, blur, unmount, a selection
+    // change or any accepted revision clears it (the set is computed from
+    // the accepted document, so a commit always stales it).
+    let field_preview = use_signal(|| None::<FieldPreviewState>);
+    use_context_provider(|| FieldPreview(field_preview));
+    let field_preview_source = model.accepted.as_ref().map(|snapshot| FieldPreviewSource {
+        document: snapshot.document.clone(),
+        scene: snapshot.scene.clone(),
+    });
+    use_context_provider(|| field_preview_source.clone());
+    let field_preview_context = (
+        adapter.selected_context.read().clone(),
+        model.selected_part_ids.clone(),
+        model.active_board_id.clone(),
+        active_workspace,
+        model
+            .accepted
+            .as_ref()
+            .map(|snapshot| snapshot.document.revision),
+    );
+    use_effect(use_reactive((&field_preview_context,), move |(_,)| {
+        FieldPreview(field_preview).clear();
     }));
     let active_board_id = model.active_board_id.clone();
     let keycaps_state = keycaps_workspace::use_keycaps_workspace_state(
@@ -9344,6 +9372,14 @@ fn Editor() -> Element {
                     if active_workspace == "Layout" && pending_anchor_pick().is_some() {
                         div { class: "m1-canvas-placement-hint", role: "status",
                             "Pick anchor key · Click a key · Esc cancels"
+                        }
+                    }
+                    // Ticket 16: the at-rest field preview names the keys the
+                    // hovered or focused Inspector number field would move.
+                    if active_workspace == "Layout"
+                        && let Some(state) = field_preview() {
+                        div { class: "m1-canvas-field-preview-hint", role: "status",
+                            "{state.hint}"
                         }
                     }
                 }

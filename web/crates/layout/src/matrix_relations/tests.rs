@@ -1056,3 +1056,298 @@ fn a_context_naming_a_removed_or_foreign_object_projects_nothing() {
         "2 × 2, 2 keys, 1 disabled, 1 removed"
     );
 }
+
+/// Ticket 16: hovering or focusing an Inspector number field previews, in
+/// amber, the keys a change to that field would move. The pure projection
+/// below resolves the affected members (including mirrored keys) without
+/// writing the document; the canvas hint reads "Moves N keys (n per half)".
+use crate::matrix_transform_operation::MatrixTransformField;
+use boardstudio_core::model::MatrixSplayAffect;
+
+fn mirrored_grid(rows: u32, columns: u32) -> (World, World) {
+    let mut engine = CoreEngine::new();
+    let (opened, _) = scene_of(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: base(),
+    }));
+    let (scene, document) = apply(
+        &mut engine,
+        opened.revision,
+        json!({ "kind": "create-mirrored-pair",
+            "matrix": matrix(rows, columns, json!({ "id": "left-matrix",
+                "origin": { "x": -20.0, "y": 5.0 }, "mirror": "x" })),
+            "left": { "id": "left-layout", "name": "Left half", "boardId": "board",
+                      "matrixIds": ["left-matrix"], "partIds": [] },
+            "right": { "id": "right-layout", "name": "Right half", "boardId": "board",
+                       "matrixIds": ["right-matrix"], "partIds": [],
+                       "mirrorLink": { "sourceId": "left-layout", "axisX": 10.0 } } }),
+    );
+    (
+        world_of(scene.clone(), document.clone(), "left-matrix"),
+        world_of(scene, document, "right-matrix"),
+    )
+}
+
+fn column_in(matrix_id: &str, column: u32) -> TreeContext {
+    TreeContext::Column {
+        matrix_id: matrix_id.into(),
+        column,
+    }
+}
+
+fn preview(
+    world: &World,
+    context: TreeContext,
+    field: MatrixTransformField,
+) -> Option<FieldPreview> {
+    field_preview(
+        &world.document,
+        &world.scenes,
+        &context,
+        field,
+        MatrixSplayAffect::Following,
+    )
+}
+
+fn sorted(mut parts: Vec<String>) -> Vec<String> {
+    parts.sort();
+    parts
+}
+
+#[test]
+fn column_spread_previews_later_columns_on_both_halves() {
+    let (left, _) = mirrored_grid(2, 4);
+    let preview = preview(
+        &left,
+        column_in("left-matrix", 1),
+        MatrixTransformField::ColumnSpread,
+    )
+    .expect("spread previews the keys it carries");
+    let mut expected = Vec::new();
+    for half in ["left-matrix", "right-matrix"] {
+        for column in 1..4 {
+            for row in 0..2 {
+                expected.push(format!("matrix/{half}/r{row}c{column}"));
+            }
+        }
+    }
+    assert_eq!(sorted(preview.parts), sorted(expected));
+    assert_eq!(preview.hint, "Moves 12 keys (6 per half)");
+}
+
+#[test]
+fn column_splay_follows_the_splay_affect_toggle() {
+    let (left, _) = mirrored_grid(2, 4);
+    let carried = field_preview(
+        &left.document,
+        &left.scenes,
+        &column_in("left-matrix", 1),
+        MatrixTransformField::ColumnSplay,
+        MatrixSplayAffect::Following,
+    )
+    .expect("a following splay carries");
+    assert_eq!(carried.parts.len(), 12);
+    let own = field_preview(
+        &left.document,
+        &left.scenes,
+        &column_in("left-matrix", 1),
+        MatrixTransformField::ColumnSplay,
+        MatrixSplayAffect::Column,
+    )
+    .expect("a column-only splay stays local");
+    let mut expected = Vec::new();
+    for half in ["left-matrix", "right-matrix"] {
+        for row in 0..2 {
+            expected.push(format!("matrix/{half}/r{row}c1"));
+        }
+    }
+    assert_eq!(sorted(own.parts), sorted(expected));
+    assert_eq!(own.hint, "Moves 4 keys (2 per half)");
+}
+
+#[test]
+fn column_offset_stays_on_its_column_on_both_halves() {
+    let (left, _) = mirrored_grid(2, 4);
+    let preview = preview(
+        &left,
+        column_in("left-matrix", 2),
+        MatrixTransformField::ColumnOffsetY,
+    )
+    .expect("offset previews its column");
+    assert_eq!(preview.parts.len(), 4);
+    assert_eq!(preview.hint, "Moves 4 keys (2 per half)");
+}
+
+#[test]
+fn row_shift_carries_to_later_rows_on_both_halves() {
+    let (left, _) = mirrored_grid(3, 2);
+    let carried = preview(
+        &left,
+        row_in("left-matrix", 0),
+        MatrixTransformField::RowShiftX,
+    )
+    .expect("row shift carries");
+    assert_eq!(carried.parts.len(), 12);
+    assert_eq!(carried.hint, "Moves 12 keys (6 per half)");
+    let own_row = preview(
+        &left,
+        row_in("left-matrix", 2),
+        MatrixTransformField::RowOffsetY,
+    )
+    .expect("row offset stays local");
+    assert_eq!(own_row.parts.len(), 4);
+    assert_eq!(own_row.hint, "Moves 4 keys (2 per half)");
+}
+
+#[test]
+fn key_shift_carries_upward_on_both_halves() {
+    let (left, _) = mirrored_grid(3, 2);
+    let preview = preview(
+        &left,
+        key_in("left-matrix", 0, 1),
+        MatrixTransformField::KeyShiftX,
+    )
+    .expect("key shift carries upward");
+    let mut expected = Vec::new();
+    for half in ["left-matrix", "right-matrix"] {
+        for row in 0..3 {
+            expected.push(format!("matrix/{half}/r{row}c1"));
+        }
+    }
+    assert_eq!(sorted(preview.parts), sorted(expected));
+    assert_eq!(preview.hint, "Moves 6 keys (3 per half)");
+}
+
+#[test]
+fn key_local_edits_preview_both_halves_by_default() {
+    let (left, _) = mirrored_grid(2, 2);
+    let preview = preview(
+        &left,
+        key_in("left-matrix", 0, 1),
+        MatrixTransformField::KeyOffsetX,
+    )
+    .expect("a local edit previews its key");
+    assert_eq!(
+        sorted(preview.parts),
+        vec![
+            "matrix/left-matrix/r0c1".to_owned(),
+            "matrix/right-matrix/r0c1".to_owned(),
+        ]
+    );
+    assert_eq!(preview.hint, "Moves 2 keys (1 per half)");
+}
+
+#[test]
+fn key_local_edits_stay_put_for_a_local_key() {
+    let (left, _) = mirrored_pair_with_exception("part", "local");
+    let preview = preview(
+        &left,
+        key_in("left-matrix", 0, 0),
+        MatrixTransformField::KeyRotation,
+    )
+    .expect("a local key still previews itself");
+    assert_eq!(preview.parts, vec!["matrix/left-matrix/r0c0".to_owned()]);
+    assert_eq!(preview.hint, "Moves 1 key");
+}
+
+#[test]
+fn matrix_origin_previews_the_whole_matrix_on_both_halves() {
+    let (left, _) = mirrored_grid(2, 4);
+    let preview = preview(
+        &left,
+        matrix_in("left-matrix"),
+        MatrixTransformField::OriginX,
+    )
+    .expect("origin previews the matrix");
+    assert_eq!(preview.parts.len(), 16);
+    assert_eq!(preview.hint, "Moves 16 keys (8 per half)");
+}
+
+#[test]
+fn a_local_matrix_edit_never_authors_its_partner() {
+    let mut engine = CoreEngine::new();
+    let (opened, _) = scene_of(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: base(),
+    }));
+    let (scene, document) = apply(
+        &mut engine,
+        opened.revision,
+        json!({ "kind": "create-mirrored-pair",
+            "matrix": matrix(1, 1, json!({ "id": "left-matrix",
+                "origin": { "x": -20.0, "y": 5.0 }, "mirror": "x" })),
+            "left": { "id": "left-layout", "name": "Left half", "boardId": "board",
+                      "matrixIds": ["left-matrix"], "partIds": [] },
+            "right": { "id": "right-layout", "name": "Right half", "boardId": "board",
+                       "matrixIds": ["right-matrix"], "partIds": [],
+                       "mirrorLink": { "sourceId": "left-layout", "axisX": 10.0 } } }),
+    );
+    let mut mirror: serde_json::Value = serde_json::to_value(
+        document
+            .layouts
+            .iter()
+            .find(|layout| layout.id == "right-layout")
+            .expect("mirror layout"),
+    )
+    .unwrap();
+    // A matrix exception names the matrix record only: unlike the part
+    // helper above, no second member exception is valid here.
+    mirror["mirrorLink"]["exceptions"] =
+        json!([{"kind": "matrix", "mirrorId": "right-matrix", "state": "local"}]);
+    let (scene, document) = apply(
+        &mut engine,
+        scene.revision,
+        json!({ "kind": "set-layout", "layout": mirror }),
+    );
+    let left = world_of(scene, document, "left-matrix");
+    let preview = preview(
+        &left,
+        column_in("left-matrix", 0),
+        MatrixTransformField::ColumnSpread,
+    )
+    .expect("a local matrix still previews itself");
+    assert_eq!(preview.parts, vec!["matrix/left-matrix/r0c0".to_owned()]);
+    assert_eq!(preview.hint, "Moves 1 key");
+}
+
+#[test]
+fn an_unmirrored_matrix_has_no_per_half_split() {
+    let world = world(matrix(2, 5, json!({})));
+    let preview = preview(&world, column(1), MatrixTransformField::ColumnSpread)
+        .expect("spread previews the keys it carries");
+    assert_eq!(preview.parts.len(), 8);
+    assert_eq!(preview.hint, "Moves 8 keys");
+}
+
+#[test]
+fn non_number_fields_and_foreign_contexts_preview_nothing() {
+    let (left, _) = mirrored_grid(2, 2);
+    for field in [
+        MatrixTransformField::DeleteSelection,
+        MatrixTransformField::MatrixMirror,
+        MatrixTransformField::KeyEnabled,
+        MatrixTransformField::KeyOmit,
+        MatrixTransformField::SplayOriginX,
+        MatrixTransformField::MatrixDetach,
+    ] {
+        assert!(
+            preview(&left, key_in("left-matrix", 0, 0), field).is_none(),
+            "{field:?} previews nothing"
+        );
+    }
+    assert!(
+        preview(
+            &left,
+            TreeContext::Component {
+                part_id: None,
+                matrix_id: None,
+                row: None,
+                column: None,
+                assembly_id: None,
+            },
+            MatrixTransformField::ColumnSpread,
+        )
+        .is_none(),
+        "a component context previews nothing"
+    );
+}

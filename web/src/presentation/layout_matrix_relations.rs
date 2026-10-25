@@ -322,6 +322,22 @@ fn BreadcrumbChip(
     }
 }
 
+/// Whether the amber at-rest field preview (ticket 16) currently marks
+/// `part_id`. Distinct from the violet dashed Relations reference: the
+/// preview names the keys one Inspector number field would move, and it
+/// wins ties so the hovered field reads through a reference.
+fn field_previews(part_id: Option<&String>) -> bool {
+    use super::FieldPreview;
+    let preview = try_use_context::<FieldPreview>();
+    part_id.is_some_and(|id| {
+        preview.is_some_and(|target| {
+            target.0()
+                .as_ref()
+                .is_some_and(|state| state.parts.contains(id))
+        })
+    })
+}
+
 /// A Relations reference button. Hover or keyboard focus marks `parts` on the Layout canvas;
 /// leaving, blurring or unmounting releases that highlight, and the button names it through
 /// `aria-describedby`. Selecting the reference is the button's own action.
@@ -421,8 +437,13 @@ pub(super) fn RelationMatrixKey(
             .is_some_and(|part_ids| part_ids.contains(id))
     });
     // Ticket 14: selection stays solid on the dimmed half; only unselected
-    // unfocused keys fade to the grey dashed outline.
-    let class = if selected {
+    // unfocused keys fade to the grey dashed outline. Ticket 16: the amber
+    // at-rest field preview wins ties so the hovered field reads through
+    // selection, dimming and violet references alike.
+    let previewed = field_previews(part_id.as_ref());
+    let class = if previewed {
+        "m1-matrix-key is-field-preview"
+    } else if selected {
         "m1-matrix-key is-selected"
     } else if dimmed {
         "m1-matrix-key is-dimmed"
@@ -452,7 +473,10 @@ pub(super) fn RelationPartOutline(
     let highlighted = highlight()
         .as_ref()
         .is_some_and(|part_ids| part_ids.contains(&part_id));
-    let class = if selected {
+    let previewed = field_previews(Some(&part_id));
+    let class = if previewed {
+        "m1-part is-field-preview"
+    } else if selected {
         "m1-part selected"
     } else if dimmed {
         "m1-part is-dimmed"

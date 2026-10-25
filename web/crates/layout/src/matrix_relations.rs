@@ -7,10 +7,11 @@
 //! (Core classifies them once); this module never re-reads constraints or overrides to
 //! decide precedence.
 
+use crate::matrix_transform_operation::MatrixTransformField;
 use boardstudio_core::model::{
     AggregateMethod, Constraint, ConstraintEndpoint, ConstraintRelation, Follow, Matrix,
-    MatrixAnchor, MatrixCompanionMode, MatrixCompanionPlacement, MatrixScene, Mirror,
-    MirroredExceptionState, MirroredItemKind, ProjectDoc, Vec2,
+    MatrixAnchor, MatrixCompanionMode, MatrixCompanionPlacement, MatrixScene, MatrixSplayAffect,
+    Mirror, MirroredExceptionState, MirroredItemKind, ProjectDoc, Vec2,
 };
 use boardstudio_web_ui_model::tree::TreeContext;
 
@@ -186,6 +187,181 @@ pub fn matrix_relations(
     }
 }
 
+/// Ticket 16: the amber at-rest preview for one Inspector number field. The
+/// affected members a change to `field` would move: the field's structural
+/// carry set on its matrix plus the mirror-partner matrix's matching slots,
+/// resolved against the live accepted scenes. `None` for fields with no
+/// geometric carry (toggles, picks, resets, splay-origin moves, foreign
+/// contexts). Never writes; the caller shows `parts` on the canvas and
+/// `hint` beside it, then releases both on leave, blur or selection change.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FieldPreview {
+    pub parts: Vec<String>,
+    pub hint: String,
+}
+
+/// The members a change to one Inspector number field would move, or `None`
+/// when the field carries nothing. `splay_affect` is the live Splay toggle:
+/// a Following splay turns later columns, a Column one stays local.
+/// Mirroring follows Core's sync: layout records (matrix frame, column and
+/// row layout) copy to the partner, while a key's own offset/rotation stays
+/// put once either side's part is Local. A Local/Omitted matrix never
+/// authors its partner, so the partner stays out as well.
+pub fn field_preview(
+    document: &ProjectDoc,
+    scenes: &[MatrixScene],
+    context: &TreeContext,
+    field: MatrixTransformField,
+    splay_affect: MatrixSplayAffect,
+) -> Option<FieldPreview> {
+    let matrix_id = match context {
+        TreeContext::Matrix { matrix_id }
+        | TreeContext::Row { matrix_id, .. }
+        | TreeContext::Column { matrix_id, .. }
+        | TreeContext::Key { matrix_id, .. } => matrix_id,
+        _ => return None,
+    };
+    let matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == *matrix_id)?;
+    let scene = scenes.iter().find(|scene| scene.matrix_id == *matrix_id)?;
+    let (slots, key_local) = preview_slots(matrix, context, field, splay_affect)?;
+    let view = View {
+        document,
+        scene,
+        scenes,
+        matrix,
+    };
+    if matches!(context, TreeContext::Key { .. })
+        && view.key_state(slots[0].0, slots[0].1) == KeyState::Removed
+    {
+        return None;
+    }
+    let kept = |row: u32, column: u32| slots.contains(&(row, column));
+    let mut parts = view.members(kept);
+    let own = parts.len();
+    if let Some((_, partner)) = view.partner()
+        && view.matrix_linked(&view.matrix.id)
+        && view.matrix_linked(&partner.id)
+        && let Some(partner_scene) = view.scene_of(&partner.id)
+    {
+        let partner_view = View {
+            document,
+            scene: partner_scene,
+            scenes,
+            matrix: partner,
+        };
+        for (row, column) in &slots {
+            if key_local
+                && (view.exception(
+                    MirroredItemKind::Part,
+                    &View::canonical_member(&view.matrix.id, *row, *column),
+                ) == Some(MirroredExceptionState::Local)
+                    || view.exception(
+                        MirroredItemKind::Part,
+                        &View::canonical_member(&partner.id, *row, *column),
+                    ) == Some(MirroredExceptionState::Local))
+            {
+                continue;
+            }
+            if let Some(member) = partner_view.member(*row, *column) {
+                parts.push(member.to_owned());
+            }
+        }
+    }
+    if parts.is_empty() {
+        return None;
+    }
+    let keys = if parts.len() == 1 { "key" } else { "keys" };
+    let hint = if parts.len() > own {
+        format!("Moves {} {keys} ({own} per half)", parts.len())
+    } else {
+        format!("Moves {} {keys}", parts.len())
+    };
+    Some(FieldPreview { parts, hint })
+}
+
+/// The (row, column) slots a field carries, with whether the field is a
+/// key-local final pose (offset/rotation) rather than a synced record.
+/// Column Splay follows the Splay toggle; splay-origin moves hold keys
+/// still ("Move the origin without moving the keys"), so they preview
+/// nothing. Anchored dependants stay out: their Relations "Followed by"
+/// rows already name them.
+fn preview_slots(
+    matrix: &Matrix,
+    context: &TreeContext,
+    field: MatrixTransformField,
+    splay_affect: MatrixSplayAffect,
+) -> Option<(Vec<(u32, u32)>, bool)> {
+    use MatrixTransformField as Field;
+    let all: Vec<(u32, u32)> = (0..matrix.rows)
+        .flat_map(|row| (0..matrix.columns).map(move |column| (row, column)))
+        .collect();
+    let at = |row: u32, column: u32| {
+        (row < matrix.rows && column < matrix.columns).then_some(vec![(row, column)])
+    };
+    match context {
+        TreeContext::Matrix { matrix_id } if *matrix_id == matrix.id => match field {
+            Field::OriginX | Field::OriginY | Field::MatrixRotation => Some((all, false)),
+            _ => None,
+        },
+        TreeContext::Column { matrix_id, column } if *matrix_id == matrix.id => {
+            if *column >= matrix.columns {
+                return None;
+            }
+            match field {
+                Field::ColumnSpread | Field::ColumnStagger => Some((
+                    all.into_iter().filter(|&(_, c)| c >= *column).collect(),
+                    false,
+                )),
+                Field::ColumnSplay if splay_affect == MatrixSplayAffect::Following => Some((
+                    all.into_iter().filter(|&(_, c)| c >= *column).collect(),
+                    false,
+                )),
+                Field::ColumnSplay | Field::ColumnOffsetX | Field::ColumnOffsetY => Some((
+                    all.into_iter().filter(|&(_, c)| c == *column).collect(),
+                    false,
+                )),
+                _ => None,
+            }
+        }
+        TreeContext::Row { matrix_id, row } if *matrix_id == matrix.id => {
+            if *row >= matrix.rows {
+                return None;
+            }
+            match field {
+                Field::RowShiftX | Field::RowShiftY | Field::RowBend | Field::RowPadding => {
+                    Some((all.into_iter().filter(|&(r, _)| r >= *row).collect(), false))
+                }
+                Field::RowOffsetX | Field::RowOffsetY => {
+                    Some((all.into_iter().filter(|&(r, _)| r == *row).collect(), false))
+                }
+                _ => None,
+            }
+        }
+        TreeContext::Key {
+            matrix_id,
+            row,
+            column,
+        } if *matrix_id == matrix.id => {
+            let slots = at(*row, *column)?;
+            match field {
+                Field::KeyShiftX | Field::KeyShiftY | Field::KeyBend => Some((
+                    (0..matrix.rows)
+                        .filter(|r| *r >= *row)
+                        .map(|r| (r, *column))
+                        .collect(),
+                    false,
+                )),
+                Field::KeyOffsetX | Field::KeyOffsetY | Field::KeyRotation => Some((slots, true)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 struct View<'a> {
     document: &'a ProjectDoc,
     scene: &'a MatrixScene,
@@ -276,6 +452,16 @@ impl View<'_> {
     /// never a navigation or highlight target.
     fn canonical_member(matrix_id: &str, row: u32, column: u32) -> String {
         format!("matrix/{matrix_id}/r{row}c{column}")
+    }
+
+    /// Whether Core's `sync` would copy this matrix's edits to its partner:
+    /// a Local/Omitted matrix never authors its partner, and a Local
+    /// partner never takes the copy. Mirrors the sync gate, read-only.
+    fn matrix_linked(&self, matrix_id: &str) -> bool {
+        !matches!(
+            self.exception(MirroredItemKind::Matrix, matrix_id),
+            Some(MirroredExceptionState::Local | MirroredExceptionState::Omitted)
+        )
     }
 
     fn key_overlay(&self, row: u32, column: u32) -> Option<MirroredExceptionState> {
