@@ -142,3 +142,13 @@ contract was not re-audited here.
 - Notes for parent: typed-core-edits tickets 147/149 referenced SetNet/SetMechanical;
   both are resolved and superseded per this deletion. Baseline JSONs were NOT edited;
   the deleted test names above need baseline update.
+
+- Commits: `c0f6b7e06` test(ergogen-37) deletion + coverage; `309304a9d`
+  docs(ergogen-37) reservation-link repoint. Status: done (claimed through close).
+- Verify: targeted `cargo test -p boardstudio_core` (6G, RUST_TEST_THREADS=4): lib
+  772 passed/0 failed, integration 864 passed/0 failed. `cargo check --workspace
+  --all-targets` clean. `cargo clippy -p boardstudio_core --all-targets
+  -- -D warnings` clean. rustfmt clean on all touched files. `check.py quick`
+  repo step: my 2 broken doc links fixed; remaining failures are pre-existing
+  (deferred-items links in issues 28-32, web/crates fmt drift, and a
+  `clippy::iter_next_slice` in untouched `mirror_existing_half.rs`).
