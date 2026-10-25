@@ -1561,6 +1561,13 @@ fn quota_escape_recover_discards_oversized_candidate_and_retry_stays_explicit() 
             .as_ref(),
         &fresh
     );
+    assert!(
+        matches!(
+            settled_landing(&effects, OperationId(71)).0,
+            TerminalOutcome::Completed
+        ),
+        "the escape hatch settles the fresh open as completed"
+    );
 
     let effects = session.submit(Event::RetrySave {
         operation_id: OperationId(72),
