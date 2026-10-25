@@ -221,6 +221,104 @@ mod tests {
         root.remove();
     }
 
+    #[derive(Props, Clone, PartialEq)]
+    struct PillDuplicateProbeProps {
+        open: Option<LayoutCommandMenu>,
+    }
+
+    #[component]
+    fn pill_duplicate_probe_host(props: PillDuplicateProbeProps) -> Element {
+        let mut open_menu = use_signal(|| None::<LayoutCommandMenu>);
+        let target = props.open;
+        let transform =
+            super::super::layout_transform_toolbar::LayoutTransformMenuMount {
+                properties_available: true,
+                column_available: true,
+                row_available: true,
+                pointer_tools_visible: true,
+                pointer_tools_available: true,
+                active_tool: None,
+                matrix_rotate_followed: None,
+                on_selection_kind: EventHandler::new(|_: LayoutSelectionKind| {}),
+                on_show_properties: EventHandler::new(|()| {}),
+                on_transform_tool: EventHandler::new(
+                    |_: super::super::layout_transform_toolbar::LayoutTransformTool| {},
+                ),
+            };
+        let align = super::super::layout_align::LayoutAlignMount {
+            references: Vec::new(),
+            selected_reference: None,
+            action: None,
+            enabled: false,
+            disabled_reason: None,
+            busy: false,
+            feedback: None,
+            on_reference: EventHandler::new(|_: String| {}),
+            on_align: EventHandler::new(|_: super::super::layout_align::AlignAction| {}),
+        };
+        rsx! {
+            button {
+                id: "pill-probe-open",
+                onclick: move |_| open_menu.set(target),
+                "Open probe menu"
+            }
+            LayoutCommandPill {
+                command_label: "Layout".to_owned(),
+                menu_owner_key: "duplicate-probe".to_owned(),
+                open_menu,
+                selection_kind: LayoutSelectionKind::Column,
+                snap_settings: LayoutSnapSettings::default(),
+                transform,
+                align,
+                show_relationships: false,
+                on_selection_kind: EventHandler::new(|_: LayoutSelectionKind| {}),
+                on_snap_intent: EventHandler::new(|_: LayoutSnapIntent| {}),
+                has_selection_context: true,
+                on_show_relationships: EventHandler::new(|_: ()| {}),
+            }
+        }
+    }
+
+    fn tool_button_count(root: &web_sys::Element, label: &str) -> usize {
+        let buttons = root.query_selector_all("button").unwrap();
+        (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .filter(|node| node.text_content().is_some_and(|text| text.trim() == label))
+            .count()
+    }
+
+    async fn mount_pill(open: Option<LayoutCommandMenu>) -> web_sys::Element {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new_with_props(pill_duplicate_probe_host, PillDuplicateProbeProps { open }),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        root
+    }
+
+    #[wasm_bindgen_test]
+    async fn column_tools_appear_once_when_transform_popover_opens() {
+        let root = mount_pill(Some(LayoutCommandMenu::Transform)).await;
+        root.query_selector("#pill-probe-open")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        for label in ["Stagger", "Spread", "Offset"] {
+            assert_eq!(
+                tool_button_count(&root, label),
+                1,
+                "{label} must appear exactly once: inline in the toolbar, not duplicated in the Transform popover"
+            );
+        }
+        root.remove();
+    }
+
     #[wasm_bindgen_test]
     fn retained_cell_survives_key_row_column_and_key_mode_changes() {
         let anchor = TreeCellAnchor {
@@ -701,7 +799,6 @@ pub fn LayoutCommandPill(
             super::layout_transform_toolbar::LayoutTransformToolbar {
                 open_menu,
                 mount: transform.clone(),
-                selection_kind: pointer_tools_visible.then_some(selection_kind),
             }
             super::layout_align::LayoutAlignToolbar {
                 mount: align,

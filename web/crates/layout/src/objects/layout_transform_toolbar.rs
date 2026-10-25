@@ -2981,7 +2981,6 @@ fn LayoutContextToolButton(
 pub fn LayoutTransformToolbar(
     mount: LayoutTransformMenuMount,
     open_menu: Signal<Option<LayoutCommandMenu>>,
-    #[props(default)] selection_kind: Option<LayoutSelectionKind>,
 ) -> Element {
     let is_open = open_menu() == Some(LayoutCommandMenu::Transform);
     let position_label = "Position & rotation";
@@ -3019,8 +3018,7 @@ pub fn LayoutTransformToolbar(
                 open_menu,
                 menu: LayoutCommandMenu::Transform,
             }
-            if let Some(selection_kind) = selection_kind {
-                LayoutContextActionToolbar { mount: mount.clone(), open_menu, selection_kind }
+            if mount.pointer_tools_visible {
                 BoardButton {
                     density: BoardButtonDensity::Compact,
                     disabled: !mount.pointer_tools_available || !mount.column_available,
@@ -4457,6 +4455,46 @@ mod tool_tests {
         root
     }
 
+    #[component]
+    fn context_menu_host(props: MenuHostProps) -> Element {
+        let open_menu = use_signal(|| Some(LayoutCommandMenu::Transform));
+        let mut chosen = use_signal(String::new);
+        let mount = LayoutTransformMenuMount {
+            properties_available: true,
+            column_available: true,
+            row_available: true,
+            pointer_tools_visible: true,
+            pointer_tools_available: props.available,
+            active_tool: Some(LayoutTransformTool::Offset),
+            matrix_rotate_followed: None,
+            on_selection_kind: EventHandler::new(|_: LayoutSelectionKind| {}),
+            on_show_properties: EventHandler::new(|()| {}),
+            on_transform_tool: EventHandler::new(move |tool: LayoutTransformTool| {
+                chosen.set(format!("{tool:?}"));
+            }),
+        };
+        rsx! {
+            LayoutContextActionToolbar {
+                mount,
+                open_menu,
+                selection_kind: LayoutSelectionKind::Column,
+            }
+            output { id: "chosen-tool", "{chosen()}" }
+        }
+    }
+
+    async fn mount_context_menu(available: bool) -> web_sys::Element {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new_with_props(context_menu_host, MenuHostProps { available }),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        root
+    }
+
     #[wasm_bindgen_test]
     async fn transform_popover_preserves_escape_and_outside_focus() {
         let root = mount_menu(true).await;
@@ -4543,17 +4581,19 @@ mod tool_tests {
             on_transform_tool: EventHandler::new(|_: LayoutTransformTool| {}),
         };
         rsx! {
-            LayoutTransformToolbar {
+            LayoutContextActionToolbar {
                 mount,
                 open_menu: Signal::new(Some(LayoutCommandMenu::Transform)),
-                selection_kind: Some(LayoutSelectionKind::Matrix),
+                selection_kind: LayoutSelectionKind::Matrix,
             }
         }
     }
 
-    /// Ticket 23 slice: the Matrix menu offers Move always, and Rotate
+    /// Ticket 23 slice: the Matrix contextual tools offer Move always, and Rotate
     /// enabled only when the matrix follows rotation; otherwise Rotate stays
-    /// visible but disabled with the reason.
+    /// visible but disabled with the reason. The Transform popover no longer
+    /// duplicates these tools, so the host mounts them directly at their
+    /// owning seam.
     #[wasm_bindgen_test]
     async fn the_matrix_menu_disables_rotate_without_follow_rotation() {
         for (followed, rotate_enabled) in [(true, true), (false, false)] {
@@ -4597,59 +4637,72 @@ mod tool_tests {
         }
     }
 
+    /// The Transform popover no longer duplicates the inline column tools, so the
+    /// availability/pressed/dispatch contract is asserted at the owning seam:
+    /// the contextual toolbar omits unavailable tools instead of disabling them.
     #[wasm_bindgen_test]
-    async fn the_menu_lists_stagger_offset_splay_origin_and_follows_availability() {
-        for available in [true, false] {
-            let root = mount_menu(available).await;
-            let buttons = root.query_selector_all("button").unwrap();
-            let tools = (0..buttons.length())
-                .filter_map(|index| buttons.item(index))
-                .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
-                .filter(|button| {
-                    matches!(
-                        button.text_content().as_deref(),
-                        Some("Stagger" | "Spread" | "Offset" | "Splay" | "Origin")
-                    )
-                })
-                .collect::<Vec<_>>();
-            let labels = tools
-                .iter()
-                .map(|button| button.text_content().unwrap_or_default())
-                .collect::<Vec<_>>();
-            assert_eq!(labels, ["Stagger", "Spread", "Offset", "Splay", "Origin"]);
-            for button in &tools {
-                assert_eq!(button.has_attribute("disabled"), !available);
-                let pressed = button.get_attribute("aria-pressed");
-                assert_eq!(
-                    pressed.as_deref(),
-                    Some(if button.text_content().as_deref() == Some("Offset") {
-                        "true"
-                    } else {
-                        "false"
-                    })
-                );
-            }
-            if available {
-                tools
-                    .iter()
-                    .find(|button| button.text_content().as_deref() == Some("Offset"))
-                    .expect("the Offset tool stays listed")
-                    .clone()
-                    .dyn_into::<web_sys::HtmlElement>()
-                    .unwrap()
-                    .click();
-                gloo_timers::future::TimeoutFuture::new(40).await;
-                assert_eq!(
-                    root.query_selector("#chosen-tool")
-                        .unwrap()
-                        .unwrap()
-                        .text_content()
-                        .as_deref(),
-                    Some("Offset")
-                );
-            }
-            root.remove();
+    async fn contextual_column_tools_follow_availability_and_dispatch() {
+        let root = mount_context_menu(true).await;
+        let buttons = root.query_selector_all("button").unwrap();
+        let tools = (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
+            .filter(|button| {
+                matches!(
+                    button.text_content().as_deref(),
+                    Some("Position" | "Stagger" | "Spread" | "Offset" | "Splay")
+                )
+            })
+            .collect::<Vec<_>>();
+        let labels = tools
+            .iter()
+            .map(|button| button.text_content().unwrap_or_default())
+            .collect::<Vec<_>>();
+        assert_eq!(labels, ["Position", "Stagger", "Offset", "Spread", "Splay"]);
+        for button in &tools {
+            assert!(!button.has_attribute("disabled"));
+            let pressed = button.get_attribute("aria-pressed");
+            let expected = match button.text_content().as_deref() {
+                Some("Offset") => Some("true"),
+                Some("Position") => None,
+                _ => Some("false"),
+            };
+            assert_eq!(
+                pressed.as_deref(),
+                expected,
+                "pressed follows the active tool; the Position action carries no pressed state"
+            );
         }
+        tools
+            .iter()
+            .find(|button| button.text_content().as_deref() == Some("Offset"))
+            .expect("the Offset tool stays listed")
+            .clone()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            root.query_selector("#chosen-tool")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("Offset")
+        );
+        root.remove();
+
+        let root = mount_context_menu(false).await;
+        let buttons = root.query_selector_all("button").unwrap();
+        let labels = (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .filter_map(|node| node.text_content())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            labels, ["Position"],
+            "unavailable pointer tools are omitted, leaving only the Position action"
+        );
+        root.remove();
     }
 
     #[derive(Props, Clone, PartialEq)]
