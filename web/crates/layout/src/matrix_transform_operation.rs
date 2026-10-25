@@ -316,6 +316,7 @@ pub fn build_operation(
                 row,
                 column,
                 follow: current.follow,
+                aggregate: None,
             },
         }),
         (
@@ -729,6 +730,7 @@ pub fn build_operation(
                     row: *row,
                     column: *column,
                     follow: Follow::default(),
+                    aggregate: None,
                 },
             })
         }
@@ -2019,6 +2021,7 @@ mod tests {
                 y: true,
                 rotation: true,
             },
+            aggregate: None,
         };
         let fields = MatrixTransformFields::Matrix {
             origin: matrix.origin,
@@ -3148,6 +3151,7 @@ mod tests {
                 row: 0,
                 column: 0,
                 follow: Follow::default(),
+                aggregate: None,
             }),
         );
         let anchor = drag_anchor(
@@ -3172,6 +3176,7 @@ mod tests {
                 row: 0,
                 column: 0,
                 follow: Follow::default(),
+                aggregate: None,
             }),
         );
         let anchor = drag_anchor(
@@ -3197,6 +3202,7 @@ mod tests {
                     y: true,
                     rotation: true,
                 },
+                aggregate: None,
             }),
         );
         let anchor = drag_anchor(
@@ -3225,6 +3231,7 @@ mod tests {
                 row: 0,
                 column: 0,
                 follow: Follow::default(),
+                aggregate: None,
             }),
         );
         let anchor = drag_anchor(
@@ -3254,6 +3261,7 @@ mod tests {
                 row: 0,
                 column: 0,
                 follow,
+                aggregate: None,
             }),
         );
         let anchor = drag_anchor(
@@ -3283,6 +3291,7 @@ mod tests {
                 row: 0,
                 column: 0,
                 follow,
+                aggregate: None,
             }),
         );
         let anchor = drag_anchor(Vec2::default(), 0.0, follow, MatrixDragTransport::World);

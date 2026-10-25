@@ -414,6 +414,7 @@ fn anchored_matrix_fixture(rotation_followed: bool) -> (ProjectDoc, TreeContext)
                 y: true,
                 rotation: rotation_followed,
             },
+            aggregate: None,
         }),
         cells: vec![MatrixCell {
             shift: None,
@@ -549,6 +550,7 @@ fn linked_detach_fixture() -> (ProjectDoc, TreeContext) {
                 y: true,
                 rotation: true,
             },
+            aggregate: None,
         }),
         cells: vec![MatrixCell {
             shift: None,
@@ -3386,6 +3388,7 @@ async fn anchor_pick_retargets_the_anchor_with_one_undo() {
                 y: true,
                 rotation: true,
             },
+            aggregate: None,
         }),
         "the pick retargets the anchor keeping Follow"
     );
@@ -3547,6 +3550,7 @@ async fn key_selection_adds_an_anchored_matrix_with_one_undo() {
                 y: true,
                 rotation: true,
             },
+            aggregate: None,
         }),
         "the addition anchors to the selected key with full Follow"
     );

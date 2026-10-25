@@ -1405,6 +1405,7 @@ mod resolver_tests {
                         y: true,
                         rotation: true,
                     },
+                    aggregate: None,
                 },
             },
             "dep",

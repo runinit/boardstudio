@@ -280,6 +280,7 @@ fn add_anchored_matrix_resolver(
                         row,
                         column,
                         follow: boardstudio_core::model::Follow::default(),
+                        aggregate: None,
                     },
                 },
             )

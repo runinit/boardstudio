@@ -318,6 +318,7 @@ fn split42_build(name: &str) -> Result<ProjectDoc, String> {
             y: true,
             rotation: true,
         },
+        aggregate: None,
     };
     builder.commit(EditOperation::AddAnchoredMatrix {
         id: "left-thumb".into(),

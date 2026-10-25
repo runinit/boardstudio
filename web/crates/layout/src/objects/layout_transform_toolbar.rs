@@ -5308,6 +5308,7 @@ mod tool_tests {
                 row: 0,
                 column: 0,
                 follow,
+                aggregate: None,
             }),
             cells: vec![MatrixCell {
                 shift: None,
