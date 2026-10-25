@@ -208,6 +208,7 @@ fn change_anchor_retargets_dependants_with_preview_cancel_and_undo() {
             y: true,
             rotation: true,
         },
+        aggregate: None,
     };
     let operation = EditOperation::SetMatrixAnchor {
         matrix_id: "thumb".into(),
@@ -261,6 +262,7 @@ fn add_thumb(engine: &mut CoreEngine, doc: &ProjectDoc) -> ProjectDoc {
                     y: true,
                     rotation: true,
                 },
+                aggregate: None,
             },
         },
     )
@@ -288,6 +290,7 @@ fn add_anchored_matrix_creates_1x3_in_same_layout_and_follows_its_anchor_key() {
                     y: true,
                     rotation: true,
                 },
+                aggregate: None,
             },
         },
     );
@@ -339,6 +342,7 @@ fn add_anchored_matrix_previews_without_mutation_and_undoes_in_one_entry() {
                 y: true,
                 rotation: true,
             },
+            aggregate: None,
         },
     };
     // Preview evaluates the new members but stores nothing.
@@ -523,6 +527,7 @@ fn linked_anchored_fixture() -> (CoreEngine, ProjectDoc) {
             row: 0,
             column: 2,
             follow: all,
+            aggregate: None,
         }),
         cells: vec![],
     };
@@ -764,6 +769,7 @@ fn anchor_graph_refusals_leave_state_unchanged() {
         row,
         column,
         follow: all(),
+        aggregate: None,
     };
     let cases: Vec<(&str, EditOperation, &str)> = vec![
         (
@@ -899,6 +905,7 @@ fn anchoring_to_a_constraint_driven_key_is_refused() {
                     y: true,
                     rotation: true,
                 },
+                aggregate: None,
             },
         },
     );
@@ -976,6 +983,7 @@ fn adding_to_a_linked_layout_is_refused_until_ticket_20() {
                     y: true,
                     rotation: true,
                 },
+                aggregate: None,
             },
         },
     );
@@ -1065,6 +1073,7 @@ fn set_follow(
                 row: 0,
                 column: 2,
                 follow: Follow { x, y, rotation },
+                aggregate: None,
             },
         },
     )
@@ -1276,6 +1285,7 @@ fn compaction_remaps_anchors_onto_the_surviving_key() {
                 y: true,
                 rotation: true,
             },
+            aggregate: None,
         })
     );
     assert_eq!(
@@ -1481,6 +1491,7 @@ fn linked_follow_transports_source_basis_with_non_origin_axis() {
                     y: true,
                     rotation: true,
                 },
+                aggregate: None,
             },
         },
     );
@@ -1552,6 +1563,7 @@ fn linked_anchor_retarget_maps_by_identity_not_list_position() {
                     y: true,
                     rotation: true,
                 },
+                aggregate: None,
             },
         },
     );
@@ -2518,6 +2530,7 @@ fn linked_compaction_excludes_local_partner() {
                 y: true,
                 rotation: true,
             },
+            aggregate: None,
         })
     );
     let undone_doc = undone(&mut engine);

@@ -1403,6 +1403,7 @@ fn hold_origin_solves_the_final_point_with_partial_follow_and_refuses_atomically
             y: true,
             rotation: true,
         },
+        aggregate: None,
     });
     let (mut engine, before_scene, before) = open(doc);
     assert_eq!(

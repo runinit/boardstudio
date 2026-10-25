@@ -1,6 +1,6 @@
 //! Document adaptation and anchor resolution for the single layout kernel.
 use super::kernel::{self, FollowBasis, KeyLayout, LayoutInput, MatrixLayout, RawAnchorContext};
-use crate::model::{Matrix, Pose2, ProjectDoc, Vec2};
+use crate::model::{AggregateMethod, AnchorPart, Matrix, Pose2, ProjectDoc, Vec2};
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 
@@ -86,13 +86,20 @@ pub(crate) fn order(doc: &ProjectDoc) -> Result<Vec<usize>, String> {
         if !visiting.insert(index) {
             return Err(format!("Matrix anchor cycle at {}", doc.matrices[index].id));
         }
-        if let Some(anchor) = &doc.matrices[index].anchor
-            && let Some(target) = doc
-                .matrices
-                .iter()
-                .position(|matrix| matrix.id == anchor.matrix_id)
-        {
-            visit(target, doc, visiting, done, result)?;
+        // Dependency order runs over the union of part targets, so aggregate
+        // dependants evaluate after every contributing matrix regardless of
+        // document list order. Cycles through any part refuse naming the
+        // re-entered matrix, exactly as for single-key anchors.
+        if let Some(anchor) = &doc.matrices[index].anchor {
+            for part in anchor.targets() {
+                if let Some(target) = doc
+                    .matrices
+                    .iter()
+                    .position(|matrix| matrix.id == part.matrix_id)
+                {
+                    visit(target, doc, visiting, done, result)?;
+                }
+            }
         }
         visiting.remove(&index);
         done.insert(index);
@@ -140,6 +147,52 @@ pub(crate) fn evaluate(matrix: &Matrix, doc: &ProjectDoc) -> Result<MatrixLayout
     resolve(matrix, doc, &mut BTreeSet::new())
 }
 
+/// Resolve one single-key part to its actual final world pose: the
+/// same-board/same-Layout, live-key and constraint-driven guards as the
+/// single-key path, applied per part. Callers combine the poses.
+fn resolve_part(
+    matrix: &Matrix,
+    part: &AnchorPart,
+    doc: &ProjectDoc,
+    visiting: &mut BTreeSet<String>,
+) -> Result<Pose2, String> {
+    let target = logical_matrix(&part.matrix_id, doc).map_err(|_| {
+        format!(
+            "Matrix {} anchor target {} is missing",
+            matrix.id, part.matrix_id
+        )
+    })?;
+    let owner = doc
+        .layouts
+        .iter()
+        .find(|l| l.matrix_ids.contains(&matrix.id))
+        .ok_or_else(|| format!("Anchored matrix {} must belong to a Layout", matrix.id))?;
+    if !owner.matrix_ids.contains(&target.id) || target.board_id != matrix.board_id {
+        return Err(format!(
+            "Matrix {} anchor must stay on the same board and Layout",
+            matrix.id
+        ));
+    }
+    let key_id = super::member_id(&target.id, part.row, part.column);
+    if doc.constraint_driving_part(&key_id)?.is_some() {
+        return Err(format!(
+            "Matrix {} anchor key {} is constraint-driven",
+            matrix.id, key_id
+        ));
+    }
+    let target_layout = resolve(&target, doc, visiting)?;
+    let logical = target_layout
+        .cells
+        .iter()
+        .find(|cell| cell.row == part.row as usize && cell.column == part.column as usize)
+        .ok_or_else(|| format!("Matrix {} anchor key {} is missing", matrix.id, key_id))?;
+    Ok(doc
+        .parts
+        .iter()
+        .find(|part| part.id == key_id)
+        .map_or(logical.pose, |part| part.pose))
+}
+
 fn resolve(
     matrix: &Matrix,
     doc: &ProjectDoc,
@@ -149,41 +202,30 @@ fn resolve(
         return Err(format!("Matrix anchor cycle at {}", matrix.id));
     }
     let context = if let Some(anchor) = &matrix.anchor {
-        let target = logical_matrix(&anchor.matrix_id, doc).map_err(|_| {
-            format!(
-                "Matrix {} anchor target {} is missing",
-                matrix.id, anchor.matrix_id
-            )
-        })?;
-        let owner = doc
-            .layouts
-            .iter()
-            .find(|l| l.matrix_ids.contains(&matrix.id))
-            .ok_or_else(|| format!("Anchored matrix {} must belong to a Layout", matrix.id))?;
-        if !owner.matrix_ids.contains(&target.id) || target.board_id != matrix.board_id {
-            return Err(format!(
-                "Matrix {} anchor must stay on the same board and Layout",
-                matrix.id
-            ));
-        }
-        let key_id = super::member_id(&target.id, anchor.row, anchor.column);
-        if doc.constraint_driving_part(&key_id)?.is_some() {
-            return Err(format!(
-                "Matrix {} anchor key {} is constraint-driven",
-                matrix.id, key_id
-            ));
-        }
-        let target_layout = resolve(&target, doc, visiting)?;
-        let logical = target_layout
-            .cells
-            .iter()
-            .find(|cell| cell.row == anchor.row as usize && cell.column == anchor.column as usize)
-            .ok_or_else(|| format!("Matrix {} anchor key {} is missing", matrix.id, key_id))?;
-        let pose = doc
-            .parts
-            .iter()
-            .find(|part| part.id == key_id)
-            .map_or(logical.pose, |part| part.pose);
+        let pose = match &anchor.aggregate {
+            None => resolve_part(matrix, &anchor.targets()[0], doc, visiting)?,
+            Some(aggregate) => {
+                let mut poses = Vec::with_capacity(aggregate.parts.len());
+                for part in &aggregate.parts {
+                    poses.push(resolve_part(matrix, part, doc, visiting)?);
+                }
+                match aggregate.method {
+                    AggregateMethod::Average => kernel::aggregate_average(&poses)
+                        .map_err(|message| format!("Matrix {} {message}", matrix.id))?,
+                    AggregateMethod::Intersect => {
+                        if poses.len() != 2 {
+                            return Err(format!(
+                                "Matrix {} intersect aggregate needs exactly two parts, got {}",
+                                matrix.id,
+                                poses.len()
+                            ));
+                        }
+                        kernel::aggregate_intersection(poses[0], poses[1])
+                            .map_err(|message| format!("Matrix {} {message}", matrix.id))?
+                    }
+                }
+            }
+        };
         RawAnchorContext::Key {
             pose,
             follow: anchor.follow,

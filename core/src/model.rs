@@ -406,11 +406,76 @@ impl Default for Follow {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MatrixAnchor {
+    /// Single-key target. Inert while `aggregate` is present; kept required
+    /// (with serde defaults) so saved single-key anchors open byte-identical.
+    /// Aggregate documents may omit these fields.
+    #[serde(default)]
     pub matrix_id: String,
+    #[serde(default)]
     pub row: u32,
+    #[serde(default)]
     pub column: u32,
     #[serde(default)]
     pub follow: Follow,
+    /// Aggregate arm (average / intersection over single-key parts). When
+    /// present, evaluation resolves every part and combines the poses before
+    /// Origin/Rotation and Follow apply; the single-key fields above are
+    /// ignored. Parts are single-key refs only: nesting is unrepresentable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aggregate: Option<AggregateAnchor>,
+}
+
+impl MatrixAnchor {
+    /// Every single-key target this anchor resolves: the single key, or each
+    /// aggregate part in order. Evaluation order, cycle walks and part-aware
+    /// guards consume this so aggregates never fall back to the inert
+    /// single-key fields.
+    pub fn targets(&self) -> Vec<AnchorPart> {
+        match &self.aggregate {
+            None => vec![AnchorPart {
+                matrix_id: self.matrix_id.clone(),
+                row: self.row,
+                column: self.column,
+            }],
+            Some(aggregate) => aggregate.parts.clone(),
+        }
+    }
+
+    pub fn is_aggregate(&self) -> bool {
+        self.aggregate.is_some()
+    }
+}
+
+/// Aggregate anchor target: one combined pose from N single-key parts.
+/// Unknown methods are refused at admission; the default is upstream's
+/// `average`. An empty part list parses but refuses at evaluation.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AggregateAnchor {
+    #[serde(default)]
+    pub method: AggregateMethod,
+    #[serde(default)]
+    pub parts: Vec<AnchorPart>,
+}
+
+/// Upstream Ergogen aggregators, nothing else. Deserializing any other
+/// method name fails, which is the unknown-method refusal.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AggregateMethod {
+    #[default]
+    Average,
+    Intersect,
+}
+
+/// One single-key part reference. There is no nested-anchor arm here, so
+/// aggregates cannot nest by construction.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AnchorPart {
+    pub matrix_id: String,
+    pub row: u32,
+    pub column: u32,
 }
 fn is_zero_f64(value: &f64) -> bool {
     *value == 0.0

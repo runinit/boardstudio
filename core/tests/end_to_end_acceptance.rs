@@ -155,6 +155,7 @@ fn anchored_mirrored_doc() -> ProjectDoc {
         row: 0,
         column: 2,
         follow: all,
+        aggregate: None,
     });
     let mut main2 = main_matrix();
     main2.id = "main2".into();

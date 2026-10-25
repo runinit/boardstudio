@@ -367,6 +367,62 @@ fn world_frame(local: Pose2, matrix: Pose2, mirror: Mirror) -> ComposedFrame {
     }
 }
 
+/// Upstream Ergogen `average` aggregation: the arithmetic mean of x, y **and
+/// rotation** over the part poses. The rotation mean is deliberately naive
+/// (parity over wraparound purity). An empty part list refuses instead of
+/// silently anchoring to the world origin.
+pub fn aggregate_average(parts: &[Pose2]) -> Result<Pose2, &'static str> {
+    if parts.is_empty() {
+        return Err("aggregate anchor needs at least one part");
+    }
+    let mut x = 0.0;
+    let mut y = 0.0;
+    let mut rotation = 0.0;
+    for part in parts {
+        x += part.at.x;
+        y += part.at.y;
+        rotation += part.rotation;
+    }
+    let len = parts.len() as f64;
+    Ok(Pose2 {
+        at: Vec2 {
+            x: x / len,
+            y: y / len,
+        },
+        rotation: rotation / len,
+    })
+}
+
+/// Upstream Ergogen `intersect` aggregation: each part contributes its
+/// heading-rotated Y axis as a line; the result is their intersection with
+/// rotation forced to 0. Parallel (or coincident) lines refuse, matching
+/// upstream's "do not intersect" throw. The caller supplies exactly two
+/// poses; arity is the caller's refusal.
+pub fn aggregate_intersection(first: Pose2, second: Pose2) -> Result<Pose2, &'static str> {
+    let heading = |pose: Pose2| {
+        let (sin, cos) = pose.rotation.to_radians().sin_cos();
+        Vec2 { x: -sin, y: cos }
+    };
+    let d1 = heading(first);
+    let d2 = heading(second);
+    let denom = d1.x * d2.y - d1.y * d2.x;
+    // Same guard scale as the frame solver's determinant check in
+    // `evaluation::origin_delta`: exact parallels hit exactly zero.
+    if denom.abs() < 1e-12 {
+        return Err("aggregate anchor parts do not intersect");
+    }
+    let dx = second.at.x - first.at.x;
+    let dy = second.at.y - first.at.y;
+    let t = (dx * d2.y - dy * d2.x) / denom;
+    Ok(Pose2 {
+        at: Vec2 {
+            x: first.at.x + t * d1.x,
+            y: first.at.y + t * d1.y,
+        },
+        rotation: 0.0,
+    })
+}
+
 fn compose_matrix_frame(
     input: &LayoutInput,
     anchor: RawAnchorContext,
@@ -692,5 +748,78 @@ mod tests {
         // Unfollowed rotation reads the transported basis rotation (30 deg),
         // not an independent zero.
         assert!((transported_rotation - 30.0).abs() < 1e-9);
+    }
+
+    fn pose(x: f64, y: f64, rotation: f64) -> Pose2 {
+        Pose2 {
+            at: Vec2 { x, y },
+            rotation,
+        }
+    }
+
+    fn assert_pose(actual: Pose2, x: f64, y: f64, rotation: f64) {
+        assert!(
+            (actual.at.x - x).abs() < 1e-9
+                && (actual.at.y - y).abs() < 1e-9
+                && (actual.rotation - rotation).abs() < 1e-9,
+            "expected ({x}, {y}, {rotation}), got {:?}",
+            actual
+        );
+    }
+
+    #[test]
+    fn aggregate_average_matches_upstream_naive_mean() {
+        // Upstream `o`/`ten` vector: mean of (0,0,0) and (10,10,-90) is
+        // (5,5,-45). The rotation mean is naive, not circular.
+        assert_pose(
+            aggregate_average(&[pose(0.0, 0.0, 0.0), pose(10.0, 10.0, -90.0)]).unwrap(),
+            5.0,
+            5.0,
+            -45.0,
+        );
+        assert_pose(
+            aggregate_average(&[pose(1.0, 2.0, 30.0)]).unwrap(),
+            1.0,
+            2.0,
+            30.0,
+        );
+    }
+
+    #[test]
+    fn aggregate_average_refuses_empty_parts() {
+        assert!(aggregate_average(&[]).is_err());
+    }
+
+    #[test]
+    fn aggregate_intersection_matches_upstream_vectors() {
+        // Upstream `o`/`ten`: vertical x=0 meets horizontal y=10.
+        assert_pose(
+            aggregate_intersection(pose(0.0, 0.0, 0.0), pose(10.0, 10.0, -90.0)).unwrap(),
+            0.0,
+            10.0,
+            0.0,
+        );
+        // Upstream `o`/`five`: vertical x=0 meets horizontal y=5.
+        assert_pose(
+            aggregate_intersection(pose(0.0, 0.0, 0.0), pose(5.0, 5.0, 90.0)).unwrap(),
+            0.0,
+            5.0,
+            0.0,
+        );
+        // Upstream `o`/`rotated_o`: same point, crossed headings.
+        assert_pose(
+            aggregate_intersection(pose(0.0, 0.0, 0.0), pose(0.0, 0.0, 90.0)).unwrap(),
+            0.0,
+            0.0,
+            0.0,
+        );
+    }
+
+    #[test]
+    fn aggregate_intersection_refuses_parallel_lines() {
+        // Upstream `o`/`five_o`: two vertical axes never meet.
+        assert!(aggregate_intersection(pose(0.0, 0.0, 0.0), pose(5.0, 0.0, 0.0)).is_err());
+        // Upstream `o`/`o_five`: coincident axes also refuse upstream.
+        assert!(aggregate_intersection(pose(0.0, 0.0, 0.0), pose(0.0, 5.0, 0.0)).is_err());
     }
 }

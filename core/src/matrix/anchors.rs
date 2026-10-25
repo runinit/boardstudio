@@ -9,19 +9,26 @@
 
 use super::{evaluation, layout, member_id};
 use crate::model::*;
+use std::collections::BTreeSet;
 
-fn anchor_key_id(anchor: &MatrixAnchor) -> String {
-    member_id(&anchor.matrix_id, anchor.row, anchor.column)
+fn part_key_id(part: &AnchorPart) -> String {
+    member_id(&part.matrix_id, part.row, part.column)
 }
 
+/// Matrices depending on `target_id` through any anchor target: the single
+/// key, or any aggregate part. Per-part index remapping stays with the
+/// lifecycle slice; the guards below only find (and safely detach)
+/// aggregate dependants so part edits never dangle them silently.
 fn dependants(doc: &ProjectDoc, target_id: &str) -> Vec<(String, MatrixAnchor)> {
     doc.matrices
         .iter()
         .filter(|matrix| {
-            matrix
-                .anchor
-                .as_ref()
-                .is_some_and(|anchor| anchor.matrix_id == target_id)
+            matrix.anchor.as_ref().is_some_and(|anchor| {
+                anchor
+                    .targets()
+                    .iter()
+                    .any(|part| part.matrix_id == target_id)
+            })
         })
         .map(|matrix| {
             (
@@ -47,67 +54,82 @@ fn validate_target(
     owner_layout: Option<&str>,
     anchor: &MatrixAnchor,
 ) -> Result<(), String> {
-    if anchor.matrix_id == owner_id {
-        return Err(format!("Matrix {owner_id} cannot anchor to itself"));
-    }
-    let target = evaluation::logical_matrix(&anchor.matrix_id, doc).map_err(|_| {
-        format!(
-            "Matrix {owner_id} anchor target {} is missing",
-            anchor.matrix_id
-        )
-    })?;
-    match owner_layout {
-        Some(layout_id) => {
-            let owner_board = doc
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == owner_id)
-                .and_then(|matrix| matrix.board_id.clone());
-            let same_layout = doc
-                .layouts
-                .iter()
-                .find(|layout| layout.id == layout_id)
-                .is_some_and(|layout| layout.matrix_ids.contains(&target.id));
-            if !same_layout || target.board_id != owner_board {
-                return Err(format!(
-                    "Matrix {owner_id} anchor must stay on the same board and Layout"
-                ));
+    // Every guard runs per part: the single key, or each aggregate part.
+    // Empty lists, arity and ref+aggregate coexistence belong to the part
+    // validation slice; the cycle walk below already covers part edges so a
+    // 2-cycle or self-part through any part refuses atomically here.
+    for part in anchor.targets() {
+        if part.matrix_id == owner_id {
+            return Err(format!("Matrix {owner_id} cannot anchor to itself"));
+        }
+        let target = evaluation::logical_matrix(&part.matrix_id, doc).map_err(|_| {
+            format!(
+                "Matrix {owner_id} anchor target {} is missing",
+                part.matrix_id
+            )
+        })?;
+        match owner_layout {
+            Some(layout_id) => {
+                let owner_board = doc
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.id == owner_id)
+                    .and_then(|matrix| matrix.board_id.clone());
+                let same_layout = doc
+                    .layouts
+                    .iter()
+                    .find(|layout| layout.id == layout_id)
+                    .is_some_and(|layout| layout.matrix_ids.contains(&target.id));
+                if !same_layout || target.board_id != owner_board {
+                    return Err(format!(
+                        "Matrix {owner_id} anchor must stay on the same board and Layout"
+                    ));
+                }
+            }
+            None => {
+                if owning_layout(doc, &target.id).is_none() {
+                    return Err(format!(
+                        "Anchored matrix {owner_id} must belong to a Layout"
+                    ));
+                }
             }
         }
-        None => {
-            if owning_layout(doc, &target.id).is_none() {
-                return Err(format!(
-                    "Anchored matrix {owner_id} must belong to a Layout"
-                ));
-            }
+        if part.row >= target.rows || part.column >= target.columns {
+            return Err(format!(
+                "Matrix {owner_id} anchor key {} is missing",
+                part_key_id(&part)
+            ));
+        }
+        let key_id = part_key_id(&part);
+        if doc.constraint_driving_part(&key_id)?.is_some() {
+            return Err(format!(
+                "Matrix {owner_id} anchor key {key_id} is constraint-driven"
+            ));
         }
     }
-    if anchor.row >= target.rows || anchor.column >= target.columns {
-        return Err(format!(
-            "Matrix {owner_id} anchor key {} is missing",
-            anchor_key_id(anchor)
-        ));
-    }
-    let key_id = anchor_key_id(anchor);
-    if doc.constraint_driving_part(&key_id)?.is_some() {
-        return Err(format!(
-            "Matrix {owner_id} anchor key {key_id} is constraint-driven"
-        ));
-    }
-    let mut cursor = anchor.matrix_id.clone();
-    for _ in 0..doc.matrices.len() + 1 {
+    // Cycle walk over the union of part targets: any path back to the owner
+    // through single keys or aggregate parts refuses naming the owner.
+    let mut stack: Vec<String> = anchor
+        .targets()
+        .iter()
+        .map(|part| part.matrix_id.clone())
+        .collect();
+    let mut seen = BTreeSet::new();
+    while let Some(cursor) = stack.pop() {
         if cursor == owner_id {
             return Err(format!("Matrix anchor cycle at {owner_id}"));
         }
-        let Some(next) = doc
+        if !seen.insert(cursor.clone()) {
+            continue;
+        }
+        if let Some(next) = doc
             .matrices
             .iter()
             .find(|matrix| matrix.id == cursor)
             .and_then(|matrix| matrix.anchor.as_ref())
-        else {
-            break;
-        };
-        cursor = next.matrix_id.clone();
+        {
+            stack.extend(next.targets().iter().map(|part| part.matrix_id.clone()));
+        }
     }
     Ok(())
 }
@@ -225,8 +247,18 @@ pub(crate) fn add(
         return Err(format!("Duplicate matrix identity {id:?}"));
     }
     validate_target(doc, id, None, anchor)?;
-    let target = evaluation::logical_matrix(&anchor.matrix_id, doc)
-        .map_err(|_| format!("Matrix {id} anchor target {} is missing", anchor.matrix_id))?;
+    // The board/pitch/template come from the first part; validation above
+    // already proved every part lives on the same board and Layout. An empty
+    // part list parses but cannot template: refuse here (the part-validation
+    // slice owns the earlier validation-time refusal).
+    if anchor.targets().is_empty() {
+        return Err(format!(
+            "Matrix {id} aggregate anchor needs at least one part"
+        ));
+    }
+    let template = anchor.targets()[0].clone();
+    let target = evaluation::logical_matrix(&template.matrix_id, doc)
+        .map_err(|_| format!("Matrix {id} anchor target {} is missing", template.matrix_id))?;
     let layout_id = owning_layout(doc, &target.id)
         .expect("validated target layout")
         .id
@@ -239,20 +271,25 @@ pub(crate) fn add(
         group_layouts.extend(mirrors.clone());
         group_layouts.sort();
         group_layouts.dedup();
-        // Map the anchor target into every member layout before mutating.
+        // Map every anchor part into every member layout before mutating.
+        // The single-key fields stay inert under an aggregate arm; only the
+        // parts travel through the correspondences.
         let mut anchors_by_layout = std::collections::BTreeMap::new();
         for member in &group_layouts {
-            let mapped =
-                counterpart_in_layout(doc, &anchor.matrix_id, &layout_id, member, &source_id)?;
-            anchors_by_layout.insert(
-                member.clone(),
-                MatrixAnchor {
-                    matrix_id: mapped,
-                    row: anchor.row,
-                    column: anchor.column,
-                    follow: anchor.follow,
-                },
-            );
+            let mut mapped_anchor = anchor.clone();
+            if let Some(aggregate) = mapped_anchor.aggregate.as_mut() {
+                for part in &mut aggregate.parts {
+                    part.matrix_id =
+                        counterpart_in_layout(doc, &part.matrix_id, &layout_id, member, &source_id)?;
+                }
+                mapped_anchor.matrix_id.clear();
+                mapped_anchor.row = 0;
+                mapped_anchor.column = 0;
+            } else {
+                mapped_anchor.matrix_id =
+                    counterpart_in_layout(doc, &anchor.matrix_id, &layout_id, member, &source_id)?;
+            }
+            anchors_by_layout.insert(member.clone(), mapped_anchor);
         }
         // Reserve every counterpart identity before any mutation so a clash
         // leaves the document unchanged.
@@ -288,14 +325,16 @@ pub(crate) fn add(
             let counterpart_id = &ids_by_layout[member];
             let counterpart_anchor = &anchors_by_layout[member];
             validate_target(doc, counterpart_id, None, counterpart_anchor)?;
-            // The mapped anchor must live in the same member layout the new
+            // Every mapped part must live in the same member layout the new
             // matrix joins; otherwise the group would silently retarget.
-            let anchor_layout =
-                owning_layout(doc, &counterpart_anchor.matrix_id).map(|layout| layout.id.clone());
-            if anchor_layout.as_deref() != Some(member.as_str()) {
-                return Err(format!(
-                    "Matrix {counterpart_id} anchor must stay on the same board and Layout"
-                ));
+            for part in counterpart_anchor.targets() {
+                let anchor_layout =
+                    owning_layout(doc, &part.matrix_id).map(|layout| layout.id.clone());
+                if anchor_layout.as_deref() != Some(member.as_str()) {
+                    return Err(format!(
+                        "Matrix {counterpart_id} anchor must stay on the same board and Layout"
+                    ));
+                }
             }
         }
         let pitch = target.pitch;
@@ -592,7 +631,14 @@ pub(crate) fn detach_out_of_range(
 ) -> Result<Vec<String>, String> {
     let mut changed = vec![];
     for (id, anchor) in dependants(doc, matrix_id) {
-        if anchor.row >= rows || anchor.column >= columns {
+        // A wholesale replacement never retargets: the dependant detaches
+        // when any of its parts on the resized matrix leaves the grid.
+        let out_of_range = anchor
+            .targets()
+            .iter()
+            .filter(|part| part.matrix_id == matrix_id)
+            .any(|part| part.row >= rows || part.column >= columns);
+        if out_of_range {
             changed.extend(detach(doc, &id)?);
         }
     }
@@ -610,8 +656,22 @@ pub(crate) fn remap_compacted(
     let mut changed = vec![];
     for target in matrix_ids {
         for (id, anchor) in dependants(doc, target) {
-            let axis = if row_axis { anchor.row } else { anchor.column };
-            if axis == index {
+            // Single-key dependants detach only at the removed slot; the
+            // lifecycle slice owns per-part aggregate remap, so an aggregate
+            // detaches whenever compaction touches its parts at or past the
+            // removed slot instead of silently following shifted keys.
+            let detach_at = if anchor.is_aggregate() {
+                anchor
+                    .targets()
+                    .iter()
+                    .filter(|part| part.matrix_id == *target)
+                    .map(|part| if row_axis { part.row } else { part.column })
+                    .any(|axis| axis >= index)
+            } else {
+                let axis = if row_axis { anchor.row } else { anchor.column };
+                axis == index
+            };
+            if detach_at {
                 changed.extend(detach(doc, &id)?);
             }
         }
@@ -631,6 +691,11 @@ pub(crate) fn shift_compacted(
     let mut moved: Vec<(String, MatrixAnchor)> = vec![];
     for target in matrix_ids {
         for (id, mut anchor) in dependants(doc, target) {
+            // Aggregate part refs are remapped by the lifecycle slice;
+            // `remap_compacted` above already detached the affected ones.
+            if anchor.is_aggregate() {
+                continue;
+            }
             let axis = if row_axis {
                 &mut anchor.row
             } else {
@@ -661,7 +726,10 @@ pub(crate) fn constraining_refusal(doc: &ProjectDoc, constraint: &Constraint) ->
     let target = constraint.target();
     for matrix in &doc.matrices {
         if let Some(anchor) = &matrix.anchor
-            && anchor_key_id(anchor) == target
+            && anchor
+                .targets()
+                .iter()
+                .any(|part| part_key_id(part) == target)
         {
             return Some(format!(
                 "Cannot constrain {target} because matrix {} anchors to it; detach the matrix first",
