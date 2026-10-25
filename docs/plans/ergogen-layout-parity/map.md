@@ -129,6 +129,18 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 | [30: Aggregate validation/lifecycle](issues/30-aggregate-validation-lifecycle.md#answer) | 28 | Resolved: part refusals plus compaction-remap/detach lifecycle (plan slices A2, A5); standards + spec gap re-review passed. |
 | [31: Aggregate reflection/fixtures](issues/31-aggregate-reflection-fixtures.md#answer) | 28 | Resolved: linked reflection plus pinned goldens (plan slices A6, A8); dual review passed. |
 | [32: Aggregate anchor UI](issues/32-aggregate-anchor-ui.md#answer) | 28 | Resolved: Inspector editing, multi-Pick, Relations chains (plan slice A9); dual review passed. |
+| [33: Keycap size through typed edits](issues/33-keycap-size-typed-edits.md) | — | Ready: Inspector keycap control submits the typed edit with validation and single-entry Undo/Redo. |
+| [34: Per-key Omit/Rejoin](issues/34-per-key-omit-rejoin.md) | — | Ready: omit/rejoin a single key from the Inspector with atomicity and Undo matching the detach-confirm path. |
+| [35: Unlink halves UI](issues/35-unlink-halves-ui.md) | — | Ready: linked pair unlinkable with confirmation and Undo, no orphaned correspondences, both halves stay valid. |
+| [36: Aggregate anchor committing test](issues/36-aggregate-anchor-committing-test.md) | 32 | Ready: mounted test committing aggregate method and parts changes (regression lock on the existing navigate-only coverage). |
+| [37: Outline/Net dead-surface triage](issues/37-outline-net-dead-surface-triage.md) | — | Ready: per-variant wire-to-surface or delete verdict for the SelectOutline family, SetNet and superseded mechanical/outline operations. |
+
+## Follow-up
+
+UI wiring follow-ups 33–37 close the audit gaps: typed keycap commits (33),
+per-key Omit/Rejoin (34), unlink-halves action (35), a committing aggregate
+proof (36), and dead-variant triage (37). All are unblocked and ready for
+tracer-bullet slices.
 
 Frontier: tickets 28–32 are all resolved — every deferred-items plan lane is
 integrated and no further tickets are planned.
