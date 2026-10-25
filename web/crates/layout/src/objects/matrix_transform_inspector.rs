@@ -1460,6 +1460,29 @@ fn AggregateAnchorSection(props: AggregateAnchorSectionProps) -> Element {
     };
     let count = aggregate.parts.len();
     let noun = if count == 1 { "key" } else { "keys" };
+    let current_method = aggregate.method;
+    let is_average = matches!(current_method, AggregateMethod::Average);
+    let mut submitted = use_signal(|| None::<u64>);
+    let mut submitted_effect = submitted;
+    let observed_method = use_signal(|| current_method);
+    let mut observed_effect = observed_method;
+    use_effect(use_reactive((&current_method,), move |(method,)| {
+        if observed_effect() != method {
+            observed_effect.set(method);
+            submitted_effect.set(None);
+        }
+    }));
+    let error = props
+        .feedback
+        .iter()
+        .rev()
+        .find(|item| {
+            props.owner == item.owner
+                && item.field == MatrixTransformField::MatrixAnchorMethod
+                && Some(item.request_id) == submitted()
+                && item.message.is_some()
+        })
+        .and_then(|item| item.message.clone());
     let parts: Vec<(TreeContext, String, String)> = aggregate
         .parts
         .iter()
@@ -1475,9 +1498,57 @@ fn AggregateAnchorSection(props: AggregateAnchorSectionProps) -> Element {
             )
         })
         .collect();
+    let mut sequence = props.request_sequence;
+    let owner = props.owner.clone();
+    let token = props.snapshot_token;
+    let revision = props.revision;
+    let on_edit = props.on_edit;
+    let affect = props.splay_affect;
+    let editable = props.editable;
     rsx! {
         p { class: "m1-matrix-anchor-target",
             "{method} of {count} {noun}"
+        }
+        BoardSelectField {
+            label: "Method",
+            class: "m1-matrix-field",
+            aria_label: "Method",
+            value: if is_average { "average".to_owned() } else { "intersect".to_owned() },
+            disabled: !editable,
+            onchange: move |event: FormEvent| {
+                let next = if event.value() == "intersect" {
+                    AggregateMethod::Intersect
+                } else {
+                    AggregateMethod::Average
+                };
+                if next == current_method {
+                    return;
+                }
+                let Some(request_id) = sequence().checked_add(1) else {
+                    return;
+                };
+                sequence.set(request_id);
+                submitted.set(Some(request_id));
+                on_edit.call(MatrixTransformRequest {
+                    owner: owner.clone(),
+                    request_id,
+                    snapshot_token: token,
+                    revision,
+                    field: MatrixTransformField::MatrixAnchorMethod,
+                    baseline: MatrixTransformValue::AnchorMethod(current_method),
+                    value: MatrixTransformValue::AnchorMethod(next),
+                    splay_affect: affect(),
+                    draft: None,
+                    failure: None,
+                    submitted_text: None,
+                    one_shot: false,
+                });
+            },
+            option { value: "average", selected: is_average, "Average" }
+            option { value: "intersect", selected: !is_average, "Intersection" }
+        }
+        if let Some(message) = error.as_deref() {
+            p { role: "alert", class: "m1-matrix-transform-error", "{message}" }
         }
         ul { class: "m1-matrix-anchor-parts",
             for (context, label, key) in parts.iter() {

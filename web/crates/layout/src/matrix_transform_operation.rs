@@ -1,8 +1,9 @@
 //! Private, pure mapping from accepted matrix transform fields to existing edit operations.
 use boardstudio_core::model::{
-    EditOperation, Follow, Matrix, MatrixAnchor, MatrixCell, MatrixColumnBasis,
-    MatrixPlacementChange, MatrixScene, MatrixSplayAffect, MatrixSplayChange, Mirror,
-    MirroredItemKind, PartDefinition, Pose2, ProjectDoc, Vec2, convert_offset_available,
+    AggregateAnchor, AggregateMethod, AnchorPart, EditOperation, Follow, Matrix, MatrixAnchor,
+    MatrixCell, MatrixColumnBasis, MatrixPlacementChange, MatrixScene, MatrixSplayAffect,
+    MatrixSplayChange, Mirror, MirroredItemKind, PartDefinition, Pose2, ProjectDoc, Vec2,
+    convert_offset_available,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,6 +47,8 @@ pub enum MatrixTransformField {
     MatrixDetach,
     MatrixDetachConfirm,
     MatrixAnchorPick,
+    MatrixAnchorMethod,
+    MatrixAnchorParts,
     MatrixFollowX,
     MatrixFollowY,
     MatrixFollowRotation,
@@ -67,6 +70,8 @@ pub enum MatrixTransformValue {
         row: u32,
         column: u32,
     },
+    AnchorMethod(AggregateMethod),
+    AnchorParts(Vec<AnchorPart>),
     Bool(bool),
     Text(String),
     Attached(Vec<(String, String)>),
@@ -324,6 +329,61 @@ pub fn build_operation(
             Field::MatrixAnchorPick,
             Value::AnchorKey { .. },
         ) => Err("This matrix has no anchor to retarget. Anchor it first.".into()),
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(current),
+                ..
+            },
+            Field::MatrixAnchorMethod,
+            Value::AnchorMethod(method),
+        ) => {
+            let Some(aggregate) = current.aggregate.as_ref() else {
+                return Err("Anchor method editing needs an aggregate anchor.".into());
+            };
+            Ok(EditOperation::SetMatrixAnchor {
+                matrix_id: matrix.id.clone(),
+                anchor: MatrixAnchor {
+                    aggregate: Some(AggregateAnchor {
+                        method,
+                        parts: aggregate.parts.clone(),
+                    }),
+                    ..current.clone()
+                },
+            })
+        }
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(current),
+                ..
+            },
+            Field::MatrixAnchorParts,
+            Value::AnchorParts(parts),
+        ) => {
+            let Some(aggregate) = current.aggregate.as_ref() else {
+                return Err("Anchor part editing needs an aggregate anchor.".into());
+            };
+            if parts.is_empty() {
+                return Err(format!(
+                    "Matrix {} aggregate anchor needs at least one part",
+                    matrix.id
+                ));
+            }
+            Ok(EditOperation::SetMatrixAnchor {
+                matrix_id: matrix.id.clone(),
+                anchor: MatrixAnchor {
+                    aggregate: Some(AggregateAnchor {
+                        method: aggregate.method,
+                        parts,
+                    }),
+                    ..current.clone()
+                },
+            })
+        }
+        (
+            MatrixTransformFields::Matrix { .. },
+            Field::MatrixAnchorMethod | Field::MatrixAnchorParts,
+            _,
+        ) => Err("Anchor method and part editing need an aggregate anchor.".into()),
         (
             MatrixTransformFields::Matrix {
                 anchor: Some(current),

@@ -401,6 +401,8 @@ pub(super) fn transform_field_label(field: MatrixTransformField) -> &'static str
         MatrixTransformField::MatrixDetach => "Detach",
         MatrixTransformField::MatrixDetachConfirm => "Confirm detach",
         MatrixTransformField::MatrixAnchorPick => "Pick anchor",
+        MatrixTransformField::MatrixAnchorMethod => "Anchor method",
+        MatrixTransformField::MatrixAnchorParts => "Anchor parts",
         MatrixTransformField::MatrixFollowX => "Follow X",
         MatrixTransformField::MatrixFollowY => "Follow Y",
         MatrixTransformField::MatrixFollowRotation => "Follow rotation",
@@ -1486,6 +1488,26 @@ fn field_value(
         (MatrixTransformFields::Column { splay_origin, .. }, Field::SplayOriginSwingPoint) => {
             Some(Value::Point(*splay_origin))
         }
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(anchor),
+                ..
+            },
+            Field::MatrixAnchorMethod,
+        ) => anchor
+            .aggregate
+            .as_ref()
+            .map(|aggregate| Value::AnchorMethod(aggregate.method)),
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(anchor),
+                ..
+            },
+            Field::MatrixAnchorParts,
+        ) => anchor
+            .aggregate
+            .as_ref()
+            .map(|aggregate| Value::AnchorParts(aggregate.parts.clone())),
         (
             MatrixTransformFields::Matrix {
                 anchor: Some(anchor),
