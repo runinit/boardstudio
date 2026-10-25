@@ -4389,3 +4389,244 @@ async fn aggregate_commit_with_self_part_refuses_through_core() {
     );
     root.remove();
 }
+
+fn aggregate_dependant_pose(probe: &Probe) -> Pose2 {
+    probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .scene
+        .matrix_scenes
+        .iter()
+        .find(|scene| scene.matrix_id == "matrix-b")
+        .and_then(|scene| {
+            scene
+                .cells
+                .iter()
+                .find(|cell| cell.row == 0 && cell.column == 0)
+                .map(|cell| cell.pose)
+        })
+        .expect("the aggregate dependant is laid out")
+}
+
+fn aggregate_method_of(probe: &Probe) -> AggregateMethod {
+    probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "matrix-b")
+        .expect("the matrix survives")
+        .anchor
+        .as_ref()
+        .expect("the anchor survives")
+        .aggregate
+        .as_ref()
+        .expect("the anchor stays aggregate")
+        .method
+}
+
+/// Ticket 36, RED: committing an aggregate method switch through the mounted
+/// Inspector surface writes one Core intent, and Undo restores the prior
+/// method with poses unchanged while Redo restores the committed method.
+/// Expected poses come from Core-published scene values only.
+#[wasm_bindgen_test]
+async fn aggregate_method_switch_commits_with_redo_and_pose_round_trip() {
+    let (document, context) = aggregate_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-36-method-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let pose_before = aggregate_dependant_pose(&probe);
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    let method = root
+        .query_selector("select[aria-label='Method']")
+        .unwrap()
+        .expect("the Anchor section offers the aggregate method")
+        .dyn_into::<HtmlSelectElement>()
+        .unwrap();
+    assert_eq!(
+        method.value(),
+        "average",
+        "the method shows the admitted value"
+    );
+    method.set_value("intersect");
+    let change = web_sys::EventInit::new();
+    change.set_bubbles(true);
+    method
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
+        .unwrap();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        aggregate_method_of(&probe),
+        AggregateMethod::Intersect,
+        "the switch writes the new method"
+    );
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .revision,
+        revision_before + 1,
+        "the switch is one atomic Core intent"
+    );
+    let pose_after = aggregate_dependant_pose(&probe);
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        aggregate_method_of(&probe),
+        AggregateMethod::Average,
+        "one Undo restores the previous method"
+    );
+    assert_eq!(
+        aggregate_dependant_pose(&probe),
+        pose_before,
+        "one Undo restores the Core-published dependant pose exactly"
+    );
+    probe.runtime.submit(Event::Redo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        aggregate_method_of(&probe),
+        AggregateMethod::Intersect,
+        "one Redo restores the committed method"
+    );
+    assert_eq!(
+        aggregate_dependant_pose(&probe),
+        pose_after,
+        "one Redo restores the Core-published committed pose exactly"
+    );
+    root.remove();
+}
+
+/// Ticket 36, RED: committing an aggregate parts change through the mounted
+/// Inspector surface updates the Core-published dependant pose, and Undo
+/// restores the parts and the pose. Expected poses come from Core-published
+/// scene values only.
+#[wasm_bindgen_test]
+async fn aggregate_part_remove_updates_dependant_pose_with_undo_round_trip() {
+    let (document, context) = aggregate_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-36-parts-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let pose_before = aggregate_dependant_pose(&probe);
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    let removes: Vec<web_sys::HtmlElement> = {
+        let buttons = root.query_selector_all("button").unwrap();
+        (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .filter(|node| node.text_content().as_deref() == Some("Remove"))
+            .map(|node| node.dyn_into::<web_sys::HtmlElement>().unwrap())
+            .collect()
+    };
+    assert_eq!(
+        removes.len(),
+        2,
+        "each part offers Remove while more than one part remains"
+    );
+    removes[0].click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts
+            .len(),
+        1,
+        "Remove drops the part in one Core intent"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "the removal is one atomic Core intent"
+    );
+    let pose_after = aggregate_dependant_pose(&probe);
+    assert_ne!(
+        (pose_after.at.x, pose_after.at.y, pose_after.rotation),
+        (pose_before.at.x, pose_before.at.y, pose_before.rotation),
+        "the Core-published dependant pose follows the surviving part"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let undone = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        undone
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts
+            .len(),
+        2,
+        "one Undo restores the removed part"
+    );
+    assert_eq!(
+        aggregate_dependant_pose(&probe),
+        pose_before,
+        "one Undo restores the Core-published dependant pose exactly"
+    );
+    root.remove();
+}
