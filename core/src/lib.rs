@@ -31,7 +31,10 @@ mod validate;
 use geometry::{OutlineCache, outlines};
 pub use matrix::kernel as layout_kernel;
 use matrix::layout;
+pub use matrix::layout::evaluated_part_pose;
 pub use matrix::layout::is_matrix_key;
+pub use matrix::layout::layout_half_offset;
+pub use matrix::layout::part_correspondence;
 pub use matrix::layout::proposed_creation_gap;
 use model::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -1214,7 +1217,9 @@ impl CoreEngine {
                 .iter()
                 .map(|part| Transform {
                     id: part.id.clone(),
-                    pose: part.pose,
+                    // Ticket 12: the canvas draws half-frame parts at their
+                    // evaluated board poses; storage stays within-half.
+                    pose: layout::evaluated_part_pose(doc, part),
                 })
                 .collect(),
             matrix_scenes: matrix_order
@@ -1561,6 +1566,7 @@ fn affects_outline(op: &EditOperation) -> bool {
             | EditOperation::CreateMirroredHalf { .. }
             | EditOperation::SetLayout { .. }
             | EditOperation::SetSplitGap { .. }
+            | EditOperation::SetMirroredPart { .. }
             | EditOperation::SetConstraint { .. }
             | EditOperation::RemoveConstraint { .. }
             | EditOperation::ReplaceDocument { .. }
@@ -1702,7 +1708,17 @@ fn add_part_placement(
             .part_ids
             .push(part.id.clone());
     }
-    document.parts.push(part.clone());
+    // Ticket 12: drops onto a stored-gap half arrive board-space; storage is
+    // half-frame, so convert at insertion. Rotations are frame-free.
+    let mut stored = part.clone();
+    if let Some(layout_id) = layout_id
+        && let Some(offset) = layout::layout_half_offset(document, layout_id)
+        && !layout::is_member_or_companion(document, &part.id)
+    {
+        stored.pose.at.x -= offset.x;
+        stored.pose.at.y -= offset.y;
+    }
+    document.parts.push(stored);
     Ok(vec![part.id.clone()])
 }
 
@@ -1906,9 +1922,15 @@ fn apply_with_ledger(
                 if !position.at.x.is_finite() || !position.at.y.is_finite() {
                     return Err("Position must be finite".into());
                 }
+                // Ticket 12: pair parts cannot cross the split axis; the drag
+                // stops at it. The clamp is the identity off a mirrored half.
+                // Drags arrive board-space while storage is half-frame, so the
+                // retune delta measures against the evaluated pose.
+                let at = layout::clamp_part_to_half(doc, &position.id, position.at);
+                let current = layout::evaluated_part_pose(doc, &doc.parts[index]);
                 let delta = Vec2 {
-                    x: position.at.x - doc.parts[index].pose.at.x,
-                    y: position.at.y - doc.parts[index].pose.at.y,
+                    x: at.x - current.at.x,
+                    y: at.y - current.at.y,
                 };
                 if let Some(constraint) = doc
                     .constraints
@@ -1923,13 +1945,27 @@ fn apply_with_ledger(
                     changed.push(position.id.clone());
                     continue;
                 }
-                if let Some(linked) = layout::move_linked_component(doc, &position.id, position.at)?
-                {
+                // Ticket 12: a correspondence-mirrored part on a stored-gap
+                // pair writes both copies through, so either copy edits both.
+                if let Some(mirrored) = layout::move_pair_part(doc, &position.id, at)? {
+                    changed.extend(mirrored);
+                    continue;
+                }
+                if let Some(linked) = layout::move_linked_component(doc, &position.id, at)? {
                     changed.extend(linked);
                     continue;
                 }
+                // Ticket 12: the drop commits board-space; storage converts.
+                let stored = layout::stored_part_pose(
+                    doc,
+                    &position.id,
+                    Pose2 {
+                        at,
+                        rotation: doc.parts[index].pose.rotation,
+                    },
+                );
                 let part = &mut doc.parts[index];
-                part.pose.at = position.at;
+                part.pose.at = stored.at;
                 if doc
                     .matrices
                     .iter()
@@ -1947,13 +1983,20 @@ fn apply_with_ledger(
                 board_id,
                 definition,
                 layout_id,
-            } => add_part_placement(
-                doc,
-                part,
-                board_id.as_deref(),
-                definition.as_ref(),
-                layout_id.as_deref(),
-            ),
+            } => {
+                let mut changed = add_part_placement(
+                    doc,
+                    part,
+                    board_id.as_deref(),
+                    definition.as_ref(),
+                    layout_id.as_deref(),
+                )?;
+                // Ticket 12: a part added to a stored-gap half mirrors by
+                // correspondence in the same Undo entry; legacy pairs mirror
+                // through the resolve sync. Mirror-only adds stay single.
+                changed.extend(layout::mirror_new_pair_part(doc, &part.id)?);
+                Ok(changed)
+            }
             EditOperation::AddMirrorOnlyPart {
                 part,
                 board_id,
@@ -1968,6 +2011,9 @@ fn apply_with_ledger(
             ),
             _ => unreachable!("the placement arm matches both Part addition operations"),
         },
+        EditOperation::SetMirroredPart { part_id, mirrored } => {
+            layout::set_part_mirrored(doc, part_id, *mirrored)
+        }
         EditOperation::RemoveMatrix { id } => {
             let ids = doc
                 .matrices
@@ -2064,6 +2110,9 @@ fn apply_with_ledger(
             // A linked refinement drops exactly the authored choices that required a
             // removed component, inside this same accepted edit, so the cleanup and the
             // removal share one Undo step and never retarget onto another component.
+            // Ticket 12: removing either copy of a mirrored part drops its Part
+            // correspondence, so no dangling record survives the removal.
+            layout::retire_part_correspondences(doc, &ids);
             let mut changed = ids;
             let cleanup = outline_versions::prune_removed_sources(doc, &changed);
             changed.extend(cleanup);
@@ -2410,6 +2459,18 @@ fn apply_with_ledger(
                     layout::unadopt_pair(doc, &incoming.id)?;
                 }
                 _ => {}
+            }
+            // Ticket 12: parts joining or leaving a stored-gap half reframe
+            // with it, preserving evaluated poses. The unlink transition
+            // skips leaving parts: unadopt above already restored them.
+            let unlinking = matches!((old_gap, new_gap), (Some(_), None));
+            if let Some(previous) = doc
+                .layouts
+                .iter()
+                .find(|layout| layout.id == incoming.id)
+                .cloned()
+            {
+                layout::reframe_moved_parts(doc, &previous, &incoming, unlinking)?;
             }
             let current = doc
                 .layouts

@@ -47,6 +47,7 @@ pub(super) fn transform_tools(
 pub(super) fn snap_origins(
     document: &ProjectDoc,
     board_id: &str,
+    scene: &SceneDelta,
 ) -> Vec<super::outline_snapping::Origin> {
     let board_parts: HashSet<_> = document
         .boards
@@ -91,17 +92,25 @@ pub(super) fn snap_origins(
             } else {
                 definition.map_or_else(Vec::new, |definition| definition.courtyard.clone())
             };
-            let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
+            // Ticket 12: snap half-frame parts at their evaluated board pose,
+            // like the canvas draws them.
+            let pose = scene
+                .transforms
+                .iter()
+                .find(|transform| transform.id == part.id)
+                .map(|transform| transform.pose)
+                .unwrap_or_else(|| boardstudio_core::evaluated_part_pose(document, part));
+            let (sin, cos) = pose.rotation.to_radians().sin_cos();
             let world = local
                 .into_iter()
                 .map(|point| Vec2 {
-                    x: part.pose.at.x + point.x * cos - point.y * sin,
-                    y: part.pose.at.y + point.x * sin + point.y * cos,
+                    x: pose.at.x + point.x * cos - point.y * sin,
+                    y: pose.at.y + point.x * sin + point.y * cos,
                 })
                 .collect();
             super::outline_snapping::Origin {
                 reference: part.reference.clone(),
-                center: part.pose.at,
+                center: pose.at,
                 polygon: super::outline_snapping::convex_hull(world),
             }
         })

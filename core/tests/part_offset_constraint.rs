@@ -85,6 +85,22 @@ fn part<'a>(doc: &'a ProjectDoc, id: &str) -> &'a Part {
         .unwrap_or_else(|| panic!("missing part {id}"))
 }
 
+/// Board-space pose of a part from the scene snapshot: independent parts on a
+/// stored-gap half evaluate through the half offset, so behavior assertions
+/// read transforms, not storage.
+fn snap(engine: &mut CoreEngine) -> (SceneDelta, ProjectDoc) {
+    scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }))
+}
+
+fn epose(scene: &SceneDelta, id: &str) -> Pose2 {
+    scene
+        .transforms
+        .iter()
+        .find(|transform| transform.id == id)
+        .unwrap_or_else(|| panic!("missing transform {id}"))
+        .pose
+}
+
 /// The companion's pose in its key's frame: where the key's own turn leaves it.
 fn relative(doc: &ProjectDoc, key: &str, companion: &str) -> (Vec2, f64) {
     let key = part(doc, key).pose;
@@ -774,12 +790,13 @@ fn dragging_the_mirrored_half_retunes_a_held_part_offset_in_its_own_key_frame() 
         left_key.rotation
     );
     let right = "right-layout::mirror::left-part";
-    let start = part(&before, right).pose.at;
+    let (before_scene, _) = snap(&mut engine);
+    let start = epose(&before_scene, right).at;
     let requested = Vec2 {
         x: start.x + 3.0,
         y: start.y,
     };
-    let (_, after) = edit(
+    let (after_scene, after) = edit(
         &mut engine,
         &before,
         EditOperation::MoveParts {
@@ -794,10 +811,10 @@ fn dragging_the_mirrored_half_retunes_a_held_part_offset_in_its_own_key_frame() 
         x: 2.0 * 10.0 - requested.x,
         y: requested.y,
     };
-    let landed = part(&after, "left-part").pose.at;
+    let landed = epose(&after_scene, "left-part").at;
     // The left component's world move, rotated into the left key's frame at 30 degrees:
     // (dx cos 30 + dy sin 30, -dx sin 30 + dy cos 30).
-    let left_start = part(&before, "left-part").pose.at;
+    let left_start = epose(&before_scene, "left-part").at;
     let (dx, dy) = (mirrored.x - left_start.x, mirrored.y - left_start.y);
     let (c, s) = (30.0_f64.to_radians().cos(), 30.0_f64.to_radians().sin());
     let Some(Constraint::PartOffset { offset, .. }) = after
@@ -832,12 +849,13 @@ fn dragging_the_mirrored_half_retunes_a_held_board_offset_on_the_board_axes() {
         left_key.rotation
     );
     let right = "right-layout::mirror::left-part";
-    let start = part(&before, right).pose.at;
+    let (before_scene, _) = snap(&mut engine);
+    let start = epose(&before_scene, right).at;
     let requested = Vec2 {
         x: start.x + 3.0,
         y: start.y,
     };
-    let (_, after) = edit(
+    let (after_scene, after) = edit(
         &mut engine,
         &before,
         EditOperation::MoveParts {
@@ -847,7 +865,7 @@ fn dragging_the_mirrored_half_retunes_a_held_board_offset_on_the_board_axes() {
             }],
         },
     );
-    let landed = part(&after, "left-part").pose.at;
+    let landed = epose(&after_scene, "left-part").at;
     let Some(Constraint::Offset { offset, .. }) = after
         .constraints
         .iter()

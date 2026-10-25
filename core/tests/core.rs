@@ -2534,6 +2534,16 @@ fn mirrored_pair_previews_restore_both_halves_and_nudges_stay_parametric() {
     assert_reflected_keys(&grown);
 }
 
+/// Board-space pose of a part from the scene transforms.
+fn board_pose(scene: &SceneDelta, id: &str) -> Pose2 {
+    scene
+        .transforms
+        .iter()
+        .find(|transform| transform.id == id)
+        .unwrap_or_else(|| panic!("missing transform {id}"))
+        .pose
+}
+
 #[test]
 fn mirrored_pair_links_extra_components_and_unlink_preserves_poses() {
     let (mut engine, doc) = linked_pair();
@@ -2555,12 +2565,15 @@ fn mirrored_pair_links_extra_components_and_unlink_preserves_poses() {
     if !left.part_ids.contains(&local.id) {
         left.part_ids.push(local.id.clone());
     }
-    doc = scene(engine.handle(edit(
+    let (joined_scene, joined) = scene(engine.handle(edit(
         doc.revision,
         EditPhase::Commit,
         EditOperation::SetLayout { layout: left },
-    )))
-    .1;
+    )));
+    doc = joined;
+    // Ticket 12: joining the half converts the drop to half-frame storage;
+    // the evaluated board pose is unchanged.
+    assert_eq!(board_pose(&joined_scene, &local.id), local.pose);
     let mut right = doc.matrices[1].clone();
     {
         let values = vec![7.0];
@@ -2573,49 +2586,55 @@ fn mirrored_pair_links_extra_components_and_unlink_preserves_poses() {
             record.stagger = value;
         }
     }
-    doc = scene(engine.handle(edit(
+    let (mirrored_scene, mirrored) = scene(engine.handle(edit(
         doc.revision,
         EditPhase::Commit,
         EditOperation::SetMatrix {
             matrix: right,
             definitions: None,
         },
-    )))
-    .1;
-    assert_eq!(
-        doc.parts
-            .iter()
-            .find(|part| part.id == local.id)
-            .unwrap()
-            .pose,
-        local.pose
-    );
+    )));
+    doc = mirrored;
     assert_eq!(doc.layouts[1].part_ids.len(), 1);
+    // Ticket 12: the linked partner mirrors in the half frame (stored halves
+    // negate about the origin) and evaluates to the board reflection.
+    let stored = doc
+        .parts
+        .iter()
+        .find(|part| part.id == local.id)
+        .unwrap()
+        .pose;
     let counterpart = doc
         .parts
         .iter()
         .find(|part| part.id == doc.layouts[1].part_ids[0])
         .unwrap();
-    assert!((counterpart.pose.at.x + local.pose.at.x - 20.0).abs() < 1e-8);
+    assert!((counterpart.pose.at.x + stored.at.x).abs() < 1e-8);
+    assert!((counterpart.pose.at.y - stored.at.y).abs() < 1e-8);
+    let placed = board_pose(&mirrored_scene, &local.id);
+    let mirrored_board = board_pose(&mirrored_scene, &counterpart.id);
+    assert!((mirrored_board.at.x + placed.at.x - 20.0).abs() < 1e-8);
+    assert!((mirrored_board.at.y - placed.at.y).abs() < 1e-8);
     let mut independent = doc.layouts[1].clone();
     independent.mirror_link = None;
-    let unlinked = scene(engine.handle(edit(
+    let (unlinked_scene, unlinked) = scene(engine.handle(edit(
         doc.revision,
         EditPhase::Commit,
         EditOperation::SetLayout {
             layout: independent,
         },
-    )))
-    .1;
+    )));
+    // Unlink preserves every evaluated pose; storage returns board-space.
     assert_eq!(
-        unlinked
-            .parts
+        unlinked_scene
+            .transforms
             .iter()
-            .map(|part| (&part.id, &part.pose))
+            .map(|transform| (&transform.id, transform.pose))
             .collect::<Vec<_>>(),
-        doc.parts
+        mirrored_scene
+            .transforms
             .iter()
-            .map(|part| (&part.id, &part.pose))
+            .map(|transform| (&transform.id, transform.pose))
             .collect::<Vec<_>>()
     );
     let mut change = unlinked.matrices[0].clone();

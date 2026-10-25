@@ -237,10 +237,17 @@ pub(crate) fn resolve_prepared(
     positions: &[Position],
     framed: &[FramedConstraint],
 ) -> Result<Vec<String>, String> {
+    // Ticket 12: the solver works board-space; half-frame parts evaluate
+    // through their half offset, and solved poses convert back on write.
     let parts: BTreeMap<_, _> = doc
         .parts
         .iter()
-        .map(|part| (part.id.clone(), part.pose))
+        .map(|part| {
+            (
+                part.id.clone(),
+                crate::matrix::layout::evaluated_part_pose(doc, part),
+            )
+        })
         .collect();
     let mut by_target: BTreeMap<String, Driver> = BTreeMap::new();
     let mut ids = BTreeSet::new();
@@ -313,13 +320,15 @@ pub(crate) fn resolve_prepared(
     }
     let mut changed = vec![];
     let mut key_moves = BTreeMap::new();
-    for part in &mut doc.parts {
-        if let Some(next) = resolved.get(&part.id)
-            && part.pose != *next
-        {
-            key_moves.insert(part.id.clone(), (part.pose, *next));
-            part.pose = *next;
-            changed.push(part.id.clone());
+    for index in 0..doc.parts.len() {
+        let id = doc.parts[index].id.clone();
+        if let Some(next) = resolved.get(&id) {
+            let stored = crate::matrix::layout::stored_part_pose(doc, &id, *next);
+            if doc.parts[index].pose != stored {
+                key_moves.insert(id.clone(), (doc.parts[index].pose, *next));
+                doc.parts[index].pose = stored;
+                changed.push(id);
+            }
         }
     }
     changed.extend(crate::matrix::layout::reconcile_constraint_keys(

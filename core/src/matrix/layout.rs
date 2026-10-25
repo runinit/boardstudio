@@ -1,4 +1,5 @@
 use crate::{matrix, mechanical::pair, model::*};
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 const MIRRORED_COMPONENT_SOURCE: &str = "boardstudio.mirroredComponentSource";
@@ -518,10 +519,179 @@ pub(crate) fn adopt_half_frames(doc: &mut ProjectDoc) -> Result<Vec<String>, Str
             && let Some(link) = layout.mirror_link.as_mut()
         {
             link.split_gap = Some(gap);
-            changed.push(target_id);
+            changed.push(target_id.clone());
         }
+        changed.extend(adopt_pair_parts(doc, &source_id, &target_id, axis_x, gap)?);
     }
     Ok(changed)
+}
+
+/// Ticket 12: adopt the half frame for a pair's independent parts: re-express
+/// board-space poses as half-frame values (rotation is frame-free), preserving
+/// every evaluated world pose, and record each properties-linked mirror pair
+/// as a Part correspondence on the mirror link so the toggle (ticket 12) and
+/// the mirror sync own them by record. Unlinked parts stay local by absence.
+fn adopt_pair_parts(
+    doc: &mut ProjectDoc,
+    source_id: &str,
+    target_id: &str,
+    axis_x: f64,
+    gap: f64,
+) -> Result<Vec<String>, String> {
+    let mut changed = Vec::new();
+    let sides: Vec<(String, bool)> = [source_id, target_id]
+        .into_iter()
+        .map(|id| {
+            let mirror_side = id == target_id;
+            (id.to_string(), mirror_side)
+        })
+        .collect();
+    for (layout_id, mirror_side) in &sides {
+        let part_ids = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.id == *layout_id)
+            .map(|layout| layout.part_ids.clone())
+            .unwrap_or_default();
+        for part_id in part_ids {
+            if is_member_or_companion(doc, &part_id) {
+                continue;
+            }
+            if let Some(part) = doc.parts.iter_mut().find(|part| part.id == part_id) {
+                let offset = if *mirror_side {
+                    axis_x + gap / 2.0
+                } else {
+                    axis_x - gap / 2.0
+                };
+                part.pose.at.x -= offset;
+                changed.push(part_id.clone());
+            }
+        }
+    }
+    // Record the properties-linked mirrors the legacy sync maintained, so the
+    // pair keeps mirroring them by correspondence under the half frame.
+    for (source_part, mirror_part) in unrecorded_mirror_pairs(doc, source_id, target_id) {
+        strip_substitute_flag(doc, &source_part);
+        strip_substitute_flag(doc, &mirror_part);
+        if let Some(layout) = doc.layouts.iter_mut().find(|layout| layout.id == target_id)
+            && let Some(link) = layout.mirror_link.as_mut()
+        {
+            link.correspondences.push(MirroredCorrespondence {
+                kind: MirroredItemKind::Part,
+                source_id: source_part.clone(),
+                mirror_id: mirror_part.clone(),
+                companion_mode: None,
+                companion_tweak: None,
+            });
+            changed.push(source_part);
+            changed.push(mirror_part);
+        }
+    }
+    changed.sort();
+    changed.dedup();
+    Ok(changed)
+}
+
+/// Ticket 12: properties-linked mirrors on a pair that carry no Part
+/// correspondence yet: legacy sync output (board-space) that never passed
+/// adoption, e.g. pairs created with their gap stored. Local-substitute parts
+/// stay out: their flag pins them local.
+fn unrecorded_mirror_pairs(
+    doc: &ProjectDoc,
+    source_id: &str,
+    target_id: &str,
+) -> Vec<(String, String)> {
+    let has_substitute = |id: &str| {
+        doc.parts.iter().any(|part| {
+            part.id == id
+                && part.properties.as_ref().is_some_and(|properties| {
+                    properties.contains_key(MIRRORED_COMPONENT_SUBSTITUTE)
+                })
+        })
+    };
+    let recorded = |source_part: &str, mirror_part: &str| {
+        doc.layouts.iter().any(|layout| {
+            layout.mirror_link.as_ref().is_some_and(|link| {
+                link.correspondences.iter().any(|record| {
+                    record.kind == MirroredItemKind::Part
+                        && record.source_id == source_part
+                        && record.mirror_id == mirror_part
+                })
+            })
+        })
+    };
+    doc.parts
+        .iter()
+        .filter_map(|part| {
+            let source = part
+                .properties
+                .as_ref()?
+                .get(MIRRORED_COMPONENT_SOURCE)?
+                .as_str()?;
+            Some((source.to_string(), part.id.clone()))
+        })
+        .filter(|(source_part, mirror_part)| {
+            !recorded(source_part, mirror_part)
+                && !has_substitute(source_part)
+                && !has_substitute(mirror_part)
+                && doc
+                    .layouts
+                    .iter()
+                    .find(|layout| layout.id == source_id)
+                    .is_some_and(|layout| layout.part_ids.contains(source_part))
+                && doc
+                    .layouts
+                    .iter()
+                    .find(|layout| layout.id == target_id)
+                    .is_some_and(|layout| layout.part_ids.contains(mirror_part))
+        })
+        .collect()
+}
+
+/// Ticket 12: record legacy-mirrored copies on a stored-gap pair as Part
+/// correspondences, so the gapped sync owns them from here on. Record-only by
+/// design: every layout entry point (AddPart, SetLayout, gap adoption) already
+/// stores half-frame poses, so converting here would double-convert. Rotations
+/// are frame-free throughout.
+pub(crate) fn adopt_unrecorded_mirrors(
+    doc: &mut ProjectDoc,
+    source_id: &str,
+    target_id: &str,
+) -> Result<Vec<String>, String> {
+    let mut changed = Vec::new();
+    for (source_part, mirror_part) in unrecorded_mirror_pairs(doc, source_id, target_id) {
+        strip_substitute_flag(doc, &source_part);
+        strip_substitute_flag(doc, &mirror_part);
+        if let Some(layout) = doc.layouts.iter_mut().find(|layout| layout.id == target_id)
+            && let Some(link) = layout.mirror_link.as_mut()
+        {
+            link.correspondences.push(MirroredCorrespondence {
+                kind: MirroredItemKind::Part,
+                source_id: source_part.clone(),
+                mirror_id: mirror_part.clone(),
+                companion_mode: None,
+                companion_tweak: None,
+            });
+            changed.push(source_part);
+            changed.push(mirror_part);
+        }
+    }
+    changed.sort();
+    changed.dedup();
+    Ok(changed)
+}
+
+/// Clear the local-substitute flag from a correspondence-managed part: the
+/// Part correspondence on the mirror link owns its mirroring now.
+fn strip_substitute_flag(doc: &mut ProjectDoc, part_id: &str) {
+    if let Some(part) = doc.parts.iter_mut().find(|part| part.id == part_id)
+        && let Some(properties) = part.properties.as_mut()
+    {
+        properties.remove(MIRRORED_COMPONENT_SUBSTITUTE);
+        if properties.is_empty() {
+            part.properties = None;
+        }
+    }
 }
 
 /// Restore board-coordinate origins for a stored-gap pair (unlink or gap
@@ -538,7 +708,12 @@ pub(crate) fn unadopt_pair(doc: &mut ProjectDoc, layout_id: &str) -> Result<Vec<
             .mirror_link
             .as_ref()
             .ok_or("Layout has no mirror link")?;
-        let gap = link.split_gap.ok_or("Layout has no stored Split gap")?;
+        // The current evaluation gap: parts were stored against the adapted
+        // spacing, not the stored floor.
+        let gap = link
+            .spacing
+            .or(link.split_gap)
+            .ok_or("Layout has no stored Split gap")?;
         (link.source_id.clone(), link.axis_x, gap)
     };
     if doc.layouts.iter().any(|layout| {
@@ -588,6 +763,35 @@ pub(crate) fn unadopt_pair(doc: &mut ProjectDoc, layout_id: &str) -> Result<Vec<
             changed.push(matrix_id);
         }
     }
+    // Ticket 12: restore board-coordinate poses for the pair's independent
+    // parts the same pose-preserving way. Part correspondences stay on the
+    // link: they re-activate if the pair is gapped again, and the legacy sync
+    // keeps mirroring through the properties while they rest.
+    let sides: Vec<(String, bool)> = [source_id.as_str(), layout_id]
+        .into_iter()
+        .map(|id| (id.to_string(), id == layout_id))
+        .collect();
+    for (side_id, mirror_side) in &sides {
+        let part_ids = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.id == *side_id)
+            .map(|layout| layout.part_ids.clone())
+            .unwrap_or_default();
+        for part_id in part_ids {
+            if is_member_or_companion(doc, &part_id) {
+                continue;
+            }
+            if let Some(part) = doc.parts.iter_mut().find(|part| part.id == part_id) {
+                part.pose.at.x += if *mirror_side {
+                    axis_x + gap / 2.0
+                } else {
+                    axis_x - gap / 2.0
+                };
+                changed.push(part_id.clone());
+            }
+        }
+    }
     Ok(changed)
 }
 
@@ -624,6 +828,80 @@ pub(crate) fn set_pair_gap(
         }
     }
     Ok(carriers)
+}
+
+/// Ticket 12: board-space position of the half frame an independent part is
+/// placed in: the split axis offset by half the current spacing (the adapted
+/// `max(stored gap, minimum)`, or the stored gap before the first adaptive
+/// pass). `None` for ungrouped parts, parts on unlinked layouts, matrix
+/// members/companions (whose world poses the refresh owns), and legacy pairs
+/// without a stored gap, whose parts stay board-coordinate.
+pub(crate) fn part_half_offset(doc: &ProjectDoc, part_id: &str) -> Option<Vec2> {
+    if is_member_or_companion(doc, part_id) {
+        return None;
+    }
+    let layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.part_ids.iter().any(|id| id == part_id))?;
+    layout_half_offset(doc, &layout.id)
+}
+
+/// Ticket 12: evaluation offset of one layout in a stored-gap pair: the split
+/// axis offset by half the current spacing on the layout's side. `None` for
+/// unlinked layouts and legacy pairs without a stored gap.
+pub fn layout_half_offset(doc: &ProjectDoc, layout_id: &str) -> Option<Vec2> {
+    let layout = doc.layouts.iter().find(|layout| layout.id == layout_id)?;
+    carrier_offset(doc, layout)
+}
+
+/// Whether `part_id` is a matrix member or a generated companion: their world
+/// poses belong to the matrix refresh, never to the half frame.
+pub(crate) fn is_member_or_companion(doc: &ProjectDoc, part_id: &str) -> bool {
+    for matrix in &doc.matrices {
+        let members = matrix::cell_members(matrix);
+        if members.values().any(|member| member == part_id) {
+            return true;
+        }
+        if part_id
+            .rsplit_once('/')
+            .is_some_and(|(head, _)| members.values().any(|member| member == head))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// Ticket 12: evaluated (board-space) pose of a part: the stored half-frame
+/// pose plus the half offset on stored-gap pairs; the stored pose everywhere
+/// else. Rotations are frame-free, so only the position shifts.
+pub fn evaluated_part_pose(doc: &ProjectDoc, part: &Part) -> Pose2 {
+    match part_half_offset(doc, &part.id) {
+        Some(offset) => Pose2 {
+            at: Vec2 {
+                x: part.pose.at.x + offset.x,
+                y: part.pose.at.y + offset.y,
+            },
+            rotation: part.pose.rotation,
+        },
+        None => part.pose,
+    }
+}
+
+/// Ticket 12: borrow a part viewed at its evaluated board pose. Readers that
+/// need the whole [`Part`] (not just its pose) take this instead of cloning:
+/// the owned shadow only materializes while a half-frame offset applies.
+pub(crate) fn evaluated_part<'a>(doc: &ProjectDoc, part: &'a Part) -> Cow<'a, Part> {
+    let evaluated = evaluated_part_pose(doc, part);
+    if evaluated == part.pose {
+        Cow::Borrowed(part)
+    } else {
+        Cow::Owned(Part {
+            pose: evaluated,
+            ..part.clone()
+        })
+    }
 }
 
 /// Ticket 10: outline margin (mm) used for the adaptive minimum when the
@@ -904,13 +1182,14 @@ fn source_is_left(doc: &ProjectDoc, source_id: &str, target_id: &str) -> Result<
 }
 
 /// Left/right key-plus-part x extents of one pair at the evaluated geometry.
-/// Keys join their half by layout ownership; parts join by board position.
-/// The caller supplies the frozen ownership-to-side mapping.
+/// Keys and parts join their half by layout ownership; sides never compare
+/// against the axis mid-search, so rigid halves cannot flip. The caller
+/// supplies the frozen ownership-to-side mapping.
 fn collect_sides(
     doc: &ProjectDoc,
     source_id: &str,
     target_id: &str,
-    axis_x: f64,
+    _axis_x: f64,
     source_left: bool,
 ) -> Result<(HalfExtents, HalfExtents), String> {
     let source = doc
@@ -923,10 +1202,29 @@ fn collect_sides(
         .iter()
         .find(|layout| layout.id == target_id)
         .ok_or("Linked layout is missing")?;
+    // Independent parts ride the half frame with their owning layout, exactly
+    // like keys: the envelope reads their evaluated poses, so spacing moves
+    // them with their half and a local part's overhang at the axis still
+    // pushes the other half out. Matrix members and their companions follow
+    // their keys through the half above. Only the pair's own layouts count:
+    // other layouts sharing the board keep their fixed placement and never
+    // pin the pair. Ownership (not board position) keeps each half rigid
+    // through the minimum search, so coincident halves cannot flip sides.
+    let mut members: BTreeSet<String> = BTreeSet::new();
+    for layout in [source, target] {
+        for matrix_id in &layout.matrix_ids {
+            if let Some(matrix) = doc.matrices.iter().find(|matrix| matrix.id == *matrix_id) {
+                members.extend(matrix::cell_members(matrix).values().cloned());
+            }
+        }
+    }
+    let definitions: BTreeMap<&str, &PartDefinition> = doc
+        .definitions
+        .iter()
+        .map(|definition| (definition.id.as_str(), definition))
+        .collect();
     let mut source_half = empty_half();
     let mut mirror_half = empty_half();
-    let mut left_parts = empty_half();
-    let mut right_parts = empty_half();
     for (layout, half) in [(source, &mut source_half), (target, &mut mirror_half)] {
         for matrix_id in &layout.matrix_ids {
             let Some(matrix) = doc.matrices.iter().find(|matrix| matrix.id == *matrix_id) else {
@@ -950,75 +1248,41 @@ fn collect_sides(
                 half.add(cell.pose.at.x - half_width, cell.pose.at.x + half_width);
             }
         }
-    }
-    // Independent parts ride their own board positions until ticket 12 moves
-    // them into the half frame. Matrix members and their companions follow
-    // their keys through the envelope above. Only the pair's own layouts
-    // count: other layouts sharing the board keep their fixed placement and
-    // never pin the pair's spacing.
-    let mut members: BTreeSet<String> = BTreeSet::new();
-    for layout in [source, target] {
-        for matrix_id in &layout.matrix_ids {
-            if let Some(matrix) = doc.matrices.iter().find(|matrix| matrix.id == *matrix_id) {
-                members.extend(matrix::cell_members(matrix).values().cloned());
+        for part_id in &layout.part_ids {
+            let Some(part) = doc.parts.iter().find(|part| &part.id == part_id) else {
+                continue;
+            };
+            if members.contains(part.id.as_str())
+                || part
+                    .id
+                    .rsplit_once('/')
+                    .is_some_and(|(head, _)| members.contains(head))
+            {
+                continue;
             }
+            let Some(definition) = definitions.get(part.definition_id.as_str()) else {
+                continue;
+            };
+            if definition.kind == PartKind::Utility {
+                continue;
+            }
+            let pose = evaluated_part_pose(doc, part);
+            let (min, max) = part_extents_at(&pose, part.side.clone(), part.keycap, definition);
+            half.add(min, max);
         }
     }
-    let pair_parts: BTreeSet<&str> = [source, target]
-        .iter()
-        .flat_map(|layout| layout.part_ids.iter().map(String::as_str))
-        .collect();
-    let definitions: BTreeMap<&str, &PartDefinition> = doc
-        .definitions
-        .iter()
-        .map(|definition| (definition.id.as_str(), definition))
-        .collect();
-    for part in &doc.parts {
-        if !pair_parts.contains(part.id.as_str()) {
-            continue;
-        }
-        if members.contains(part.id.as_str())
-            || part
-                .id
-                .rsplit_once('/')
-                .is_some_and(|(head, _)| members.contains(head))
-        {
-            continue;
-        }
-        let Some(definition) = definitions.get(part.definition_id.as_str()) else {
-            continue;
-        };
-        if definition.kind == PartKind::Utility {
-            continue;
-        }
-        let (min, max) = part_extents(part, definition);
-        if part.pose.at.x < axis_x {
-            left_parts.add(min, max);
-        } else {
-            right_parts.add(min, max);
-        }
-    }
-    // Keys join their half by layout ownership; parts join by board position.
     // The caller freezes the ownership-to-side mapping before the minimum
     // search, so coincident halves cannot flip sides mid-search.
-    let mut left = if source_left {
+    let left = if source_left {
         source_half
     } else {
         mirror_half
     };
-    let mut right = if source_left {
+    let right = if source_left {
         mirror_half
     } else {
         source_half
     };
-    // Merge the part extents into their axis side.
-    for (side, parts) in [(&mut left, left_parts), (&mut right, right_parts)] {
-        if parts.center_count > 0 {
-            side.min = side.min.min(parts.min);
-            side.max = side.max.max(parts.max);
-            side.center_count += parts.center_count;
-        }
-    }
     Ok((left, right))
 }
 
@@ -1069,19 +1333,24 @@ fn envelope_deficit(
     Ok(deficit)
 }
 
-/// Board-space x extents of one independent part: its courtyard, or its
-/// keycap size, or its bare pose when neither is available.
-fn part_extents(part: &Part, definition: &PartDefinition) -> (f64, f64) {
-    let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
+/// Board-space x extents of one independent part at its evaluated pose: its
+/// courtyard, or its keycap size, or its bare pose when neither is available.
+pub(crate) fn part_extents_at(
+    pose: &Pose2,
+    side: Side,
+    keycap: Option<Vec2>,
+    definition: &PartDefinition,
+) -> (f64, f64) {
+    let (sin, cos) = pose.rotation.to_radians().sin_cos();
     let project = |point: Vec2| {
-        let x = if part.side == Side::Back {
+        let x = if side == Side::Back {
             -point.x
         } else {
             point.x
         };
         Vec2 {
-            x: part.pose.at.x + x * cos - point.y * sin,
-            y: part.pose.at.y + x * sin + point.y * cos,
+            x: pose.at.x + x * cos - point.y * sin,
+            y: pose.at.y + x * sin + point.y * cos,
         }
     };
     if !definition.courtyard.is_empty() {
@@ -1094,11 +1363,26 @@ fn part_extents(part: &Part, definition: &PartDefinition) -> (f64, f64) {
         }
         return (min, max);
     }
-    if let Some(size) = part.keycap.or(definition.keycap) {
-        let half_width = rotated_half_width(size, part.pose.rotation);
-        return (part.pose.at.x - half_width, part.pose.at.x + half_width);
+    if let Some(size) = keycap.or(definition.keycap) {
+        let half_width = rotated_half_width(size, pose.rotation);
+        return (pose.at.x - half_width, pose.at.x + half_width);
     }
-    (part.pose.at.x, part.pose.at.x)
+    (pose.at.x, pose.at.x)
+}
+
+/// Relative x extents of one independent part about its own center, for the
+/// split clamp: the evaluated shape shifted so the stored center sits at zero.
+pub(crate) fn part_extent_offsets(
+    pose: &Pose2,
+    side: Side,
+    keycap: Option<Vec2>,
+    definition: &PartDefinition,
+) -> (f64, f64) {
+    let centered = Pose2 {
+        at: Vec2 { x: 0.0, y: 0.0 },
+        rotation: pose.rotation,
+    };
+    part_extents_at(&centered, side, keycap, definition)
 }
 
 /// The deficit with the pair evaluated at one candidate gap. Temporarily
@@ -1738,6 +2022,890 @@ pub(crate) fn omitted(doc: &ProjectDoc, matrix_id: &str, key_id: &str) -> bool {
         == Some(MirroredExceptionState::Omitted)
 }
 
+/// Ticket 12: the pair a layout belongs to: the source layout id, the link
+/// carrier (mirror layout) id, whether `layout_id` is the source side, and
+/// whether the pair stores a Split gap. `None` for unlinked layouts.
+fn pair_sides(doc: &ProjectDoc, layout_id: &str) -> Option<(String, String, bool, bool)> {
+    let layout = doc.layouts.iter().find(|layout| layout.id == layout_id)?;
+    if let Some(link) = layout.mirror_link.as_ref() {
+        return Some((
+            link.source_id.clone(),
+            layout.id.clone(),
+            false,
+            link.split_gap.or(link.spacing).is_some(),
+        ));
+    }
+    let carrier = doc.layouts.iter().find(|other| {
+        other
+            .mirror_link
+            .as_ref()
+            .is_some_and(|link| link.source_id == layout_id)
+    })?;
+    let link = carrier.mirror_link.as_ref()?;
+    Some((
+        layout_id.to_string(),
+        carrier.id.clone(),
+        true,
+        link.split_gap.or(link.spacing).is_some(),
+    ))
+}
+
+/// Ticket 12: the Part correspondence naming `part_id` on a same-board
+/// mirror link, with the carrier layout id. Either copy carries the link: the
+/// correspondence is the shared record while both copies exist; its absence
+/// means the part is local to its half.
+/// Ticket 12: the live Part correspondence naming `part_id` on a same-board
+/// mirrored pair, with the carrier layout id. The Inspector toggle and the
+/// mirror-side edit path both resolve through here; the hardware-halves store
+/// belongs to the two-board flow and never carries these records.
+pub fn part_correspondence(
+    doc: &ProjectDoc,
+    part_id: &str,
+) -> Option<(String, MirroredCorrespondence)> {
+    for layout in &doc.layouts {
+        if let Some(link) = layout.mirror_link.as_ref()
+            && let Some(record) = link.correspondences.iter().find(|record| {
+                record.kind == MirroredItemKind::Part
+                    && (record.source_id == part_id || record.mirror_id == part_id)
+            })
+        {
+            return Some((layout.id.clone(), record.clone()));
+        }
+    }
+    None
+}
+
+/// Whether `definition_id` names a controller: controllers keep the plain
+/// reflected heading so both halves share the world rotation.
+fn is_controller_definition(doc: &ProjectDoc, definition_id: &str) -> bool {
+    doc.definitions
+        .iter()
+        .any(|definition| definition.id == definition_id && definition.kind == PartKind::Controller)
+}
+
+/// Ticket 12: reflect a half-frame part pose across the split axis. Stored x
+/// negates (both halves' frames grow from the axis); the heading follows the
+/// shared mirrored-part rule. An involution: reflecting twice restores the pose.
+pub(crate) fn reflect_half_part(doc: &ProjectDoc, part_id: &str, pose: Pose2) -> Pose2 {
+    let is_controller = doc
+        .parts
+        .iter()
+        .find(|part| part.id == part_id)
+        .map(|part| is_controller_definition(doc, &part.definition_id))
+        .unwrap_or(false);
+    Pose2 {
+        at: Vec2 {
+            x: -pose.at.x,
+            y: pose.at.y,
+        },
+        rotation: pair::mirrored_part_heading(is_controller, axis_mapping(0.0), pose.rotation),
+    }
+}
+
+/// Ticket 12: evaluation offset of a layout record: the split axis offset by
+/// half the current spacing on the record's side. `None` for unlinked layouts
+/// and legacy pairs without a stored gap. Neither record needs to be in the
+/// document yet, so SetLayout can reframe against the incoming record.
+fn carrier_offset(doc: &ProjectDoc, layout: &Layout) -> Option<Vec2> {
+    // A layout carrying the mirror link is always the mirror side: a link
+    // source never carries a link of its own.
+    if let Some(link) = layout.mirror_link.as_ref() {
+        let gap = link.spacing.or(link.split_gap)?;
+        return Some(Vec2 {
+            x: link.axis_x + gap / 2.0,
+            y: 0.0,
+        });
+    }
+    let link = doc
+        .layouts
+        .iter()
+        .filter_map(|other| other.mirror_link.as_ref())
+        .find(|link| link.source_id == layout.id)?;
+    let gap = link.spacing.or(link.split_gap)?;
+    Some(Vec2 {
+        x: link.axis_x - gap / 2.0,
+        y: 0.0,
+    })
+}
+
+/// Ticket 12: reframe parts whose layout membership changes under SetLayout,
+/// preserving every evaluated world pose. Entering parts convert into the
+/// incoming half; leaving parts convert back to board-space. The unlink
+/// transition skips leaving parts: unadopt already restored them. Matrix
+/// members and companions never reframe: the matrix refresh owns them.
+pub(crate) fn reframe_moved_parts(
+    doc: &mut ProjectDoc,
+    previous: &Layout,
+    incoming: &Layout,
+    skip_leaving: bool,
+) -> Result<Vec<String>, String> {
+    let entering: Vec<String> = incoming
+        .part_ids
+        .iter()
+        .filter(|id| !previous.part_ids.contains(id))
+        .cloned()
+        .collect();
+    let leaving: Vec<String> = if skip_leaving {
+        Vec::new()
+    } else {
+        previous
+            .part_ids
+            .iter()
+            .filter(|id| !incoming.part_ids.contains(id))
+            .cloned()
+            .collect()
+    };
+    // Live offsets: gap adoption earlier in the op already stored the final
+    // gap, so siblings and newcomers convert alike. The unlink transition
+    // reads the incoming record instead: its halves are board-space now.
+    let incoming_offset = if skip_leaving {
+        carrier_offset(doc, incoming)
+    } else {
+        layout_half_offset(doc, &incoming.id).or_else(|| carrier_offset(doc, incoming))
+    };
+    let mut moves: Vec<(String, Option<Vec2>, Option<Vec2>)> = Vec::new();
+    for part_id in entering {
+        if is_member_or_companion(doc, &part_id) {
+            continue;
+        }
+        let old = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.part_ids.iter().any(|id| id == &part_id))
+            .and_then(|layout| layout_half_offset(doc, &layout.id));
+        moves.push((part_id, old, incoming_offset));
+    }
+    for part_id in leaving {
+        if is_member_or_companion(doc, &part_id) {
+            continue;
+        }
+        let old = layout_half_offset(doc, &previous.id);
+        let new = doc
+            .layouts
+            .iter()
+            .find(|layout| {
+                layout.id != previous.id && layout.part_ids.iter().any(|id| id == &part_id)
+            })
+            .and_then(|layout| layout_half_offset(doc, &layout.id));
+        moves.push((part_id, old, new));
+    }
+    let mut changed = Vec::new();
+    for (part_id, old, new) in moves {
+        if old == new {
+            continue;
+        }
+        let Some(part) = doc.parts.iter_mut().find(|part| part.id == part_id) else {
+            continue;
+        };
+        let board_x = part.pose.at.x + old.map(|offset| offset.x).unwrap_or(0.0);
+        let board_y = part.pose.at.y + old.map(|offset| offset.y).unwrap_or(0.0);
+        part.pose.at.x = board_x - new.map(|offset| offset.x).unwrap_or(0.0);
+        part.pose.at.y = board_y - new.map(|offset| offset.y).unwrap_or(0.0);
+        changed.push(part_id);
+    }
+    Ok(changed)
+}
+
+/// Ticket 12: store a board-space pose in the half frame: independent parts on
+/// a stored-gap half keep within-half values while the canvas, constraints
+/// and spacing all work board-space. Frame-free rotation passes through.
+pub(crate) fn stored_part_pose(doc: &ProjectDoc, part_id: &str, board: Pose2) -> Pose2 {
+    match part_half_offset(doc, part_id) {
+        Some(offset) => Pose2 {
+            at: Vec2 {
+                x: board.at.x - offset.x,
+                y: board.at.y - offset.y,
+            },
+            rotation: board.rotation,
+        },
+        None => board,
+    }
+}
+
+/// Ticket 12: clamp a board-space drag position so the part's evaluated
+/// extent stays on its own side of the split axis: a part cannot cross to the
+/// other half. Non-pair parts and poses already clear pass through unchanged;
+/// the side follows the part's current evaluated center, never the request.
+pub(crate) fn clamp_part_to_half(doc: &ProjectDoc, part_id: &str, at: Vec2) -> Vec2 {
+    let Some(part) = doc.parts.iter().find(|part| part.id == part_id) else {
+        return at;
+    };
+    let Some(layout) = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.part_ids.iter().any(|id| id == part_id))
+    else {
+        return at;
+    };
+    let Some(axis_x) = doc.layouts.iter().find_map(|other| {
+        let link = other.mirror_link.as_ref()?;
+        if other.id == layout.id || link.source_id == layout.id {
+            Some(link.axis_x)
+        } else {
+            None
+        }
+    }) else {
+        return at;
+    };
+    // The request arrives board-space, like the canvas that sent it; sides and
+    // extents compare against the evaluated center. Legacy sides compare
+    // board-space parts against the axis directly.
+    let offset_x = part_half_offset(doc, part_id)
+        .map(|offset| offset.x)
+        .unwrap_or(0.0);
+    let on_left = part.pose.at.x + offset_x < axis_x;
+    let (min_rel, max_rel) = match doc
+        .definitions
+        .iter()
+        .find(|definition| definition.id == part.definition_id)
+    {
+        Some(definition) => {
+            part_extent_offsets(&part.pose, part.side.clone(), part.keycap, definition)
+        }
+        None => (0.0, 0.0),
+    };
+    let evaluated_at = at.x;
+    if on_left {
+        // The upper extent may at most touch the axis.
+        let over = evaluated_at + max_rel - axis_x;
+        if over > 0.0 {
+            return Vec2 {
+                x: at.x - over,
+                y: at.y,
+            };
+        }
+    } else {
+        // The lower extent may at most touch the axis.
+        let over = axis_x - (evaluated_at + min_rel);
+        if over > 0.0 {
+            return Vec2 {
+                x: at.x + over,
+                y: at.y,
+            };
+        }
+    }
+    at
+}
+
+/// Ticket 12: create or refresh the mirror partner of `part_id` through its
+/// Part correspondence. The edited copy is the authority: the partner takes
+/// the reflected half-frame pose, gains layout/board/outline/net membership,
+/// and keeps the properties link the legacy paths (removal, orphans) read.
+/// Missing partners materialize, so undo and replacement converge. Returns
+/// the changed ids. Parts without a correspondence on a stored-gap link, and
+/// legacy pairs without a stored gap, resolve through the legacy sync instead.
+pub(crate) fn ensure_part_mirror(
+    doc: &mut ProjectDoc,
+    part_id: &str,
+) -> Result<Vec<String>, String> {
+    let Some((carrier_id, record)) = part_correspondence(doc, part_id) else {
+        return Ok(vec![]);
+    };
+    let (source_layout_id, gapped) = {
+        let layout = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.id == carrier_id)
+            .ok_or("Linked layout is missing")?;
+        let link = layout
+            .mirror_link
+            .as_ref()
+            .ok_or("Linked layout is missing")?;
+        (
+            link.source_id.clone(),
+            link.split_gap.or(link.spacing).is_some(),
+        )
+    };
+    if !gapped {
+        return Ok(vec![]);
+    }
+    let authority_on_source = record.source_id == part_id;
+    let (authority_id, partner_id, partner_layout_id) = if authority_on_source {
+        (
+            record.source_id.clone(),
+            record.mirror_id.clone(),
+            carrier_id.clone(),
+        )
+    } else {
+        (
+            record.mirror_id.clone(),
+            record.source_id.clone(),
+            source_layout_id.clone(),
+        )
+    };
+    let authority = doc
+        .parts
+        .iter()
+        .find(|part| part.id == authority_id)
+        .cloned()
+        .ok_or("Mirrored part is missing")?;
+    strip_substitute_flag(doc, &authority_id);
+    strip_substitute_flag(doc, &partner_id);
+    // Ticket 12: a constraint-driven partner owns its pose (the solver sets
+    // it), so the sync back-solves the authority from the partner, like the
+    // legacy sync did. Otherwise the authority wins and the partner follows.
+    if doc.constraint_driving_part(&partner_id)?.is_some() {
+        let partner = doc.parts.iter().find(|part| part.id == partner_id).cloned();
+        if let Some(partner) = partner {
+            let source_half = reflect_half_part(doc, &authority_id, partner.pose);
+            let source_board = match part_half_offset(doc, &authority_id) {
+                Some(offset) => Pose2 {
+                    at: Vec2 {
+                        x: source_half.at.x + offset.x,
+                        y: source_half.at.y + offset.y,
+                    },
+                    rotation: source_half.rotation,
+                },
+                None => source_half,
+            };
+            set_component_pose(doc, &authority_id, source_board)?;
+            sync_component_nets(doc, &record.source_id, &record.mirror_id);
+            return Ok(vec![authority_id, partner_id]);
+        }
+    }
+    let partner_pose = reflect_half_part(doc, &authority_id, authority.pose);
+    // Ticket 12: a following partner carries its own held offset with it, so
+    // its drivers retune, like the legacy sync's pose write did. The drag
+    // path already retuned both copies; the delta is zero there and this is a
+    // no-op.
+    let partner_board = match layout_half_offset(doc, &partner_layout_id) {
+        Some(offset) => Pose2 {
+            at: Vec2 {
+                x: partner_pose.at.x + offset.x,
+                y: partner_pose.at.y + offset.y,
+            },
+            rotation: partner_pose.rotation,
+        },
+        None => partner_pose,
+    };
+    let partner_old_rotation = doc
+        .parts
+        .iter()
+        .find(|part| part.id == partner_id)
+        .map(|part| part.pose.rotation)
+        .unwrap_or(partner_pose.rotation);
+    retune_driven_constraint(
+        doc,
+        &partner_id,
+        partner_board,
+        Some(partner_pose.rotation - partner_old_rotation),
+    )?;
+    let partner_exists = doc.parts.iter().any(|part| part.id == partner_id);
+    if !partner_exists {
+        let mut mirrored = authority.clone();
+        mirrored.id = partner_id.clone();
+        mirrored.reference = if authority_on_source {
+            format!("{}_M", authority.reference)
+        } else {
+            authority
+                .reference
+                .strip_suffix("_M")
+                .unwrap_or(&authority.reference)
+                .to_string()
+        };
+        mirrored.pose = partner_pose;
+        mirrored
+            .properties
+            .get_or_insert_with(BTreeMap::new)
+            .insert(
+                MIRRORED_COMPONENT_SOURCE.into(),
+                serde_json::json!(record.source_id),
+            );
+        doc.parts.push(mirrored);
+        if let Some(layout) = doc
+            .layouts
+            .iter_mut()
+            .find(|layout| layout.id == partner_layout_id)
+            && !layout.part_ids.contains(&partner_id)
+        {
+            layout.part_ids.push(partner_id.clone());
+        }
+        let board_id = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.id == partner_layout_id)
+            .map(|layout| layout.board_id.clone())
+            .ok_or("Linked component target layout is missing")?;
+        for board in &mut doc.boards {
+            if board.id == board_id && !board.part_ids.contains(&partner_id) {
+                board.part_ids.push(partner_id.clone());
+            }
+        }
+    }
+    if let Some(partner) = doc.parts.iter_mut().find(|part| part.id == partner_id) {
+        partner.pose = partner_pose;
+        if partner_layout_id == carrier_id {
+            partner.properties.get_or_insert_with(BTreeMap::new).insert(
+                MIRRORED_COMPONENT_SOURCE.into(),
+                serde_json::json!(record.source_id),
+            );
+        } else if let Some(properties) = partner.properties.as_mut() {
+            properties.remove(MIRRORED_COMPONENT_SOURCE);
+            if properties.is_empty() {
+                partner.properties = None;
+            }
+        }
+    }
+    sync_component_nets(doc, &record.source_id, &record.mirror_id);
+    for feature in &mut doc.outline {
+        if let crate::model::OutlineFeature::PartEnvelope { part_ids, .. } = feature
+            && part_ids.contains(&record.source_id)
+            && !part_ids.contains(&record.mirror_id)
+        {
+            part_ids.push(record.mirror_id.clone());
+        }
+    }
+    let mut changed = vec![authority_id, partner_id];
+    if !partner_exists {
+        changed.push(partner_layout_id);
+    }
+    Ok(changed)
+}
+
+/// Ticket 12: mirror a newly added part on a stored-gap half by
+/// correspondence in the same edit. The drop point arrives board-space and is
+/// already half-local; the partner materializes at the reflected pose.
+/// Legacy pairs and ungrouped parts resolve through the existing sync.
+pub(crate) fn mirror_new_pair_part(
+    doc: &mut ProjectDoc,
+    part_id: &str,
+) -> Result<Vec<String>, String> {
+    let layout_id = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.part_ids.iter().any(|id| id == part_id))
+        .map(|layout| layout.id.clone());
+    let Some(layout_id) = layout_id else {
+        return Ok(vec![]);
+    };
+    let Some((source_layout_id, target_layout_id, on_source_side, gapped)) =
+        pair_sides(doc, &layout_id)
+    else {
+        return Ok(vec![]);
+    };
+    if !gapped {
+        return Ok(vec![]);
+    }
+    if part_correspondence(doc, part_id).is_some() {
+        return ensure_part_mirror(doc, part_id);
+    }
+    let (source_part_id, mirror_part_id) = if on_source_side {
+        (
+            part_id.to_string(),
+            mirror_part_id_for(&target_layout_id, part_id, doc),
+        )
+    } else {
+        (
+            mirror_part_id_for(&source_layout_id, part_id, doc),
+            part_id.to_string(),
+        )
+    };
+    if let Some(layout) = doc
+        .layouts
+        .iter_mut()
+        .find(|layout| layout.id == target_layout_id)
+        && let Some(link) = layout.mirror_link.as_mut()
+    {
+        link.correspondences.push(MirroredCorrespondence {
+            kind: MirroredItemKind::Part,
+            source_id: source_part_id,
+            mirror_id: mirror_part_id,
+            companion_mode: None,
+            companion_tweak: None,
+        });
+    }
+    let mut changed = ensure_part_mirror(doc, part_id)?;
+    changed.push(layout_id);
+    changed.sort();
+    changed.dedup();
+    Ok(changed)
+}
+
+/// Ticket 12: move-arm write-through for a correspondence-mirrored part on a
+/// stored-gap pair: clamp the request to its half, write it, and reflect it
+/// onto the partner so either copy edits both. Returns `None` for parts the
+/// legacy component sync owns.
+pub(crate) fn move_pair_part(
+    doc: &mut ProjectDoc,
+    part_id: &str,
+    at: Vec2,
+) -> Result<Option<Vec<String>>, String> {
+    if is_member_or_companion(doc, part_id) {
+        return Ok(None);
+    }
+    let Some((_, record)) = part_correspondence(doc, part_id) else {
+        return Ok(None);
+    };
+    let layout_id = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.part_ids.iter().any(|id| id == part_id))
+        .map(|layout| layout.id.clone());
+    let Some(layout_id) = layout_id else {
+        return Ok(None);
+    };
+    let Some((_, _, _, gapped)) = pair_sides(doc, &layout_id) else {
+        return Ok(None);
+    };
+    if !gapped {
+        return Ok(None);
+    }
+    // The drag arrives board-space; storage is half-frame, so the dragged copy
+    // converts and the partner reflects the half-frame pose. Either copy can
+    // carry a held offset, so both retune before the write, like a direct
+    // drag of each copy would.
+    let clamped = clamp_part_to_half(doc, part_id, at);
+    let partner_id = if record.source_id == part_id {
+        record.mirror_id.clone()
+    } else {
+        record.source_id.clone()
+    };
+    if doc.parts.iter().all(|part| part.id != partner_id) {
+        return Err("Mirrored part is missing".into());
+    }
+    let dragged_rotation = doc
+        .parts
+        .iter()
+        .find(|part| part.id == part_id)
+        .map(|part| part.pose.rotation)
+        .unwrap_or(0.0);
+    let stored = stored_part_pose(
+        doc,
+        part_id,
+        Pose2 {
+            at: clamped,
+            rotation: dragged_rotation,
+        },
+    );
+    let partner_pose = reflect_half_part(doc, part_id, stored);
+    let axis_x = doc.layouts.iter().find_map(|other| {
+        let link = other.mirror_link.as_ref()?;
+        if other.id == layout_id || link.source_id == layout_id {
+            Some(link.axis_x)
+        } else {
+            None
+        }
+    });
+    retune_driven_constraint(
+        doc,
+        part_id,
+        Pose2 {
+            at: clamped,
+            rotation: dragged_rotation,
+        },
+        None,
+    )?;
+    if let Some(axis_x) = axis_x {
+        let partner_old_rotation = doc
+            .parts
+            .iter()
+            .find(|part| part.id == partner_id)
+            .map(|part| part.pose.rotation)
+            .unwrap_or(0.0);
+        retune_driven_constraint(
+            doc,
+            &partner_id,
+            Pose2 {
+                at: Vec2 {
+                    x: 2.0 * axis_x - clamped.x,
+                    y: clamped.y,
+                },
+                rotation: partner_pose.rotation,
+            },
+            Some(partner_pose.rotation - partner_old_rotation),
+        )?;
+    }
+    if let Some(part) = doc.parts.iter_mut().find(|part| part.id == part_id) {
+        part.pose.at = stored.at;
+    } else {
+        return Err(format!("Unknown part {part_id}"));
+    }
+    if let Some(partner) = doc.parts.iter_mut().find(|part| part.id == partner_id) {
+        partner.pose = partner_pose;
+    }
+    Ok(Some(vec![part_id.to_string(), partner_id]))
+}
+
+/// Ticket 12: drop Part correspondences naming any removed part, so removal
+/// of a mirrored copy (or its source) never leaves a dangling record behind.
+pub(crate) fn retire_part_correspondences(doc: &mut ProjectDoc, ids: &[String]) {
+    for layout in &mut doc.layouts {
+        if let Some(link) = layout.mirror_link.as_mut() {
+            link.correspondences.retain(|record| {
+                record.kind != MirroredItemKind::Part
+                    || (!ids.contains(&record.source_id) && !ids.contains(&record.mirror_id))
+            });
+        }
+    }
+}
+
+/// Ticket 12: the Inspector "Mirror on both halves" toggle. `mirrored =
+/// false` removes the partner and drops the correspondence, keeping the named
+/// copy local; `mirrored = true` re-materializes the partner at the reflected
+/// pose. Each direction lands in one Undo entry; already-there is a no-op.
+pub(crate) fn set_part_mirrored(
+    doc: &mut ProjectDoc,
+    part_id: &str,
+    mirrored: bool,
+) -> Result<Vec<String>, String> {
+    if !doc.parts.iter().any(|part| part.id == part_id) {
+        return Err(format!("Unknown part {part_id}"));
+    }
+    if is_member_or_companion(doc, part_id) {
+        return Err(format!(
+            "Part {part_id} follows its matrix; mirror the matrix instead"
+        ));
+    }
+    let layout_id = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.part_ids.iter().any(|id| id == part_id))
+        .map(|layout| layout.id.clone())
+        .ok_or_else(|| format!("Part {part_id} is not on a mirrored half"))?;
+    let Some((source_layout_id, target_layout_id, on_source_side, gapped)) =
+        pair_sides(doc, &layout_id)
+    else {
+        return Err(format!("Part {part_id} is not on a mirrored half"));
+    };
+    if mirrored {
+        if part_correspondence(doc, part_id).is_some() {
+            return Ok(vec![]);
+        }
+        if !gapped {
+            // Legacy pairs mirror every source part on resolve: clearing the
+            // local flag re-mirrors through the properties without new state.
+            if let Some(part) = doc.parts.iter_mut().find(|part| part.id == part_id)
+                && let Some(properties) = part.properties.as_mut()
+            {
+                properties.remove(MIRRORED_COMPONENT_SUBSTITUTE);
+                if properties.is_empty() {
+                    part.properties = None;
+                }
+            }
+            return Ok(vec![part_id.to_string()]);
+        }
+        // The record always names the source-layout copy as the source.
+        // Re-mirroring clears the local pin, if any.
+        strip_substitute_flag(doc, part_id);
+        let (source_part_id, mirror_part_id) = if on_source_side {
+            (
+                part_id.to_string(),
+                mirror_part_id_for(&target_layout_id, part_id, doc),
+            )
+        } else {
+            (
+                mirror_part_id_for(&source_layout_id, part_id, doc),
+                part_id.to_string(),
+            )
+        };
+        if let Some(layout) = doc
+            .layouts
+            .iter_mut()
+            .find(|layout| layout.id == target_layout_id)
+            && let Some(link) = layout.mirror_link.as_mut()
+        {
+            link.correspondences.push(MirroredCorrespondence {
+                kind: MirroredItemKind::Part,
+                source_id: source_part_id,
+                mirror_id: mirror_part_id,
+                companion_mode: None,
+                companion_tweak: None,
+            });
+        }
+        let changed = ensure_part_mirror(doc, part_id)?;
+        let mut changed = changed;
+        changed.push(layout_id);
+        changed.sort();
+        changed.dedup();
+        return Ok(changed);
+    }
+    // Making the part local removes the partner, keeping the named copy. The
+    // substitute flag pins it local so the stored-gap sync does not
+    // re-materialize a default mirror for it.
+    if gapped {
+        let Some((_, record)) = part_correspondence(doc, part_id) else {
+            return Ok(vec![]);
+        };
+        let partner_id = if record.source_id == part_id {
+            record.mirror_id.clone()
+        } else {
+            record.source_id.clone()
+        };
+        retire_part_correspondences(doc, std::slice::from_ref(&partner_id));
+        remove_component(doc, &partner_id);
+        if let Some(kept) = doc.parts.iter_mut().find(|part| part.id == part_id) {
+            let properties = kept.properties.get_or_insert_with(BTreeMap::new);
+            properties.insert(
+                MIRRORED_COMPONENT_SUBSTITUTE.into(),
+                serde_json::json!(true),
+            );
+            properties.remove(MIRRORED_COMPONENT_SOURCE);
+        }
+        return Ok(vec![part_id.to_string(), partner_id]);
+    }
+    // Legacy pairs mirror through the properties: remove the partner and pin
+    // the kept copy local so resolve does not recreate it.
+    let partner_id = doc.parts.iter().find_map(|candidate| {
+        let source = candidate
+            .properties
+            .as_ref()?
+            .get(MIRRORED_COMPONENT_SOURCE)?
+            .as_str()?;
+        if candidate.id == part_id {
+            Some(source.to_string())
+        } else if source == part_id {
+            Some(candidate.id.clone())
+        } else {
+            None
+        }
+    });
+    let mut changed = vec![part_id.to_string()];
+    if let Some(partner_id) = partner_id {
+        remove_component(doc, &partner_id);
+        changed.push(partner_id);
+    }
+    if let Some(kept) = doc.parts.iter_mut().find(|part| part.id == part_id) {
+        let properties = kept.properties.get_or_insert_with(BTreeMap::new);
+        properties.insert(
+            MIRRORED_COMPONENT_SUBSTITUTE.into(),
+            serde_json::json!(true),
+        );
+        properties.remove(MIRRORED_COMPONENT_SOURCE);
+    }
+    Ok(changed)
+}
+
+/// Fresh partner id on `other_layout_id` mirroring `part_id`, colliding past
+/// existing parts like the legacy component sync.
+/// Ticket 12: record default mirrors for unrecorded independent parts on the
+/// source half of a stored-gap pair. A part joins the mirror by default unless
+/// it is pinned local (substitute flag) or already recorded; matrix members
+/// and companions stay owned by the matrix sync. Mirror copies (carrying a
+/// mirror-source link) are never authorities. The ensure pass below realizes
+/// the recorded poses.
+fn materialize_unrecorded_partners(
+    doc: &mut ProjectDoc,
+    source_layout_id: &str,
+    target_layout_id: &str,
+) -> Result<Vec<String>, String> {
+    let candidates: Vec<String> = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == source_layout_id)
+        .map(|layout| layout.part_ids.clone())
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|part_id| !is_member_or_companion(doc, part_id))
+        .filter(|part_id| part_correspondence(doc, part_id).is_none())
+        .filter(|part_id| {
+            doc.parts
+                .iter()
+                .find(|part| part.id.as_str() == part_id.as_str())
+                .is_some_and(|part| {
+                    part.properties.as_ref().is_none_or(|properties| {
+                        !properties.contains_key(MIRRORED_COMPONENT_SUBSTITUTE)
+                            && !properties.contains_key(MIRRORED_COMPONENT_SOURCE)
+                    })
+                })
+        })
+        .collect();
+    let mut created = Vec::new();
+    for part_id in candidates {
+        let mirror_id = mirror_part_id_for(target_layout_id, &part_id, doc);
+        if let Some(layout) = doc
+            .layouts
+            .iter_mut()
+            .find(|layout| layout.id == target_layout_id)
+            && let Some(link) = layout.mirror_link.as_mut()
+        {
+            link.correspondences.push(MirroredCorrespondence {
+                kind: MirroredItemKind::Part,
+                source_id: part_id.clone(),
+                mirror_id: mirror_id.clone(),
+                companion_mode: None,
+                companion_tweak: None,
+            });
+            created.push(part_id);
+            created.push(mirror_id);
+        }
+    }
+    Ok(created)
+}
+
+/// Fresh partner id on `other_layout_id` mirroring `part_id`, colliding past
+/// existing parts like the legacy component sync.
+fn mirror_part_id_for(other_layout_id: &str, part_id: &str, doc: &ProjectDoc) -> String {
+    let base = format!("{other_layout_id}::mirror::{part_id}");
+    if doc.parts.iter().all(|part| part.id != base) {
+        return base;
+    }
+    let mut suffix = 1;
+    while doc
+        .parts
+        .iter()
+        .any(|part| part.id == format!("{base}::{suffix}"))
+    {
+        suffix += 1;
+    }
+    format!("{base}::{suffix}")
+}
+
+/// Shared orphan pass for both sync paths: a mirror copy whose source left
+/// the layout keeps its pose but loses the link (a graceful unmirror when a
+/// part moves layouts), while a copy whose source is gone is removed with its
+/// record. Ticket 12: either outcome retires Part correspondences naming the
+/// copy, so no dangling record survives.
+fn cleanup_orphaned_components(
+    doc: &mut ProjectDoc,
+    source_layout_id: &str,
+    target_layout_id: &str,
+) -> Result<Vec<String>, String> {
+    let source_ids: BTreeSet<String> = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == source_layout_id)
+        .map(|layout| layout.part_ids.iter().cloned().collect())
+        .unwrap_or_default();
+    let target_layout_parts: Vec<String> = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == target_layout_id)
+        .map(|layout| layout.part_ids.clone())
+        .unwrap_or_default();
+    let orphaned: Vec<_> = target_layout_parts
+        .iter()
+        .filter_map(|target_id| {
+            let target = doc.parts.iter().find(|part| &part.id == target_id)?;
+            let source_id = target
+                .properties
+                .as_ref()?
+                .get(MIRRORED_COMPONENT_SOURCE)?
+                .as_str()?;
+            (!source_ids.contains(source_id)).then(|| {
+                (
+                    target_id.clone(),
+                    source_id.to_string(),
+                    doc.parts.iter().any(|part| part.id == source_id),
+                )
+            })
+        })
+        .collect();
+    let mut changed = Vec::new();
+    for (target_id, source_id, source_exists) in orphaned {
+        retire_part_correspondences(doc, std::slice::from_ref(&target_id));
+        if source_exists {
+            if let Some(part) = doc.parts.iter_mut().find(|part| part.id == target_id) {
+                clear_component_link(part);
+                changed.push(target_id);
+            }
+        } else {
+            remove_component(doc, &target_id);
+            changed.extend([target_id, source_id]);
+        }
+    }
+    Ok(changed)
+}
+
 pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
     let pairs: Vec<_> = doc
         .layouts
@@ -1754,6 +2922,69 @@ pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, Strin
     let mut changed = Vec::new();
     for (source_layout_id, target_layout_id, axis_x) in pairs {
         adopt_unassigned_components(doc, &source_layout_id, axis_x, &mut changed)?;
+        let gapped = doc.layouts.iter().any(|layout| {
+            layout.id == target_layout_id
+                && layout
+                    .mirror_link
+                    .as_ref()
+                    .is_some_and(|link| link.split_gap.or(link.spacing).is_some())
+        });
+        if gapped {
+            // Ticket 12: stored-gap pairs mirror by Part correspondence in the
+            // half frame; local parts (no record) never sync. Missing partners
+            // materialize from the source copy, so undo and replacement
+            // converge on the reflected pose. Legacy property-linked copies
+            // join the correspondence here; entry points already store them
+            // half-frame.
+            changed.extend(cleanup_orphaned_components(
+                doc,
+                &source_layout_id,
+                &target_layout_id,
+            )?);
+            changed.extend(adopt_unrecorded_mirrors(
+                doc,
+                &source_layout_id,
+                &target_layout_id,
+            )?);
+            // Ticket 12: independent source parts mirror by default: record
+            // the missing correspondences so the ensure pass below realizes
+            // them. Local pins (substitute flag) and recorded pairs stay out.
+            changed.extend(materialize_unrecorded_partners(
+                doc,
+                &source_layout_id,
+                &target_layout_id,
+            )?);
+            // Ticket 12: matrix members and companions stay owned by the
+            // matrix sync (slot reflection + refresh), never by the part
+            // correspondence sync: their stored poses are board-space, not
+            // half-frame.
+            let records: Vec<MirroredCorrespondence> = doc
+                .layouts
+                .iter()
+                .find(|layout| layout.id == target_layout_id)
+                .and_then(|layout| layout.mirror_link.as_ref())
+                .map(|link| {
+                    link.correspondences
+                        .iter()
+                        .filter(|record| {
+                            record.kind == MirroredItemKind::Part
+                                && !is_member_or_companion(doc, &record.source_id)
+                                && !is_member_or_companion(doc, &record.mirror_id)
+                        })
+                        .cloned()
+                        .collect()
+                })
+                .unwrap_or_default();
+            for record in records {
+                // Stale records (authority removed by a cell edit the
+                // membership sync has not retired yet) never fail the edit;
+                // the membership sync owns member record lifecycle.
+                if doc.parts.iter().any(|part| part.id == record.source_id) {
+                    changed.extend(ensure_part_mirror(doc, &record.source_id)?);
+                }
+            }
+            continue;
+        }
         let source_ids = doc
             .layouts
             .iter()
@@ -1761,43 +2992,11 @@ pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, Strin
             .ok_or("Linked component source layout is missing")?
             .part_ids
             .clone();
-        let target_layout_parts = doc
-            .layouts
-            .iter()
-            .find(|layout| layout.id == target_layout_id)
-            .ok_or("Linked component target layout is missing")?
-            .part_ids
-            .clone();
-
-        let orphaned: Vec<_> = target_layout_parts
-            .iter()
-            .filter_map(|target_id| {
-                let target = doc.parts.iter().find(|part| &part.id == target_id)?;
-                let source_id = target
-                    .properties
-                    .as_ref()?
-                    .get(MIRRORED_COMPONENT_SOURCE)?
-                    .as_str()?;
-                (!source_ids.iter().any(|id| id == source_id)).then(|| {
-                    (
-                        target_id.clone(),
-                        source_id.to_string(),
-                        doc.parts.iter().any(|part| part.id == source_id),
-                    )
-                })
-            })
-            .collect();
-        for (target_id, source_id, source_exists) in orphaned {
-            if source_exists {
-                if let Some(part) = doc.parts.iter_mut().find(|part| part.id == target_id) {
-                    clear_component_link(part);
-                    changed.push(target_id);
-                }
-            } else {
-                remove_component(doc, &target_id);
-                changed.extend([target_id, source_id]);
-            }
-        }
+        changed.extend(cleanup_orphaned_components(
+            doc,
+            &source_layout_id,
+            &target_layout_id,
+        )?);
 
         for source_id in source_ids {
             let Some(mut source) = doc.parts.iter().find(|part| part.id == source_id).cloned()
@@ -2114,6 +3313,7 @@ fn adopt_unassigned_components(
     if unassigned.is_empty() {
         return Ok(());
     }
+    let mut assigned_now = Vec::new();
     if let Some(layout) = doc
         .layouts
         .iter_mut()
@@ -2122,11 +3322,68 @@ fn adopt_unassigned_components(
         for id in unassigned {
             if !layout.part_ids.contains(&id) {
                 layout.part_ids.push(id.clone());
-                changed.push(id);
+                changed.push(id.clone());
+                assigned_now.push(id);
+            }
+        }
+    }
+    // Ticket 12: newly assigned parts join the half frame immediately on
+    // stored-gap pairs, so the legacy board-space pose never leaks into the
+    // mirrored sync. Positions above are still board-space at this point.
+    if let Some(offset) = layout_half_offset(doc, source_layout_id) {
+        let convert: Vec<String> = assigned_now
+            .into_iter()
+            .filter(|id| !is_member_or_companion(doc, id))
+            .collect();
+        for part in &mut doc.parts {
+            if convert.contains(&part.id) {
+                part.pose.at.x -= offset.x;
             }
         }
     }
     Ok(())
+}
+
+/// Ticket 12: retune the constraint driving `id` for a move to the
+/// board-space `pose`, so a dragged mirror copy carries its source's held
+/// offset with it. A mirror-constraint refusal stops the drag. `None` leaves
+/// a stored rotation bit-for-bit, like a direct drag. Returns whether a
+/// constraint was retuned.
+fn retune_driven_constraint(
+    doc: &mut ProjectDoc,
+    id: &str,
+    board: crate::model::Pose2,
+    turn: Option<f64>,
+) -> Result<bool, String> {
+    // A fresh partner has no drivers yet; the record below creates it.
+    let Some(current) = doc.parts.iter().find(|part| part.id == id) else {
+        return Ok(false);
+    };
+    let current_board = evaluated_part_pose(doc, current);
+    let Some(constraint_id) = doc
+        .constraint_driving_part(id)?
+        .map(crate::model::Constraint::id)
+        .map(str::to_owned)
+    else {
+        return Ok(false);
+    };
+    let constraint = doc
+        .constraints
+        .iter_mut()
+        .find(|constraint| constraint.id() == constraint_id)
+        .ok_or_else(|| format!("Constraint {constraint_id} disappeared"))?;
+    let delta = Vec2 {
+        x: board.at.x - current_board.at.x,
+        y: board.at.y - current_board.at.y,
+    };
+    if crate::constraints::retune_offset(&doc.parts, constraint, delta, turn)?
+        == crate::constraints::Retune::Mirror
+    {
+        return Err(format!(
+            "Cannot move mirrored component because source {id} is controlled by a mirror constraint"
+        ));
+    }
+    Ok(true)
 }
 
 fn set_component_pose(
@@ -2134,41 +3391,22 @@ fn set_component_pose(
     id: &str,
     pose: crate::model::Pose2,
 ) -> Result<(), String> {
-    let current = doc
+    // Ticket 12: poses arrive board-space; storage converts. The retune delta
+    // measures board-space against the evaluated pose.
+    let current_rotation = doc
         .parts
         .iter()
         .find(|part| part.id == id)
-        .ok_or("Mirrored component source is missing")?
-        .pose;
-    if let Some(constraint_id) = doc
-        .constraint_driving_part(id)?
-        .map(crate::model::Constraint::id)
-        .map(str::to_owned)
-    {
-        let constraint = doc
-            .constraints
-            .iter_mut()
-            .find(|constraint| constraint.id() == constraint_id)
-            .ok_or_else(|| format!("Constraint {constraint_id} disappeared"))?;
-        let delta = Vec2 {
-            x: pose.at.x - current.at.x,
-            y: pose.at.y - current.at.y,
-        };
-        let turn = Some(pose.rotation - current.rotation);
-        if crate::constraints::retune_offset(&doc.parts, constraint, delta, turn)?
-            == crate::constraints::Retune::Mirror
-        {
-            return Err(format!(
-                "Cannot move mirrored component because source {id} is controlled by a mirror constraint"
-            ));
-        }
-    }
+        .map(|part| evaluated_part_pose(doc, part).rotation);
+    let turn = current_rotation.map(|rotation| pose.rotation - rotation);
+    retune_driven_constraint(doc, id, pose, turn)?;
+    let stored = stored_part_pose(doc, id, pose);
     let part = doc
         .parts
         .iter_mut()
         .find(|part| part.id == id)
         .ok_or("Mirrored component source is missing")?;
-    part.pose = pose;
+    part.pose = stored;
     Ok(())
 }
 
@@ -2691,9 +3929,11 @@ pub(crate) fn reconcile_constraint_keys(
     }
     // The combined dependency solver owns final poses, including independently
     // constrained and explicitly positioned companions overwritten by generation.
-    for part in &mut doc.parts {
-        if let Some(pose) = solved.get(&part.id) {
-            part.pose = *pose;
+    // Solved poses are board-space; storage converts back to the half frame.
+    for index in 0..doc.parts.len() {
+        let id = doc.parts[index].id.clone();
+        if let Some(pose) = solved.get(&id) {
+            doc.parts[index].pose = stored_part_pose(doc, &id, *pose);
         }
     }
     Ok(changed)

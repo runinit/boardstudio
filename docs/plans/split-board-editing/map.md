@@ -87,6 +87,7 @@ Build (from 08):
 - 09 resolved: per-half frame and stored Split gap contract ([ADR-0035](../../adr/0035-split-half-frame-and-stored-gap.md)); legacy boards open unchanged, first matrix-geometry edit adopts, gap change is one Undo — see [09](issues/09-split-half-frame-contract.md).
 - 10 resolved: Core adaptive spacing ([ADR-0036](../../adr/0036-adaptive-split-spacing-on-commit.md)): every committed edit brings stored-gap pairs to `max(stored gap, minimum)` in the same Undo; newly adopted legacy pairs space only when touching; no-op commits and creation untouched. Inspector split section + status line are web follow-ups — see [10](issues/10-adaptive-spacing-on-commit.md).
 - 11 resolved: adaptive gap at creation stores `max(requested, 40 mm default, ticket-10 minimum)` and the setup previews it before placement; anchored matrices stay legacy; existing boards untouched — see [11](issues/11-adaptive-gap-at-creation.md).
+- 12 resolved: parts live in the half frame ([ADR-0037](../../adr/0037-half-frame-parts-mirrored-controller.md)); drags clamp at the axis and commit through 10's spacing, new controllers mirror by Part correspondence, either copy edits both, and the Inspector toggle makes parts local — see [12](issues/12-half-frame-parts-and-mirrored-controller.md).
 
 ## Not yet specified (fog)
 

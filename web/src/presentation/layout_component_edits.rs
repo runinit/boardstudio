@@ -18,6 +18,7 @@ pub(super) enum InspectorField {
     Constraint,
     RemoveConstraint,
     MirroredHalfState,
+    PartMirror,
     CompanionPlacement,
 }
 
@@ -553,6 +554,23 @@ pub fn mirrored_half_state_resolver(
             )
         },
     )
+}
+
+/// Resolve an independent part's "Mirror on both halves" toggle against the
+/// accepted Part correspondence: one Undo entry per flip via SetMirroredPart.
+pub fn part_mirror_resolver(part_id: String, mirrored: bool) -> EditResolver {
+    EditResolver::new("layout-part-mirror", move |accepted: &AcceptedSnapshot| {
+        if part_of(&accepted.document, &part_id).is_none() {
+            return Resolution::Retire("The part no longer exists.".into());
+        }
+        Resolution::submit(
+            vec![part_id.clone()],
+            EditOperation::SetMirroredPart {
+                part_id: part_id.clone(),
+                mirrored,
+            },
+        )
+    })
 }
 
 pub fn companion_placement_resolver(

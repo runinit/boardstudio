@@ -192,6 +192,7 @@ pub(super) fn translate(
         | Op::ApplyOutlineEdit { .. }
         | Op::SetLayout { .. }
         | Op::SetSplitGap { .. }
+        | Op::SetMirroredPart { .. }
         | Op::CreateMirroredPair { .. }
         | Op::SetConstraint { .. }
         | Op::RemoveConstraint { .. }

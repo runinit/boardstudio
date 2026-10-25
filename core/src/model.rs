@@ -2171,6 +2171,16 @@ pub enum EditOperation {
         #[serde(rename = "splitGap")]
         split_gap: f64,
     },
+    /// Mirrors an independent part on both halves of a split pair, or makes
+    /// it local to its own half, in one Undo entry. Mirroring records a Part
+    /// correspondence on the mirror link and materializes the partner at the
+    /// reflected half-frame pose; making it local removes the partner. Either
+    /// copy edits both while the link lasts.
+    SetMirroredPart {
+        #[serde(rename = "partId")]
+        part_id: String,
+        mirrored: bool,
+    },
     RemoveConstraint {
         id: String,
     },

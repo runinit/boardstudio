@@ -371,6 +371,9 @@ pub(crate) fn mirror_parts(parts: &mut [Part], document: &ProjectDoc, board_id: 
         if !selected.contains(&part.id) {
             continue;
         }
+        // Ticket 12: mirror from the evaluated board pose, so half-frame
+        // parts land board-space on the flipped half.
+        part.pose = crate::matrix::layout::evaluated_part_pose(document, part);
         part.pose.at.x = -part.pose.at.x;
         part.pose.rotation = -part.pose.rotation;
         part.side = match part.side {

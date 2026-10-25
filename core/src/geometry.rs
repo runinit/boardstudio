@@ -246,9 +246,12 @@ fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeomet
         path = path
             .into_iter()
             .map(|p| {
+                // Ticket 12: anchored paths compose at the evaluated board pose.
+                let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
                 point(crate::outline_controls::world(
                     Vec2 { x: p[0], y: p[1] },
-                    part,
+                    &pose,
+                    part.side.clone(),
                 ))
             })
             .collect();
@@ -681,7 +684,9 @@ pub(crate) fn retained_cutout(
             .as_ref()
             .and_then(|id| doc.parts.iter().find(|part| &part.id == id));
         let center = anchor.map_or(*center, |part| {
-            crate::outline_controls::world(*center, part)
+            // Ticket 12: anchored islands center on the evaluated board pose.
+            let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
+            crate::outline_controls::world(*center, &pose, part.side.clone())
         });
         let rotation = anchor.map_or(rotation.unwrap_or_default(), |part| {
             part.pose.rotation
@@ -877,7 +882,9 @@ fn split_x(doc: &ProjectDoc, part: &Part) -> Result<f64, String> {
         .iter()
         .find(|matrix| matrix.part_ids.contains(&part.id))
     else {
-        return Ok(part.pose.at.x);
+        // Ticket 12: independent parts group by their evaluated board pose,
+        // so a half-frame part stays on its own half's island.
+        return Ok(crate::matrix::layout::evaluated_part_pose(doc, part).at.x);
     };
     let mut root = crate::matrix::evaluation::logical_matrix(&owner.id, doc)?;
     for _ in 0..=doc.matrices.len() {

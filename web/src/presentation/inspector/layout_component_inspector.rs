@@ -77,6 +77,10 @@ pub struct LayoutComponentInspectorProjection {
     pub active_constraint: Option<Constraint>,
     pub relationship_summary: String,
     pub mirrored_half: Option<MirroredHalfProjection>,
+    /// Ticket 12: an independent part on a stored-gap half shows a
+    /// "Mirror on both halves" toggle instead of the member exception
+    /// buttons. `Some(true)` mirrors it today; `Some(false)` keeps it local.
+    pub part_mirror: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -276,6 +280,11 @@ pub enum LayoutComponentInspectorAction {
         pair_id: String,
         mirror_id: String,
         state: HalfExceptionState,
+    },
+    SetPartMirrored {
+        owner: LayoutComponentInspectorOwner,
+        part_id: String,
+        mirrored: bool,
     },
 }
 
@@ -658,6 +667,12 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     );
     pending.bind_one_shot(
         super::super::layout_component_edits::InspectorField::MirroredHalfState,
+        props.mirrored_half_pending,
+    );
+    // The member exception buttons and the independent-part toggle never show
+    // together, so they share one pending slot.
+    pending.bind_one_shot(
+        super::super::layout_component_edits::InspectorField::PartMirror,
         props.mirrored_half_pending,
     );
     let mirrored_half_action = |state| {
@@ -1080,7 +1095,29 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     p { class: "m1-layout-component-definition", "{projection.definition_name}", span { "{projection.definition_kind}" } }
                     if let Some(notice) = projection.envelope_notice.as_ref() { p { class: "m1-layout-component-notice", "{notice}" } }
                 }
-                if let Some(mirrored_half) = projection.mirrored_half.as_ref() {
+                if let Some(mirrored) = projection.part_mirror {
+                    details { class: "m1-layout-component-mirror-state",
+                        summary { span { "Mirrored half" } small { if mirrored { "Both halves" } else { "Local" } } }
+                        div { class: "m1-layout-component-fields",
+                            label { input {
+                                r#type: "checkbox", id: "component-inspector-part-mirror",
+                                aria_label: "Mirror on both halves", checked: mirrored,
+                                disabled: (props.mirrored_half_pending)(),
+                                onchange: {
+                                    let latest_capture = latest_capture;
+                                    let action = props.on_action;
+                                    let part_id = owner.part_id.clone();
+                                    move |event: FormEvent| action.call(LayoutComponentInspectorAction::SetPartMirrored {
+                                        owner: latest_capture(),
+                                        part_id: part_id.clone(),
+                                        mirrored: event.checked(),
+                                    })
+                                },
+                            } "Mirror on both halves" }
+                            p { "A mirrored part edits both halves together and stops at the split axis." }
+                        }
+                    }
+                } else if let Some(mirrored_half) = projection.mirrored_half.as_ref() {
                     details { class: "m1-layout-component-mirror-state",
                         summary { span { "Mirrored half" } small {
                             match mirrored_half.state {

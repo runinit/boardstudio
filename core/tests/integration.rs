@@ -7,6 +7,7 @@
 
 #[path = "boundary_parity.rs"]
 mod boundary_parity;
+
 #[path = "case.rs"]
 mod case;
 #[path = "closure_generator_parameters.rs"]
@@ -137,3 +138,6 @@ mod split_adaptive_spacing;
 
 #[path = "split_creation_gap.rs"]
 mod split_creation_gap;
+
+#[path = "split_half_frame_parts.rs"]
+mod split_half_frame_parts;

@@ -425,6 +425,18 @@ pub(super) fn canonicalize(
                 split_gap: *split_gap,
             };
         }
+        Op::SetMirroredPart { part_id, mirrored } => {
+            // The toggle names either copy; the canonical edit runs on the
+            // source copy, and unlinked parts pass through unchanged.
+            let source = match links.target(MirroredItemKind::Part, part_id)? {
+                Target::Linked(link) => link.correspondence.source_id.clone(),
+                Target::NotMirror | Target::Local | Target::Omitted => part_id.clone(),
+            };
+            canonical.operation = Op::SetMirroredPart {
+                part_id: source,
+                mirrored: *mirrored,
+            };
+        }
         Op::SetLayout { layout } => match layout::translate(&links, layout)? {
             layout::Outcome::Translated(source) => {
                 canonical.operation = Op::SetLayout { layout: source };

@@ -1569,6 +1569,240 @@ async fn mounted_mirrored_half_actions_work_from_either_board_and_undo() {
     root.remove();
 }
 
+/// Ticket 12: the source layout and its mirror partner with a stored gap,
+/// plus a mirrored controller pair. The partner pose is the half-frame
+/// reflection of the source pose (stored x negates).
+fn configure_gapped_part_mirror(document: &mut ProjectDoc) {
+    let link = document
+        .layouts
+        .iter_mut()
+        .find(|layout| layout.id == "paired-layout")
+        .expect("mirror layout")
+        .mirror_link
+        .as_mut()
+        .expect("mirror link");
+    link.axis_x = 40.0;
+    link.split_gap = Some(40.0);
+    link.correspondences.push(MirroredCorrespondence {
+        companion_mode: None,
+        companion_tweak: None,
+        kind: MirroredItemKind::Part,
+        source_id: "selected-part".into(),
+        mirror_id: "selected-part-mirror".into(),
+    });
+    document.parts.push(Part {
+        keycap: None,
+        outline: None,
+        id: "selected-part-mirror".into(),
+        definition_id: "component-definition".into(),
+        reference: "U3".into(),
+        pose: Pose2 {
+            at: Vec2 { x: -4.0, y: 3.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: Some(false),
+        properties: None,
+        generator_parameters: None,
+    });
+    document.boards[0]
+        .part_ids
+        .push("selected-part-mirror".into());
+    document
+        .layouts
+        .iter_mut()
+        .find(|layout| layout.id == "paired-layout")
+        .expect("mirror layout")
+        .part_ids
+        .push("selected-part-mirror".into());
+}
+
+/// Ticket 12: the "Mirror on both halves" toggle dispatches SetMirroredPart
+/// each way — off removes the partner, on recreates it — with one Undo entry
+/// per flip.
+#[wasm_bindgen_test]
+async fn mounted_part_mirror_toggle_mirrors_and_unmirrors_with_undo() {
+    use boardstudio_web_ui_shared::test_wait::wait_until_step;
+
+    async fn settled_part_mirror(probe: &MountedProbe, expected: Option<bool>) -> bool {
+        accept_pending(probe).await;
+        accept_pending_ready(probe)
+            && probe
+                .projection
+                .borrow()
+                .as_ref()
+                .and_then(|projection| projection.part_mirror)
+                == expected
+    }
+
+    let (probe, root) = mounted_runtime_probe(
+        "layout-part-mirror-toggle-test-root",
+        configure_gapped_part_mirror,
+        &["selected-part"],
+    )
+    .await;
+
+    fn part_mirror(probe: &MountedProbe) -> Option<bool> {
+        probe
+            .projection
+            .borrow()
+            .as_ref()
+            .and_then(|projection| projection.part_mirror)
+    }
+
+    fn accepted_part_records(probe: &MountedProbe) -> Vec<MirroredCorrespondence> {
+        probe
+            .runtime
+            .model()
+            .accepted
+            .as_ref()
+            .expect("fixture snapshot")
+            .document
+            .layouts
+            .iter()
+            .filter_map(|layout| layout.mirror_link.as_ref())
+            .flat_map(|link| link.correspondences.clone())
+            .filter(|record| record.kind == MirroredItemKind::Part)
+            .collect()
+    }
+
+    fn toggle_part_mirror(root_id: &str, mirrored: bool) {
+        let checkbox = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!("#{root_id} #component-inspector-part-mirror"))
+            .unwrap()
+            .expect("part mirror toggle")
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        checkbox.set_checked(mirrored);
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        checkbox
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &init).unwrap())
+            .unwrap();
+    }
+
+    // The independent part shows the ticket-12 toggle instead of the member
+    // exception buttons — checked while its Part correspondence is live.
+    wait_until("the part mirror toggle mounts checked", || {
+        probe.refresh();
+        part_mirror(&probe) == Some(true)
+    })
+    .await;
+    assert!(
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!(
+                "#{} #component-inspector-mirrored-half-local",
+                probe.root_id
+            ))
+            .unwrap()
+            .is_none(),
+        "independent parts use the toggle, not the member exception buttons"
+    );
+
+    // Off: the partner and its record go away together, in one Undo entry.
+    let revision = accepted_revision(&probe);
+    toggle_part_mirror(probe.root_id, false);
+    assert!(matches!(
+        probe.last_action.borrow().as_ref(),
+        Some(LayoutComponentInspectorAction::SetPartMirrored {
+            part_id,
+            mirrored: false,
+            ..
+        }) if part_id == "selected-part"
+    ));
+    wait_until_step("unmirroring is accepted", async || {
+        accept_pending(&probe).await;
+        accept_pending_ready(&probe)
+            && accepted_part_records(&probe).is_empty()
+            && part_mirror(&probe) == Some(false)
+    })
+    .await;
+    assert!(
+        accepted_revision(&probe) > revision,
+        "the toggle off commits one Undo entry"
+    );
+    assert!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .as_ref()
+            .expect("fixture snapshot")
+            .document
+            .parts
+            .iter()
+            .all(|part| part.id != "selected-part-mirror"),
+        "the partner part is removed with its record"
+    );
+
+    // On: the partner returns at the reflected pose, in one Undo entry.
+    let revision = accepted_revision(&probe);
+    toggle_part_mirror(probe.root_id, true);
+    assert!(matches!(
+        probe.last_action.borrow().as_ref(),
+        Some(LayoutComponentInspectorAction::SetPartMirrored {
+            part_id,
+            mirrored: true,
+            ..
+        }) if part_id == "selected-part"
+    ));
+    wait_until_step("remirroring is accepted", async || {
+        accept_pending(&probe).await;
+        accept_pending_ready(&probe) && part_mirror(&probe) == Some(true)
+    })
+    .await;
+    assert!(
+        accepted_revision(&probe) > revision,
+        "the toggle on commits one Undo entry"
+    );
+    let records = accepted_part_records(&probe);
+    assert_eq!(records.len(), 1);
+    let partner = probe
+        .runtime
+        .model()
+        .accepted
+        .as_ref()
+        .expect("fixture snapshot")
+        .document
+        .parts
+        .iter()
+        .find(|part| part.id == records[0].mirror_id)
+        .expect("the partner part returns with its record")
+        .clone();
+    assert_eq!(partner.pose.at, Vec2 { x: -4.0, y: 3.0 });
+
+    // One Undo entry each way: undo unmirrors, undo again remirrors.
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    wait_until_step("undo unmirrors the part", async || {
+        settled_part_mirror(&probe, Some(false)).await
+    })
+    .await;
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    wait_until_step("undo remirrors the part", async || {
+        settled_part_mirror(&probe, Some(true)).await
+    })
+    .await;
+    root.remove();
+}
+
+/// Whether the mounted Inspector has settled on the latest accepted revision.
+fn accept_pending_ready(probe: &MountedProbe) -> bool {
+    probe.pending_edits.borrow().as_ref().is_none_or(|edits| {
+        use super::layout_component_edits::InspectorField;
+        !edits.peek().is_pending(&InspectorField::PartMirror)
+    })
+}
+
 /// The position of a fixture part in the accepted document.
 fn accepted_position(probe: &MountedProbe, part_id: &str) -> Vec2 {
     probe

@@ -1563,7 +1563,39 @@ fn layout_component_inspector_projection(
         active_constraint,
         relationship_summary,
         mirrored_half,
+        part_mirror: part_mirror_projection(document, part_id, active_layout, is_matrix_member),
     })
+}
+
+/// Ticket 12: the "Mirror on both halves" toggle for an independent part on a
+/// stored-gap half. `Some(true)` while a live Part correspondence mirrors it;
+/// `Some(false)` while it stays local. Members keep the exception buttons.
+fn part_mirror_projection(
+    document: &boardstudio_core::model::ProjectDoc,
+    part_id: &str,
+    active_layout: Option<&boardstudio_core::model::Layout>,
+    is_matrix_member: bool,
+) -> Option<bool> {
+    if is_matrix_member {
+        return None;
+    }
+    let layout = active_layout?;
+    boardstudio_core::layout_half_offset(document, &layout.id)?;
+    // Ticket 12: Part correspondences live on the layout mirror links, next
+    // to the matrices they mirror — not on the hardware halves. The toggle
+    // reads mirrored only while both ends of the record still exist.
+    let mirrored =
+        boardstudio_core::part_correspondence(document, part_id).is_some_and(|(_, record)| {
+            document
+                .parts
+                .iter()
+                .any(|part| part.id == record.source_id)
+                && document
+                    .parts
+                    .iter()
+                    .any(|part| part.id == record.mirror_id)
+        });
+    Some(mirrored)
 }
 
 fn mirrored_half_projection(
@@ -2191,6 +2223,7 @@ fn submit_layout_component_edit(
             "layout-inspector-remove-constraint"
         }
         layout_component_edits::InspectorField::MirroredHalfState => "layout-mirrored-half-state",
+        layout_component_edits::InspectorField::PartMirror => "layout-part-mirror",
         layout_component_edits::InspectorField::CompanionPlacement => "layout-companion-placement",
     };
     if field.is_field() {
@@ -2224,7 +2257,8 @@ fn dispatch_layout_component_inspector_action(
         | inspector::LayoutComponentInspectorAction::RemoveConstraint { owner, .. }
         | inspector::LayoutComponentInspectorAction::ConvertOffsetAxes { owner, .. }
         | inspector::LayoutComponentInspectorAction::NavigateElectrical { owner }
-        | inspector::LayoutComponentInspectorAction::SetMirroredHalfState { owner, .. } => owner,
+        | inspector::LayoutComponentInspectorAction::SetMirroredHalfState { owner, .. }
+        | inspector::LayoutComponentInspectorAction::SetPartMirrored { owner, .. } => owner,
     };
     if !layout_component_inspector_owner_is_current(
         runtime,
@@ -2402,6 +2436,19 @@ fn dispatch_layout_component_inspector_action(
                 pending_edits,
                 layout_component_edits::InspectorField::MirroredHalfState,
                 layout_component_edits::mirrored_half_state_resolver(pair_id, mirror_id, state),
+                None,
+            );
+        }
+        inspector::LayoutComponentInspectorAction::SetPartMirrored {
+            owner: _,
+            part_id,
+            mirrored,
+        } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::PartMirror,
+                layout_component_edits::part_mirror_resolver(part_id, mirrored),
                 None,
             );
         }
@@ -2792,7 +2839,17 @@ fn fit_selected_bridge(runtime: &Rc<Runtime>, bridge_id: Option<&str>) {
                 .parts
                 .iter()
                 .filter(|part| board.part_ids.contains(&part.id))
-                .map(|part| part.pose.at)
+                .map(|part| {
+                    // Ticket 12: fit the evaluated board pose of half-frame
+                    // parts, like the canvas does.
+                    snapshot
+                        .scene
+                        .transforms
+                        .iter()
+                        .find(|transform| transform.id == part.id)
+                        .map(|transform| transform.pose.at)
+                        .unwrap_or(part.pose.at)
+                })
                 .fold(None, |bounds, point| {
                     Some(bounds.map_or(
                         (point.x, point.x, point.y, point.y),
@@ -8376,6 +8433,7 @@ fn Editor() -> Element {
         Rc::new(layout_canvas::snap_origins(
             &source.document,
             &source.board_id,
+            &source.scene,
         ))
     }))();
     let outline_snap_settings = layout_snap_settings.read().clone();

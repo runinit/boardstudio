@@ -363,6 +363,18 @@ _Avoid_: Split gap (when the evaluated half distance is meant)
 Each half's own placement frame for its matrices, positioned from the split axis by half the Split gap. A matrix origin on a stored-gap half is a within-half value; changing the gap moves both halves symmetrically without rewriting it.
 _Avoid_: board coordinates (when a stored-gap half's within-half placement is meant)
 
+**Half-frame part**:
+An independent Part on a stored-gap half, stored in that half's frame and evaluated at board-space through the half offset. Spacing changes never rewrite it; drags, constraints and spacing all work board-space.
+_Avoid_: board-space part (when a stored-gap half's within-half stored pose is meant)
+
+**Mirrored part**:
+A half-frame part with a Part correspondence on the mirror link. Either copy edits both; the partner realizes the reflected half-frame pose on every sync.
+_Avoid_: linked part (when the correspondence-mirrored half-frame pair is meant)
+
+**Local part**:
+A half-frame part with no Part correspondence, pinned local by the substitute flag so the default mirror never claims it. Removing the pin re-mirrors it at the reflected pose. A local part's overhang past the split axis still counts in the split minimum.
+_Avoid_: mirror-only part (when a pinned unmirrored half-frame part is meant)
+
 ### Editing
 
 **Format reset**:
