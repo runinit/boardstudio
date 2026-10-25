@@ -65,6 +65,7 @@ editable board during layout work. That means:
 - Round 3 Q11 (adjust trigger): auto-adjust fires on ANY committed edit (placement, moves, matrix growth, rotation) whose result would make halves' envelopes touch; widening is part of that same Undo entry — see [04](issues/04-decide-adaptive-split-gap.md).
 - Round 3 Q12 (no cap): no cap on widening; never refuse for size — see [04](issues/04-decide-adaptive-split-gap.md).
 - Round 3 Q13 (dim preserved): spacing adjust never changes focus/dim state — see [05](issues/05-decide-dim-and-focus-interaction.md).
+- 07 resolved (prototype approved): variant B. Spacing = max(stored gap, minimum) after every committed edit, both directions (supersedes Q1 "never auto re-spaces"). Parts keep half-local coordinates, cannot cross the split, controller mirrored by default, and parts use column-style anchor placement. The canvas shows selection anchors. Archived on `prototype/split-board-editing` — see [07](issues/07-prototype-split-editing-view.md).
 
 ## Not yet specified (fog)
 
