@@ -322,6 +322,14 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
         snapshot_token: projection.snapshot_token,
         revision: projection.revision,
     };
+    let mut unlink_armed = use_signal(|| false);
+    let unlink_layout_id = projection
+        .layout_relation
+        .as_ref()
+        .and_then(|relation| relation.unlink_layout_id.clone());
+    use_effect(use_reactive((&unlink_layout_id,), move |_| {
+        unlink_armed.set(false);
+    }));
     let duplicate_base = MatrixDuplicateRequest {
         owner: projection.owner.clone(),
         snapshot_token: projection.snapshot_token,
@@ -447,10 +455,27 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         p { "Geometry and components can be edited independently." }
                     }
                     if let Some(request) = unlink_request.clone() {
-                        BoardButton {
-                            disabled: !props.editable || props.busy,
-                            onclick: move |_| props.on_unlink.call(request.clone()),
-                            "Unlink halves"
+                        if unlink_armed() {
+                            div { class: "m1-matrix-unlink-confirm",
+                                p { class: "m1-empty-note",
+                                    "Unlinking ends the mirrored correspondence. Both halves stay independent and keep their poses in one Undo entry."
+                                }
+                                BoardButton {
+                                    disabled: !props.editable || props.busy,
+                                    onclick: move |_| props.on_unlink.call(request.clone()),
+                                    "Confirm unlink"
+                                }
+                                BoardButton {
+                                    onclick: move |_| unlink_armed.set(false),
+                                    "Cancel"
+                                }
+                            }
+                        } else {
+                            BoardButton {
+                                disabled: !props.editable || props.busy,
+                                onclick: move |_| unlink_armed.set(true),
+                                "Unlink halves"
+                            }
                         }
                     }
                 }

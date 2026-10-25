@@ -1,6 +1,6 @@
 # 35: Unlink halves in the UI
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: None (all dependencies resolved; linked-half reflection and the exception lifecycle already exist)
 Parent: [map.md](../map.md)
@@ -33,3 +33,20 @@ single Undo restores the linked pair with poses unchanged.
 
 Mounted browser tests for confirmed unlink, no-orphan proof, and Undo
 round-trip; affected quick/browser checks.
+
+## Progress
+
+- New test (no baseline edits):
+  `mounted_unlink_halves_confirms_then_clears_link_with_one_undo` in
+  `matrix_inspector_controller.rs::tests::queued_edits`.
+- Proving test: 1/1 new unlink test passes; arm writes nothing, Cancel writes
+  nothing, Confirm writes one `SetLayout` clearing the mirror link, Undo
+  restores the link with poses unchanged.
+- Counts: targeted 1/1 passes. Full layout browser suite not rerun here;
+  final full quick across all five tickets will cover it.
+- UI: `MatrixInspector` now arms an explicit confirmation naming the
+  consequence (ends mirrored correspondence, both halves keep poses, one Undo
+  entry) with Confirm/Cancel; `unlink_layout_resolver` unchanged (one
+  `SetLayout` edit, one Undo entry).
+- Quick: `cargo fmt --all --check` clean for both changed files; workspace
+  `repo` doc-link and unrelated rustfmt drift fail on base too (pre-existing).
