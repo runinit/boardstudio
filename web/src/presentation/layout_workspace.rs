@@ -1,6 +1,7 @@
 //! Layout-owned Objects, toolbar and Inspector composition.
 use super::objects;
 use super::workspace_composition::SharedObjectsInput;
+use boardstudio_web_ui_model::split_focus::SplitHalf;
 use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
@@ -131,6 +132,10 @@ pub(super) struct LayoutWorkspaceState {
     transform_tool: Signal<Option<objects::LayoutTransformTool>>,
     transform_tool_owner: Signal<Option<TransformToolOwner>>,
     transform_handles: Signal<bool>,
+    /// Ticket 14: view-only editing focus for split boards. Like Handles, this
+    /// is workspace state, never a document edit: it starts on the source half
+    /// and survives workspace switches and spacing changes.
+    split_focus: Signal<SplitHalf>,
     assembly_3d: Signal<bool>,
     splay_affect: Signal<boardstudio_core::model::MatrixSplayAffect>,
     pending_splay_origin_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
@@ -166,6 +171,7 @@ pub(super) fn use_layout_workspace_state(
         transform_tool: use_signal(|| None),
         transform_tool_owner: use_signal(|| None),
         transform_handles: use_signal(|| true),
+        split_focus: use_signal(SplitHalf::default),
         assembly_3d: use_signal(|| false),
         splay_affect: use_signal(|| boardstudio_core::model::MatrixSplayAffect::Following),
         pending_splay_origin_pick: use_signal(|| None),
@@ -230,6 +236,9 @@ impl LayoutWorkspaceState {
     }
     pub(super) fn transform_handles(self) -> Signal<bool> {
         self.transform_handles
+    }
+    pub(super) fn split_focus(self) -> Signal<SplitHalf> {
+        self.split_focus
     }
     pub(super) fn assembly_3d(self) -> Signal<bool> {
         self.assembly_3d

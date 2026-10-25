@@ -4,6 +4,7 @@ use boardstudio_core::model::{
     Matrix, MatrixScene, Part, PartDefinition, PartKind, Pose2, ProjectDoc, SceneDelta, Side,
     Transform, Vec2,
 };
+use boardstudio_web_ui_model::split_focus::{self, SplitHalf};
 use dioxus::prelude::*;
 use std::{
     collections::{BTreeMap, HashSet},
@@ -133,6 +134,10 @@ pub(super) struct SceneProps {
     accepted_scene: Option<Arc<SceneDelta>>,
     selected_ids: Vec<String>,
     selected_context: Option<super::objects::ScopedTreeContext>,
+    /// Ticket 14: view-only editing focus. `Some` dims the other half in
+    /// Layout only; `None` (no split, or PCB/Case) draws everything solid.
+    #[props(default)]
+    focused_half: Option<SplitHalf>,
     keys_visible: bool,
     components_visible: bool,
     keycaps_visible: bool,
@@ -153,6 +158,7 @@ impl PartialEq for SceneProps {
             }
             && self.selected_ids == other.selected_ids
             && self.selected_context == other.selected_context
+            && self.focused_half == other.focused_half
             && self.keys_visible == other.keys_visible
             && self.components_visible == other.components_visible
             && self.keycaps_visible == other.keycaps_visible
@@ -234,6 +240,7 @@ pub(super) fn Scene(props: SceneProps) -> Element {
         transforms: &scene_data.transforms,
         selected_ids: &props.selected_ids,
         selected_context: props.selected_context.as_ref(),
+        focused_half: props.focused_half,
         keys_visible: props.keys_visible,
         components_visible: props.components_visible,
         keycaps_visible: props.keycaps_visible,
@@ -276,6 +283,7 @@ pub(super) struct LayoutCanvasInput<'a> {
     pub(super) transforms: &'a [Transform],
     pub(super) selected_ids: &'a [String],
     pub(super) selected_context: Option<&'a super::objects::ScopedTreeContext>,
+    pub(super) focused_half: Option<SplitHalf>,
     pub(super) keys_visible: bool,
     pub(super) components_visible: bool,
     pub(super) keycaps_visible: bool,
@@ -334,6 +342,31 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
         input.matrix_scenes,
         input.transforms,
     );
+    // Ticket 14: the half without editing focus dims. Focus is Layout-only
+    // workspace state, so a `None` focus (no split, PCB/Case) draws solid.
+    let dimmed_half = input
+        .focused_half
+        .map(|focused| focused.other())
+        .filter(|_| split_focus::has_split(input.document));
+    // Inline click-to-edit label anchor (prototype variant B): the centroid of
+    // the dimmed half's enabled cells, drawn just above its topmost key.
+    let dim_label_anchor = dimmed_half.and_then(|dimmed| {
+        let mut count = 0_u32;
+        let (mut sum_x, mut top_y) = (0.0, f64::NEG_INFINITY);
+        for matrix in input.matrices {
+            if split_focus::matrix_half(input.document, &matrix.id) != Some(dimmed) {
+                continue;
+            }
+            if let Some(projected) = input.matrix_scenes.get(matrix.id.as_str()) {
+                for cell in projected.cells.iter().filter(|cell| cell.enabled) {
+                    count += 1;
+                    sum_x += cell.pose.at.x;
+                    top_y = top_y.max(cell.pose.at.y);
+                }
+            }
+        }
+        (count > 0 && top_y.is_finite()).then(|| (dimmed, sum_x / f64::from(count), top_y))
+    });
     // Dashed ghosts of accepted (pre-drag) key poses, drawn only for matrix
     // keys whose preview pose moved. Computed up front: rsx flow takes no
     // bare `let` bindings.
@@ -407,11 +440,15 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                             let row = cell.row;
                             let column = cell.column;
                             let part_id = cell.member_id.clone();
+                            let dimmed = dimmed_half.is_some_and(|dimmed| {
+                                split_focus::matrix_half(input.document, &matrix.id) == Some(dimmed)
+                            });
                             rsx! {
                                 layout_matrix_relations::RelationMatrixKey {
                                     key: "{matrix.id}-{cell.row}-{cell.column}",
                                     part_id: cell.member_id.clone(),
                                     selected,
+                                    dimmed,
                                     x: -size.x / 2.0,
                                     y: -size.y / 2.0,
                                     width: size.x,
@@ -447,6 +484,18 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                 transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})",
             }
         }
+        if let Some((dimmed, label_x, label_top)) = dim_label_anchor {
+            // Prototype variant B inline label. The canvas parent flips y, so
+            // the text counter-flips to read upright like part labels.
+            text {
+                key: "{dimmed.label()}-focus-label",
+                transform: "translate({label_x} {label_top + 12.0}) scale(1,-1)",
+                text_anchor: "middle",
+                class: "m1-split-focus-label",
+                "data-dimmed-half": "{dimmed.label()}",
+                "{dimmed.dim_label()}"
+            }
+        }
         for (part_index, part) in input.visible_indices.iter().zip(input.visible) {
             {
                 let pose = projection
@@ -473,6 +522,9 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                 let footprints_on = input.footprints_visible;
                 let on_pointer_down = input.on_part_pointer_down;
                 let part_id = part.id.clone();
+                let dimmed = dimmed_half.is_some_and(|dimmed| {
+                    split_focus::part_half(input.document, &part.id) == Some(dimmed)
+                });
                 rsx! {
                     if layer_visible || show_keycap.is_some() {
                         g {
@@ -488,7 +540,7 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                                     document: input.document.clone(), part_index: *part_index,
                                     definition_index: input.definition_indices.get(part.definition_id.as_str()).copied(),
                                 },
-                                selected, layer_visible, footprints_on, show_keycap,
+                                selected, dimmed, layer_visible, footprints_on, show_keycap,
                             }
                         }
                     }
@@ -517,6 +569,7 @@ impl PartialEq for PartSource {
 fn PartContents(
     source: PartSource,
     selected: bool,
+    dimmed: bool,
     layer_visible: bool,
     footprints_on: bool,
     show_keycap: Option<Vec2>,
@@ -533,7 +586,7 @@ fn PartContents(
     rsx! {
         if layer_visible {
             layout_matrix_relations::RelationPartOutline {
-                key: "{part.id}", part_id: part.id.clone(), selected, points: courtyard
+                key: "{part.id}", part_id: part.id.clone(), selected, dimmed, points: courtyard
             }
         }
         if layer_visible && footprints_on {

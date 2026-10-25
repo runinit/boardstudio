@@ -313,6 +313,7 @@ fn RelationReference(props: RelationReferenceProps) -> Element {
 pub(super) fn RelationMatrixKey(
     part_id: Option<String>,
     selected: bool,
+    #[props(default)] dimmed: bool,
     x: f64,
     y: f64,
     width: f64,
@@ -329,9 +330,20 @@ pub(super) fn RelationMatrixKey(
             .as_ref()
             .is_some_and(|part_ids| part_ids.contains(id))
     });
+    // Ticket 14: selection stays solid on the dimmed half; only unselected
+    // unfocused keys fade to the grey dashed outline.
+    let class = if selected {
+        "m1-matrix-key is-selected"
+    } else if dimmed {
+        "m1-matrix-key is-dimmed"
+    } else if highlighted {
+        "m1-matrix-key is-relation-highlight"
+    } else {
+        "m1-matrix-key"
+    };
     rsx! {
         rect {
-            class: if selected { "m1-matrix-key is-selected" } else if highlighted { "m1-matrix-key is-relation-highlight" } else { "m1-matrix-key" },
+            class: "{class}",
             x: "{x}", y: "{y}", width: "{width}", height: "{height}", rx: "0.9",
             transform: "{transform}", "data-matrix-id": "{matrix_id}", "data-row": "{row}", "data-column": "{column}",
             onpointerdown: move |event| on_pointer_down.call(event)
@@ -340,15 +352,29 @@ pub(super) fn RelationMatrixKey(
 }
 
 #[component]
-pub(super) fn RelationPartOutline(part_id: String, selected: bool, points: String) -> Element {
+pub(super) fn RelationPartOutline(
+    part_id: String,
+    selected: bool,
+    points: String,
+    #[props(default)] dimmed: bool,
+) -> Element {
     let RelationHighlight(highlight) = use_context::<RelationHighlight>();
     let highlighted = highlight()
         .as_ref()
         .is_some_and(|part_ids| part_ids.contains(&part_id));
+    let class = if selected {
+        "m1-part selected"
+    } else if dimmed {
+        "m1-part is-dimmed"
+    } else if highlighted {
+        "m1-part is-relation-highlight"
+    } else {
+        "m1-part"
+    };
     rsx! {
         polygon {
             points: "{points}",
-            class: if selected { "m1-part selected" } else if highlighted { "m1-part is-relation-highlight" } else { "m1-part" }
+            class: "{class}"
         }
     }
 }

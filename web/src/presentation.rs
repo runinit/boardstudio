@@ -34,6 +34,8 @@ mod layout_layers_tests;
 mod layout_relation_highlight_tests;
 #[cfg(test)]
 mod layout_remainder_tests;
+#[cfg(test)]
+mod layout_split_focus_tests;
 pub(crate) use boardstudio_web_layout::layout_findings;
 pub(crate) use boardstudio_web_layout::layout_findings_state::{
     ReturnTarget as LayoutFindingReturnTarget, layout_finding_is_live,
@@ -3004,6 +3006,9 @@ fn Editor() -> Element {
         panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
     let render_generation = (adapter.generation)();
     let layout_selection_kind = layout_state.selection_kind();
+    // Ticket 14: view-only split editing focus. Like Handles, this signal
+    // never writes the document; only canvas clicks move it.
+    let split_focus = layout_state.split_focus();
     let layout_snap_settings = layout_state.snap_settings();
     let mut layout_context_tab = layout_state.inspector_tab();
     let layout_command_menu = layout_state.command_menu();
@@ -8537,6 +8542,7 @@ fn Editor() -> Element {
         let transform_inspector = matrix_transform_inspector.clone();
         let canvas_interaction = canvas_interaction.clone();
         let mirrored_pair = mirrored_pair.clone();
+        let split_focus = split_focus;
         move |request: layout_canvas::MatrixPointerDown| {
             let Some(pointer) = request.event.data().try_as_web_event() else {
                 return;
@@ -8630,6 +8636,18 @@ fn Editor() -> Element {
             ) else {
                 return;
             };
+            // Ticket 14: clicking the dimmed half on the canvas moves the
+            // view-only editing focus and still performs normal selection.
+            if let Some(accepted) = current.accepted.as_ref() {
+                if let Some(half) = boardstudio_web_ui_model::split_focus::context_half(
+                    &accepted.document,
+                    &hit_context,
+                ) {
+                    if half != split_focus() {
+                        split_focus.set(half);
+                    }
+                }
+            }
             update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
             let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
             let context = objects::context_for_selection_kind(
@@ -8696,6 +8714,7 @@ fn Editor() -> Element {
         let mut pending_splay_pick = pending_splay_origin_pick;
         let transform_inspector = matrix_transform_inspector.clone();
         let mut selected_context = adapter.selected_context;
+        let split_focus = split_focus;
         move |request: layout_canvas::PartPointerDown| {
             let id = request.part_id;
             let Some(pointer) = request.event.data().try_as_web_event() else {
@@ -8779,6 +8798,18 @@ fn Editor() -> Element {
             let Some(hit_context) = objects::context_for_part(&current, &id) else {
                 return;
             };
+            // Ticket 14: clicking the dimmed half on the canvas moves the
+            // view-only editing focus and still performs normal selection.
+            if let Some(accepted) = current.accepted.as_ref() {
+                if let Some(half) = boardstudio_web_ui_model::split_focus::context_half(
+                    &accepted.document,
+                    &hit_context,
+                ) {
+                    if half != split_focus() {
+                        split_focus.set(half);
+                    }
+                }
+            }
             update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
             let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
             let selection_projection = objects::context_for_selection_kind(
@@ -8895,6 +8926,12 @@ fn Editor() -> Element {
             });
         }
     });
+
+    // Ticket 14: Layout-only dim. Without a linked split there is no
+    // unfocused half, so the canvas draws solid; PCB/Case never mount this
+    // Scene. The signal survives workspace switches and spacing edits.
+    let split_focused_half =
+        boardstudio_web_ui_model::split_focus::has_split(&document).then(|| split_focus());
 
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
@@ -9116,6 +9153,7 @@ fn Editor() -> Element {
                         }
                         layout_canvas::Scene {
                             source: canvas_source,
+                            focused_half: split_focused_half,
                             preview_active: model.display_preview.is_some(),
                             accepted_scene: model
                                 .display_preview
