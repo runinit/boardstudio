@@ -134,10 +134,11 @@ pub(super) fn mirror_added_matrix(
             ));
         }
     }
-    let source = document
+    let mut source = document
         .matrices
         .iter()
         .find(|matrix| matrix.id == addition.source_id)
+        .cloned()
         .ok_or_else(|| format!("The source matrix {:?} is unavailable", addition.source_id))?;
     if source.board_id.as_deref() != Some(addition.source_board_id.as_str()) {
         return Err(format!(
@@ -145,15 +146,54 @@ pub(super) fn mirror_added_matrix(
             addition.source_id, addition.source_board_id
         ));
     }
-    let plan = plan_identities(document, addition, source, &facts.halves)?;
-
+    // Ticket 29: an anchored add stores no cells (members generate with
+    // defaults), but the reconciliation kernel needs dense coverage. Fill
+    // the missing slots with defaults, exactly what `set_matrix` generated
+    // members from; explicit cells are never touched.
+    let have: BTreeSet<(u32, u32)> = source
+        .cells
+        .iter()
+        .map(|cell| (cell.row, cell.column))
+        .collect();
+    if have.len() != source.cells.len() {
+        return Err(format!(
+            "The source matrix {:?} contains aliased cells",
+            addition.source_id
+        ));
+    }
     let mut draft = document.clone();
+    if have.len() != (source.rows as usize) * (source.columns as usize) {
+        for row in 0..source.rows {
+            for column in 0..source.columns {
+                if have.contains(&(row, column)) {
+                    continue;
+                }
+                source.cells.push(crate::model::MatrixCell {
+                    shift: None,
+                    bend: None,
+                    deleted: false,
+                    row,
+                    column,
+                    enabled: true,
+                    definition_id: None,
+                    variant: None,
+                    offset: None,
+                    rotation: None,
+                    assemblies: Vec::new(),
+                    assemblies_local: None,
+                });
+            }
+        }
+        let stored = draft
+            .matrices
+            .iter_mut()
+            .find(|matrix| matrix.id == addition.source_id)
+            .ok_or_else(|| format!("The source matrix {:?} is unavailable", addition.source_id))?;
+        stored.cells = source.cells.clone();
+    }
+    let plan = plan_identities(document, addition, &source, &facts.halves)?;
     let companion = companion_defaults(&facts.halves)?;
-    let reflected = reflected_matrix(document, source, addition, &facts, companion)?;
-    crate::matrix::set_matrix(&mut draft, &reflected)?;
-    check_generated_members(&draft, addition, source, &plan)?;
-    copy_member_attributes(&mut draft, &plan.pairs)?;
-    extend_electrical_configuration(&mut draft, document, addition, &facts.halves, &plan.pairs)?;
+    let reflected = reflected_matrix(document, &source, addition, &facts, companion)?;
 
     // Correspondences: the matrix, then each member pair in plan order.
     let mut added = vec![corresponds(
@@ -175,6 +215,21 @@ pub(super) fn mirror_added_matrix(
 
     let mut taken = taken_ids(&draft);
     let follow = Follow::new(&facts, addition, &plan);
+    // An anchored mirror evaluates its anchor at placement, so its layout
+    // must exist before `set_matrix`. The layout step skips recorded layouts,
+    // so running it early is a no-op for the unanchored path below.
+    if reflected.anchor.is_some() {
+        follow.layouts(&mut draft, &mut taken, &mut added, &mut changed)?;
+    }
+    crate::matrix::set_matrix(&mut draft, &reflected)?;
+    // The early layout step ran before placement; refresh the taken set with
+    // the placed mirror identities, as the original post-placement
+    // computation saw them.
+    taken.extend(taken_ids(&draft));
+    check_generated_members(&draft, addition, &source, &plan)?;
+    copy_member_attributes(&mut draft, &plan.pairs)?;
+    extend_electrical_configuration(&mut draft, document, addition, &facts.halves, &plan.pairs)?;
+
     follow.layouts(&mut draft, &mut taken, &mut added, &mut changed)?;
     follow.nets(&mut draft, &mut taken, &mut added, &mut changed)?;
     follow.modules(&mut draft, &mut taken, &mut added, &mut changed)?;
@@ -493,6 +548,51 @@ fn plan_identities(
     Ok(Identities { pairs, companions })
 }
 
+/// Map a mirrored matrix's anchor onto the mirror half: every anchor target
+/// names its mirrored counterpart through the pair's matrix correspondences.
+/// Row/column stay the physical key and Follow crosses unchanged. A target
+/// with no counterpart refuses instead of pointing across halves.
+fn remap_mirrored_anchor(
+    reflected: &mut Matrix,
+    halves: &MirroredHalves,
+    mirror_id: &str,
+) -> Result<(), String> {
+    let Some(anchor) = reflected.anchor.as_mut() else {
+        return Ok(());
+    };
+    let counterpart = |matrix_id: &str| {
+        halves
+            .correspondences
+            .iter()
+            .find(|record| {
+                record.kind == MirroredItemKind::Matrix && record.source_id == matrix_id
+            })
+            .map(|record| record.mirror_id.clone())
+    };
+    match &mut anchor.aggregate {
+        Some(aggregate) => {
+            for part in &mut aggregate.parts {
+                part.matrix_id = counterpart(&part.matrix_id).ok_or_else(|| {
+                    format!(
+                        "The mirrored anchor of {mirror_id:?} names {part:?}, which has no \
+                         mirrored counterpart to follow"
+                    )
+                })?;
+            }
+        }
+        None => {
+            anchor.matrix_id = counterpart(&anchor.matrix_id).ok_or_else(|| {
+                format!(
+                    "The mirrored anchor of {mirror_id:?} targets {:?}, which has no mirrored \
+                     counterpart to follow",
+                    anchor.matrix_id
+                )
+            })?;
+        }
+    }
+    Ok(())
+}
+
 /// The reflection of the source matrix, with each companion placed under the pair's default.
 fn reflected_matrix(
     document: &ProjectDoc,
@@ -514,6 +614,7 @@ fn reflected_matrix(
         );
     }
     let mut reflected = layout::reflected(source, &template, facts.mapping, false)?;
+    remap_mirrored_anchor(&mut reflected, &facts.halves, &addition.mirror_id)?;
     for cell in &mut reflected.cells {
         if !cell.enabled || cell.deleted {
             continue;
@@ -680,6 +781,22 @@ impl<'a> Follow<'a> {
             .any(|item| item.kind == kind && item.source_id == source_id)
     }
 
+    /// The mirror layout already following `source_id`, if any.
+    fn layout_correspondence(
+        &self,
+        added: &[MirroredCorrespondence],
+        source_id: &str,
+    ) -> Option<String> {
+        self.halves
+            .correspondences
+            .iter()
+            .chain(added)
+            .find(|item| {
+                item.kind == MirroredItemKind::Layout && item.source_id == source_id
+            })
+            .map(|item| item.mirror_id.clone())
+    }
+
     /// A layout of the source matrix becomes a layout of the mirror matrix on the mirror board.
     fn layouts(
         &self,
@@ -698,7 +815,19 @@ impl<'a> Follow<'a> {
             .cloned()
             .collect();
         for source in sources {
-            if self.has_correspondence(added, MirroredItemKind::Layout, &source.id) {
+            // An anchored add joins its target's layout, which already
+            // mirrors: the new mirror matrix joins the existing mirror
+            // layout instead of minting a second one.
+            if let Some(existing) = self.layout_correspondence(added, &source.id) {
+                let layout = draft
+                    .layouts
+                    .iter_mut()
+                    .find(|layout| layout.id == existing)
+                    .ok_or_else(|| format!("The mirror layout {existing:?} is unavailable"))?;
+                if !layout.matrix_ids.iter().any(|id| id == self.mirror_matrix) {
+                    layout.matrix_ids.push(self.mirror_matrix.to_owned());
+                    changed.insert(existing.clone());
+                }
                 continue;
             }
             let id = mint(

@@ -1086,6 +1086,68 @@ fn native_rejoin_from_omitted_recreates_mirror() {
     assert_eq!(snapshot(&mut engine), redone);
 }
 
+#[test]
+fn native_anchored_add_reflects_counterpart_when_linked() {
+    // Ticket 29 enabler (spec §4): an anchored add on a paired board is
+    // reflected to the mirror half with a mapped anchor, matrix/member
+    // correspondences and layout membership, in one Undo entry.
+    let (mut engine, before) = anchored_pair(PAIR_ID);
+    assert_eq!(
+        matrix(&before, DEP_MIRROR_ID)["anchor"],
+        json!({"matrixId":MIRROR_MATRIX,"row":0,"column":1,
+            "follow":["x","y","rotation"]}),
+        "mirror anchor follows the mirrored key"
+    );
+    let mirror_layout = before["layouts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|layout| layout["id"] == "right-synthetic-keys-layout")
+        .unwrap();
+    assert!(
+        mirror_layout["matrixIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|id| id == DEP_MIRROR_ID),
+        "mirror layout follows the dependent"
+    );
+    // One transaction: Undo removes the dependent pair, Redo restores it.
+    let undone = undo(&mut engine, "gap-add-dep-undo");
+    assert!(
+        undone["matrices"].as_array().unwrap().iter().all(|matrix| matrix["id"]
+            != DEP_MIRROR_ID),
+        "Undo removes the reflected dependent"
+    );
+    let redone = redo(&mut engine, "gap-add-dep-redo");
+    assert!(matrix(&redone, DEP_MIRROR_ID).is_object());
+    assert_eq!(snapshot(&mut engine), redone);
+}
+
+#[test]
+fn native_anchored_add_stays_source_only_without_pair() {
+    // The reflection only fires when linked: without a pair the add keeps
+    // its historical source-only shape.
+    let (mut engine, seed) = seed(&runtime_supported_document());
+    let added = commit(
+        &mut engine,
+        &seed,
+        "gap-add-unpaired",
+        json!({"kind":"add-anchored-matrix","id":DEP_SOURCE_ID,
+            "anchor":{"matrixId":SOURCE_MATRIX,"row":0,"column":1,
+                "follow":["x","y","rotation"]}}),
+        &[],
+    );
+    assert_eq!(added["kind"], "scene", "{added}");
+    let document = &added["document"];
+    assert!(matrix(document, DEP_SOURCE_ID).is_object());
+    assert!(
+        document["matrices"].as_array().unwrap().iter().all(|matrix| matrix["id"]
+            != DEP_MIRROR_ID),
+        "no mirror counterpart without a pair"
+    );
+}
+
 // ---- Ticket 29 gaps: B4 confirmed-detach, B3 missing anchors, B5 proofs ----
 
 /// Source-side anchored matrix and its expected native mirror (board-prefix rule).
@@ -1094,39 +1156,22 @@ const DEP_MIRROR_ID: &str = "right-dep-keys";
 const DEP_ANCHOR_KEY: &str = "matrix/left-synthetic-keys/r0c1";
 const DEP_MIRROR_ANCHOR_KEY: &str = "matrix/right-synthetic-keys/r0c1";
 
-fn create_pair(engine: &mut CoreEngine, before: &Value, id: &str, pair_id: &str) -> Value {
-    request(
-        engine,
-        json!({"id":id,"kind":"edit","command":{
-            "baseRevision":before["revision"],"transactionId":id,"phase":"commit",
-            "targetIds":[],
-            "operation":{
-                "kind":"create-mirrored-half","pairId":pair_id,
-                "sourceInstanceId":"left",
-                "mode":{"kind":"new-board","boardId":"right","instanceId":"right"},
-                "mapping":{"at":{"x":200.0,"y":0.0},"rotation":0.0},
-                "idRule":"board-prefix"}}}),
-    )
-}
-
-/// Pair built over a source board that already carries an anchored matrix:
+/// Pair whose source board carries an anchored matrix, reflected to the
 /// the anchored add must be reflected to the mirror half (spec §4), so the
 /// dependent exists on both sides with a mapped anchor.
 fn anchored_pair(pair_id: &str) -> (CoreEngine, Value) {
-    let (mut engine, seed) = seed(&runtime_supported_document());
-    let added = request(
+    let (mut engine, before) = accepted_pair(pair_id);
+    let added = commit(
         &mut engine,
-        json!({"id":"gap-add-dep","kind":"edit","command":{
-            "baseRevision":seed["revision"],"transactionId":"gap-add-dep","phase":"commit",
-            "targetIds":[],
-            "operation":{"kind":"add-anchored-matrix","id":DEP_SOURCE_ID,
-                "anchor":{"matrixId":SOURCE_MATRIX,"row":0,"column":1,
-                    "follow":["x","y","rotation"]}}}}),
+        &before,
+        "gap-add-dep",
+        json!({"kind":"add-anchored-matrix","id":DEP_SOURCE_ID,
+            "anchor":{"matrixId":SOURCE_MATRIX,"row":0,"column":1,
+                "follow":["x","y","rotation"]}}),
+        &[],
     );
     assert_eq!(added["kind"], "scene", "{added}");
-    let created = create_pair(&mut engine, &added["document"], "gap-half", pair_id);
-    assert_eq!(created["kind"], "scene", "{created}");
-    let document = created["document"].clone();
+    let document = added["document"].clone();
     // The anchored add is reflected: a paired mirror matrix anchored to the
     // mirrored key, with matrix and member correspondences.
     assert!(

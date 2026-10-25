@@ -297,10 +297,16 @@ pub(super) fn canonicalize(
             canonical.operation = Op::AddAnchoredMatrix {
                 id: id.clone(),
                 anchor: MatrixAnchor {
-                    matrix_id: source_id,
+                    matrix_id: source_id.clone(),
                     ..anchor.clone()
                 },
             };
+            // Ticket 29: an anchored add on a paired board is reflected to
+            // the mirror half (spec §4), like a SetMatrix addition. Without
+            // a relating pair the add stays source-only, as before.
+            if let Some(plan) = links.anchored_addition(id, &source_id)? {
+                canonical.matrix_additions.push(plan);
+            }
         }
         Op::SetMatrixAnchor { matrix_id, anchor } => {
             let (id, _) = links.matrix_frame(matrix_id)?;
@@ -744,6 +750,72 @@ impl<'a> Links<'a> {
                 members,
             },
             source_matrix,
+        }))
+    }
+
+    /// A matrix an anchored add creates on a paired board, planned as a linked
+    /// pair. The added matrix is always a bare 1x3 (its cells are generated
+    /// without assemblies), anchored to `target_id`. Only a target that is
+    /// itself a paired source mirrors; anything else stays source-only.
+    fn anchored_addition(
+        &self,
+        id: &str,
+        target_id: &str,
+    ) -> Result<Option<MatrixAddition>, String> {
+        let Some(link) = self.pairs.iter().find_map(|pair| {
+            pair.halves
+                .correspondences
+                .iter()
+                .find(|correspondence| {
+                    correspondence.kind == MirroredItemKind::Matrix
+                        && correspondence.source_id == target_id
+                })
+                .map(|_| pair)
+        }) else {
+            return Ok(None);
+        };
+        let source_board = link.halves.source_board_id.clone();
+        let mirror_board = link.halves.mirror_board_id.clone();
+        let mut taken: BTreeSet<String> = self
+            .document
+            .matrices
+            .iter()
+            .map(|matrix| matrix.id.clone())
+            .collect();
+        for pair in &self.pairs {
+            for correspondence in &pair.halves.correspondences {
+                if correspondence.kind == MirroredItemKind::Matrix {
+                    taken.insert(correspondence.source_id.clone());
+                    taken.insert(correspondence.mirror_id.clone());
+                }
+            }
+        }
+        taken.insert(id.to_owned());
+        let mut mirror_id =
+            super::mirror_id(&source_board, &mirror_board, id);
+        let mut index = 2;
+        while taken.contains(&mirror_id) {
+            mirror_id = format!("{mirror_id}-{index}");
+            index += 1;
+        }
+        // The anchored add always materializes a bare 1x3: `set_matrix`
+        // generates key members for every slot, with companions only from
+        // explicit cells (of which the add carries none).
+        let key = |matrix: &str, row: u32, column: u32| {
+            format!("matrix/{matrix}/r{row}c{column}")
+        };
+        let mut members = Vec::new();
+        for row in 0..1 {
+            for column in 0..3 {
+                members.push((key(id, row, column), key(&mirror_id, row, column)));
+            }
+        }
+        Ok(Some(MatrixAddition {
+            source_id: id.to_owned(),
+            mirror_id,
+            source_board_id: source_board,
+            mirror_board_id: mirror_board,
+            members,
         }))
     }
 
