@@ -55,6 +55,24 @@ pub fn inverse_angle(mapping: Pose2, angle: f64) -> f64 {
     mapping.rotation - angle
 }
 
+/// One rule for every mirrored independent-part heading.
+///
+/// Controllers (the MCU) keep the plain reflected heading `forward_angle`, so both halves
+/// share the same world rotation. Every other independent part takes ADR-0010's full rule
+/// `forward_angle + 180`. The result is normalized to `[0, 360)`.
+///
+/// The inverse direction uses the same function: `inverse_angle` is the same arithmetic as
+/// `forward_angle` (each heading rule is its own inverse over the full circle), so callers
+/// projecting back from the mirror pass the same mapping through this helper.
+pub fn mirrored_part_heading(is_controller: bool, mapping: Pose2, rotation: f64) -> f64 {
+    let reflected = forward_angle(mapping, rotation);
+    if is_controller {
+        reflected.rem_euclid(360.0)
+    } else {
+        (reflected + 180.0).rem_euclid(360.0)
+    }
+}
+
 /// Maps a direction vector with the reflection and rotation only, ignoring the
 /// mapping translation.
 pub fn forward_vector(mapping: Pose2, vector: Vec2) -> Vec2 {
@@ -268,6 +286,31 @@ mod tests {
         }
         // Recovering a source orientation from its reflection uses the same rule.
         assert!((inverse_angle(mapping, forward_angle(mapping, 42.0)) - 42.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn mirrored_part_heading_keeps_controller_heading_without_half_turn() {
+        // An axis map: `forward_angle` is `-r`. Controllers keep it; every other
+        // independent part turns it by 180 degrees.
+        let mapping = Pose2 {
+            at: Vec2 { x: 100.0, y: 0.0 },
+            rotation: 0.0,
+        };
+        for heading in [0.0f64, 90.0, 180.0, 270.0] {
+            assert!(
+                (mirrored_part_heading(true, mapping, heading) - (0.0 - heading).rem_euclid(360.0))
+                    .abs()
+                    < 1e-9,
+                "controller heading {heading} mirrors to rotation - r"
+            );
+            assert!(
+                (mirrored_part_heading(false, mapping, heading)
+                    - (180.0 - heading).rem_euclid(360.0))
+                .abs()
+                    < 1e-9,
+                "independent heading {heading} keeps the half turn"
+            );
+        }
     }
 
     #[test]
