@@ -164,6 +164,116 @@ fn assert_poses_unchanged(before: &[(String, Value)], after: &Value) {
     }
 }
 
+fn make_omitted(engine: &mut CoreEngine, before: &Value) -> Value {
+    // Matrix-level Omit via the public exception route. The mirror stays as a
+    // live record while every inherited part is suppressed.
+    let omitted = commit(
+        engine,
+        before,
+        "native-make-omitted",
+        json!({"kind":"set-half-exception","pairId":PAIR_ID,
+            "itemKind":"matrix","mirrorId":MIRROR_MATRIX,"state":"omitted"}),
+        &[MIRROR_MATRIX],
+    );
+    assert_eq!(omitted["kind"], "scene", "{omitted}");
+    let document = omitted["document"].clone();
+    assert!(
+        pair(&document, PAIR_ID)["halves"]["exceptions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|exception| exception["kind"] == "matrix"
+                && exception["mirrorId"] == MIRROR_MATRIX
+                && exception["state"] == "omitted"),
+        "omit must record a matrix-level exception"
+    );
+    assert!(
+        document["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|part| !part["id"]
+                .as_str()
+                .unwrap()
+                .starts_with("matrix/right-synthetic-keys/")),
+        "omit must suppress inherited parts"
+    );
+    assert!(
+        matrix(&document, MIRROR_MATRIX).is_object(),
+        "omit keeps the live record"
+    );
+    document
+}
+
+fn shrunk_source(document: &Value) -> Value {
+    // Dense shrink payload: the kernel requires explicit cell coverage.
+    let mut shrunk = matrix(document, SOURCE_MATRIX).clone();
+    shrunk["columns"] = json!(1);
+    let kept: Vec<Value> = shrunk["cells"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|cell| cell["column"] == 0)
+        .cloned()
+        .collect();
+    shrunk["cells"] = Value::Array(kept);
+    shrunk
+}
+
+fn assert_mirror_absent(document: &Value, rows: u64, columns: u64, label: &str) {
+    let mirror = matrix(document, MIRROR_MATRIX);
+    assert_eq!(mirror["rows"], json!(rows), "{label}");
+    assert_eq!(mirror["columns"], json!(columns), "{label}");
+    assert!(
+        mirror["partIds"].as_array().unwrap().is_empty(),
+        "{label}: omitted mirror keeps no members"
+    );
+    for cell in mirror["cells"].as_array().unwrap() {
+        assert_eq!(cell["enabled"], json!(false), "{label}: {cell}");
+        assert_eq!(cell["deleted"], json!(true), "{label}: {cell}");
+        assert!(
+            cell.get("assemblies").is_none_or(|a| a
+                .as_array()
+                .unwrap()
+                .is_empty()),
+            "{label}: omitted cells carry no companions: {cell}"
+        );
+    }
+    assert!(
+        document["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|part| !part["id"]
+                .as_str()
+                .unwrap()
+                .starts_with("matrix/right-synthetic-keys/")),
+        "{label}: no omitted part is materialized"
+    );
+}
+
+fn assert_live_correspondences(document: &Value, slots: &[(u32, u32)], label: &str) {
+    // The Omitted record stays live: surviving source members keep exact
+    // correspondences even though no mirror part is materialized.
+    let halves = &pair(document, PAIR_ID)["halves"];
+    let correspondences = halves["correspondences"].as_array().unwrap();
+    for (row, column) in slots {
+        for id in [
+            format!("matrix/{SOURCE_MATRIX}/r{row}c{column}"),
+            format!("matrix/{SOURCE_MATRIX}/r{row}c{column}/diode"),
+            format!("matrix/{SOURCE_MATRIX}/r{row}c{column}/led"),
+        ] {
+            let mirror_id = id.replacen(SOURCE_MATRIX, MIRROR_MATRIX, 1);
+            assert!(
+                correspondences.iter().any(|record| record["kind"] == "part"
+                    && record["sourceId"] == id
+                    && record["mirrorId"] == mirror_id),
+                "{label}: live correspondence for {id} is missing"
+            );
+        }
+    }
+}
+
 fn assert_mirror_correspondences(document: &Value, label: &str) {
     let halves = &pair(document, PAIR_ID)["halves"];
     for part_id in matrix(document, MIRROR_MATRIX)["partIds"]
@@ -264,5 +374,67 @@ fn native_resize_keeps_local_mirror_dimensions_and_poses() {
     let redone = redo(&mut engine, "native-resize-redo");
     expected_redo["revision"] = redone["revision"].clone();
     assert_eq!(redone, expected_redo, "Redo must restore the resize");
+    assert_eq!(snapshot(&mut engine), redone);
+}
+
+#[test]
+fn native_omit_then_expand_keeps_mirror_live_yet_absent() {
+    // Ticket 29 slice B2 (mirrors ticket 21's Omitted resize natively): source
+    // growth with an Omitted mirror succeeds; the record follows the source
+    // dimensions without materializing a single part.
+    let (mut engine, before) = accepted_pair(PAIR_ID);
+    let omitted_doc = make_omitted(&mut engine, &before);
+    let resized = commit(
+        &mut engine,
+        &omitted_doc,
+        "native-grow-omitted-source",
+        json!({"kind":"set-matrix","matrix":expanded_source(&omitted_doc)}),
+        &[],
+    );
+    assert_eq!(resized["kind"], "scene", "{resized}");
+    let after = &resized["document"];
+    assert_eq!(matrix(after, SOURCE_MATRIX)["columns"], json!(3));
+    // The Omitted record followed without materializing.
+    assert_mirror_absent(after, 2, 3, "expand");
+    assert_live_correspondences(after, &[(0, 0), (0, 1), (1, 0), (1, 1)], "expand");
+    // One transaction: Undo restores the pre-resize document, Redo restores
+    // the resize.
+    let mut expected_undo = omitted_doc.clone();
+    let undone = undo(&mut engine, "native-omit-expand-undo");
+    expected_undo["revision"] = undone["revision"].clone();
+    assert_eq!(undone, expected_undo, "Undo must restore the Omitted document");
+    let mut expected_redo = after.clone();
+    let redone = redo(&mut engine, "native-omit-expand-redo");
+    expected_redo["revision"] = redone["revision"].clone();
+    assert_eq!(redone, expected_redo, "Redo must restore the resize");
+    assert_eq!(snapshot(&mut engine), redone);
+}
+
+#[test]
+fn native_omit_then_shrink_keeps_mirror_following() {
+    // Ticket 29 slice B2: source shrink with an Omitted mirror succeeds; the
+    // record follows down without resurrecting parts.
+    let (mut engine, before) = accepted_pair(PAIR_ID);
+    let omitted_doc = make_omitted(&mut engine, &before);
+    let shrunk = commit(
+        &mut engine,
+        &omitted_doc,
+        "native-shrink-omitted-source",
+        json!({"kind":"set-matrix","matrix":shrunk_source(&omitted_doc)}),
+        &[],
+    );
+    assert_eq!(shrunk["kind"], "scene", "{shrunk}");
+    let after = &shrunk["document"];
+    assert_eq!(matrix(after, SOURCE_MATRIX)["columns"], json!(1));
+    assert_mirror_absent(after, 2, 1, "shrink");
+    assert_live_correspondences(after, &[(0, 0), (1, 0)], "shrink");
+    let mut expected_undo = omitted_doc.clone();
+    let undone = undo(&mut engine, "native-omit-shrink-undo");
+    expected_undo["revision"] = undone["revision"].clone();
+    assert_eq!(undone, expected_undo, "Undo must restore the Omitted document");
+    let mut expected_redo = after.clone();
+    let redone = redo(&mut engine, "native-omit-shrink-redo");
+    expected_redo["revision"] = redone["revision"].clone();
+    assert_eq!(redone, expected_redo, "Redo must restore the shrink");
     assert_eq!(snapshot(&mut engine), redone);
 }
