@@ -779,3 +779,40 @@ shows a usable scheduler setting for this run, not a proven stable resource
 envelope or a causal explanation for the earlier failures. It does not replace
 the failed full receipt. Full supported verification, CI cutover, and closure
 review remain open; no default driver was changed.
+
+### 2026-10-26: Spec follow-up
+
+Based on `0eceab475b05553ff3458275d466bba7be7c0aef`, this follow-up
+uses exclusively created random run directories, limits pending wait and click
+operations by their existing deadlines, and retries only transient
+pre-dispatch click states. The abandoned PID/counter directory control failed
+before the change and passed after it (`.evidence/ticket005-spec-collision-red.log`,
+`.evidence/ticket005-spec-final-tests.log`). A pending page promise exceeded
+its wait deadline on pinned Chrome 145 before the change
+(`.evidence/ticket005-spec-deadline-pinned-red.log`); the updated pinned negative
+probe passed (`.evidence/ticket005-spec-pinned-probe.log`). An earlier control
+accidentally used Chrome 156 and also failed with a protocol mismatch
+(`.evidence/ticket005-spec-deadline-red.log`); it is not a pinned receipt.
+
+The final scoped harness tests passed (17 library, 1 drag binary); Clippy and
+formatting passed (`.evidence/ticket005-spec-final-tests.log`,
+`.evidence/ticket005-spec-clippy.log`, `.evidence/ticket005-spec-fmt.log`). The
+pinned Chrome 145 Rust drag smoke passed 15 checks against the existing site
+build (`.evidence/ticket005-spec-drag.log`), not a fresh-build parity run.
+The real click consumer was exercised through a local CDP relay to pinned
+Chrome 145. The relay rejects the first selected press or release with a
+distinct protocol error and forwards all other commands. With the original
+click implementation restored, the press control failed: two dispatches,
+success returned, and one page click (`.evidence/ticket005-dispatch-original-red.log`).
+With the fix, both press and release through both backend and role click
+consumers returned the original protocol error after one dispatch and recorded
+zero page clicks (`.evidence/ticket005-dispatch-final-green.log`). Run the control
+with `CHROME_BIN=<pinned-chrome> cargo test --manifest-path tools/browser-harness/Cargo.toml --lib dispatch_failure_is_not_retried_or_masked -- --ignored --nocapture`.
+The WebSocket reset printed during clean browser shutdown is recorded in both
+logs. The normal harness tests passed (17 library, 1 drag binary; the browser
+control is run explicitly); formatting and final Clippy passed
+(`.evidence/ticket005-dispatch-tests.log`, `.evidence/ticket005-dispatch-final-fmt.log`,
+`.evidence/ticket005-dispatch-final-clippy.log`). The initial Clippy run failed
+on a nested conditional in the new control and is preserved in
+`.evidence/ticket005-dispatch-clippy.log`. Prior full-gate failures, full
+supported verification, CI cutover and independent closure review remain open.

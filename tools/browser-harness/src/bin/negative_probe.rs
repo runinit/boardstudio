@@ -210,6 +210,13 @@ async fn run() -> Result<()> {
     )
     .await?;
 
+    // A pending page promise must obey the wait's own deadline.
+    let stalled = tokio::time::timeout(
+        Duration::from_secs(3),
+        driver::wait_for(&page, "new Promise(() => {})", "stalled evaluation", Duration::from_millis(200)),
+    ).await.map_err(|_| fail("pending evaluation exceeded its deadline"))?;
+    expect_error("stalled evaluation", stalled, "stalled evaluation").await?;
+
     // Exact names: `Fit` matches nothing, `Fit board` matches once.
     if !driver::find_role(&page, None, "button", "Fit")
         .await?

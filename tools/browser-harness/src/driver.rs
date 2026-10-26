@@ -363,15 +363,17 @@ pub async fn eval(page: &Page, expression: &str) -> Result<Value> {
 /// states (like an Undo revert) are observed, not stepped over.
 pub async fn wait_for(page: &Page, expression: &str, what: &str, timeout: Duration) -> Result<()> {
     let deadline = Instant::now() + timeout;
-    loop {
-        if eval(page, expression).await? == Value::Bool(true) {
-            return Ok(());
+    let operation = async {
+        loop {
+            if eval(page, expression).await? == Value::Bool(true) {
+                return Ok(());
+            }
+            tokio::time::sleep(Duration::from_millis(30)).await;
         }
-        if Instant::now() >= deadline {
-            return Err(Error(format!("timed out waiting for {what}: {expression}")));
-        }
-        tokio::time::sleep(Duration::from_millis(30)).await;
-    }
+    };
+    tokio::time::timeout_at(deadline.into(), operation)
+        .await
+        .unwrap_or_else(|_| Err(Error(format!("timed out waiting for {what}: {expression}"))))
 }
 
 /// Nodes matching `role` with exactly `name`, optionally scoped to a subtree.
@@ -484,17 +486,25 @@ pub async fn backend_of_wait(
     timeout: Duration,
 ) -> Result<BackendNodeId> {
     let deadline = Instant::now() + timeout;
-    loop {
-        match backend_of(page, selector).await {
-            Ok(id) => return Ok(id),
-            Err(error) => {
-                if !error.0.starts_with("no match for selector") || Instant::now() >= deadline {
-                    return Err(error);
+    let operation = async {
+        loop {
+            match backend_of(page, selector).await {
+                Ok(id) => return Ok(id),
+                Err(error) if error.0 != format!("no match for selector {selector:?}") => {
+                    return Err(error)
                 }
+                Err(_) => {}
             }
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
+    };
+    tokio::time::timeout_at(deadline.into(), operation)
+        .await
+        .unwrap_or_else(|_| {
+            Err(Error(format!(
+                "no match for selector {selector:?} (timed out)"
+            )))
+        })
 }
 
 /// Center of a backend node in CSS pixels, scrolled into view.
@@ -644,38 +654,78 @@ pub async fn click_backend(page: &Page, id: BackendNodeId) -> Result<()> {
 /// reported when the bound expires.
 pub async fn click_actionable(page: &Page, id: BackendNodeId, timeout: Duration) -> Result<()> {
     let deadline = Instant::now() + timeout;
-    loop {
-        match try_click_once(page, id).await {
-            Ok(()) => return Ok(()),
-            Err(error) => {
-                if Instant::now() >= deadline {
-                    return Err(error);
-                }
-                tokio::time::sleep(Duration::from_millis(100)).await;
+    let mut last = None;
+    let operation = async {
+        loop {
+            match try_click_once(page, id).await {
+                Ok(()) => return Ok(()),
+                Err(ClickError::Fatal(error)) => return Err(error),
+                Err(ClickError::Transient(error)) => last = Some(error),
             }
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
+    };
+    match tokio::time::timeout_at(deadline.into(), operation).await {
+        Ok(result) => result,
+        Err(_) => Err(Error(format!(
+            "timed out waiting for target actionability{}",
+            last.map(|error| format!(": {error}")).unwrap_or_default()
+        ))),
     }
 }
 
-async fn try_click_once(page: &Page, id: BackendNodeId) -> Result<()> {
-    let (x, y) = center(page, id).await?;
-    tokio::time::sleep(Duration::from_millis(50)).await;
-    let (again_x, again_y) = center(page, id).await?;
-    if (again_x - x).abs() > 1.0 || (again_y - y).abs() > 1.0 {
-        return Err(Error("target is still moving".to_owned()));
+enum ClickError {
+    Transient(Error),
+    Fatal(Error),
+}
+
+impl From<Error> for ClickError {
+    fn from(error: Error) -> Self {
+        Self::Fatal(error)
     }
-    let hit = receives_pointer_events(page, id).await?;
-    if hit != "ok" {
-        return Err(Error(format!(
-            "target does not receive pointer events yet ({hit})"
+}
+
+async fn try_click_once(page: &Page, id: BackendNodeId) -> std::result::Result<(), ClickError> {
+    async fn actionable_center(
+        page: &Page,
+        id: BackendNodeId,
+    ) -> std::result::Result<(f64, f64), ClickError> {
+        center(page, id).await.map_err(|error| {
+            if error.0 == "target has no visible geometry"
+                || error.0 == "target has no visible geometry: target is not shown"
+            {
+                ClickError::Transient(error)
+            } else {
+                ClickError::Fatal(error)
+            }
+        })
+    }
+    let (x, y) = actionable_center(page, id).await?;
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let (again_x, again_y) = actionable_center(page, id).await?;
+    if (again_x - x).abs() > 1.0 || (again_y - y).abs() > 1.0 {
+        return Err(ClickError::Transient(Error(
+            "target is still moving".to_owned(),
         )));
     }
+    let hit = receives_pointer_events(page, id).await?;
+    if hit == "unreadable hit verdict" {
+        return Err(ClickError::Fatal(Error(hit)));
+    }
+    if hit != "ok" {
+        return Err(ClickError::Transient(Error(format!(
+            "target does not receive pointer events yet ({hit})"
+        ))));
+    }
     if is_disabled_button(page, id).await? {
-        return Err(Error("target is disabled".to_owned()));
+        return Err(ClickError::Transient(Error(
+            "target is disabled".to_owned(),
+        )));
     }
     dispatch_mouse(page, DispatchMouseEventType::MouseMoved, x, y, 0, 0).await?;
     dispatch_mouse(page, DispatchMouseEventType::MousePressed, x, y, 1, 0).await?;
-    dispatch_mouse(page, DispatchMouseEventType::MouseReleased, x, y, 0, 0).await
+    dispatch_mouse(page, DispatchMouseEventType::MouseReleased, x, y, 0, 0).await?;
+    Ok(())
 }
 
 /// Whether the topmost element at the node's center is the node itself or a
@@ -801,35 +851,34 @@ pub async fn click_role_timeout(
     timeout: Duration,
 ) -> Result<()> {
     let deadline = Instant::now() + timeout;
-    loop {
-        check_app_panic(page).await?;
-        let matches = find_role(page, root, role, name).await?;
-        match matches.as_slice() {
-            [single] => {
-                // A found control may not be clickable yet; keep polling for
-                // actionability inside the same bound instead of failing fast.
-                match try_click_once(page, single.0).await {
+    let mut last = None;
+    let operation = async {
+        loop {
+            check_app_panic(page).await?;
+            let matches = find_role(page, root, role, name).await?;
+            match matches.as_slice() {
+                [single] => match try_click_once(page, single.0).await {
                     Ok(()) => return Ok(()),
-                    Err(error) => {
-                        if Instant::now() >= deadline {
-                            return Err(error);
-                        }
-                    }
+                    Err(ClickError::Fatal(error)) => return Err(error),
+                    Err(ClickError::Transient(error)) => last = Some(error),
+                },
+                [] => {}
+                many => {
+                    return Err(Error(format!(
+                        "ambiguous role lookup: {role} {name:?} matched {} nodes",
+                        many.len()
+                    )))
                 }
             }
-            [] => {
-                if Instant::now() >= deadline {
-                    return Err(Error(format!("timed out waiting for {role} {name:?}")));
-                }
-            }
-            many => {
-                return Err(Error(format!(
-                    "ambiguous role lookup: {role} {name:?} matched {} nodes",
-                    many.len()
-                )));
-            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
-        tokio::time::sleep(Duration::from_millis(100)).await;
+    };
+    match tokio::time::timeout_at(deadline.into(), operation).await {
+        Ok(result) => result,
+        Err(_) => Err(Error(format!(
+            "timed out waiting for {role} {name:?}{}",
+            last.map(|error| format!(": {error}")).unwrap_or_default()
+        ))),
     }
 }
 
@@ -1093,6 +1142,115 @@ pub async fn dispose_isolated_page(
 
 #[cfg(test)]
 mod redaction_tests {
+    #[tokio::test]
+    #[ignore = "requires CHROME_BIN; run explicitly for the real CDP failure control"]
+    async fn dispatch_failure_is_not_retried_or_masked() {
+        use futures::StreamExt;
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        use std::time::Duration;
+
+        let dirs = crate::IsolatedDirs::create(std::path::Path::new("/tmp")).unwrap();
+        let (mut chrome, handler) =
+            super::launch_chrome(&std::env::var("CHROME_BIN").unwrap(), &dirs)
+                .await
+                .unwrap();
+        let drain = super::spawn_handler_drain(
+            handler,
+            Arc::new(super::HandlerErrors::new()),
+            Arc::new(super::PageErrors::new()),
+        );
+        let mut outcomes = Vec::new();
+        for (kind, role) in [
+            ("mousePressed", false),
+            ("mouseReleased", false),
+            ("mousePressed", true),
+            ("mouseReleased", true),
+        ] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let upstream = chrome.websocket_address().clone();
+            let attempts = Arc::new(AtomicUsize::new(0));
+            let count = attempts.clone();
+            let relay = tokio::spawn(async move {
+                let (socket, _) = listener.accept().await.unwrap();
+                let mut client = async_tungstenite::tokio::accept_async(socket)
+                    .await
+                    .unwrap();
+                let (mut server, _) = async_tungstenite::tokio::connect_async(upstream)
+                    .await
+                    .unwrap();
+                loop {
+                    tokio::select! {
+                        message = client.next() => {
+                            let Some(Ok(message)) = message else { break };
+                            if let Ok(command) = serde_json::from_str::<serde_json::Value>(message.to_text().unwrap_or("")) {
+                                if command["method"] == "Input.dispatchMouseEvent" && command["params"]["type"] == kind
+                                    && count.fetch_add(1, Ordering::SeqCst) == 0 {
+                                    let response = serde_json::json!({"id": command["id"], "sessionId": command["sessionId"], "error": {"code": -32000, "message": "controlled dispatch failure"}});
+                                    client.send(response.to_string().into()).await.unwrap();
+                                    continue;
+                                }
+                            }
+                            if server.send(message).await.is_err() { break; }
+                        }
+                        message = server.next() => {
+                            let Some(Ok(message)) = message else { break };
+                            if client.send(message).await.is_err() { break; }
+                        }
+                    }
+                }
+            });
+            let (browser, handler) = chromiumoxide::Browser::connect(format!("ws://{address}"))
+                .await
+                .unwrap();
+            let proxy_drain = super::spawn_handler_drain(
+                handler,
+                Arc::new(super::HandlerErrors::new()),
+                Arc::new(super::PageErrors::new()),
+            );
+            let page = browser.new_page("about:blank").await.unwrap();
+            super::eval(&page, "document.body.innerHTML = '<button>Probe</button>'; window.clicks = 0; document.querySelector('button').onclick = () => window.clicks++;").await.unwrap();
+            let result = if role {
+                super::click_role_timeout(&page, None, "button", "Probe", Duration::from_secs(2))
+                    .await
+            } else {
+                let id = super::backend_of(&page, "button").await.unwrap();
+                super::click_actionable(&page, id, Duration::from_secs(2)).await
+            };
+            let clicks = super::eval(&page, "window.clicks").await.unwrap();
+            outcomes.push((
+                kind,
+                role,
+                attempts.load(Ordering::SeqCst),
+                result.map_err(|error| error.to_string()),
+                clicks,
+            ));
+            drop(page);
+            drop(browser);
+            proxy_drain.abort();
+            relay.abort();
+        }
+        chrome.close().await.unwrap();
+        chrome.wait().await.unwrap().unwrap();
+        drop(chrome);
+        drain.await.unwrap();
+        dirs.preserve.set(false);
+        for (kind, role, count, result, clicks) in &outcomes {
+            eprintln!("{kind} role={role}: attempts={count}, result={result:?}, clicks={clicks}");
+        }
+        for (kind, role, count, result, clicks) in outcomes {
+            assert_eq!(count, 1, "{kind} role={role} retried dispatch");
+            assert!(
+                matches!(result, Err(ref message) if message.contains("trusted mouse event failed") && message.contains("controlled dispatch failure")),
+                "{result:?}"
+            );
+            assert_eq!(clicks, 0, "failed dispatch produced a click receipt");
+        }
+    }
+
     #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn failed_initialization_reaps_spawned_child() {
