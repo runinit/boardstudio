@@ -13,6 +13,7 @@ pub(crate) use boardstudio_web_runtime::case_generation_lifecycle;
 pub(crate) use boardstudio_web_runtime::runtime;
 
 pub mod instance_selection;
+pub mod spacing_ghost;
 pub mod split_focus;
 pub mod state;
 pub mod tree;

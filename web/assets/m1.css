@@ -659,6 +659,21 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
     opacity: 0.6;
     pointer-events: none;
 }
+/* Ticket 18: ghost of the previous spacing (prototype variant B). Grey
+   dashed key outlines like the dimmed half, with a short delta note on the
+   axis above the keys. */
+.m1-spacing-ghost {
+    fill: none;
+    stroke: var(--wb-rule-strong);
+    stroke-width: 0.3;
+    stroke-dasharray: 0.8 0.8;
+    pointer-events: none;
+}
+.m1-spacing-ghost-note {
+    font: 2.9px var(--wb-mono);
+    fill: var(--wb-status-warning);
+    pointer-events: none;
+}
 .m1-scene-preview .m1-keycap-overlay .m1-keycap-top { stroke: var(--wb-status-warning); }
 .m1-part-hit-area { fill: transparent; stroke: none; pointer-events: all; cursor: grab; }
 .m1-layers { position: absolute; z-index: 2; right: 14px; bottom: 14px; display: flex; flex-direction: column; width: 192px; max-height: min(420px, calc(100% - 28px)); overflow: hidden; border: 1px solid var(--wb-rule-strong); border-radius: 12px; background: color-mix(in srgb, var(--wb-panel) 94%, transparent); color: var(--wb-ink); font: 12px var(--wb-body); box-shadow: 0 10px 28px rgb(0 0 0 / 22%); }

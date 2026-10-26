@@ -37,6 +37,8 @@ mod layout_relation_highlight_tests;
 #[cfg(test)]
 mod layout_remainder_tests;
 #[cfg(test)]
+mod layout_spacing_ghost_tests;
+#[cfg(test)]
 mod layout_split_focus_tests;
 pub(crate) use boardstudio_web_layout::layout_findings;
 pub(crate) use boardstudio_web_layout::layout_findings_state::{
@@ -67,7 +69,9 @@ pub(crate) use boardstudio_web_ui_model::state::{PreferenceStorageWarning, Theme
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
     PointerLocation, coordinates, coordinates_at, pointer_location,
 };
-pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection, selection};
+pub(crate) use boardstudio_web_ui_model::{
+    canvas_interaction, instance_selection, selection, spacing_ghost,
+};
 pub(crate) use boardstudio_web_ui_shared::panels::browse_parts_workspace;
 pub(crate) use boardstudio_web_ui_shared::project_menu;
 pub(crate) use boardstudio_web_ui_shared::project_menu::close_project_menu;
@@ -3198,6 +3202,11 @@ fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEdit {
     }
 }
 
+/// Ticket 18: the ghost of the previous spacing lives here, in the Editor,
+/// next to the other Layout view state. The tracker below records the last
+/// accepted snapshot; a committed spacing change raises the pre-commit scene
+/// as a dashed ghost with its delta note until the next edit, undo/redo, or
+/// selection change. Nothing here writes the document.
 #[component]
 fn Editor() -> Element {
     boardstudio_web_ui_shared::layer_dock::use_layer_dock_provider();
@@ -3250,6 +3259,51 @@ fn Editor() -> Element {
     // Ticket 14: view-only split editing focus. Like Handles, this signal
     // never writes the document; only canvas clicks move it.
     let split_focus = layout_state.split_focus();
+    // Ticket 18: ghost of the previous spacing. The tracker records the last
+    // accepted snapshot it processed; a committed spacing change raises the
+    // pre-commit scene as the ghost. The effect re-runs on every runtime
+    // change (Runtime::submit always notifies, including selection), but only
+    // writes the signals when the tracker advances — selection-only paints
+    // resolve to Keep.
+    let mut last_spacing_seen = use_signal(|| None::<spacing_ghost::SeenAccepted>);
+    let mut spacing_ghost_state = use_signal(|| None::<spacing_ghost::SpacingGhostState>);
+    let ghost_effect_runtime = runtime.clone();
+    let ghost_effect_selection = adapter.selected_context;
+    use_effect(move || {
+        let _ = version();
+        let tree_context = (ghost_effect_selection)();
+        let model = ghost_effect_runtime.model();
+        let Some(snapshot) = model.accepted.clone() else {
+            return;
+        };
+        let current = spacing_ghost::AcceptedView {
+            revision: snapshot.document.revision,
+            transaction: snapshot.scene.transaction_id.clone(),
+            document: snapshot.document.clone(),
+            scene: snapshot.scene.clone(),
+            selected_ids: model.selected_part_ids.clone(),
+            selected_context: tree_context,
+        };
+        // Clone the settled values first: the tracker borrows nothing, and the
+        // guarded writes below only fire on real advances.
+        let seen_before = last_spacing_seen.peek().clone();
+        let ghost_before = spacing_ghost_state.peek().clone();
+        match spacing_ghost::advance_spacing_ghost(
+            seen_before.as_ref(),
+            &current,
+            ghost_before.as_ref(),
+        ) {
+            spacing_ghost::GhostAdvance::Keep => {}
+            spacing_ghost::GhostAdvance::Set { seen, ghost } => {
+                if Some(&seen) != seen_before.as_ref() {
+                    last_spacing_seen.set(Some(seen));
+                }
+                if ghost != ghost_before {
+                    spacing_ghost_state.set(ghost);
+                }
+            }
+        }
+    });
     let layout_snap_settings = layout_state.snap_settings();
     let layout_command_menu = layout_state.command_menu();
     let mut layout_transform_tool = layout_state.transform_tool();
@@ -5969,6 +6023,25 @@ fn Editor() -> Element {
         selected.scope == render_scope
             && selection::context_is_current(&model, &selected.scope, &selected.context)
     });
+    // Ticket 18: the live spacing ghost, if it still describes this paint —
+    // the revision and selection it was born with, and no drag preview up.
+    // The revision check covers the paint between a commit landing and the
+    // tracker effect recording it; the selection check covers the paint
+    // between a selection landing and the effect retiring the ghost.
+    let spacing_ghost_prop = spacing_ghost_state
+        .read()
+        .clone()
+        .filter(|state| {
+            state.revision == snapshot.document.revision
+                && state.selected_ids == model.selected_part_ids
+                && state.selected_context == selected_tree_context
+                && model.display_preview.is_none()
+        })
+        .map(|state| layout_canvas::SpacingGhost {
+            scene: state.scene.clone(),
+            delta_mm: state.delta_mm,
+            axis_x: state.axis_x,
+        });
     let transform_matrix_id = selected_tree_context
         .as_ref()
         .filter(|selected| selected.scope == render_scope && active_workspace == "Layout")
@@ -9420,6 +9493,7 @@ fn Editor() -> Element {
                                 .display_preview
                                 .as_ref()
                                 .map(|_| snapshot.scene.clone()),
+                            spacing_ghost: spacing_ghost_prop.clone(),
                             selected_ids: model.selected_part_ids.clone(),
                             selected_context: selected_tree_context.clone(),
                             keys_visible: !(layer_visibility.hidden)().contains("Keys"),
