@@ -3343,7 +3343,7 @@ mod matrix_relations_panel {
             "splay blocks Convert in Relations too"
         );
         let reason = root
-            .query_selector(".m1-matrix-transform-unavailable")
+            .query_selector("[data-relation-departure='Column offset'] .m1-matrix-transform-unavailable")
             .unwrap()
             .expect("the Core reason is shown");
         assert_eq!(

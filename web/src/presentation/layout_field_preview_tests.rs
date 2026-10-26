@@ -338,9 +338,19 @@ async fn hovering_a_column_field_previews_its_keys_on_both_halves() {
         "no other matrix moves: {previewed:?}"
     );
     assert_eq!(
-        count(root_id, ".m1-matrix-key.is-relation-highlight"),
+        count(root_id, ".m1-matrix-key.is-field-preview.is-relation-highlight"),
         0,
         "the amber preview never uses the violet reference treatment"
+    );
+    assert_eq!(
+        count(root_id, ".m1-matrix-key.is-relation-highlight"),
+        2,
+        "only the persistent anchor target stays violet"
+    );
+    assert_eq!(
+        count(root_id, ".m1-matrix-key.is-relation-highlight[data-matrix-id='left-matrix'][data-column='0']"),
+        2,
+        "the previous column is the anchor target"
     );
     assert_eq!(
         hint_text(root_id).as_deref(),
