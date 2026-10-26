@@ -54,7 +54,6 @@ pub(crate) use boardstudio_web_ui_shared::{
 pub(crate) use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
 
 pub mod anchor_badge;
-pub mod screen_scale;
 pub mod matrix_relations;
 pub mod matrix_transform_lifecycle;
 pub mod matrix_transform_operation;
@@ -63,6 +62,7 @@ pub mod mirrored_pair_geometry;
 pub mod mirrored_pair_lifecycle;
 pub mod outline;
 pub mod outline_settings;
+pub mod screen_scale;
 pub mod setup_guide_state;
 
 #[cfg(target_arch = "wasm32")]
