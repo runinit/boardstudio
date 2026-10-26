@@ -13,12 +13,24 @@ use std::{
     sync::Arc,
 };
 
+/// Ticket 07: `part` carries the mount site's part-rail facts for an
+/// independent part selection (a `Component` with a part id and no matrix).
+/// Matrix members and companions name themselves in the facts and keep their
+/// matrix's tools.
 pub(super) fn transform_tools(
     context: &super::objects::TreeContext,
     active: Option<super::objects::LayoutTransformTool>,
     handles_visible: bool,
+    part: Option<boardstudio_web_layout::part_rail::PartRailFacts>,
 ) -> Vec<super::objects::LayoutTransformTool> {
     use super::objects::{LayoutTransformTool as Tool, TreeContext};
+    use boardstudio_web_layout::part_rail::part_rail_tools;
+    let part_tools = |facts: boardstudio_web_layout::part_rail::PartRailFacts| {
+        part_rail_tools(facts)
+            .into_iter()
+            .map(Tool::from)
+            .collect::<Vec<_>>()
+    };
     if !handles_visible {
         // View-only: every passive handle hides, but the active tool keeps
         // the handle its gesture requires. Origin and Splay expose their
@@ -34,6 +46,15 @@ pub(super) fn transform_tools(
             (TreeContext::Matrix { .. }, Some(active @ (Tool::Move | Tool::Rotate))) => {
                 vec![active]
             }
+            // Ticket 07: a hidden part rail keeps only its active tool.
+            (TreeContext::Component { .. }, Some(tool)) => part.map_or_else(Vec::new, |facts| {
+                let tools = part_tools(facts);
+                if tools.contains(&tool) {
+                    vec![tool]
+                } else {
+                    Vec::new()
+                }
+            }),
             _ => Vec::new(),
         };
     }
@@ -47,6 +68,9 @@ pub(super) fn transform_tools(
         TreeContext::Row { .. } => vec![Tool::Offset, Tool::Shift, Tool::Bend],
         TreeContext::Key { .. } => vec![Tool::Shift, Tool::Bend],
         TreeContext::Matrix { .. } => vec![Tool::Move, Tool::Rotate],
+        // Ticket 07: an independent part gets its own rail; without facts
+        // (a member or companion) nothing draws.
+        TreeContext::Component { .. } => part.map_or_else(Vec::new, part_tools),
         _ => vec![],
     }
 }
@@ -953,15 +977,15 @@ mod tests {
             column: 0,
         };
         assert_eq!(
-            transform_tools(&column, Some(Tool::Offset), true),
+            transform_tools(&column, Some(Tool::Offset), true, None),
             vec![Tool::Offset, Tool::Splay]
         );
         assert_eq!(
-            transform_tools(&column, Some(Tool::Origin), true),
+            transform_tools(&column, Some(Tool::Origin), true, None),
             vec![Tool::Stagger, Tool::Origin]
         );
         assert_eq!(
-            transform_tools(&column, None, true),
+            transform_tools(&column, None, true, None),
             vec![Tool::Stagger, Tool::Splay]
         );
         // Ticket 05: a Row keeps its shipped Offset next to Shift and Bend;
@@ -974,6 +998,7 @@ mod tests {
                 },
                 Some(Tool::Stagger),
                 true,
+                None,
             ),
             vec![Tool::Offset, Tool::Shift, Tool::Bend]
         );
@@ -985,6 +1010,7 @@ mod tests {
                 },
                 None,
                 true,
+                None,
             ),
             vec![Tool::Offset, Tool::Shift, Tool::Bend]
         );
@@ -997,6 +1023,7 @@ mod tests {
                 },
                 None,
                 true,
+                None,
             ),
             vec![Tool::Shift, Tool::Bend]
         );
@@ -1007,6 +1034,7 @@ mod tests {
                 },
                 None,
                 true,
+                None,
             ),
             vec![Tool::Move, Tool::Rotate]
         );
@@ -1017,6 +1045,7 @@ mod tests {
                 },
                 Some(Tool::Move),
                 true,
+                None,
             ),
             vec![Tool::Move, Tool::Rotate]
         );
@@ -1027,8 +1056,100 @@ mod tests {
                 },
                 Some(Tool::Move),
                 false,
+                None,
             ),
             vec![Tool::Move]
+        );
+        // Ticket 07: an independent part gets its own rail from the mount
+        // site's facts; without facts (a member or companion) nothing draws.
+        use boardstudio_web_layout::part_rail::PartRailFacts;
+        let part = TreeContext::Component {
+            part_id: Some("mcu".into()),
+            matrix_id: None,
+            row: None,
+            column: None,
+            assembly_id: None,
+        };
+        let anchored = || {
+            Some(PartRailFacts {
+                anchored: true,
+                anchor_column: 1,
+                locked: false,
+                member_or_companion: false,
+            })
+        };
+        assert_eq!(
+            transform_tools(&part, None, true, anchored()),
+            vec![Tool::Move, Tool::Rotate, Tool::Spread, Tool::Stagger]
+        );
+        assert_eq!(
+            transform_tools(
+                &part,
+                None,
+                true,
+                Some(PartRailFacts {
+                    anchored: true,
+                    anchor_column: 0,
+                    locked: false,
+                    member_or_companion: false,
+                }),
+            ),
+            vec![Tool::Move, Tool::Rotate, Tool::Stagger]
+        );
+        assert_eq!(
+            transform_tools(
+                &part,
+                None,
+                true,
+                Some(PartRailFacts {
+                    anchored: false,
+                    anchor_column: 0,
+                    locked: false,
+                    member_or_companion: false,
+                }),
+            ),
+            vec![Tool::Move, Tool::Rotate]
+        );
+        assert_eq!(
+            transform_tools(
+                &part,
+                None,
+                true,
+                Some(PartRailFacts {
+                    anchored: true,
+                    anchor_column: 1,
+                    locked: true,
+                    member_or_companion: false,
+                }),
+            ),
+            Vec::new()
+        );
+        assert_eq!(transform_tools(&part, None, true, None), Vec::new());
+        // A matrix member or companion names itself in the facts and draws no
+        // part rail.
+        assert_eq!(
+            transform_tools(
+                &part,
+                None,
+                true,
+                Some(PartRailFacts {
+                    anchored: true,
+                    anchor_column: 1,
+                    locked: false,
+                    member_or_companion: true,
+                }),
+            ),
+            Vec::new()
+        );
+        // A matrix member keeps its matrix's key tools, never the part rail.
+        let member_key = TreeContext::Key {
+            matrix_id: "matrix".into(),
+            row: 0,
+            column: 1,
+        };
+        assert_eq!(
+            transform_tools(&member_key, None, true, anchored()),
+            vec![Tool::Shift, Tool::Bend]
         );
     }
 
@@ -1051,49 +1172,88 @@ mod tests {
             row: 0,
             column: 1,
         };
-        assert_eq!(transform_tools(&column, None, false), Vec::new());
-        assert_eq!(transform_tools(&row, None, false), Vec::new());
-        assert_eq!(transform_tools(&key, None, false), Vec::new());
+        assert_eq!(transform_tools(&column, None, false, None), Vec::new());
+        assert_eq!(transform_tools(&row, None, false, None), Vec::new());
+        assert_eq!(transform_tools(&key, None, false, None), Vec::new());
         assert_eq!(
-            transform_tools(&column, Some(Tool::Stagger), false),
+            transform_tools(&column, Some(Tool::Stagger), false, None),
             vec![Tool::Stagger]
         );
         assert_eq!(
-            transform_tools(&column, Some(Tool::Spread), false),
+            transform_tools(&column, Some(Tool::Spread), false, None),
             vec![Tool::Spread]
         );
         assert_eq!(
-            transform_tools(&column, Some(Tool::Origin), false),
+            transform_tools(&column, Some(Tool::Origin), false, None),
             vec![Tool::Origin]
         );
         assert_eq!(
-            transform_tools(&row, Some(Tool::Offset), false),
+            transform_tools(&row, Some(Tool::Offset), false, None),
             vec![Tool::Offset]
         );
         assert_eq!(
-            transform_tools(&row, Some(Tool::Shift), false),
+            transform_tools(&row, Some(Tool::Shift), false, None),
             vec![Tool::Shift]
         );
         assert_eq!(
-            transform_tools(&row, Some(Tool::Bend), false),
+            transform_tools(&row, Some(Tool::Bend), false, None),
             vec![Tool::Bend]
         );
         // A Row selection never draws a Stagger handle, even hidden.
         assert_eq!(
-            transform_tools(&row, Some(Tool::Stagger), false),
+            transform_tools(&row, Some(Tool::Stagger), false, None),
             Vec::new()
         );
         assert_eq!(
-            transform_tools(&key, Some(Tool::Shift), false),
+            transform_tools(&key, Some(Tool::Shift), false, None),
             vec![Tool::Shift]
         );
         assert_eq!(
-            transform_tools(&key, Some(Tool::Bend), false),
+            transform_tools(&key, Some(Tool::Bend), false, None),
             vec![Tool::Bend]
         );
         // A Key selection never draws a Stagger handle, even hidden.
         assert_eq!(
-            transform_tools(&key, Some(Tool::Stagger), false),
+            transform_tools(&key, Some(Tool::Stagger), false, None),
+            Vec::new()
+        );
+        // Ticket 07: a hidden part rail keeps only its active tool.
+        use boardstudio_web_layout::part_rail::PartRailFacts;
+        let part = TreeContext::Component {
+            part_id: Some("mcu".into()),
+            matrix_id: None,
+            row: None,
+            column: None,
+            assembly_id: None,
+        };
+        let anchored = || {
+            Some(PartRailFacts {
+                anchored: true,
+                anchor_column: 1,
+                locked: false,
+                member_or_companion: false,
+            })
+        };
+        let detached = || {
+            Some(PartRailFacts {
+                anchored: false,
+                anchor_column: 0,
+                locked: false,
+                member_or_companion: false,
+            })
+        };
+        assert_eq!(transform_tools(&part, None, false, anchored()), Vec::new());
+        assert_eq!(
+            transform_tools(&part, Some(Tool::Spread), false, anchored()),
+            vec![Tool::Spread]
+        );
+        assert_eq!(
+            transform_tools(&part, Some(Tool::Move), false, detached()),
+            vec![Tool::Move]
+        );
+        // Spread is not in the detached rail, even hidden.
+        assert_eq!(
+            transform_tools(&part, Some(Tool::Spread), false, detached()),
             Vec::new()
         );
     }
@@ -1271,6 +1431,39 @@ mod tests {
         click("#canvas-hide");
         gloo_timers::future::TimeoutFuture::new(5).await;
         assert!(root.query_selector(".m1-scene-part").unwrap().is_none());
+        root.remove();
+    }
+
+    /// Ticket 07: the selected part's outline turns accent while unselected
+    /// part outlines stay violet (the `m1-part.selected` rule).
+    #[wasm_bindgen_test]
+    async fn selected_part_outline_turns_accent_while_unselected_stays_violet() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(render_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(5).await;
+        let click = |selector: &str| {
+            root.query_selector(selector)
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+                .click()
+        };
+        click("#canvas-select");
+        gloo_timers::future::TimeoutFuture::new(5).await;
+        let outlines = root.query_selector_all("polygon.m1-part").unwrap();
+        assert_eq!(outlines.length(), 2, "both parts draw outlines");
+        let selected = root.query_selector_all("polygon.m1-part.selected").unwrap();
+        assert_eq!(
+            selected.length(),
+            1,
+            "exactly the selected part turns accent"
+        );
         root.remove();
     }
 

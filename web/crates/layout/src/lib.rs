@@ -62,6 +62,7 @@ pub mod mirrored_pair_geometry;
 pub mod mirrored_pair_lifecycle;
 pub mod outline;
 pub mod outline_settings;
+pub mod part_rail;
 pub mod screen_scale;
 pub mod setup_guide_state;
 

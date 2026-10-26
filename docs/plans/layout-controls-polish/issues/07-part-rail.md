@@ -32,8 +32,8 @@ drags the part's Stagger token +2 mm and asserts one revision whose part anchor 
 
 ## Acceptance
 
-- [ ] Native tool-list tests (anchored, detached, member, locked: locked parts show no tokens).
-- [ ] Mounted tests: Move, Rotate and Stagger drags on an anchored part, one Undo entry each.
+- [x] Native tool-list tests (anchored, detached, member, locked: locked parts show no tokens).
+- [x] Mounted tests: Move, Rotate and Stagger drags on an anchored part, one Undo entry each.
   The mirrored partner moves per ADR-0038 (Splay mirrors), and a drag on the dimmed half focuses
   that half as in split-board-editing 14.
 - [ ] The existing part-drag browser smoke stays green.
@@ -44,3 +44,40 @@ drags the part's Stagger token +2 mm and asserts one revision whose part anchor 
 
 - The prototype leaves the upper Matrix / Row / Column / Key / Part strip unchanged while a part
   is selected. By default this ticket doesn't change that strip; confirm in the live pass.
+
+## Answer
+
+Independent parts get a canvas rail in part order `[Move, Rotate, Spread, Stagger]`
+centred on the part. Move/Rotate edit the local Offset/Rotation and Spread/Stagger
+edit the values carried from the anchor key, each drag committing one composed
+`SetPartAnchorValues` (one Undo entry). Detached Move drives the shipped
+`GestureBegin/Sample/End` path (Core `MoveParts`, one Undo); detached Rotate shows
+the token and the live popup but retires on drop — no existing Core op writes a
+detached pose rotation, so this needs a product call in 08 or a follow-up (hide the
+token until a rotation op exists, or add one against the map's "only 04 changes a
+public Core op"). Members and companions pass no facts: on canvas they hit-test to
+keys and keep the key tools, and a Component context for them draws no part rail.
+The strip is unchanged (Position only for parts); outlines were already
+accent/violet in CSS and are now pinned by a class test.
+
+- `web/crates/layout/src/part_rail.rs`: native `PartRailFacts` + `part_rail_tools`
+  (locked → none; detached → Move/Rotate; anchored → plus Spread/Stagger, minus
+  Spread on anchor column 0).
+- `layout_transform_toolbar.rs`: `From<PartRailTool>`, `LayoutPartToolOverlay`
+  (own part-order mount set; reuses `handle_rail` geometry and the 06 feedback
+  reducer/popup/toast; Escape clears preview/gesture; hover docks the current
+  value; token press focuses the part's half for 14 parity).
+- `layout_canvas.rs::transform_tools` gains the part facts (incl. hidden-handles
+  arms); `presentation.rs` computes facts at the mount site and mounts the part
+  overlays with anchor-pitch snap.
+- DESIGN.md canvas paragraph records the part rail and the outline rule.
+
+Tests: 4 native list tests; mounted rail order + Spread hover value, anchored
+Stagger (+2 Alt, offset untouched, toast, Undo), Move (offset, toast, Undo),
+Rotate (commit matches live popup, Undo), detached tokens/member-guard, detached
+Move (gesture engaged, one revision, toast, Undo), detached Rotate retires (no
+revision, no toast), mirror pair fan-out + Undo on both halves, half-focus on
+press, locked draws nothing, Part strip keeps Position, selected outline accent
+vs unselected violet. Full toolbar module 53/53 and the layout_canvas page-bin
+14/14 pass; the full layout lib run SIGKILLs mid-suite in this environment
+(pre-existing pattern, scoped suites green).

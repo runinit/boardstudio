@@ -6107,6 +6107,51 @@ fn Editor() -> Element {
         .zip(transform_projection)
         .zip(selected_tree_context.as_ref())
         .map(|((matrix, projection), selected)| (matrix, projection, selected.context.clone()));
+    // Ticket 07: the part rail facts for an independent part selection behind
+    // `transform_tools` and the part rail below. Members and companions keep
+    // their matrix's tools: the facts name them and the pure list stays empty.
+    let part_rail_selection =
+        selected_tree_context
+            .as_ref()
+            .and_then(|selected| match &selected.context {
+                objects::TreeContext::Component {
+                    part_id: Some(part_id),
+                    matrix_id: None,
+                    ..
+                } => {
+                    let part = document.parts.iter().find(|part| &part.id == part_id)?;
+                    Some((
+                        part_id.clone(),
+                        boardstudio_web_layout::part_rail::PartRailFacts {
+                            anchored: part.anchor.is_some(),
+                            anchor_column: part.anchor.as_ref().map_or(0, |anchor| anchor.column),
+                            locked: part.locked == Some(true),
+                            member_or_companion: document
+                                .matrices
+                                .iter()
+                                .any(|matrix| matrix.part_ids.contains(part_id)),
+                        },
+                    ))
+                }
+                _ => None,
+            });
+    // Ticket 07: the part rail drag snap: anchored drags snap in the anchor
+    // matrix's pitch, like the matrix tools snap in their own.
+    let part_rail_snap = part_rail_selection.as_ref().map(|(part_id, _)| {
+        let anchor_pitch = document
+            .parts
+            .iter()
+            .find(|part| &part.id == part_id)
+            .and_then(|part| part.anchor.as_ref())
+            .and_then(|anchor| {
+                document
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.id == anchor.matrix_id)
+            })
+            .map(|matrix| matrix.pitch);
+        objects::gesture_snap_inputs(&layout_snap_settings.read().clone(), anchor_pitch, None)
+    });
     let transform_tool_owner = (
         layout_owner.scope.clone(),
         layout_owner.generation,
@@ -9580,7 +9625,7 @@ fn Editor() -> Element {
                             && !layout_assembly_3d()
                             && let Some((matrix, projection, context)) = layout_transform_target.clone()
                         {
-                            for tool in layout_canvas::transform_tools(&context, layout_transform_tool(), layout_state.transform_handles()()) {
+                            for tool in layout_canvas::transform_tools(&context, layout_transform_tool(), layout_state.transform_handles()(), None) {
                             objects::LayoutTransformToolOverlay {
                                 key: "{tool:?}",
                                 runtime: objects::LayoutTransformRuntime(runtime.clone()),
@@ -9604,6 +9649,56 @@ fn Editor() -> Element {
                                 height,
                                 on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
                             }
+                            }
+                        }
+                        // Ticket 07: the independent part's own rail. Move and
+                        // Rotate edit the local Offset and Rotation; Spread and
+                        // Stagger edit the values carried from the anchor key.
+                        // The strip above is unchanged: it keeps offering
+                        // Position for a part selection.
+                        if active_workspace == "Layout"
+                            && !layout_assembly_3d()
+                            && let Some((part_id, facts)) = part_rail_selection.clone()
+                            && let Some(selected) = selected_tree_context.clone()
+                            && let Some(part_snap) = part_rail_snap
+                        {
+                            {
+                                let part_context = selected.context.clone();
+                                rsx! {
+                                    for tool in layout_canvas::transform_tools(&part_context, layout_transform_tool(), layout_state.transform_handles()(), Some(facts)) {
+                                    objects::LayoutPartToolOverlay {
+                                        key: "{tool:?}",
+                                        runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                                        svg: objects::LayoutTransformSvg(svg.clone()),
+                                        arbiter: canvas_interaction.clone(),
+                                        owner: layout_owner.clone(),
+                                        selected_context: adapter.selected_context,
+                                        scope_generation: adapter.generation,
+                                        workspace,
+                                        surface_size: Some(zoom_surface_size),
+                                        part_id: part_id.clone(),
+                                        tool,
+                                        snap: part_snap,
+                                        view_x,
+                                        view_y,
+                                        width,
+                                        height,
+                                        on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
+                                        on_focus_half: {
+                                            let document = document.clone();
+                                            let mut split_focus = split_focus;
+                                            let part_context = part_context.clone();
+                                            EventHandler::new(move |_| {
+                                                if let Some(half) = boardstudio_web_ui_model::split_focus::context_half(&document, &part_context)
+                                                    && half != split_focus()
+                                                {
+                                                    split_focus.set(half);
+                                                }
+                                            })
+                                        },
+                                    }
+                                    }
+                                }
                             }
                         }
                         if let Some(placement) = part_placement.projection.as_ref() {

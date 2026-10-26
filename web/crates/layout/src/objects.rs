@@ -52,6 +52,7 @@ pub use layout_toolbar::{
     LayoutSnapSettings, TreeCellAnchor, context_for_selection_kind, gesture_snap_inputs,
     layout_canvas_grid_style, snap_label as layout_snap_label,
 };
+pub use layout_transform_toolbar::LayoutPartToolOverlay;
 pub use layout_transform_toolbar::LayoutTransformToolOverlay;
 pub use layout_transform_toolbar::{
     LayoutTransformMenuMount, LayoutTransformRuntime, LayoutTransformSvg, LayoutTransformTool,
