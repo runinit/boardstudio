@@ -27,6 +27,10 @@ pub(super) fn transform_tools(
         return match (context, active) {
             (TreeContext::Column { .. }, Some(tool)) => vec![tool],
             (TreeContext::Row { .. }, Some(Tool::Offset)) => vec![Tool::Offset],
+            (TreeContext::Row { .. }, Some(Tool::Shift)) => vec![Tool::Shift],
+            (TreeContext::Row { .. }, Some(Tool::Bend)) => vec![Tool::Bend],
+            (TreeContext::Key { .. }, Some(Tool::Shift)) => vec![Tool::Shift],
+            (TreeContext::Key { .. }, Some(Tool::Bend)) => vec![Tool::Bend],
             (TreeContext::Matrix { .. }, Some(active @ (Tool::Move | Tool::Rotate))) => {
                 vec![active]
             }
@@ -40,7 +44,8 @@ pub(super) fn transform_tools(
             Some(Tool::Spread) => vec![Tool::Spread, Tool::Splay],
             _ => vec![Tool::Stagger, Tool::Splay],
         },
-        TreeContext::Row { .. } => vec![Tool::Offset],
+        TreeContext::Row { .. } => vec![Tool::Offset, Tool::Shift, Tool::Bend],
+        TreeContext::Key { .. } => vec![Tool::Shift, Tool::Bend],
         TreeContext::Matrix { .. } => vec![Tool::Move, Tool::Rotate],
         _ => vec![],
     }
@@ -679,41 +684,6 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                 "{dimmed.dim_label()}"
             }
         }
-        if let Some(badge) = badge.as_ref() {
-            // Ticket 02 anchor badge (prototype variant D): a 7 px violet
-            // ring at the anchor point; the badge label moved out of the
-            // canvas into the "Placed from" readout. A dashed tie still runs
-            // to the selection base. Read-only chrome: it never takes pointer
-            // events, so canvas clicks (including dimmed-half focus) pass
-            // through.
-            {
-                let anchor_x = badge.anchor.x;
-                let anchor_y = badge.anchor.y;
-                let selection_x = badge.selection.x;
-                let selection_y = badge.selection.y;
-                let ring_r = px(3.5);
-                let ring_w = px(1.5);
-                rsx! {
-                    if badge.tied {
-                        line {
-                                                        class: "m1-anchor-tie",
-                            x1: "{anchor_x}", y1: "{anchor_y}",
-                            x2: "{selection_x}", y2: "{selection_y}",
-                        }
-                        circle {
-                                                        class: "m1-anchor-tie-dot",
-                            cx: "{selection_x}", cy: "{selection_y}", r: "0.9",
-                        }
-                    }
-                    g {
-                                                class: "m1-anchor-badge",
-                        transform: "translate({anchor_x} {anchor_y})",
-                        "aria-hidden": "true",
-                        circle { class: "m1-anchor-badge-ring", r: "{ring_r}", stroke_width: "{ring_w}" }
-                    }
-                }
-            }
-        }
         for (part_index, part) in input.visible_indices.iter().zip(input.visible) {
             {
                 let pose = projection
@@ -792,6 +762,42 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                                 hovered, label_font, part_label_y,
                             }
                         }
+                    }
+                }
+            }
+        }
+        // Ticket 02 anchor badge (prototype variant D): a 7 px violet ring
+        // at the anchor point; the badge label moved out of the canvas into
+        // the "Placed from" readout. A dashed tie still runs to the selection
+        // base. Read-only chrome: it never takes pointer events, so canvas
+        // clicks (including dimmed-half focus) pass through. It paints after
+        // the parts so the ring stays visible when the anchor sits under a
+        // key, matching the prototype's ring-on-top treatment.
+        if let Some(badge) = badge.as_ref() {
+            {
+                let anchor_x = badge.anchor.x;
+                let anchor_y = badge.anchor.y;
+                let selection_x = badge.selection.x;
+                let selection_y = badge.selection.y;
+                let ring_r = px(3.5);
+                let ring_w = px(1.5);
+                rsx! {
+                    if badge.tied {
+                        line {
+                                                        class: "m1-anchor-tie",
+                            x1: "{anchor_x}", y1: "{anchor_y}",
+                            x2: "{selection_x}", y2: "{selection_y}",
+                        }
+                        circle {
+                                                        class: "m1-anchor-tie-dot",
+                            cx: "{selection_x}", cy: "{selection_y}", r: "0.9",
+                        }
+                    }
+                    g {
+                                                class: "m1-anchor-badge",
+                        transform: "translate({anchor_x} {anchor_y})",
+                        "aria-hidden": "true",
+                        circle { class: "m1-anchor-badge-ring", r: "{ring_r}", stroke_width: "{ring_w}" }
                     }
                 }
             }
@@ -958,6 +964,8 @@ mod tests {
             transform_tools(&column, None, true),
             vec![Tool::Stagger, Tool::Splay]
         );
+        // Ticket 05: a Row keeps its shipped Offset next to Shift and Bend;
+        // a Key offers Shift and Bend.
         assert_eq!(
             transform_tools(
                 &TreeContext::Row {
@@ -967,7 +975,30 @@ mod tests {
                 Some(Tool::Stagger),
                 true,
             ),
-            vec![Tool::Offset]
+            vec![Tool::Offset, Tool::Shift, Tool::Bend]
+        );
+        assert_eq!(
+            transform_tools(
+                &TreeContext::Row {
+                    matrix_id: "matrix".into(),
+                    row: 0
+                },
+                None,
+                true,
+            ),
+            vec![Tool::Offset, Tool::Shift, Tool::Bend]
+        );
+        assert_eq!(
+            transform_tools(
+                &TreeContext::Key {
+                    matrix_id: "matrix".into(),
+                    row: 0,
+                    column: 1,
+                },
+                None,
+                true,
+            ),
+            vec![Tool::Shift, Tool::Bend]
         );
         assert_eq!(
             transform_tools(
@@ -1039,9 +1070,30 @@ mod tests {
             transform_tools(&row, Some(Tool::Offset), false),
             vec![Tool::Offset]
         );
+        assert_eq!(
+            transform_tools(&row, Some(Tool::Shift), false),
+            vec![Tool::Shift]
+        );
+        assert_eq!(
+            transform_tools(&row, Some(Tool::Bend), false),
+            vec![Tool::Bend]
+        );
         // A Row selection never draws a Stagger handle, even hidden.
         assert_eq!(
             transform_tools(&row, Some(Tool::Stagger), false),
+            Vec::new()
+        );
+        assert_eq!(
+            transform_tools(&key, Some(Tool::Shift), false),
+            vec![Tool::Shift]
+        );
+        assert_eq!(
+            transform_tools(&key, Some(Tool::Bend), false),
+            vec![Tool::Bend]
+        );
+        // A Key selection never draws a Stagger handle, even hidden.
+        assert_eq!(
+            transform_tools(&key, Some(Tool::Stagger), false),
             Vec::new()
         );
     }
