@@ -2439,6 +2439,72 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
 }
 
 #[wasm_bindgen_test]
+async fn mounted_linked_queued_xy_edits_preserve_board_position_across_adoption_and_undo() {
+    let (probe, root) =
+        mounted_probe_configured("layout-component-linked-queued-xy-test-root", |document| {
+            document.matrices[0].origin.x = -30.0;
+            document.matrices[1].origin.x = 30.0;
+            document.parts[0].pose.at = Vec2 { x: -50.0, y: 3.0 };
+        })
+        .await;
+    settle_mounted_component_inspector(&probe).await;
+    let x = position_input(probe.root_id, "X mm");
+    let y = position_input(probe.root_id, "Y mm");
+    let (entered, release) =
+        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+    try_commit_position(&x, "-40");
+    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    entered.await.expect("the X edit reached Core");
+    try_commit_position(&y, "8");
+    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    release.send(()).expect("release the held X reply");
+    accept_pending(&probe).await;
+
+    let board_position = || {
+        let model = probe.runtime.model();
+        let document = &model.accepted.as_ref().unwrap().document;
+        let part = document
+            .parts
+            .iter()
+            .find(|part| part.id == "selected-part")
+            .unwrap();
+        boardstudio_core::evaluated_part_pose(document, part).at
+    };
+    let model = probe.runtime.model();
+    let document = &model.accepted.as_ref().unwrap().document;
+    assert!(
+        document.layouts[1]
+            .mirror_link
+            .as_ref()
+            .unwrap()
+            .split_gap
+            .is_some(),
+        "X edit adopts the half frame"
+    );
+    assert_ne!(
+        document.parts[0].pose.at.x,
+        board_position().x,
+        "adoption gives the part a nonzero half offset"
+    );
+    assert_eq!(
+        board_position(),
+        Vec2 { x: -40.0, y: 8.0 },
+        "queued Y preserves the accepted board-space X"
+    );
+
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    accept_pending(&probe).await;
+    assert_eq!(
+        board_position(),
+        Vec2 { x: -40.0, y: 3.0 },
+        "one Undo removes only Y"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
 async fn mounted_component_inspector_view_unmount_retires_held_field_observation_and_remount_refreshes()
  {
     let (probe, root) =
