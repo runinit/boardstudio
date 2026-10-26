@@ -218,10 +218,7 @@ fn arm_commit_toast_expiry(
 ) {
     spawn_local(async move {
         gloo_timers::future::TimeoutFuture::new(TOAST_TIMEOUT_MS).await;
-        let live = generation
-            .try_peek()
-            .map(|current| *current == seen)
-            .unwrap_or(false);
+        let live = generation.try_peek().is_ok_and(|current| *current == seen);
         if live && let Ok(mut state) = feedback.try_write() {
             *state = advance_feedback(&state, FeedbackEvent::Expire);
         }
@@ -4504,6 +4501,11 @@ pub fn LayoutAnchorPickOverlay(
                     }
                     gloo_timers::future::TimeoutFuture::new(16).await;
                 }
+                // The overlay remounts on scope and selection changes; its
+                // signals die together, so one liveness probe covers the writes.
+                if toast_gen_for_commit.try_peek().is_err() {
+                    return;
+                }
                 let landed = runtime_for_settle
                     .model()
                     .accepted
@@ -8414,6 +8416,9 @@ mod tool_tests {
         scope: Scope,
         tool: LayoutTransformTool,
         context: TreeContext,
+        /// Receives the host's visibility signal, so a test can unmount the
+        /// overlay like a production scope switch.
+        show_slot: Option<Rc<RefCell<Option<Signal<bool>>>>>,
     }
 
     #[component]
@@ -8429,7 +8434,12 @@ mod tool_tests {
         let workspace = use_signal(|| "Layout");
         let splay_affect = use_signal(|| MatrixSplayAffect::Column);
         let arbiter = use_hook(CanvasInteractionArbiter::default);
+        let show = use_signal(|| true);
+        if let Some(slot) = &props.show_slot {
+            *slot.borrow_mut() = Some(show);
+        }
         rsx! {
+            if show() {
             svg { id: "overlay-host-svg", view_box: "0 0 100 100", width: "400", height: "400",
                 LayoutTransformToolOverlay {
                     runtime: props.runtime.clone(),
@@ -8453,6 +8463,7 @@ mod tool_tests {
                     on_finish: EventHandler::new(|()| {}),
                 }
             }
+            }
         }
     }
 
@@ -8475,100 +8486,13 @@ mod tool_tests {
         tool: LayoutTransformTool,
         context: TreeContext,
     ) -> (web_sys::Element, web_sys::Element) {
-        let model = runtime.model();
-        let accepted = model.accepted.as_ref().expect("an accepted document");
-        let matrix = fixture::accepted_matrix(runtime);
-        let projection = accepted
-            .scene
-            .matrix_scenes
-            .iter()
-            .find(|scene| scene.matrix_id == matrix.id)
-            .cloned()
-            .expect("the matrix scene");
-        let owner = LayoutOwnerIdentity {
-            scope: runtime.scope(),
-            token: Some(accepted.token),
-            revision: Some(accepted.document.revision),
-            generation: 0,
-            workspace: "Layout",
-        };
-        let svg = LayoutTransformSvg(Rc::new(RefCell::new(None)));
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        document.body().unwrap().append_child(&root).unwrap();
-        let props = OverlayHostProps {
-            runtime: LayoutTransformRuntime(runtime.clone()),
-            svg: svg.clone(),
-            matrix,
-            projection,
-            scope: owner.scope.clone().expect("a scope"),
-            owner,
-            tool,
-            context,
-        };
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new_with_props(overlay_host, props),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        gloo_timers::future::TimeoutFuture::new(60).await;
-        *svg.0.borrow_mut() = root
-            .query_selector("#overlay-host-svg")
-            .unwrap()
-            .and_then(|element| element.dyn_into::<SvgElement>().ok());
-        let handle = root
-            .query_selector(".m1-transform-handle")
-            .unwrap()
-            .expect("the tool draws a handle");
-        // A synthetic pointer id is not an active pointer, so the browser refuses real capture.
-        // The handle's capture methods are stubbed on this element; everything else is the
-        // production pointer path.
-        let stub = js_sys::Function::new_no_args("return true;");
-        for method in [
-            "setPointerCapture",
-            "hasPointerCapture",
-            "releasePointerCapture",
-        ] {
-            js_sys::Reflect::set(handle.as_ref(), &method.into(), stub.as_ref()).unwrap();
-        }
+        let (root, handle, _) = mount_toggle_overlay(runtime, tool, context).await;
         (root, handle)
     }
 
-    #[derive(Props, Clone)]
-    struct ToggleHostProps {
-        overlay: OverlayHostProps,
-        show_slot: Rc<RefCell<Option<Signal<bool>>>>,
-    }
-
-    impl PartialEq for ToggleHostProps {
-        fn eq(&self, other: &Self) -> bool {
-            self.overlay == other.overlay && Rc::ptr_eq(&self.show_slot, &other.show_slot)
-        }
-    }
-
-    #[component]
-    fn toggle_host(props: ToggleHostProps) -> Element {
-        let show = use_signal(|| true);
-        *props.show_slot.borrow_mut() = Some(show);
-        let overlay = props.overlay.clone();
-        rsx! {
-            if show() {
-                overlay_host {
-                    runtime: overlay.runtime.clone(),
-                    svg: overlay.svg.clone(),
-                    matrix: overlay.matrix.clone(),
-                    projection: overlay.projection.clone(),
-                    owner: overlay.owner.clone(),
-                    scope: overlay.scope.clone(),
-                    tool: overlay.tool,
-                    context: overlay.context.clone(),
-                }
-            }
-        }
-    }
-
-    /// Mount the overlay behind a visibility toggle, so a test can unmount it
-    /// exactly like a production scope switch while a commit-toast timer is
-    /// still pending. Returns the root, the stagger handle and the toggle.
+    /// `mount_context_overlay` plus the host's visibility toggle, so a test can
+    /// unmount the overlay exactly like a production scope switch while a
+    /// commit-toast timer is still pending.
     async fn mount_toggle_overlay(
         runtime: &Rc<Runtime>,
         tool: LayoutTransformTool,
@@ -8596,21 +8520,19 @@ mod tool_tests {
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
         let show_slot: Rc<RefCell<Option<Signal<bool>>>> = Rc::new(RefCell::new(None));
-        let props = ToggleHostProps {
-            overlay: OverlayHostProps {
-                runtime: LayoutTransformRuntime(runtime.clone()),
-                svg: svg.clone(),
-                matrix,
-                projection,
-                scope: owner.scope.clone().expect("a scope"),
-                owner,
-                tool,
-                context,
-            },
-            show_slot: show_slot.clone(),
+        let props = OverlayHostProps {
+            runtime: LayoutTransformRuntime(runtime.clone()),
+            svg: svg.clone(),
+            matrix,
+            projection,
+            scope: owner.scope.clone().expect("a scope"),
+            owner,
+            tool,
+            context,
+            show_slot: Some(show_slot.clone()),
         };
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new_with_props(toggle_host, props),
+            VirtualDom::new_with_props(overlay_host, props),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         gloo_timers::future::TimeoutFuture::new(60).await;
@@ -8635,7 +8557,7 @@ mod tool_tests {
         }
         let show = show_slot
             .borrow()
-            .expect("the toggle host shares its visibility signal");
+            .expect("the overlay host shares its visibility signal");
         (root, handle, show)
     }
 
@@ -8685,6 +8607,7 @@ mod tool_tests {
             owner,
             tool,
             context,
+            show_slot: None,
         };
         dioxus_web::launch::launch_virtual_dom(
             VirtualDom::new_with_props(overlay_host, props),
@@ -10004,26 +9927,16 @@ mod tool_tests {
     /// leaving the Dioxus panic toast over the toolbar.
     #[wasm_bindgen_test]
     async fn commit_toast_timer_survives_overlay_unmount() {
-        type PreviousHook =
-            Option<Box<dyn Fn(&std::panic::PanicHookInfo<'_>) + Sync + Send + 'static>>;
-        struct HookGuard {
-            previous: PreviousHook,
-        }
-        impl Drop for HookGuard {
-            fn drop(&mut self) {
-                if let Some(previous) = self.previous.take() {
-                    std::panic::set_hook(previous);
-                }
-            }
-        }
-        let _guard = HookGuard {
-            previous: Some(std::panic::take_hook()),
-        };
+        // A wasm panic aborts instead of unwinding, so no drop guard can restore
+        // the hook. The recorder forwards to the previous hook, so a panic still
+        // reaches the console, and the hook is only re-installed on success.
+        let previous = std::sync::Arc::new(std::panic::take_hook());
         let panics = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
         {
-            let recorded = panics.clone();
+            let (previous, recorded) = (previous.clone(), panics.clone());
             std::panic::set_hook(Box::new(move |info| {
                 recorded.lock().unwrap().push(info.to_string());
+                (**previous)(info);
             }));
         }
         let runtime = fixture::open_matrix_runtime().await;
@@ -10067,15 +9980,13 @@ mod tool_tests {
             "the toggle unmounted the overlay"
         );
         gloo_timers::future::TimeoutFuture::new(2200).await;
-        // Restore the previous hook before asserting, so a failure here never
-        // masks its own message behind a re-entrant hook error.
-        drop(_guard);
-        let panics = panics.lock().unwrap();
+        let recorded = panics.lock().unwrap().clone();
         assert!(
-            panics.is_empty(),
-            "no expired commit-toast timer panicked after unmount, got {panics:?}"
+            recorded.is_empty(),
+            "no expired commit-toast timer panicked after unmount, got {recorded:?}"
         );
-        drop(panics);
+        // Only after the assert: set_hook panics once a panic is already counted.
+        std::panic::set_hook(Box::new(move |info| (**previous)(info)));
         root.remove();
     }
 
