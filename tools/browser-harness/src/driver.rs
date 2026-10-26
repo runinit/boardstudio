@@ -1005,6 +1005,49 @@ pub async fn dispose_isolated_page(browser: &Browser, context: BrowserContextId)
 #[cfg(test)]
 mod redaction_tests {
     #[tokio::test]
+    async fn transport_loss_fails_consumer_verdict() {
+        use futures::StreamExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut ws = async_tungstenite::tokio::accept_async(socket)
+                .await
+                .unwrap();
+            while let Some(message) = ws.next().await {
+                let command: serde_json::Value =
+                    serde_json::from_str(message.unwrap().to_text().unwrap()).unwrap();
+                if command["method"] == "Browser.close" {
+                    ws.send(format!(r#"{{"id":{},"result":{{}}}}"#, command["id"]).into())
+                        .await
+                        .unwrap();
+                    break;
+                }
+            }
+            drop(ws);
+        });
+        let (mut browser, handler) = chromiumoxide::Browser::connect(format!("ws://{address}"))
+            .await
+            .unwrap();
+        let handler_errors = std::sync::Arc::new(super::HandlerErrors::new());
+        let page_errors = std::sync::Arc::new(super::PageErrors::new());
+        let drain = super::spawn_handler_drain(handler, handler_errors.clone(), page_errors);
+        browser.close().await.unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(5), drain)
+            .await
+            .unwrap()
+            .unwrap();
+        let verdict = handler_errors.fail_if_any().unwrap_err().to_string();
+        assert!(
+            verdict.contains("Connection reset without closing handshake"),
+            "{verdict}"
+        );
+        server.await.unwrap();
+        drop(browser);
+    }
+
+    #[tokio::test]
     async fn late_invalid_event_fails_consumer_after_close_response() {
         use futures::StreamExt;
 

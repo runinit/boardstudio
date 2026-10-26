@@ -527,3 +527,44 @@ process exit are distinct observations. No client-initiated shutdown change was
 made without an ordering guarantee. A deterministic delayed-listener control,
 a defensible complete transport boundary, full supported check, parity, CI
 cutover, launch-error cleanup and closure review remain open.
+
+### 2026-10-26: transport control and observation-boundary blocker
+
+At base `667eb82d42e4396856ee3de28f3ad695220fdf81`, a controlled peer
+replies successfully to `Browser.close` and then drops the WebSocket without a
+close handshake. The actual consumer handler drain records the reset and
+`HandlerErrors::fail_if_any` rejects the verdict. The harness's 13 tests,
+including the existing late-invalid-event control, and harness Clippy passed
+(`.evidence/ticket005-transport-control-checks.log`). The earlier Chrome 145
+late-rejection probe observed the rejection before the consumer verdict but
+failed on that reset; it does not demonstrate a deterministic delayed-listener
+join or a successful real-page run.
+
+The pinned Chrome 145 [target handler](https://github.com/chromium/chromium/blob/145.0.7622.0/content/browser/devtools/protocol/target_handler.cc)
+sends `Target.detachedFromTarget` before removing the child session and
+detaching the client; its `DetachFromTarget` response follows that operation.
+The [DevTools session](https://github.com/chromium/chromium/blob/145.0.7622.0/content/browser/devtools/devtools_session.cc)
+receives renderer notifications asynchronously. The detach marker therefore
+orders messages already dispatched to the browser client but does not prove
+that a page exception produced earlier has crossed the renderer boundary.
+The [HTTP handler](https://github.com/chromium/chromium/blob/145.0.7622.0/content/browser/devtools/devtools_http_handler.cc)
+posts outbound messages to the socket thread; the [WebSocket implementation](https://github.com/chromium/chromium/blob/145.0.7622.0/net/server/web_socket.cc)
+stops sending once a client close frame is processed. A close handshake is not
+a barrier for messages still awaiting dispatch. Neither alternative proves
+the existing end-of-run error capture contract, and reset is still fatal.
+
+Reviewable alternative requiring a semantic decision: define the observation
+interval as events delivered to the browser-side session before an explicit
+target-detach marker, drain the ordered handler and join listeners through that
+marker, then perform separately reported browser cleanup. Events still in the
+renderer or produced after that marker would be outside the verdict, even if
+their underlying page activity began during the checked flow. Invalid events
+and exceptions received within the interval must still fail, and transport
+loss before the marker must fail. This changes the guarantee and is not
+implemented or claimed as equivalent; it also needs controls at the real
+consumer seam and an explicit decision on cleanup transport failures. No
+current evidence establishes a stronger renderer-to-consumer barrier.
+
+The deterministic late-exception join control, successful Chrome probe,
+full supported gate, parity, launch-error cleanup and closure review remain
+open. Ticket 005 remains claimed.
