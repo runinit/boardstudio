@@ -2,6 +2,11 @@
 use super::layout_toolbar::LayoutSelectionKind;
 use super::layout_toolbar::{GestureSnapInputs, LayoutCommandMenu, close_layout_command_menu};
 use super::{ScopedTreeContext, TreeContext};
+use crate::anchor_pick::{
+    AnchorMajorKind, AnchorPickCandidates, CANDIDATE_HIT_PX, CANDIDATE_RING_HOVER_PX,
+    CANDIDATE_RING_PX, MAJOR_RING_PX, PickTarget, anchor_key_label, anchor_pick_candidates,
+    matrix_display_name, pick_commit, preview_anchor_poses,
+};
 use crate::matrix_relations;
 use crate::matrix_transform_operation::{
     ArrowKey, MatrixDragAnchor, MatrixTransformField, PlacementParameter, PlacementValue,
@@ -18,9 +23,11 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution,
 };
 use boardstudio_core::evaluated_part_pose;
+use boardstudio_core::layout_half_offset;
 use boardstudio_core::model::{
     EditOperation, Matrix, MatrixPlacementChange, MatrixScene, MatrixSplayAffect,
-    MatrixSplayChange, Mirror, PartAnchor, PartAnchorValueChange, Position, ProjectDoc, Vec2,
+    MatrixSplayChange, Mirror, PartAnchor, PartAnchorValueChange, Pose2, Position, ProjectDoc,
+    Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEdits;
 use boardstudio_web_ui_model::state::{FieldPreview, FieldPreviewSource, FieldPreviewState};
@@ -61,6 +68,9 @@ pub enum LayoutTransformTool {
     Move,
     /// Turns the selected matrix through its stored rotation.
     Rotate,
+    /// Ticket 08: arms canvas Anchor pick mode on the selected matrix or
+    /// part. The token toggles; it never starts a drag.
+    Anchor,
 }
 
 /// Ticket 07: the native part-rail list maps onto the shared rail tools.
@@ -71,6 +81,7 @@ impl From<crate::part_rail::PartRailTool> for LayoutTransformTool {
             crate::part_rail::PartRailTool::Rotate => Self::Rotate,
             crate::part_rail::PartRailTool::Spread => Self::Spread,
             crate::part_rail::PartRailTool::Stagger => Self::Stagger,
+            crate::part_rail::PartRailTool::Anchor => Self::Anchor,
         }
     }
 }
@@ -123,7 +134,7 @@ thread_local! {
 
 /// Canonical rail order: peers list in this order however the mounts
 /// interleave, matching the `transform_tools` listing order.
-const RAIL_ORDER: [LayoutTransformTool; 8] = [
+const RAIL_ORDER: [LayoutTransformTool; 9] = [
     LayoutTransformTool::Spread,
     LayoutTransformTool::Stagger,
     LayoutTransformTool::Offset,
@@ -132,6 +143,7 @@ const RAIL_ORDER: [LayoutTransformTool; 8] = [
     LayoutTransformTool::Splay,
     LayoutTransformTool::Move,
     LayoutTransformTool::Rotate,
+    LayoutTransformTool::Anchor,
 ];
 
 fn rail_mount_tool(svg_key: usize, tool: LayoutTransformTool) {
@@ -208,6 +220,7 @@ fn feedback_tool_name(tool: LayoutTransformTool) -> &'static str {
         LayoutTransformTool::Origin => "Origin",
         LayoutTransformTool::Move => "Move",
         LayoutTransformTool::Rotate => "Rotate",
+        LayoutTransformTool::Anchor => "Anchor",
     }
 }
 
@@ -368,6 +381,8 @@ fn feedback_panel_contents(width_px: f64, rows: Vec<(String, f64, &'static str, 
     }
 }
 const GLYPH_ROTATE: &str = "M4.5 -2A5 5 0 1 1 -2 -4.6M4.6 -5v3h-3";
+/// Prototype variant D anchor token: the anchor shank with its ring.
+const GLYPH_ANCHOR: &str = "M0-2.5V5M-3-.5h6M-4.5 2.2a4.5 4.5 0 0 0 9 0M0-5.6a1.5 1.5 0 1 0 .01 0";
 
 /// The token glyph for one rail tool: the axis arrow along `glyph_degrees`
 /// for the one-dimensional tools, the spec glyphs for Splay and Rotate, and
@@ -416,6 +431,9 @@ fn rail_token_glyph(
         (LayoutTransformTool::Rotate, _) => rsx! {
             path { d: "{GLYPH_ROTATE}", style: "{style}" }
         },
+        (LayoutTransformTool::Anchor, _) => rsx! {
+            path { d: "{GLYPH_ANCHOR}", style: "{style}" }
+        },
         (LayoutTransformTool::Origin, _) => rsx! {},
     }
 }
@@ -451,6 +469,7 @@ fn preview_field_for_tool(
         (LayoutTransformTool::Origin, _)
         | (LayoutTransformTool::Stagger, _)
         | (LayoutTransformTool::Shift, _)
+        | (LayoutTransformTool::Anchor, _)
         | (LayoutTransformTool::Bend, _) => None,
     }
 }
@@ -482,7 +501,10 @@ pub fn activate_transform_tool(
                 selection_kind: Some(LayoutSelectionKind::Key),
             }
         }
-        (LayoutTransformTool::Move | LayoutTransformTool::Rotate, _) => ToolActivation {
+        (
+            LayoutTransformTool::Move | LayoutTransformTool::Rotate | LayoutTransformTool::Anchor,
+            _,
+        ) => ToolActivation {
             active: Some(tool),
             selection_kind: None,
         },
@@ -1827,6 +1849,9 @@ pub fn LayoutTransformToolOverlay(
             start_angle: 0.0,
             start_rotation: 0.0,
         },
+        // Ticket 08: the Anchor token never mounts this drag overlay (the
+        // pick overlay owns it), so no gesture starts here.
+        LayoutTransformTool::Anchor => TransformGesture::MatrixMove { anchor: None },
     };
     let stagger_axis = projection
         .columns
@@ -1903,6 +1928,7 @@ pub fn LayoutTransformToolOverlay(
         (LayoutTransformTool::Splay, _) => "Drag to splay".to_owned(),
         (LayoutTransformTool::Move, _) => "Drag to move matrix".to_owned(),
         (LayoutTransformTool::Rotate, _) => "Drag to rotate matrix".to_owned(),
+        (LayoutTransformTool::Anchor, _) => "Pick anchor".to_owned(),
         (LayoutTransformTool::Origin, _) => "Move splay origin".to_owned(),
         (LayoutTransformTool::Shift, TreeContext::Row { .. }) => "Drag to shift row".to_owned(),
         (LayoutTransformTool::Shift, TreeContext::Key { .. }) => "Drag to shift key".to_owned(),
@@ -1934,6 +1960,9 @@ pub fn LayoutTransformToolOverlay(
         LayoutTransformTool::Origin => {
             "Hold Ctrl while dragging to swing the origin without moving the keys.".to_owned()
         }
+        LayoutTransformTool::Anchor => {
+            "Click a violet ring to anchor here. Esc leaves pick mode.".to_owned()
+        }
     };
     let token_title: Option<String> = match tool {
         LayoutTransformTool::Spread => Some(format!("Drag to spread · {handle_value}")),
@@ -1950,6 +1979,7 @@ pub fn LayoutTransformToolOverlay(
             Some("Rotate matrix (unavailable: Follow rotation is off)".to_owned())
         }
         LayoutTransformTool::Origin => Some("Move splay origin".to_owned()),
+        LayoutTransformTool::Anchor => Some("Pick anchor".to_owned()),
         LayoutTransformTool::Stagger
         | LayoutTransformTool::Offset
         | LayoutTransformTool::Shift
@@ -2187,11 +2217,12 @@ thread_local! {
 }
 
 /// Canonical part rail order, matching the `part_rail` listing order.
-const PART_RAIL_ORDER: [LayoutTransformTool; 4] = [
+const PART_RAIL_ORDER: [LayoutTransformTool; 5] = [
     LayoutTransformTool::Move,
     LayoutTransformTool::Rotate,
     LayoutTransformTool::Spread,
     LayoutTransformTool::Stagger,
+    LayoutTransformTool::Anchor,
 ];
 
 fn part_rail_mount_tool(svg_key: usize, tool: LayoutTransformTool) {
@@ -3918,6 +3949,840 @@ pub fn LayoutPartToolOverlay(
     }
 }
 
+/// Ticket 08: which selection a canvas Anchor pick retargets: an anchored
+/// matrix (with its scene for the rail centre) or an independent part.
+#[derive(Clone, PartialEq)]
+pub enum AnchorPickOwner {
+    Matrix {
+        matrix: Rc<Matrix>,
+        projection: Rc<MatrixScene>,
+        context: TreeContext,
+    },
+    Part {
+        part_id: String,
+    },
+}
+
+impl AnchorPickOwner {
+    fn context(&self) -> TreeContext {
+        match self {
+            Self::Matrix { context, .. } => context.clone(),
+            Self::Part { part_id } => TreeContext::Component {
+                part_id: Some(part_id.clone()),
+                matrix_id: None,
+                row: None,
+                column: None,
+                assembly_id: None,
+            },
+        }
+    }
+
+    fn mount_tool(&self, svg_key: usize) {
+        match self {
+            Self::Matrix { .. } => rail_mount_tool(svg_key, LayoutTransformTool::Anchor),
+            Self::Part { .. } => part_rail_mount_tool(svg_key, LayoutTransformTool::Anchor),
+        }
+    }
+
+    fn unmount_tool(&self, svg_key: usize) {
+        match self {
+            Self::Matrix { .. } => rail_unmount_tool(svg_key, LayoutTransformTool::Anchor),
+            Self::Part { .. } => part_rail_unmount_tool(svg_key, LayoutTransformTool::Anchor),
+        }
+    }
+
+    fn set_active(&self, svg_key: usize, tool: Option<LayoutTransformTool>) {
+        match self {
+            Self::Matrix { .. } => rail_set_active(svg_key, tool),
+            Self::Part { .. } => part_rail_set_active(svg_key, tool),
+        }
+    }
+}
+
+/// Ticket 08: the owner's Layout id behind the half-origin major target.
+fn anchor_pick_layout(document: &ProjectDoc, context: &TreeContext) -> Option<String> {
+    match context {
+        TreeContext::Matrix { matrix_id } => document
+            .layouts
+            .iter()
+            .find(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id))
+            .map(|layout| layout.id.clone()),
+        TreeContext::Component {
+            part_id: Some(part_id),
+            matrix_id: None,
+            ..
+        } => document
+            .layouts
+            .iter()
+            .find(|layout| layout.part_ids.iter().any(|id| id == part_id))
+            .map(|layout| layout.id.clone()),
+        _ => None,
+    }
+}
+
+/// Ticket 08: one candidate key's canvas pose from the evaluated scenes.
+fn anchor_candidate_pose(scenes: &[MatrixScene], target: &PickTarget) -> Option<Vec2> {
+    scenes
+        .iter()
+        .find(|scene| scene.matrix_id == target.matrix_id)
+        .and_then(|scene| {
+            scene
+                .cells
+                .iter()
+                .find(|cell| cell.row == target.row && cell.column == target.column)
+        })
+        .map(|cell| cell.pose.at)
+}
+
+/// Ticket 08: the current anchor in words for the armed popup: the live key,
+/// or the half origin while detached.
+fn anchor_pick_current_label(document: &ProjectDoc, projected: &AnchorPickCandidates) -> String {
+    projected
+        .keys
+        .iter()
+        .find(|key| key.current)
+        .map(|key| anchor_key_label(document, &key.matrix_id, key.row, key.column))
+        .unwrap_or_else(|| "half origin".to_owned())
+}
+
+/// Ticket 08: resolve one pick against the accepted document: owner and
+/// target both live, so Core's refusal stays for genuinely driven keys.
+fn anchor_pick_resolver(context: TreeContext, target: PickTarget) -> EditResolver {
+    EditResolver::new(
+        "layout-anchor-pick",
+        move |accepted: &AcceptedSnapshot| match pick_commit(&accepted.document, &context, &target)
+        {
+            Some(commit) => {
+                let owner_id = match &context {
+                    TreeContext::Matrix { matrix_id } => matrix_id.clone(),
+                    TreeContext::Component {
+                        part_id: Some(part_id),
+                        ..
+                    } => part_id.clone(),
+                    _ => {
+                        return Resolution::Retire("The selection can no longer anchor.".into());
+                    }
+                };
+                Resolution::submit(vec![owner_id], commit.operation)
+            }
+            None => Resolution::Retire("The anchor target is no longer available.".into()),
+        },
+    )
+}
+
+/// Ticket 08: whether the owner's live anchor names the target after the
+/// settle loop.
+fn anchor_pick_landed(document: &ProjectDoc, context: &TreeContext, target: &PickTarget) -> bool {
+    crate::anchor_pick::anchor_is_target(document, context, target)
+}
+
+/// Ticket 08: the canvas Anchor pick mode for one anchored matrix or
+/// independent part. The Anchor token toggles the armed state; while armed
+/// every committable key draws a violet ring (loop-forming targets draw no
+/// ring), hovering previews the Core-evaluated post-commit pose in amber,
+/// and clicking commits one `SetMatrixAnchor` / `SetPartAnchor` Undo entry
+/// with the carried toast. Esc, a second token press or a selection change
+/// leaves pick mode with no revision, and the selection and focus stay put.
+#[component]
+pub fn LayoutAnchorPickOverlay(
+    runtime: LayoutTransformRuntime,
+    svg: LayoutTransformSvg,
+    arbiter: CanvasInteractionArbiter,
+    owner: LayoutOwnerIdentity,
+    selected_context: Signal<Option<ScopedTreeContext>>,
+    scope_generation: Signal<u64>,
+    workspace: Signal<&'static str>,
+    #[props(default)] surface_size: Option<Signal<(f64, f64)>>,
+    pick_owner: AnchorPickOwner,
+    view_x: f64,
+    view_y: f64,
+    width: f64,
+    height: f64,
+) -> Element {
+    let _ = surface_size.map(|size| size());
+    let svg_key: usize = Rc::as_ptr(&svg.0) as usize;
+    let pick_owner_hook = pick_owner.clone();
+    use_hook(move || {
+        pick_owner_hook.mount_tool(svg_key);
+    });
+    let pick_owner_drop = pick_owner.clone();
+    use_drop(move || {
+        pick_owner_drop.unmount_tool(svg_key);
+    });
+    // Peers mount in one commit, so the first overlay paints before the rest
+    // register. This second pass re-reads the full mount set once every peer
+    // of the commit has registered, keeping every rail centred.
+    let mut mounted = use_signal(|| false);
+    let mounted_read = mounted;
+    use_effect(move || {
+        mounted.set(true);
+    });
+    let _ = mounted_read();
+    let armed = use_signal(|| false);
+    let hovered_target = use_signal(|| None::<PickTarget>);
+    let preview = use_signal(Vec::<(String, Pose2)>::new);
+    // Ticket 06, reused: the value popup and commit toast content (pure
+    // reducer; rendering only) plus the toast generation the 1.8 s timer
+    // checks. While armed the popup renders pinned to the canvas's top-right
+    // corner; otherwise it docks above the rail like every other token.
+    let feedback = use_signal(FeedbackState::default);
+    let toast_gen = use_signal(|| 0_u64);
+
+    // Leaving pick mode clears the armed peer, the hover preview and the
+    // popup. The selection and focus stay put: nothing here writes them.
+    let disarm = {
+        let pick_owner = pick_owner.clone();
+        Rc::new(move || {
+            let mut armed = armed;
+            let mut hovered_target = hovered_target;
+            let mut preview = preview;
+            let mut feedback = feedback;
+            armed.set(false);
+            hovered_target.set(None);
+            preview.set(Vec::new());
+            feedback.set(advance_feedback(&feedback(), FeedbackEvent::Dismiss));
+            pick_owner.set_active(svg_key, None);
+        })
+    };
+    let escape_listener = use_hook(TransformEscapeListener::default);
+    use_effect({
+        let listener = escape_listener.clone();
+        let disarm = disarm.clone();
+        let armed_for_escape = armed;
+        move || {
+            let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+                return;
+            };
+            let disarm = disarm.clone();
+            let callback = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
+                if event.key() != "Escape" || event.default_prevented() {
+                    return;
+                }
+                if !armed_for_escape() {
+                    return;
+                }
+                event.prevent_default();
+                disarm();
+            }) as Box<dyn FnMut(_)>);
+            let _ = document
+                .add_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref());
+            *listener.borrow_mut() = Some((document, callback));
+        }
+    });
+    use_drop({
+        let listener = escape_listener.clone();
+        move || {
+            if let Some((document, callback)) = listener.borrow_mut().take() {
+                let _ = document.remove_event_listener_with_callback(
+                    "keydown",
+                    callback.as_ref().unchecked_ref(),
+                );
+            }
+        }
+    });
+    // A stale arm (owner, selection or scope moved on) drops without writing.
+    {
+        let disarm = disarm.clone();
+        let pick_owner = pick_owner.clone();
+        let owner_for_effect = owner.clone();
+        use_effect(move || {
+            let _ = selected_context();
+            let _ = scope_generation();
+            let _ = pick_owner;
+            let _ = owner_for_effect;
+            disarm();
+        });
+    }
+
+    let model = runtime.0.model();
+    let accepted = model.accepted.clone();
+    let context = pick_owner.context();
+    let document = accepted.as_ref().map(|snapshot| snapshot.document.clone());
+    let scenes: Vec<MatrixScene> = try_use_context::<Option<FieldPreviewSource>>()
+        .flatten()
+        .map(|source| source.scene.matrix_scenes.clone())
+        .unwrap_or_default();
+    let projected: Option<AnchorPickCandidates> = document
+        .as_ref()
+        .and_then(|document| anchor_pick_candidates(document, &[], &context));
+    let Some(document) = document else {
+        return rsx! {};
+    };
+    let Some(projected) = projected else {
+        return rsx! {};
+    };
+    let handle_scale = svg.0.borrow().as_ref().map_or(3.0, |surface| {
+        let rect = surface.get_bounding_client_rect();
+        if rect.width() > 0.0 {
+            (width / rect.width()).max(height / rect.height().max(1.0)) * 3.0
+        } else {
+            3.0
+        }
+    });
+    // World units per screen px: rings and labels stay screen-size at every
+    // zoom, matching the badge and rail chrome.
+    let world_per_screen = handle_scale / 3.0;
+    let px = world_per_screen;
+    // The rail peers share one mount set per canvas; the Anchor token sits
+    // last in canonical order. The matrix rail drops Spread on column 0,
+    // like the drag overlay, so the token stays centred on what draws.
+    let rail_tools: Vec<LayoutTransformTool> = match &pick_owner {
+        AnchorPickOwner::Matrix { .. } => {
+            let selected_column = context_column(&context).unwrap_or(0);
+            let selected_row = context_row(&context);
+            rail_peers(svg_key)
+                .into_iter()
+                .filter(|peer| {
+                    !matches!(peer, LayoutTransformTool::Spread)
+                        || selected_column != 0
+                        || selected_row.is_some()
+                })
+                .collect()
+        }
+        AnchorPickOwner::Part { .. } => part_rail_peers(svg_key),
+    };
+    let rail_index = rail_tools
+        .iter()
+        .position(|peer| *peer == LayoutTransformTool::Anchor);
+    let rail_points: Vec<Vec2> = match &pick_owner {
+        AnchorPickOwner::Matrix { projection, .. } => {
+            let mut points: Vec<Vec2> = projection
+                .cells
+                .iter()
+                .filter(|cell| cell.enabled)
+                .map(|cell| cell.pose.at)
+                .collect();
+            if points.is_empty() {
+                points = projection
+                    .cells
+                    .first()
+                    .map(|cell| vec![cell.pose.at])
+                    .unwrap_or_default();
+            }
+            points
+        }
+        AnchorPickOwner::Part { part_id } => {
+            let Some(part) = document.parts.iter().find(|part| part.id == *part_id) else {
+                return rsx! {};
+            };
+            let evaluated = evaluated_part_pose(&document, part);
+            let courtyard_top = document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)
+                .map(|definition| {
+                    definition
+                        .courtyard
+                        .iter()
+                        .map(|point| point.y)
+                        .fold(f64::NEG_INFINITY, f64::max)
+                })
+                .filter(|top| top.is_finite())
+                .unwrap_or(0.0);
+            vec![Vec2 {
+                x: evaluated.at.x,
+                y: evaluated.at.y + courtyard_top,
+            }]
+        }
+    };
+    if rail_index.is_none() || rail_points.is_empty() {
+        return rsx! {};
+    }
+    let min_x = rail_points
+        .iter()
+        .map(|point| point.x)
+        .fold(f64::INFINITY, f64::min);
+    let max_x = rail_points
+        .iter()
+        .map(|point| point.x)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let top = rail_points
+        .iter()
+        .map(|point| point.y)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let rail_layout = if rail_index.is_some() && !rail_points.is_empty() {
+        handle_rail::rail_world(
+            (min_x + max_x) / 2.0,
+            top,
+            rail_tools.len(),
+            world_per_screen,
+        )
+    } else {
+        None
+    };
+    let Some(rail_layout) = rail_layout else {
+        return rsx! {};
+    };
+    let (tok_x, tok_y) = rail_layout
+        .token_centers
+        .get(rail_index.expect("the Anchor token draws"))
+        .copied()
+        .unwrap_or((rail_layout.rail.x, rail_layout.rail.y));
+    let rail_w = handle_rail::rail_width(rail_tools.len());
+    let (rail_cx, rail_cy) = (
+        rail_layout.rail.x + rail_layout.rail.w / 2.0,
+        rail_layout.rail.y + rail_layout.rail.h / 2.0,
+    );
+    let token_active = armed();
+    let token_fill = if token_active {
+        "var(--wb-accent)"
+    } else {
+        "transparent"
+    };
+    let glyph_stroke = if token_active {
+        "var(--wb-on-accent)"
+    } else {
+        "var(--wb-muted)"
+    };
+    let current_label = anchor_pick_current_label(&document, &projected);
+    let item_label: String = match &pick_owner {
+        AnchorPickOwner::Matrix { matrix, .. } => matrix_display_name(&document, &matrix.id),
+        AnchorPickOwner::Part { part_id } => document
+            .parts
+            .iter()
+            .find(|part| part.id == *part_id)
+            .map(|part| {
+                if part.reference.trim().is_empty() {
+                    part.id.clone()
+                } else {
+                    part.reference.clone()
+                }
+            })
+            .unwrap_or_else(|| part_id.clone()),
+    };
+    // The pinned popup rows: the item against the current or hovered target.
+    // Width and pin recompute with the value, so the panel hugs the corner.
+    let popup_value = match hovered_target() {
+        Some(target) => format!(
+            "{item_label} → {}",
+            anchor_key_label(&document, &target.matrix_id, target.row, target.column)
+        ),
+        None => format!("{item_label} · {current_label}"),
+    };
+    let popup_rows = vec![
+        ("Anchor".to_owned(), 11.0, "var(--wb-muted)", false),
+        (popup_value, 15.0, "inherit", true),
+        (
+            "Click to anchor · Esc: cancel".to_owned(),
+            10.5,
+            "var(--wb-muted)",
+            false,
+        ),
+    ];
+    // The pinned panel measures its own rows; see anchor_pick_popup_panel.
+    // Arming toggles on the token; the peers dim while one is armed, like a
+    // drag. Nothing writes the selection or focus.
+    let toggle_arm = {
+        let pick_owner = pick_owner.clone();
+        let disarm = disarm.clone();
+        let current_label = current_label.clone();
+        Rc::new(move |_| {
+            let mut armed = armed;
+            let mut feedback = feedback;
+            if armed() {
+                disarm();
+                return;
+            }
+            armed.set(true);
+            pick_owner.set_active(svg_key, Some(LayoutTransformTool::Anchor));
+            feedback.set(advance_feedback(
+                &feedback(),
+                FeedbackEvent::Choose {
+                    name: "Anchor".to_owned(),
+                    value: current_label.clone(),
+                },
+            ));
+        })
+    };
+    // Hovering a ring previews the Core-evaluated post-commit pose in amber;
+    // leaving restores the current-target popup.
+    let hover_ring = {
+        let document = document.clone();
+        let context = context.clone();
+        let current_label = current_label.clone();
+        let item_label = item_label.clone();
+        Rc::new(move |target: Option<PickTarget>| {
+            let mut hovered_target = hovered_target;
+            let mut preview = preview;
+            let mut feedback = feedback;
+            hovered_target.set(target.clone());
+            match target {
+                Some(target) => {
+                    preview.set(preview_anchor_poses(&document, &context, &target));
+                    feedback.set(advance_feedback(
+                        &feedback(),
+                        FeedbackEvent::Choose {
+                            name: "Anchor".to_owned(),
+                            value: format!(
+                                "{item_label} → {}",
+                                anchor_key_label(
+                                    &document,
+                                    &target.matrix_id,
+                                    target.row,
+                                    target.column
+                                )
+                            ),
+                        },
+                    ));
+                }
+                None => {
+                    preview.set(Vec::new());
+                    feedback.set(advance_feedback(
+                        &feedback(),
+                        FeedbackEvent::Choose {
+                            name: "Anchor".to_owned(),
+                            value: current_label.clone(),
+                        },
+                    ));
+                }
+            }
+        })
+    };
+    // Clicking a ring commits one Undo entry through the shared resolver and
+    // raises the carried toast only once the live anchor names the target.
+    // The selection and focus stay put; a stale pick reports and disarms.
+    let commit_pick = {
+        let runtime_for_commit = runtime.0.clone();
+        let feedback_for_commit = feedback;
+        let toast_gen_for_commit = toast_gen;
+        let disarm = disarm.clone();
+        let context = context.clone();
+        let owner_for_commit = owner.clone();
+        let arbiter_for_commit = arbiter.clone();
+        Rc::new(move |target: PickTarget| {
+            if arbiter_for_commit.current().is_some()
+                || runtime_for_commit.model().gesture.is_some()
+            {
+                return;
+            }
+            if !transform_owner_is_current(
+                &runtime_for_commit,
+                workspace,
+                scope_generation,
+                selected_context,
+                &owner_for_commit,
+                &context,
+            ) {
+                runtime_for_commit.report("The selection changed. Pick the anchor again.");
+                disarm();
+                return;
+            }
+            let Some(accepted) = runtime_for_commit.model().accepted.clone() else {
+                return;
+            };
+            let Some(commit) = pick_commit(&accepted.document, &context, &target) else {
+                return;
+            };
+            let (item_label, old_anchor_label, new_anchor_label) = (
+                commit.item_label.clone(),
+                commit.old_anchor_label.clone(),
+                commit.new_anchor_label.clone(),
+            );
+            let mut edits = PendingEdits::default();
+            edits.begin(
+                &runtime_for_commit,
+                (),
+                "layout-anchor-pick",
+                Some("transform".into()),
+                anchor_pick_resolver(context.clone(), target.clone()),
+            );
+            let runtime_for_settle = runtime_for_commit.clone();
+            let context_for_settle = context.clone();
+            let target_for_settle = target.clone();
+            let disarm_for_settle = disarm.clone();
+            let mut feedback_for_commit = feedback_for_commit;
+            let mut toast_gen_for_commit = toast_gen_for_commit;
+            spawn_local(async move {
+                loop {
+                    if !edits.settle(true).is_empty() {
+                        break;
+                    }
+                    gloo_timers::future::TimeoutFuture::new(16).await;
+                }
+                let landed = runtime_for_settle
+                    .model()
+                    .accepted
+                    .as_ref()
+                    .is_some_and(|snapshot| {
+                        anchor_pick_landed(
+                            &snapshot.document,
+                            &context_for_settle,
+                            &target_for_settle,
+                        )
+                    });
+                if !landed {
+                    runtime_for_settle.report("The anchor target is no longer available.");
+                    return;
+                }
+                feedback_for_commit.set(advance_feedback(
+                    &feedback_for_commit(),
+                    FeedbackEvent::Commit {
+                        value: format!("{item_label} anchored to {new_anchor_label}"),
+                        delta: FeedbackDelta::Text(format!("was {old_anchor_label}")),
+                    },
+                ));
+                let seen = {
+                    toast_gen_for_commit.set(toast_gen_for_commit() + 1);
+                    toast_gen_for_commit()
+                };
+                let mut feedback_for_timer = feedback_for_commit;
+                let gen_for_timer = toast_gen_for_commit;
+                spawn_local(async move {
+                    gloo_timers::future::TimeoutFuture::new(TOAST_TIMEOUT_MS).await;
+                    if gen_for_timer() == seen {
+                        feedback_for_timer.set(advance_feedback(
+                            &feedback_for_timer(),
+                            FeedbackEvent::Expire,
+                        ));
+                    }
+                });
+                disarm_for_settle();
+            });
+        })
+    };
+    // The live poses behind the amber comparison: the owner's own scene
+    // cells for a matrix, the evaluated part for a part.
+    let current_poses: std::collections::HashMap<String, Pose2> = match &pick_owner {
+        AnchorPickOwner::Matrix { projection, .. } => projection
+            .cells
+            .iter()
+            .filter_map(|cell| cell.member_id.clone().map(|id| (id, cell.pose)))
+            .collect(),
+        AnchorPickOwner::Part { part_id } => document
+            .parts
+            .iter()
+            .find(|part| part.id == *part_id)
+            .map(|part| (part.id.clone(), evaluated_part_pose(&document, part)))
+            .into_iter()
+            .collect(),
+    };
+    let active_peer = match &pick_owner {
+        AnchorPickOwner::Matrix { .. } => rail_active_tool(svg_key),
+        AnchorPickOwner::Part { .. } => part_rail_active_tool(svg_key),
+    };
+    let token_opacity = if active_peer.is_some_and(|peer| peer != LayoutTransformTool::Anchor) {
+        "0.35"
+    } else {
+        "1"
+    };
+    let token_style = format!("cursor:pointer;opacity:{token_opacity};touch-action:none");
+    let tok_fill = format!("fill:{token_fill};stroke:none");
+    let hit_style = "fill:transparent;stroke:none;pointer-events:all";
+    let glyph = rail_token_glyph(LayoutTransformTool::Anchor, false, 0.0, glyph_stroke);
+    let feedback_state = feedback();
+    let layout_id = anchor_pick_layout(&document, &context);
+    rsx! {
+        if rail_index == Some(0) {
+            g { "aria-hidden": "true",
+                transform: "translate({rail_cx} {rail_cy}) scale({px} {-px})",
+                style: "pointer-events:none",
+                rect {
+                    x: "{-rail_w / 2.0}",
+                    y: "-11",
+                    width: "{rail_w}",
+                    height: "22",
+                    rx: "6",
+                    style: "fill:var(--wb-panel);stroke:var(--wb-rule-strong);stroke-width:1px;vector-effect:non-scaling-stroke;filter:drop-shadow(0 2px 4px rgb(24 35 49 / 12%))",
+                }
+            }
+        }
+        g {
+            class: "m1-transform-handle",
+            transform: "translate({tok_x} {tok_y}) scale({px} {-px})",
+            role: "button", tabindex: "0", "aria-label": "Pick anchor",
+            "data-pick": "anchor",
+            style: "{token_style}",
+            onpointerdown: { let toggle = toggle_arm.clone(); move |event| {
+                let Some(pointer) = event.data().try_as_web_event() else { return; };
+                pointer.prevent_default();
+                pointer.stop_propagation();
+                toggle(());
+            } },
+            onkeydown: { let toggle = toggle_arm.clone(); move |event: KeyboardEvent| {
+                let Some(key) = event.data().try_as_web_event() else { return; };
+                if key.key() != "Enter" && key.key() != " " { return; }
+                key.prevent_default();
+                toggle(());
+            } },
+            onpointerenter: { let mut feedback = feedback; let value = current_label.clone(); move |_| {
+                if armed() { return; }
+                feedback.set(advance_feedback(&feedback(), FeedbackEvent::Choose { name: "Anchor".to_owned(), value: value.clone() }));
+            } },
+            onpointerleave: { let mut feedback = feedback; move |_| {
+                if armed() { return; }
+                feedback.set(advance_feedback(&feedback(), FeedbackEvent::Dismiss));
+            } },
+            onfocus: { let mut feedback = feedback; let value = current_label.clone(); move |_| {
+                if armed() { return; }
+                feedback.set(advance_feedback(&feedback(), FeedbackEvent::Choose { name: "Anchor".to_owned(), value: value.clone() }));
+            } },
+            onblur: { let mut feedback = feedback; move |_| {
+                if armed() { return; }
+                feedback.set(advance_feedback(&feedback(), FeedbackEvent::Dismiss));
+            } },
+            rect { x: "-9", y: "-9", width: "18", height: "18", rx: "4", style: "{tok_fill}" }
+            rect { x: "-10", y: "-12", width: "20", height: "24", style: "{hit_style}" }
+            {glyph}
+            title { "Pick anchor" }
+        }
+        if armed() {
+            for key in projected.keys.iter().filter_map(|key| {
+                let target = PickTarget { matrix_id: key.matrix_id.clone(), row: key.row, column: key.column };
+                anchor_candidate_pose(&scenes, &target).map(|pose| (key, target, pose))
+            }) {
+                {
+                    let (key, target, pose) = (key.0, key.1, key.2);
+                    let hovered = hovered_target().is_some_and(|hover| hover == target);
+                    let ring_r = if hovered { CANDIDATE_RING_HOVER_PX } else { CANDIDATE_RING_PX } / 2.0;
+                    let label = anchor_key_label(&document, &target.matrix_id, target.row, target.column);
+                    let hover_ring = hover_ring.clone();
+                    let commit_pick = commit_pick.clone();
+                    let enter_target = target.clone();
+                    let commit_target_down = target.clone();
+                    let commit_target_key = target.clone();
+                    rsx! {
+                        g {
+                            class: "m1-anchor-pick-candidate",
+                            transform: "translate({pose.x} {pose.y}) scale({px} {-px})",
+                            "data-anchor": "{target.matrix_id}:{target.row}:{target.column}",
+                            role: "button", tabindex: "0",
+                            "aria-label": "Anchor to {label}",
+                            onpointerenter: { let hover = hover_ring.clone(); move |_| hover(Some(enter_target.clone())) },
+                            onpointerleave: { let hover = hover_ring.clone(); move |_| hover(None) },
+                            onpointerdown: { let commit = commit_pick.clone(); move |event| {
+                                let Some(pointer) = event.data().try_as_web_event() else { return; };
+                                pointer.prevent_default();
+                                pointer.stop_propagation();
+                                commit(commit_target_down.clone());
+                            } },
+                            onkeydown: { let commit = commit_pick.clone(); move |event: KeyboardEvent| {
+                                let Some(key) = event.data().try_as_web_event() else { return; };
+                                if key.key() != "Enter" { return; }
+                                key.prevent_default();
+                                commit(commit_target_key.clone());
+                            } },
+                            circle { r: "{CANDIDATE_HIT_PX / 2.0}", style: "fill:transparent;stroke:none;pointer-events:all" }
+                            circle { r: "{ring_r}", style: "fill:var(--wb-panel);stroke:var(--wb-accent-secondary);stroke-width:1.5px;vector-effect:non-scaling-stroke" }
+                            if key.current {
+                                circle { r: "1.6", style: "fill:#fff;stroke:none;pointer-events:none" }
+                            }
+                        }
+                    }
+                }
+            }
+            // Prototype majors are display-only under the current Core
+            // contract (keys only): dimmed rings with labels, no pointer
+            // events, so they never commit. A detached owner's half origin
+            // keeps the white current dot.
+            for major in projected.majors.iter().filter_map(|major| {
+                let (pose, label) = match &major.kind {
+                    AnchorMajorKind::Part(id) => {
+                        let part = document.parts.iter().find(|part| part.id == *id)?;
+                        let label = if part.reference.trim().is_empty() { part.id.clone() } else { part.reference.clone() };
+                        (evaluated_part_pose(&document, part).at, label)
+                    }
+                    AnchorMajorKind::HalfOrigin => {
+                        let layout = layout_id.clone()?;
+                        (layout_half_offset(&document, &layout)?, "Half origin".to_owned())
+                    }
+                };
+                Some((major, pose, label))
+            }) {
+                {
+                    let (major, pose, label) = (major.0, major.1, major.2);
+                    let ring_r = MAJOR_RING_PX / 2.0;
+                    rsx! {
+                        g {
+                            class: "m1-anchor-pick-major",
+                            transform: "translate({pose.x} {pose.y}) scale({px} {-px})",
+                            opacity: "0.55",
+                            style: "pointer-events:none",
+                            "aria-hidden": "true",
+                            circle { r: "{ring_r}", style: "fill:var(--wb-panel);stroke:var(--wb-accent-secondary);stroke-width:1.5px;vector-effect:non-scaling-stroke" }
+                            path { d: "M{-ring_r - 4.0} 0h{ring_r * 2.0 + 8.0}M0 {-ring_r - 4.0}v{ring_r * 2.0 + 8.0}", style: "fill:none;stroke:var(--wb-accent-secondary);stroke-width:1px;vector-effect:non-scaling-stroke" }
+                            text { x: "{ring_r + 6.0}", y: "{0.0 - ring_r - 2.0}", style: "font-size:11px;fill:var(--wb-muted)", "{label}" }
+                            if major.current {
+                                circle { r: "2.2", style: "fill:#fff;stroke:none;pointer-events:none" }
+                            }
+                        }
+                    }
+                }
+            }
+            // Amber marks the Core-evaluated post-commit poses that move.
+            for moved in preview().into_iter().filter_map(|(id, pose)| {
+                let current = current_poses.get(&id).copied()?;
+                (current != pose).then_some((id, current, pose))
+            }) {
+                {
+                    let (_, current, pose) = moved;
+                    let amber_r = CANDIDATE_RING_PX / 2.0 * px;
+                    rsx! {
+                        circle {
+                            class: "m1-anchor-pick-preview",
+                            cx: "{pose.at.x}", cy: "{pose.at.y}", r: "{amber_r}",
+                            style: "fill:none;stroke:var(--wb-status-warning);stroke-width:{1.5 * px};pointer-events:none",
+                            "aria-hidden": "true",
+                        }
+                        line {
+                            class: "m1-anchor-pick-preview",
+                            x1: "{current.at.x}", y1: "{current.at.y}",
+                            x2: "{pose.at.x}", y2: "{pose.at.y}",
+                            style: "stroke:var(--wb-status-warning);stroke-width:{1.0 * px};stroke-dasharray:{3.0 * px} {2.0 * px};pointer-events:none",
+                            "aria-hidden": "true",
+                        }
+                    }
+                }
+            }
+            {anchor_pick_popup_panel(popup_rows, view_x, view_y, width, px)}
+        } else {
+            if let Some(popup) = feedback_state.popup.as_ref() {
+                {feedback_popup_panel(
+                    popup,
+                    None,
+                    Some((
+                        rail_layout.rail.x,
+                        rail_layout.rail.y,
+                        rail_layout.rail.w,
+                        rail_layout.rail.h,
+                    )),
+                    px,
+                )}
+            }
+        }
+        if let Some(toast) = feedback_state.toast.as_ref() {
+            {feedback_toast_panel(toast, view_x, view_y, width, px)}
+        }
+    }
+}
+
+/// Ticket 08: the armed Anchor popup, pinned to the canvas's top-right
+/// corner so it never covers a candidate. Same panel treatment as the
+/// value popup, with the pick hint instead of the drag hint.
+fn anchor_pick_popup_panel(
+    rows: Vec<(String, f64, &'static str, bool)>,
+    view_x: f64,
+    view_y: f64,
+    view_width: f64,
+    px: f64,
+) -> Element {
+    let panel_w = rows
+        .iter()
+        .map(|(text, size, _, _)| feedback_line_width(text, *size))
+        .fold(0.0_f64, f64::max)
+        + 16.0;
+    let panel_x = view_x + view_width - panel_w * px - 12.0 * px;
+    let panel_y = -view_y - 12.0 * px;
+    rsx! {
+        g {
+            class: "m1-feedback-popup",
+            transform: "translate({panel_x} {panel_y}) scale({px} {-px})",
+            style: "pointer-events:none",
+            "aria-hidden": "true",
+            {feedback_panel_contents(panel_w, rows)}
+        }
+    }
+}
+
 /// What a handle key press moves, captured as intent. The step is a delta: the resolver
 /// applies it to the matrix accepted when the edit runs.
 #[derive(Clone, Debug, PartialEq)]
@@ -5578,6 +6443,9 @@ fn LayoutContextToolButton(
         LayoutTransformTool::Origin => "M10 1v18M1 10h18M5 5h10v10H5z",
         LayoutTransformTool::Move => "M10 2v16M2 10h16M7 5l3-3 3 3M7 15l3 3 3-3",
         LayoutTransformTool::Rotate => "M17 10a7 7 0 1 1-2-4.9M17 2v5h-5",
+        LayoutTransformTool::Anchor => {
+            "M0-2.5V5M-3-.5h6M-4.5 2.2a4.5 4.5 0 0 0 9 0M0-5.6a1.5 1.5 0 1 0 .01 0"
+        }
     };
     rsx! {
         BoardToolbarButton {
@@ -5818,6 +6686,7 @@ mod shortcut_tests {
             Some(LayoutTransformTool::Origin) => "Origin",
             Some(LayoutTransformTool::Move) => "Move",
             Some(LayoutTransformTool::Rotate) => "Rotate",
+            Some(LayoutTransformTool::Anchor) => "Anchor",
             None => "None",
         };
 
@@ -7169,7 +8038,9 @@ mod tool_tests {
     #[wasm_bindgen_test]
     fn activation_changes_the_selection_kind_per_tool() {
         use LayoutSelectionKind::{Column, Key, Row};
-        use LayoutTransformTool::{Bend, Move, Offset, Origin, Rotate, Shift, Splay, Stagger};
+        use LayoutTransformTool::{
+            Anchor, Bend, Move, Offset, Origin, Rotate, Shift, Splay, Stagger,
+        };
         for (tool, selection, expected) in [
             // Offset keeps a Row and turns the rest into their Column.
             (Offset, "row", Row),
@@ -7205,9 +8076,9 @@ mod tool_tests {
                 "{tool:?} on a {selection} selection"
             );
         }
-        // Move and Rotate edit the matrix itself, so every selection stays a
-        // Matrix selection: no selection change is requested.
-        for tool in [Move, Rotate] {
+        // Move, Rotate and Anchor edit or retarget the selection itself, so
+        // every selection stays put: no selection change is requested.
+        for tool in [Move, Rotate, Anchor] {
             for selection in ["row", "column", "key", "matrix"] {
                 assert_eq!(
                     activate_transform_tool(None, tool, &context_of(selection)),
@@ -10639,6 +11510,671 @@ mod tool_tests {
             assert!(handle.is_none(), "{tool:?} hides on a locked part");
             root.remove();
         }
+    }
+
+    /// Ticket 08: the pick host mounts one Anchor overlay with the
+    /// production preview context, so rings position on evaluated scenes.
+    #[derive(Props, Clone, PartialEq)]
+    struct PickHostProps {
+        runtime: LayoutTransformRuntime,
+        svg: LayoutTransformSvg,
+        owner: LayoutOwnerIdentity,
+        scope: Scope,
+        pick_owner: AnchorPickOwner,
+        context: TreeContext,
+    }
+
+    #[component]
+    fn pick_host(props: PickHostProps) -> Element {
+        let selected_context = use_signal(|| {
+            Some(ScopedTreeContext {
+                scope: props.scope.clone(),
+                context: props.context.clone(),
+            })
+        });
+        let scope_generation = use_signal(|| props.owner.generation);
+        let workspace = use_signal(|| "Layout");
+        let surface_size = use_signal(|| (800.0, 600.0));
+        let arbiter = use_hook(CanvasInteractionArbiter::default);
+        let model = props.runtime.0.model();
+        let accepted = model.accepted.clone().expect("an accepted document");
+        use_context_provider(|| {
+            Some(FieldPreviewSource {
+                document: accepted.document.clone(),
+                scene: accepted.scene.clone(),
+            })
+        });
+        rsx! {
+            svg { id: "pick-host-svg", view_box: "0 0 100 100", width: "400", height: "400",
+                LayoutAnchorPickOverlay {
+                    runtime: props.runtime.clone(),
+                    svg: props.svg.clone(),
+                    arbiter,
+                    owner: props.owner.clone(),
+                    selected_context,
+                    scope_generation,
+                    workspace,
+                    surface_size: Some(surface_size),
+                    pick_owner: props.pick_owner.clone(),
+                    view_x: 0.0,
+                    view_y: 0.0,
+                    width: 100.0,
+                    height: 100.0,
+                }
+            }
+        }
+    }
+
+    async fn mount_pick_overlay(
+        runtime: &Rc<Runtime>,
+        pick_owner: AnchorPickOwner,
+        context: TreeContext,
+    ) -> web_sys::Element {
+        let model = runtime.model();
+        let accepted = model.accepted.as_ref().expect("an accepted document");
+        let owner = LayoutOwnerIdentity {
+            scope: runtime.scope(),
+            token: Some(accepted.token),
+            revision: Some(accepted.document.revision),
+            generation: 0,
+            workspace: "Layout",
+        };
+        let svg = LayoutTransformSvg(Rc::new(RefCell::new(None)));
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let props = PickHostProps {
+            runtime: LayoutTransformRuntime(runtime.clone()),
+            svg: svg.clone(),
+            scope: owner.scope.clone().expect("a scope"),
+            owner,
+            pick_owner,
+            context,
+        };
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new_with_props(pick_host, props),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(60).await;
+        *svg.0.borrow_mut() = root
+            .query_selector("#pick-host-svg")
+            .unwrap()
+            .and_then(|element| element.dyn_into::<SvgElement>().ok());
+        root
+    }
+
+    fn pick_token(root: &web_sys::Element) -> Option<web_sys::Element> {
+        root.query_selector("[data-pick=\"anchor\"]").unwrap()
+    }
+
+    fn pick_ring_values(root: &web_sys::Element) -> Vec<String> {
+        let list = root.query_selector_all("[data-anchor]").unwrap();
+        let mut values = Vec::new();
+        for index in 0..list.length() {
+            let element: web_sys::Element = list.item(index).unwrap().dyn_into().unwrap();
+            values.push(element.get_attribute("data-anchor").unwrap_or_default());
+        }
+        values.sort();
+        values
+    }
+
+    fn pick_ring(root: &web_sys::Element, anchor: &str) -> web_sys::Element {
+        root.query_selector(&format!("[data-anchor=\"{anchor}\"]"))
+            .unwrap()
+            .unwrap_or_else(|| panic!("the {anchor} ring draws"))
+    }
+
+    fn ring_circle_radii(ring: &web_sys::Element) -> Vec<String> {
+        let circles = ring.query_selector_all("circle").unwrap();
+        let mut radii = Vec::new();
+        for index in 0..circles.length() {
+            let element: web_sys::Element = circles.item(index).unwrap().dyn_into().unwrap();
+            radii.push(element.get_attribute("r").unwrap_or_default());
+        }
+        radii
+    }
+
+    async fn arm_pick_via_token(root: &web_sys::Element) {
+        let token = pick_token(root).expect("the Anchor token draws");
+        dispatch_pointer(&token, "pointerdown", false, false, 1, (50, 50));
+        gloo_timers::future::TimeoutFuture::new(80).await;
+    }
+
+    /// Ticket 08: arming the anchored matrix lists its committable keys in
+    /// variant-D ring sizes, marks the current anchor, and clicking a ring
+    /// commits one Undo entry with the carried toast; Undo restores.
+    #[wasm_bindgen_test]
+    async fn matrix_pick_commits_one_undo_entry_with_the_carried_toast() {
+        use boardstudio_core::model::Follow;
+        let runtime = open_anchored_drag_runtime(Follow {
+            x: true,
+            y: true,
+            rotation: true,
+        })
+        .await;
+        let accepted = runtime.model().accepted.expect("an accepted document");
+        let matrix = accepted
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "dep")
+            .expect("the anchored matrix")
+            .clone();
+        let projection = accepted
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == "dep")
+            .expect("the dep scene")
+            .clone();
+        let context = TreeContext::Matrix {
+            matrix_id: "dep".into(),
+        };
+        let root = mount_pick_overlay(
+            &runtime,
+            AnchorPickOwner::Matrix {
+                matrix: Rc::new(matrix),
+                projection: Rc::new(projection),
+                context: context.clone(),
+            },
+            context,
+        )
+        .await;
+        assert!(
+            pick_token(&root).is_some(),
+            "the anchored matrix draws the Anchor token"
+        );
+        assert!(
+            pick_ring_values(&root).is_empty(),
+            "rings wait for the token press"
+        );
+        arm_pick_via_token(&root).await;
+        assert_eq!(
+            pick_ring_values(&root),
+            vec![
+                "matrix:0:0".to_owned(),
+                "matrix:0:1".to_owned(),
+                "matrix:0:2".to_owned(),
+            ],
+            "the dep lists the main matrix's keys"
+        );
+        assert!(
+            root.query_selector("[data-anchor=\"dep:0:0\"]")
+                .unwrap()
+                .is_none(),
+            "the dep's own key draws no ring"
+        );
+        assert_eq!(
+            ring_circle_radii(&pick_ring(&root, "matrix:0:0")),
+            vec!["12".to_owned(), "2.25".to_owned(), "1.6".to_owned()],
+            "the current anchor fills a white dot inside the 4.5 px ring"
+        );
+        assert!(
+            root.query_selector(".m1-feedback-popup").unwrap().is_some(),
+            "the anchor popup pins while armed"
+        );
+        // Hovering previews the Core-evaluated post-commit pose in amber.
+        let target = pick_ring(&root, "matrix:0:2");
+        dispatch_pointer(&target, "pointerenter", false, false, 0, (60, 60));
+        gloo_timers::future::TimeoutFuture::new(120).await;
+        assert_eq!(
+            ring_circle_radii(&pick_ring(&root, "matrix:0:2"))[1],
+            "3",
+            "the hovered ring grows to 6 px"
+        );
+        let amber = root
+            .query_selector_all(".m1-anchor-pick-preview")
+            .unwrap()
+            .length();
+        assert!(amber > 0, "hovering previews the moved keys in amber");
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(&target, "pointerdown", false, false, 1, (60, 60));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let accepted = runtime.model().accepted.expect("an accepted document");
+        let anchor = accepted
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "dep")
+            .expect("the dep")
+            .anchor
+            .clone()
+            .expect("still anchored");
+        assert_eq!(
+            (anchor.matrix_id.as_str(), anchor.row, anchor.column),
+            ("matrix", 0, 2),
+            "the pick retargets the anchor"
+        );
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision + 1,
+            "the pick lands as one revision"
+        );
+        assert!(
+            pick_ring_values(&root).is_empty(),
+            "committing leaves pick mode"
+        );
+        let toast = root
+            .query_selector(".m1-feedback-toast")
+            .unwrap()
+            .expect("the commit toast");
+        let text = toast.text_content().unwrap_or_default();
+        assert!(
+            text.contains("Dependent anchored to matrix R1C3")
+                && text.contains("(was matrix R1C1)")
+                && text.contains("1 Undo step"),
+            "the toast carries the item and both anchors, got {text:?}"
+        );
+        fixture::undo(&runtime).await;
+        let accepted = runtime.model().accepted.expect("an accepted document");
+        let anchor = accepted
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "dep")
+            .expect("the dep")
+            .anchor
+            .clone()
+            .expect("still anchored");
+        assert_eq!(
+            (anchor.matrix_id.as_str(), anchor.row, anchor.column),
+            ("matrix", 0, 0),
+            "Undo restores the anchor"
+        );
+        root.remove();
+    }
+
+    /// Ticket 08: a matrix whose anchor chain reaches the owner draws no
+    /// ring: re-anchoring there would close a loop.
+    #[wasm_bindgen_test]
+    async fn matrix_pick_hides_loop_forming_targets() {
+        use boardstudio_core::model::*;
+        let mut document = anchored_drag_document(Follow {
+            x: true,
+            y: true,
+            rotation: true,
+        });
+        document
+            .layouts
+            .iter_mut()
+            .find(|layout| layout.id == "layout")
+            .expect("the pick layout")
+            .matrix_ids
+            .push("looped".into());
+        let looped_key = "matrix/looped/r0c0";
+        document.boards[0].part_ids.push(looped_key.into());
+        document.parts.push(Part {
+            keycap: None,
+            outline: None,
+            anchor: None,
+            id: looped_key.into(),
+            definition_id: "switch:base".into(),
+            reference: "K9".into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: -38.1 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: Some(false),
+            properties: None,
+            generator_parameters: None,
+        });
+        document.matrices.push(Matrix {
+            id: "looped".into(),
+            name: Some("Looped".into()),
+            rows: 1,
+            columns: 1,
+            pitch: Vec2 { x: 19.05, y: 19.05 },
+            origin: Vec2 { x: 0.0, y: -38.1 },
+            definition_id: "switch:base".into(),
+            part_ids: vec![looped_key.into()],
+            board_id: Some(fixture::BOARD_ID.into()),
+            mirror: None,
+            rotation: None,
+            edge_gap: None,
+            diode_direction: None,
+            row_layout: vec![],
+            column_layout: vec![ColumnLayout::default()],
+            anchor: Some(MatrixAnchor {
+                matrix_id: "dep".into(),
+                row: 0,
+                column: 0,
+                follow: Follow {
+                    x: true,
+                    y: true,
+                    rotation: true,
+                },
+                aggregate: None,
+            }),
+            cells: vec![MatrixCell {
+                shift: None,
+                bend: None,
+                deleted: false,
+                row: 0,
+                column: 0,
+                enabled: true,
+                definition_id: Some("switch:base".into()),
+                variant: None,
+                offset: None,
+                rotation: None,
+                assemblies: vec![],
+                assemblies_local: None,
+            }],
+        });
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        wait_until_editable(&runtime).await;
+        let accepted = runtime.model().accepted.expect("an accepted document");
+        let matrix = accepted
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "dep")
+            .expect("the dep")
+            .clone();
+        let projection = accepted
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == "dep")
+            .expect("the dep scene")
+            .clone();
+        let context = TreeContext::Matrix {
+            matrix_id: "dep".into(),
+        };
+        let root = mount_pick_overlay(
+            &runtime,
+            AnchorPickOwner::Matrix {
+                matrix: Rc::new(matrix),
+                projection: Rc::new(projection),
+                context: context.clone(),
+            },
+            context,
+        )
+        .await;
+        arm_pick_via_token(&root).await;
+        assert_eq!(
+            pick_ring_values(&root),
+            vec![
+                "matrix:0:0".to_owned(),
+                "matrix:0:1".to_owned(),
+                "matrix:0:2".to_owned(),
+            ],
+            "only the loop-free keys draw rings"
+        );
+        assert!(
+            root.query_selector("[data-anchor=\"looped:0:0\"]")
+                .unwrap()
+                .is_none(),
+            "the loop-forming matrix draws no ring"
+        );
+        root.remove();
+    }
+
+    /// Ticket 08: Escape leaves pick mode with no revision and no toast.
+    #[wasm_bindgen_test]
+    async fn matrix_pick_escape_leaves_no_revision() {
+        use boardstudio_core::model::Follow;
+        let runtime = open_anchored_drag_runtime(Follow {
+            x: true,
+            y: true,
+            rotation: true,
+        })
+        .await;
+        let accepted = runtime.model().accepted.expect("an accepted document");
+        let matrix = accepted
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "dep")
+            .expect("the dep")
+            .clone();
+        let projection = accepted
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == "dep")
+            .expect("the dep scene")
+            .clone();
+        let context = TreeContext::Matrix {
+            matrix_id: "dep".into(),
+        };
+        let root = mount_pick_overlay(
+            &runtime,
+            AnchorPickOwner::Matrix {
+                matrix: Rc::new(matrix),
+                projection: Rc::new(projection),
+                context: context.clone(),
+            },
+            context,
+        )
+        .await;
+        let revision = fixture_revision(&runtime);
+        arm_pick_via_token(&root).await;
+        assert!(
+            !pick_ring_values(&root).is_empty(),
+            "the token press arms pick mode"
+        );
+        let escape = web_sys::KeyboardEventInit::new();
+        escape.set_key("Escape");
+        escape.set_bubbles(true);
+        root.dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap(),
+        )
+        .unwrap();
+        gloo_timers::future::TimeoutFuture::new(80).await;
+        assert!(
+            pick_ring_values(&root).is_empty(),
+            "Escape leaves pick mode"
+        );
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision,
+            "Escape commits nothing"
+        );
+        assert!(
+            root.query_selector(".m1-feedback-toast").unwrap().is_none(),
+            "Escape raises no toast"
+        );
+        root.remove();
+    }
+
+    /// Ticket 08: the anchored part's rail ends in the Anchor token; picking
+    /// a key moves the part with its carried values and Undo restores.
+    #[wasm_bindgen_test]
+    async fn part_pick_commits_with_carried_values_and_undo_restores() {
+        let runtime = fixture::open_part_runtime((5.0, 2.0)).await;
+        wait_until_editable(&runtime).await;
+        let context = TreeContext::Component {
+            part_id: Some("mcu".into()),
+            matrix_id: None,
+            row: None,
+            column: None,
+            assembly_id: None,
+        };
+        let root = mount_pick_overlay(
+            &runtime,
+            AnchorPickOwner::Part {
+                part_id: "mcu".into(),
+            },
+            context,
+        )
+        .await;
+        assert!(
+            pick_token(&root).is_some(),
+            "the part rail ends in the Anchor token"
+        );
+        arm_pick_via_token(&root).await;
+        assert_eq!(
+            pick_ring_values(&root),
+            vec![
+                "matrix:0:0".to_owned(),
+                "matrix:0:1".to_owned(),
+                "matrix:0:2".to_owned(),
+            ],
+            "the mcu lists its layout keys"
+        );
+        assert_eq!(
+            ring_circle_radii(&pick_ring(&root, "matrix:0:1")),
+            vec!["12".to_owned(), "2.25".to_owned(), "1.6".to_owned()],
+            "the part's current anchor fills a white dot"
+        );
+        let target = pick_ring(&root, "matrix:0:0");
+        dispatch_pointer(&target, "pointerenter", false, false, 0, (60, 60));
+        gloo_timers::future::TimeoutFuture::new(120).await;
+        assert!(
+            root.query_selector_all(".m1-anchor-pick-preview")
+                .unwrap()
+                .length()
+                > 0,
+            "hovering previews where the part would move"
+        );
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(&target, "pointerdown", false, false, 1, (60, 60));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let anchor = part_anchor_of(&runtime, "mcu");
+        assert_eq!(
+            (anchor.matrix_id.as_str(), anchor.row, anchor.column),
+            ("matrix", 0, 0),
+            "the pick retargets the part anchor"
+        );
+        assert_eq!(
+            (anchor.spread, anchor.stagger),
+            (5.0, 2.0),
+            "the carried values ride along"
+        );
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision + 1,
+            "the pick lands as one revision"
+        );
+        let toast = root
+            .query_selector(".m1-feedback-toast")
+            .unwrap()
+            .expect("the commit toast");
+        let text = toast.text_content().unwrap_or_default();
+        assert!(
+            text.contains("U1 anchored to matrix R1C1")
+                && text.contains("(was matrix R1C2)")
+                && text.contains("1 Undo step"),
+            "the toast carries the part and both anchors, got {text:?}"
+        );
+        fixture::undo(&runtime).await;
+        assert_eq!(
+            part_anchor_of(&runtime, "mcu").column,
+            1,
+            "Undo restores the part anchor"
+        );
+        root.remove();
+    }
+
+    /// Ticket 08: a detached part arms pick with the half origin current and
+    /// anchors from the first ring click.
+    #[wasm_bindgen_test]
+    async fn detached_part_pick_anchors_from_the_half_origin() {
+        let runtime = fixture::open_detached_part_runtime().await;
+        wait_until_editable(&runtime).await;
+        let context = TreeContext::Component {
+            part_id: Some("mcu".into()),
+            matrix_id: None,
+            row: None,
+            column: None,
+            assembly_id: None,
+        };
+        let root = mount_pick_overlay(
+            &runtime,
+            AnchorPickOwner::Part {
+                part_id: "mcu".into(),
+            },
+            context,
+        )
+        .await;
+        arm_pick_via_token(&root).await;
+        assert_eq!(
+            pick_ring_values(&root),
+            vec![
+                "matrix:0:0".to_owned(),
+                "matrix:0:1".to_owned(),
+                "matrix:0:2".to_owned(),
+            ],
+            "a detached part can anchor to any layout key"
+        );
+        assert!(
+            root.query_selector(".m1-anchor-pick-major")
+                .unwrap()
+                .is_some(),
+            "the half origin marks the current placement"
+        );
+        let revision = fixture_revision(&runtime);
+        let target = pick_ring(&root, "matrix:0:0");
+        dispatch_pointer(&target, "pointerdown", false, false, 1, (60, 60));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let anchor = part_anchor_of(&runtime, "mcu");
+        assert_eq!(
+            (anchor.matrix_id.as_str(), anchor.row, anchor.column),
+            ("matrix", 0, 0),
+            "the detached part anchors"
+        );
+        root.remove();
+    }
+
+    /// Ticket 08: an unanchored matrix draws no Anchor token: there is no
+    /// anchor to retarget.
+    #[wasm_bindgen_test]
+    async fn unanchored_matrix_draws_no_anchor_token() {
+        let runtime = fixture::open_matrix_runtime().await;
+        wait_until_editable(&runtime).await;
+        let accepted = runtime.model().accepted.expect("an accepted document");
+        let matrix = accepted
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == fixture::MATRIX_ID)
+            .expect("the main matrix")
+            .clone();
+        let projection = accepted
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == fixture::MATRIX_ID)
+            .expect("the main scene")
+            .clone();
+        let context = TreeContext::Matrix {
+            matrix_id: fixture::MATRIX_ID.into(),
+        };
+        let root = mount_pick_overlay(
+            &runtime,
+            AnchorPickOwner::Matrix {
+                matrix: Rc::new(matrix),
+                projection: Rc::new(projection),
+                context: context.clone(),
+            },
+            context,
+        )
+        .await;
+        assert!(
+            pick_token(&root).is_none(),
+            "an unanchored matrix offers no Anchor token"
+        );
+        root.remove();
     }
 }
 

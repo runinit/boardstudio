@@ -14,6 +14,8 @@ pub enum PartRailTool {
     Rotate,
     Spread,
     Stagger,
+    /// Ticket 08: the Anchor token arms canvas pick mode after the drag tools.
+    Anchor,
 }
 
 /// The facts a part rail depends on: anchored versus detached (with the
@@ -31,21 +33,27 @@ pub struct PartRailFacts {
 /// The rail tools for one independent part: an anchored part edits its local
 /// Offset and Rotation plus the Spread and Stagger carried from its anchor
 /// key; a detached part moves and rotates through the shipped part-drag
-/// path. Locked parts and matrix members/companions show no part tokens.
-/// Column 0 carries no Spread step, so an anchor there offers no Spread
-/// token, matching the matrix column-0 rule.
+/// path. Both end in the Anchor token, which arms canvas pick mode. Locked
+/// parts and matrix members/companions show no part tokens. Column 0 carries
+/// no Spread step, so an anchor there offers no Spread token, matching the
+/// matrix column-0 rule.
 pub fn part_rail_tools(facts: PartRailFacts) -> Vec<PartRailTool> {
     if facts.locked || facts.member_or_companion {
         return Vec::new();
     }
     if !facts.anchored {
-        return vec![PartRailTool::Move, PartRailTool::Rotate];
+        return vec![
+            PartRailTool::Move,
+            PartRailTool::Rotate,
+            PartRailTool::Anchor,
+        ];
     }
     let mut tools = vec![PartRailTool::Move, PartRailTool::Rotate];
     if facts.anchor_column != 0 {
         tools.push(PartRailTool::Spread);
     }
     tools.push(PartRailTool::Stagger);
+    tools.push(PartRailTool::Anchor);
     tools
 }
 
@@ -76,6 +84,7 @@ mod tests {
                 PartRailTool::Rotate,
                 PartRailTool::Spread,
                 PartRailTool::Stagger,
+                PartRailTool::Anchor,
             ]
         );
     }
@@ -88,6 +97,7 @@ mod tests {
                 PartRailTool::Move,
                 PartRailTool::Rotate,
                 PartRailTool::Stagger,
+                PartRailTool::Anchor,
             ]
         );
     }
@@ -96,7 +106,11 @@ mod tests {
     fn detached_part_lists_move_and_rotate() {
         assert_eq!(
             part_rail_tools(facts(false, 0, false, false)),
-            vec![PartRailTool::Move, PartRailTool::Rotate]
+            vec![
+                PartRailTool::Move,
+                PartRailTool::Rotate,
+                PartRailTool::Anchor,
+            ]
         );
     }
 

@@ -55,8 +55,8 @@ pub use layout_toolbar::{
 pub use layout_transform_toolbar::LayoutPartToolOverlay;
 pub use layout_transform_toolbar::LayoutTransformToolOverlay;
 pub use layout_transform_toolbar::{
-    LayoutTransformMenuMount, LayoutTransformRuntime, LayoutTransformSvg, LayoutTransformTool,
-    ToolActivation, activate_transform_tool,
+    AnchorPickOwner, LayoutAnchorPickOverlay, LayoutTransformMenuMount, LayoutTransformRuntime,
+    LayoutTransformSvg, LayoutTransformTool, ToolActivation, activate_transform_tool,
 };
 pub use matrix_departure_actions::DepartureControl;
 pub use matrix_inspector::MatrixInspector;

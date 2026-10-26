@@ -67,7 +67,10 @@ pub(super) fn transform_tools(
         },
         TreeContext::Row { .. } => vec![Tool::Offset, Tool::Shift, Tool::Bend],
         TreeContext::Key { .. } => vec![Tool::Shift, Tool::Bend],
-        TreeContext::Matrix { .. } => vec![Tool::Move, Tool::Rotate],
+        // Ticket 08: the rail of a matrix ends in the Anchor token. The
+        // mount site only mounts it while the matrix is anchored (the
+        // projection arms no pick without an anchor to retarget).
+        TreeContext::Matrix { .. } => vec![Tool::Move, Tool::Rotate, Tool::Anchor],
         // Ticket 07: an independent part gets its own rail; without facts
         // (a member or companion) nothing draws.
         TreeContext::Component { .. } => part.map_or_else(Vec::new, part_tools),
@@ -1036,7 +1039,7 @@ mod tests {
                 true,
                 None,
             ),
-            vec![Tool::Move, Tool::Rotate]
+            vec![Tool::Move, Tool::Rotate, Tool::Anchor]
         );
         assert_eq!(
             transform_tools(
@@ -1047,7 +1050,7 @@ mod tests {
                 true,
                 None,
             ),
-            vec![Tool::Move, Tool::Rotate]
+            vec![Tool::Move, Tool::Rotate, Tool::Anchor]
         );
         assert_eq!(
             transform_tools(
@@ -1080,7 +1083,13 @@ mod tests {
         };
         assert_eq!(
             transform_tools(&part, None, true, anchored()),
-            vec![Tool::Move, Tool::Rotate, Tool::Spread, Tool::Stagger]
+            vec![
+                Tool::Move,
+                Tool::Rotate,
+                Tool::Spread,
+                Tool::Stagger,
+                Tool::Anchor,
+            ]
         );
         assert_eq!(
             transform_tools(
@@ -1094,7 +1103,7 @@ mod tests {
                     member_or_companion: false,
                 }),
             ),
-            vec![Tool::Move, Tool::Rotate, Tool::Stagger]
+            vec![Tool::Move, Tool::Rotate, Tool::Stagger, Tool::Anchor]
         );
         assert_eq!(
             transform_tools(
@@ -1108,7 +1117,7 @@ mod tests {
                     member_or_companion: false,
                 }),
             ),
-            vec![Tool::Move, Tool::Rotate]
+            vec![Tool::Move, Tool::Rotate, Tool::Anchor]
         );
         assert_eq!(
             transform_tools(

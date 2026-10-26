@@ -697,14 +697,27 @@ into a quick Offset of its column; handles remain hidden outside those tools. Co
 Row, Key and Matrix tools draw as 18 px tokens in one 22 px rail 10 px above the
 selection, with a row offering Offset next to Shift and Bend and a key offering Shift
 and Bend. A selected independent part draws its own rail centred on it in part
-order — Move, Rotate, Spread, Stagger — where Move and Rotate edit the local
+order — Move, Rotate, Spread, Stagger, Anchor — where Move and Rotate edit the local
 Offset and Rotation and Spread and Stagger edit the values carried from the
-anchor key; a detached part offers Move and Rotate only, and a member or
-companion keeps its matrix's tools. The selected part's outline turns accent
+anchor key; a detached part offers Move, Rotate and Anchor, and a member or
+companion keeps its matrix's tools. Anchor arms canvas pick mode and never
+starts a drag. The selected part's outline turns accent
 while unselected part outlines stay violet.
 centred on it at screen size in every zoom; Origin stays a 6 px ringed point on
 the canvas. A token rests muted, previews its movers in amber on hover with a
-selection-surface fill, and turns accent while it drags as its peers dim to 35%. Origin snapping
+selection-surface fill, and turns accent while it drags as its peers dim to 35%.
+The rail of an anchored matrix ends in an Anchor token, as does the rail of an
+independent part after its drag tools; pressing it arms canvas Anchor pick mode
+instead of a drag. Every committable key draws a violet 4.5 px ring (6 px on
+hover, 24 px hit area) with its label, the current anchor fills a white dot,
+and loop-forming targets draw no ring; prototype major targets (parts, the half
+origin) render dimmed and never commit, because Core anchors name keys only.
+Hovering a ring previews the Core-evaluated post-commit pose in amber, and the
+anchor popup pins to the canvas's top-right corner. Clicking commits one
+SetMatrixAnchor or SetPartAnchor Undo entry — the new anchor moves the item
+with its current values, like the Inspector retarget — with a toast naming the
+item and both anchors; Escape or a second token press leaves with no revision.
+Origin snapping
 uses component origins, corners, midpoints, and physical edges before the grid. PCB draws pad
 shapes and drills at their authored positions and rotations, plus supported
 bundled footprint graphics. Its collapsible Layers list groups the available

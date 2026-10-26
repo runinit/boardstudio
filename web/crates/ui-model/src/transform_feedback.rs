@@ -8,7 +8,7 @@
 //! `spacing_ghost.rs`; rendering and timers live in the overlay.
 
 /// A drag delta in display units.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum FeedbackDelta {
     /// Millimetres, e.g. a Spread or Stagger step.
     Mm(f64),
@@ -16,25 +16,30 @@ pub enum FeedbackDelta {
     Mm2(f64, f64),
     /// Degrees, e.g. a Bend or Splay turn.
     Deg(f64),
+    /// A non-numeric commit note, e.g. an anchor pick's previous target.
+    Text(String),
 }
 
 impl FeedbackDelta {
     /// Signed display text with the prototype's plus and U+2212 minus:
-    /// "+1.00 mm", "−1.50 mm", "+8.00, +4.00 mm", "+1.00°".
+    /// "+1.00 mm", "−1.50 mm", "+8.00, +4.00 mm", "+1.00°"; a note renders
+    /// verbatim.
     pub fn text(&self) -> String {
-        match *self {
-            Self::Mm(value) => format!("{} mm", signed_two(value)),
-            Self::Mm2(x, y) => format!("{}, {} mm", signed_two(x), signed_two(y)),
-            Self::Deg(value) => format!("{}°", signed_two(value)),
+        match self {
+            Self::Mm(value) => format!("{} mm", signed_two(*value)),
+            Self::Mm2(x, y) => format!("{}, {} mm", signed_two(*x), signed_two(*y)),
+            Self::Deg(value) => format!("{}°", signed_two(*value)),
+            Self::Text(note) => note.clone(),
         }
     }
 
     /// True when the drag moved nothing (within float dust): a zero delta
-    /// raises no toast.
+    /// raises no toast. An empty note is likewise silent.
     pub fn is_zero(&self) -> bool {
-        match *self {
+        match self {
             Self::Mm(value) | Self::Deg(value) => value.abs() < 1e-9,
             Self::Mm2(x, y) => x.abs() < 1e-9 && y.abs() < 1e-9,
+            Self::Text(note) => note.is_empty(),
         }
     }
 }
@@ -205,6 +210,24 @@ mod tests {
         );
     }
 
+    /// Ticket 08: an anchor pick commits its item and target words with the
+    /// previous target as the note.
+    #[test]
+    fn text_note_commit_reports_the_anchor_toast() {
+        let committed = advance_feedback(
+            &state(),
+            FeedbackEvent::Commit {
+                value: "Thumb anchored to Main R2C3".into(),
+                delta: FeedbackDelta::Text("was Main R1C1".into()),
+            },
+        );
+        assert_eq!(committed.popup, None);
+        assert_eq!(
+            committed.toast.as_ref().map(|toast| toast.text()),
+            Some("Thumb anchored to Main R2C3 (was Main R1C1) · 1 Undo step".into())
+        );
+    }
+
     /// Ticket 06, RED: a zero-delta commit raises no toast and clears the popup.
     #[test]
     fn zero_delta_commit_raises_no_toast() {
@@ -212,12 +235,13 @@ mod tests {
             FeedbackDelta::Mm(0.0),
             FeedbackDelta::Mm2(0.0, 0.0),
             FeedbackDelta::Deg(0.0),
+            FeedbackDelta::Text(String::new()),
         ] {
             let committed = advance_feedback(
                 &state(),
                 FeedbackEvent::Commit {
                     value: "Spread 19.00 mm".into(),
-                    delta,
+                    delta: delta.clone(),
                 },
             );
             assert_eq!(committed.popup, None, "{delta:?} clears the popup");

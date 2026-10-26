@@ -9626,6 +9626,32 @@ fn Editor() -> Element {
                             && let Some((matrix, projection, context)) = layout_transform_target.clone()
                         {
                             for tool in layout_canvas::transform_tools(&context, layout_transform_tool(), layout_state.transform_handles()(), None) {
+                            // Ticket 08: the anchored matrix's Anchor token
+                            // arms canvas pick mode instead of a drag; an
+                            // unanchored matrix offers no token.
+                            if tool == objects::LayoutTransformTool::Anchor && matrix.anchor.is_some() {
+                            objects::LayoutAnchorPickOverlay {
+                                key: "{tool:?}",
+                                runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                                svg: objects::LayoutTransformSvg(svg.clone()),
+                                arbiter: canvas_interaction.clone(),
+                                owner: layout_owner.clone(),
+                                selected_context: adapter.selected_context,
+                                scope_generation: adapter.generation,
+                                surface_size: Some(zoom_surface_size),
+                                workspace,
+                                pick_owner: objects::AnchorPickOwner::Matrix {
+                                    matrix: matrix.clone(),
+                                    projection: projection.clone(),
+                                    context: context.clone(),
+                                },
+                                view_x,
+                                view_y,
+                                width,
+                                height,
+                            }
+                            }
+                            if tool != objects::LayoutTransformTool::Anchor {
                             objects::LayoutTransformToolOverlay {
                                 key: "{tool:?}",
                                 runtime: objects::LayoutTransformRuntime(runtime.clone()),
@@ -9650,6 +9676,7 @@ fn Editor() -> Element {
                                 on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
                             }
                             }
+                            }
                         }
                         // Ticket 07: the independent part's own rail. Move and
                         // Rotate edit the local Offset and Rotation; Spread and
@@ -9666,6 +9693,30 @@ fn Editor() -> Element {
                                 let part_context = selected.context.clone();
                                 rsx! {
                                     for tool in layout_canvas::transform_tools(&part_context, layout_transform_tool(), layout_state.transform_handles()(), Some(facts)) {
+                                    // Ticket 08: the part rail ends in the
+                                    // Anchor token, which arms canvas pick
+                                    // mode instead of a drag.
+                                    if tool == objects::LayoutTransformTool::Anchor {
+                                    objects::LayoutAnchorPickOverlay {
+                                        key: "{tool:?}",
+                                        runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                                        svg: objects::LayoutTransformSvg(svg.clone()),
+                                        arbiter: canvas_interaction.clone(),
+                                        owner: layout_owner.clone(),
+                                        selected_context: adapter.selected_context,
+                                        scope_generation: adapter.generation,
+                                        workspace,
+                                        surface_size: Some(zoom_surface_size),
+                                        pick_owner: objects::AnchorPickOwner::Part {
+                                            part_id: part_id.clone(),
+                                        },
+                                        view_x,
+                                        view_y,
+                                        width,
+                                        height,
+                                    }
+                                    }
+                                    if tool != objects::LayoutTransformTool::Anchor {
                                     objects::LayoutPartToolOverlay {
                                         key: "{tool:?}",
                                         runtime: objects::LayoutTransformRuntime(runtime.clone()),
@@ -9696,6 +9747,7 @@ fn Editor() -> Element {
                                                 }
                                             })
                                         },
+                                    }
                                     }
                                     }
                                 }
