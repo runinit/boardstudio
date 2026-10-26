@@ -6,6 +6,9 @@
 //! and receipt/provenance validation. The old runner stays available for
 //! same-build comparison until the parity gate passes.
 
+#[path = "../shutdown.rs"]
+mod shutdown;
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -1919,33 +1922,33 @@ async fn run() -> Result<usize> {
     let handler_errors = Arc::new(HandlerErrors::new());
     let drain = driver::spawn_handler_drain(handler, Arc::clone(&handler_errors));
     let page_errors = Arc::new(PageErrors::new());
-    let version = tokio::time::timeout(Duration::from_secs(60), browser.version())
-        .await
-        .map_err(|_| fail("cannot read the browser version: timed out after 60s"))?
-        .map_err(|error| fail(format!("cannot read the browser version: {error}")))?;
-    let product = version.product;
-    // Playwright reports the bare version; strip any `Chrome/` product prefix.
-    let browser_version = product.rsplit('/').next().unwrap_or(&product).to_owned();
-    println!("drag-smoke: browser {browser_version} (chromiumoxide 0.9.1)");
-
-    // Every launch-path await carries a bound: a wedged browser must fail
-    // loudly, never hang the smoke past its step timeout.
-    let page = tokio::time::timeout(Duration::from_secs(60), browser.new_page("about:blank"))
-        .await
-        .map_err(|_| fail("cannot open a page: timed out after 60s"))?
-        .map_err(|error| fail(format!("cannot open a page: {error}")))?;
-    tokio::time::timeout(
-        Duration::from_secs(60),
-        driver::spawn_page_error_listener(&page, Arc::clone(&page_errors)),
-    )
-    .await
-    .map_err(|_| fail("cannot listen for page errors: timed out after 60s"))??;
-    let mut smoke = Smoke {
-        page,
-        checks: Vec::new(),
-    };
-
     let outcome = async {
+        let version = tokio::time::timeout(Duration::from_secs(60), browser.version())
+            .await
+            .map_err(|_| fail("cannot read the browser version: timed out after 60s"))?
+            .map_err(|error| fail(format!("cannot read the browser version: {error}")))?;
+        let product = version.product;
+        // Playwright reports the bare version; strip any `Chrome/` product prefix.
+        let browser_version = product.rsplit('/').next().unwrap_or(&product).to_owned();
+        println!("drag-smoke: browser {browser_version} (chromiumoxide 0.9.1)");
+
+        // Every launch-path await carries a bound: a wedged browser must fail
+        // loudly, never hang the smoke past its step timeout.
+        let page = tokio::time::timeout(Duration::from_secs(60), browser.new_page("about:blank"))
+            .await
+            .map_err(|_| fail("cannot open a page: timed out after 60s"))?
+            .map_err(|error| fail(format!("cannot open a page: {error}")))?;
+        tokio::time::timeout(
+            Duration::from_secs(60),
+            driver::spawn_page_error_listener(&page, Arc::clone(&page_errors)),
+        )
+        .await
+        .map_err(|_| fail("cannot listen for page errors: timed out after 60s"))??;
+        let mut smoke = Smoke {
+            page,
+            checks: Vec::new(),
+        };
+
         drag_scenarios(&mut smoke).await?;
         collision_scenario(&browser, &preview_url, &page_errors, &mut smoke.checks).await?;
         qualification_scenario(
@@ -1966,29 +1969,18 @@ async fn run() -> Result<usize> {
             true,
         )
         .await?;
-        Ok::<(), Error>(())
+        if smoke.checks.len() < 11 {
+            return Err(fail(format!(
+                "smoke completed all drag, cancellation, Undo and collision checks: saw {}",
+                smoke.checks.len()
+            )));
+        }
+        Ok::<_, Error>((browser_version, smoke.checks))
     }
     .await;
-    if let Err(error) = outcome {
-        drain.abort();
-        // Protocol failures are never masked by the check failure they accompany.
-        handler_errors.fail_if_any()?;
-        return Err(error);
-    }
-
-    if smoke.checks.len() < 11 {
-        drain.abort();
-        return Err(fail(format!(
-            "smoke completed all drag, cancellation, Undo and collision checks: saw {}",
-            smoke.checks.len()
-        )));
-    }
+    shutdown::finish_browser(browser, drain, &handler_errors).await?;
     page_errors.fail_if_any()?;
-    handler_errors.fail_if_any()?;
-    drop(browser);
-    drain.abort();
-    // The profile is process-owned; remove what remains after the browser exits.
-    std::fs::remove_dir_all(&dirs.profile_dir).ok();
+    let (browser_version, checks) = outcome?;
 
     let receipt = Receipt {
         schema_version: 1,
@@ -2003,8 +1995,7 @@ async fn run() -> Result<usize> {
         source_head,
         source_sha256,
         build_sha256,
-        checks: smoke
-            .checks
+        checks: checks
             .into_iter()
             .map(|check| ReceiptCheck {
                 name: check.name,

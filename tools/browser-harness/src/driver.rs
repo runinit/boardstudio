@@ -168,7 +168,12 @@ fn scrub_json(value: &mut Value) {
                 let lower = key.to_lowercase();
                 if matches!(
                     lower.as_str(),
-                    "headerstext" | "postdata" | "cookie" | "cookies"
+                    "headerstext"
+                        | "postdata"
+                        | "postdataentries"
+                        | "cookie"
+                        | "cookies"
+                        | "cookieline"
                 ) {
                     *entry = Value::String("[redacted]".to_owned());
                 } else if (lower == "headers"
@@ -963,4 +968,16 @@ pub async fn dispose_isolated_page(browser: &Browser, context: BrowserContextId)
         .await
         .map_err(|error| Error(format!("cannot dispose a browser context: {error}")))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod redaction_tests {
+    #[test]
+    fn redacts_request_body_entries_and_cookie_lines() {
+        let input = r#"{"params":{"postDataEntries":[{"bytes":"body-secret"}],"cookieLine":"cookie-secret","url":"safe"}}"#;
+        let output = super::redact(input);
+        assert!(!output.contains("body-secret"));
+        assert!(!output.contains("cookie-secret"));
+        assert!(output.contains("safe"));
+    }
 }

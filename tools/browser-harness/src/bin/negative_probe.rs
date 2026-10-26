@@ -7,6 +7,9 @@
 //! absent/ambiguous/non-actionable targets. IndexedDB isolation between
 //! browser contexts is verified on a local page, never in `cargo test`.
 
+#[path = "../shutdown.rs"]
+mod shutdown;
+
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -122,6 +125,7 @@ async fn run() -> Result<()> {
     let drain = driver::spawn_handler_drain(handler, Arc::clone(&handler_errors));
     let page_errors = Arc::new(PageErrors::new());
 
+    let outcome = async {
     // Startup failure: an executable that is not Chrome cannot launch.
     let bad_dirs = IsolatedDirs::create(std::path::Path::new(&tmp_root)).map_err(|error| {
         fail(format!(
@@ -320,8 +324,12 @@ async fn run() -> Result<()> {
     }
     println!("negative probe isolation: contexts do not share IndexedDB");
 
+    Ok(())
+    }.await;
+    let result = shutdown::finish_browser(browser, drain, &handler_errors).await;
+    server.abort();
+    result?;
     // The fixture page itself stayed clean apart from the deliberate errors.
-    handler_errors.fail_if_any()?;
     let unexpected: Vec<String> = page_errors
         .messages()
         .into_iter()
@@ -334,9 +342,5 @@ async fn run() -> Result<()> {
             "negative probe page errors: unexpected {unexpected:?}"
         )));
     }
-    drop(browser);
-    drain.abort();
-    std::fs::remove_dir_all(&dirs.profile_dir).ok();
-    server.abort();
-    Ok(())
+    outcome
 }

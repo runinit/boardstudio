@@ -307,3 +307,30 @@ incomplete, page listing and suite not run). Full supported check, required
 event safety for other consumers, CI Rust-path cutover, and closure review remain
 open. Ticket stays claimed; no default-driver change is authorized by these
 focused results.
+
+### 2026-10-26: independent review follow-up
+
+On `cf5fd1a`, a focused redaction regression failed on the exposed request-body
+entry (`.evidence/ticket005-review-red.log`). The handler now redacts
+`postDataEntries` and `cookieLine` recursively. Both consumers close and reap
+Chrome and await the handler drain on successful and failed runs before the
+handler verdict; a failed or timed-out shutdown cannot produce a receipt.
+The drag consumer checks page errors before writing the receipt.
+
+The harness fmt, clippy and nine unit tests passed, as did the existing negative
+probe on Chrome 145 (`.evidence/ticket005-review-final-checks.log`). The
+consumer controls in `scripts/test-drag-browser-consumer-controls.py` exercised
+an actual slider assertion failure and an unhandled rejection: both exited 1
+with the expected error and no receipt
+(`.evidence/ticket005-review-committed-controls.log`). The Rust drag consumer
+passed 15 checks against the existing site build on Chrome 145, receipt
+`20261026T223553Z-f9b33f30d307`
+(`.evidence/ticket005-review-final-drag.log`). The test-control script was
+edited during that run; the receipt identifies the source state at launch and
+is not clean-source parity evidence.
+
+A deliberately late invalid protocol event was not injected at the shutdown
+boundary; the drain ordering is implemented but that specific regression is
+not independently demonstrated. The earlier full default check remains
+failed/incomplete (Parts 33 failures, Keycaps incomplete); no full check or
+closure review is claimed here. Ticket remains claimed.
