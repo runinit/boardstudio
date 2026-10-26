@@ -371,3 +371,22 @@ Also, chromiumoxide's launch-error cleanup itself calls unbounded `kill().await`
 and `wait().await` and panics on cleanup errors before returning a `Browser`.
 The shutdown changes above cover only a successfully returned browser; launch
 failure termination and profile preservation require further work.
+
+### 2026-10-26: source inspection of the end-of-event boundary
+
+On `6648a9b`, the three-file shutdown draft remained uncommitted. Inspection of
+the installed chromiumoxide 0.9.1 source found another requirement for a local
+patch: `Handler::on_event` queues target listener events, and the handler polls
+those listener queues before, not after, reading websocket messages. Returning
+at websocket EOF without first delivering queued events could therefore still
+drop a final page exception. The detached page listener tasks must also finish
+before the consumers inspect `PageErrors` and write a receipt. A patch needs to
+prove all three stages: read through a terminal transport condition, deliver
+queued events, and join the listener tasks. No dependency patch or upstream
+revision has been verified here, and no member visibility has been changed.
+
+This inspection ran `git diff --check` successfully; it did not run a build,
+regression, browser check, or review. The existing shutdown draft, its abnormal
+exit and unconfirmed-termination checks, combined diagnostics, launch-error
+cleanup, controlled late-event regression, full gate, and closure review remain
+open. The earlier focused receipts above are not new verification of this draft.
