@@ -1,6 +1,6 @@
 # 02: Screen-size labels and passive canvas chrome
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: none (decision in [01](01-layout-controls-iconography-prototype.md))
 Map: [map.md](../map.md)
@@ -52,3 +52,63 @@ those labels scale with zoom.
   role split.
 - [ ] `python3 scripts/check.py` passes (repo, tooling, lint, build, test, browser).
   `check.py test --update-native-baseline` only for deliberate test renames.
+
+## Answer
+
+Implemented on branch `docs/ergogen-layout-comparison` (prototype ref
+`prototype/layout-controls-iconography` `e91865f43`, variant D).
+
+What changed (ticket-02 files only):
+
+- `web/crates/layout/src/screen_scale.rs` (new): pure `px_to_world`
+  helper mapping screen pixels to canvas units for the current view scale,
+  with 3 native tests (11 px mapping, zoom halving, degenerate inputs).
+- `web/src/presentation/layout_canvas.rs`: `Scene` takes the view scale
+  (`view_width_world`, `surface_width_px`) plus the caller-computed badge.
+  The anchor badge is now a 7 px violet ring (tie kept); its label moved to
+  the readout. Dimmed-half label, spacing note and part names draw at
+  11 px via the helper; part names sit at the top of the part; dim-label and
+  note offsets are screen-fixed above the top key edge (rotation-agnostic,
+  matching the old unrotated behavior). Hover is tracked per part in the
+  scene and only set while no amber preview claims the part.
+- `web/src/presentation/layout_matrix_relations.rs`: `RelationMatrixKey`
+  and `RelationPartOutline` take `hovered` and append `is-hover`;
+  `field_previews` is `pub(super)` so the scene can keep amber winning ties.
+- `web/src/presentation.rs`: computes the badge once (shared by ring and
+  readout), renders the "Placed from" readout, and fixes the part-placement
+  preview label to the same top/11 px rule.
+- `web/assets/m1.css`: ring/readout/hover rules; removed the badge
+  label-box rules. Key hover is 1.5 px accent over 60% selection fill, solid
+  muted on the dimmed half, never overriding selection or amber previews.
+- `web/src/presentation/layout_anchor_badge_tests.rs`: selector-only
+  update — the probe reads the readout (`.m1-canvas-anchor-readout`),
+  stripping the "Placed from " prefix.
+- `DESIGN.md`: Layout canvas paragraph records the fixed-size rule and the
+  violet/amber split.
+- New `screen_chrome_render_tests` in `layout_canvas.rs`: two-zoom asserts
+  for 11 px labels and the 7 px ring plus absence of the canvas badge
+  label, and an Editor-level part-selection readout test (text + clearing).
+
+Evidence:
+
+- Native helper tests: 3/3 green (`cargo test -p boardstudio-web-layout
+  screen_scale`) before the tree broke (see below).
+- Render/mounted suites, `check.py`, and the visual pass could NOT run:
+  a concurrent ticket-03 edit to
+  `web/crates/layout/src/objects/layout_transform_toolbar.rs` leaves the
+  `boardstudio-web-layout` lib uncompilable (6 errors: E0015, E0277 x2,
+  E0425 x2, E0716, all in that file, none in ticket-02 files), so the wasm
+  target, `wasm-pack` suites, and any app build are blocked. No results
+  faked; rerun `scripts/check.py` once that file is green.
+- Two-axis review (inline): Standards — ticket-numbered comments, exact
+  token reuse, exact-match scripted edits with diff reads; one judgement
+  call each for the view-width/surface-width pair travelling together and
+  `use_signal` inside the input literal. Spec — all four labels fixed,
+  ring/readout/roles per
+  spec; two disclosed deviations: (1) the part-placement preview label
+  follows the same top/11 px rule for consistency; (2) hover never overrides
+  selection (`:not(.is-selected)`), keeping ticket 14's solid-selection
+  contract over the prototype's hover-wins order.
+
+Map pointer: not added (`docs/plans/layout-controls-polish/map.md` is not
+a ticket-02 file) — left for the orchestrator.

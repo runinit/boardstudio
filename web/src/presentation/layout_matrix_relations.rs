@@ -326,7 +326,7 @@ fn BreadcrumbChip(
 /// `part_id`. Distinct from the violet dashed Relations reference: the
 /// preview names the keys one Inspector number field would move, and it
 /// wins ties so the hovered field reads through a reference.
-fn field_previews(part_id: Option<&String>) -> bool {
+pub(super) fn field_previews(part_id: Option<&String>) -> bool {
     use super::FieldPreview;
     let preview = try_use_context::<FieldPreview>();
     part_id.is_some_and(|id| {
@@ -425,6 +425,11 @@ pub(super) fn RelationMatrixKey(
     /// selection itself; the amber field preview still wins every tie.
     #[props(default)]
     anchor_target: bool,
+    /// Ticket 02: the pointer rests on this key (prototype variant D). The
+    /// caller only sets it while no amber preview marks the key, so the
+    /// preview keeps winning every tie.
+    #[props(default)]
+    hovered: bool,
     x: f64,
     y: f64,
     width: f64,
@@ -446,8 +451,10 @@ pub(super) fn RelationMatrixKey(
     // at-rest field preview wins ties so the hovered field reads through
     // selection, dimming and violet references alike. Ticket 17: the badge
     // target is selection chrome, so it wins over dimming like the selection.
+    // Ticket 02: key hover (prototype variant D) tints the key but never
+    // overrides the amber preview; the caller only sets `hovered` then.
     let previewed = field_previews(part_id.as_ref());
-    let class = if previewed {
+    let base = if previewed {
         "m1-matrix-key is-field-preview"
     } else if selected {
         "m1-matrix-key is-selected"
@@ -457,6 +464,11 @@ pub(super) fn RelationMatrixKey(
         "m1-matrix-key is-dimmed"
     } else {
         "m1-matrix-key"
+    };
+    let class = if hovered && !previewed {
+        format!("{base} is-hover")
+    } else {
+        base.to_owned()
     };
     rsx! {
         rect {
@@ -477,13 +489,18 @@ pub(super) fn RelationPartOutline(
     /// Ticket 17: the canvas anchor badge target, like the key rect above.
     #[props(default)]
     anchor_target: bool,
+    /// Ticket 02: the pointer rests on this part (prototype variant D). The
+    /// caller only sets it while no amber preview marks the part, so the
+    /// preview keeps winning every tie.
+    #[props(default)]
+    hovered: bool,
 ) -> Element {
     let RelationHighlight(highlight) = use_context::<RelationHighlight>();
     let highlighted = highlight()
         .as_ref()
         .is_some_and(|part_ids| part_ids.contains(&part_id));
     let previewed = field_previews(Some(&part_id));
-    let class = if previewed {
+    let base = if previewed {
         "m1-part is-field-preview"
     } else if selected {
         "m1-part selected"
@@ -493,6 +510,11 @@ pub(super) fn RelationPartOutline(
         "m1-part is-dimmed"
     } else {
         "m1-part"
+    };
+    let class = if hovered && !previewed {
+        format!("{base} is-hover")
+    } else {
+        base.to_owned()
     };
     rsx! {
         polygon {

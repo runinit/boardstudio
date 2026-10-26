@@ -5,6 +5,7 @@ use boardstudio_core::model::{
     Transform, Vec2,
 };
 use boardstudio_web_layout::anchor_badge;
+use boardstudio_web_layout::screen_scale::px_to_world;
 use boardstudio_web_ui_model::split_focus::{self, SplitHalf};
 use dioxus::prelude::*;
 use std::{
@@ -171,6 +172,16 @@ pub(super) struct SceneProps {
     /// Layout only; `None` (no split, or PCB/Case) draws everything solid.
     #[props(default)]
     focused_half: Option<SplitHalf>,
+    /// Ticket 02: the current view scale for fixed screen-size chrome: the
+    /// drawn view-box width in canvas units and the surface's CSS pixel
+    /// width. Every fixed-size label and ring reads the screen-scale helper
+    /// with these instead of a hard-coded world size.
+    view_width_world: f64,
+    surface_width_px: f64,
+    /// Ticket 02: the anchor badge the readout names (computed once by the
+    /// caller so the canvas ring and the readout share one projection).
+    #[props(default)]
+    anchor_badge: Option<anchor_badge::AnchorBadge>,
     keys_visible: bool,
     components_visible: bool,
     keycaps_visible: bool,
@@ -193,6 +204,9 @@ impl PartialEq for SceneProps {
             && self.selected_ids == other.selected_ids
             && self.selected_context == other.selected_context
             && self.focused_half == other.focused_half
+            && self.view_width_world == other.view_width_world
+            && self.surface_width_px == other.surface_width_px
+            && self.anchor_badge == other.anchor_badge
             && self.keys_visible == other.keys_visible
             && self.components_visible == other.components_visible
             && self.keycaps_visible == other.keycaps_visible
@@ -294,6 +308,14 @@ pub(super) fn Scene(props: SceneProps) -> Element {
         selected_ids: &props.selected_ids,
         selected_context: props.selected_context.as_ref(),
         focused_half: props.focused_half,
+        view_width_world: props.view_width_world,
+        surface_width_px: props.surface_width_px,
+        anchor_badge: props.anchor_badge.clone(),
+        // Ticket 02: key hover (prototype variant D) is view-only chrome: the
+        // pointer's part id lives here so entering or leaving a part
+        // re-renders only this scene. Amber previews win ties, so the scene
+        // only marks a part hovered while no preview claims it.
+        hovered_part: use_signal(|| None::<String>),
         keys_visible: props.keys_visible,
         components_visible: props.components_visible,
         keycaps_visible: props.keycaps_visible,
@@ -341,6 +363,10 @@ pub(super) struct LayoutCanvasInput<'a> {
     pub(super) selected_ids: &'a [String],
     pub(super) selected_context: Option<&'a super::objects::ScopedTreeContext>,
     pub(super) focused_half: Option<SplitHalf>,
+    pub(super) view_width_world: f64,
+    pub(super) surface_width_px: f64,
+    pub(super) anchor_badge: Option<anchor_badge::AnchorBadge>,
+    pub(super) hovered_part: Signal<Option<String>>,
     pub(super) keys_visible: bool,
     pub(super) components_visible: bool,
     pub(super) keycaps_visible: bool,
@@ -399,14 +425,24 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
         input.matrix_scenes,
         input.transforms,
     );
+    // Ticket 02: one screen-pixel length in canvas units for this view.
+    // Every fixed-size label and ring below reads this instead of a
+    // hard-coded world size, so chrome stays fixed on screen at every zoom.
+    let px = |pixels: f64| px_to_world(pixels, input.view_width_world, input.surface_width_px);
+    // Ticket 02: the pointer's part id, or `None` while no amber preview
+    // claims the part, so the violet hover below never overrides amber.
+    let hovered_id = input
+        .hovered_part()
+        .filter(|id| !layout_matrix_relations::field_previews(Some(id)));
     // Ticket 14: the half without editing focus dims. Focus is Layout-only
     // workspace state, so a `None` focus (no split, PCB/Case) draws solid.
     let dimmed_half = input
         .focused_half
         .map(|focused| focused.other())
         .filter(|_| split_focus::has_split(input.document));
-    // Inline click-to-edit label anchor (prototype variant B): the centroid of
-    // the dimmed half's enabled cells, drawn just above its topmost key.
+    // Inline click-to-edit label anchor: the centroid of the dimmed half's
+    // enabled cells, drawn a fixed screen gap above its topmost key edge
+    // (ticket 02: 10 px, prototype variant D).
     let dim_label_anchor = dimmed_half.and_then(|dimmed| {
         let mut count = 0_u32;
         let (mut sum_x, mut top_y) = (0.0, f64::NEG_INFINITY);
@@ -414,11 +450,19 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
             if split_focus::matrix_half(input.document, &matrix.id) != Some(dimmed) {
                 continue;
             }
+            let size = resolved_matrix_keycap(
+                None,
+                input
+                    .definitions
+                    .get(matrix.definition_id.as_str())
+                    .copied(),
+                matrix,
+            );
             if let Some(projected) = input.matrix_scenes.get(matrix.id.as_str()) {
                 for cell in projected.cells.iter().filter(|cell| cell.enabled) {
                     count += 1;
                     sum_x += cell.pose.at.x;
-                    top_y = top_y.max(cell.pose.at.y);
+                    top_y = top_y.max(cell.pose.at.y + size.y / 2.0);
                 }
             }
         }
@@ -474,41 +518,50 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
             }
         }
     }
-    // Ticket 17: the anchor badge for the selection (prototype variant B):
-    // what the selection is placed from, with a violet dashed target and a
-    // dashed tie to the selection. It reads the selected half, dimmed or not,
-    // and clears with the selection; parts resolve in ticket 13.
-    let scene_refs: Vec<&MatrixScene> = input.matrix_scenes.values().copied().collect();
-    let badge = input.keys_visible.then(|| {
-        input.selected_context.and_then(|selected| {
-            anchor_badge::anchor_badge(input.document, &scene_refs, Some(&selected.context))
-        })
-    });
-    let badge = badge.flatten();
+    // Ticket 02: the anchor badge the caller computed (shared with the
+    // "Placed from" readout): a 7 px violet ring at what the selection is
+    // placed from, with a violet dashed target and a dashed tie to the
+    // selection. It reads the selected half, dimmed or not, and clears with
+    // the selection.
+    let badge = input.anchor_badge.clone();
     let badge_highlight: Vec<String> = badge
         .as_ref()
         .map(|badge| badge.highlight.clone())
         .unwrap_or_default();
     // Ticket 18: the axis note sits above the displayed keys, so the refit
     // view (which pads the content by 12 mm on every side) always shows it.
+    // Ticket 02 draws the note at a fixed 11 px (prototype variant D) a
+    // fixed screen gap above the topmost key edge.
     let spacing_note_anchor: Option<(f64, f64, String)> =
         input.spacing_ghost_note.and_then(|(axis_x, delta_mm)| {
             let mut top_y = f64::NEG_INFINITY;
             for matrix in input.matrices {
+                let size = resolved_matrix_keycap(
+                    None,
+                    input
+                        .definitions
+                        .get(matrix.definition_id.as_str())
+                        .copied(),
+                    matrix,
+                );
                 if let Some(projected) = input.matrix_scenes.get(matrix.id.as_str()) {
                     for cell in projected.cells.iter().filter(|cell| cell.enabled) {
-                        top_y = top_y.max(cell.pose.at.y);
+                        top_y = top_y.max(cell.pose.at.y + size.y / 2.0);
                     }
                 }
             }
             top_y.is_finite().then(|| {
                 (
                     axis_x,
-                    top_y + 6.0,
+                    top_y + px(14.0),
                     boardstudio_web_ui_model::spacing_ghost::spacing_note(delta_mm),
                 )
             })
         });
+    // Ticket 02: canvas technical labels draw at a fixed 11 px mono at every
+    // zoom (prototype variant D), set inline so the size beats the
+    // world-unit stylesheet fallback.
+    let label_font = px(11.0);
     rsx! {
         if input.keys_visible {
             for matrix in input.matrices {
@@ -550,6 +603,12 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                             let dimmed = dimmed_half.is_some_and(|dimmed| {
                                 split_focus::matrix_half(input.document, &matrix.id) == Some(dimmed)
                             });
+                            // Ticket 02: key hover (prototype variant D). The
+                            // scene only marks the key while no amber preview
+                            // claims its part, so amber keeps winning ties.
+                            let hovered = cell.member_id.as_ref().is_some_and(|id| {
+                                hovered_id.as_deref() == Some(id.as_str())
+                            });
                             rsx! {
                                 layout_matrix_relations::RelationMatrixKey {
                                     key: "{matrix.id}-{cell.row}-{cell.column}",
@@ -557,6 +616,7 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                                     selected,
                                     anchor_target,
                                     dimmed,
+                                    hovered,
                                     x: -size.x / 2.0,
                                     y: -size.y / 2.0,
                                     width: size.x,
@@ -593,44 +653,47 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
             }
         }
         if let Some((axis_x, note_y, note)) = spacing_note_anchor {
-            // Prototype variant B: short delta note on the axis above the
-            // keys. The canvas parent flips y, so the text counter-flips to
-            // read upright like the split-focus label.
+            // Short delta note on the axis above the keys, fixed at 11 px
+            // (ticket 02, prototype variant D). The canvas parent flips y, so
+            // the text counter-flips to read upright like the split-focus
+            // label.
             text {
                 key: "spacing-ghost-note-{axis_x}",
                 transform: "translate({axis_x} {note_y}) scale(1,-1)",
                 text_anchor: "middle",
                 class: "m1-spacing-ghost-note",
+                style: "font-size:{label_font}px",
                 "{note}"
             }
         }
         if let Some((dimmed, label_x, label_top)) = dim_label_anchor {
-            // Prototype variant B inline label. The canvas parent flips y, so
-            // the text counter-flips to read upright like part labels.
+            // Inline click-to-edit label, fixed at 11 px (ticket 02,
+            // prototype variant D). The canvas parent flips y, so the text
+            // counter-flips to read upright like part labels.
             text {
                 key: "{dimmed.label()}-focus-label",
-                transform: "translate({label_x} {label_top + 12.0}) scale(1,-1)",
+                transform: "translate({label_x} {label_top + px(10.0)}) scale(1,-1)",
                 text_anchor: "middle",
                 class: "m1-split-focus-label",
+                style: "font-size:{label_font}px",
                 "data-dimmed-half": "{dimmed.label()}",
                 "{dimmed.dim_label()}"
             }
         }
         if let Some(badge) = badge.as_ref() {
-            // Prototype variant B anchor badge: the authored icon sits at the
-            // anchor point with a short label, and a dashed tie runs to the
-            // selection base. Read-only chrome: it never takes pointer events,
-            // so canvas clicks (including dimmed-half focus) pass through.
-            // The canvas parent flips y, so the label counter-flips to read
-            // upright; the rect mirrors the prototype's measured label box.
+            // Ticket 02 anchor badge (prototype variant D): a 7 px violet
+            // ring at the anchor point; the badge label moved out of the
+            // canvas into the "Placed from" readout. A dashed tie still runs
+            // to the selection base. Read-only chrome: it never takes pointer
+            // events, so canvas clicks (including dimmed-half focus) pass
+            // through.
             {
-                // The label box mirrors the prototype's measured box: 2.9px
-                // mono at ~1.38 mm per character plus 3 mm padding.
-                let label_width = badge.label.chars().count() as f64 * 1.38 + 3.0;
                 let anchor_x = badge.anchor.x;
                 let anchor_y = badge.anchor.y;
                 let selection_x = badge.selection.x;
                 let selection_y = badge.selection.y;
+                let ring_r = px(3.5);
+                let ring_w = px(1.5);
                 rsx! {
                     if badge.tied {
                         line {
@@ -647,26 +710,7 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                                                 class: "m1-anchor-badge",
                         transform: "translate({anchor_x} {anchor_y})",
                         "aria-hidden": "true",
-                        circle { class: "m1-anchor-badge-dot", r: "3" }
-                        g {
-                            class: "m1-anchor-badge-icon",
-                            fill: "none", stroke_width: ".45", stroke_linecap: "round",
-                            circle { cy: "-1.55", r: ".5" }
-                            path { d: "M0-1v2.6M-1.1-.3h2.2M-1.6.7a1.6 1.6 0 0 0 3.2 0" }
-                        }
-                    }
-                    g {
-                                                transform: "translate({anchor_x + 4.0} {anchor_y + 4.5}) scale(1,-1)",
-                        "aria-hidden": "true",
-                        rect {
-                            class: "m1-anchor-badge-label-box",
-                            x: "0", y: "-4.6", width: "{label_width}", height: "4.6", rx: "1",
-                        }
-                        text {
-                            class: "m1-anchor-badge-label",
-                            x: "1.5", y: "-1.35",
-                            "{badge.label}"
-                        }
+                        circle { class: "m1-anchor-badge-ring", r: "{ring_r}", stroke_width: "{ring_w}" }
                     }
                 }
             }
@@ -697,12 +741,32 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                 let footprints_on = input.footprints_visible;
                 let on_pointer_down = input.on_part_pointer_down;
                 let part_id = part.id.clone();
+                let hover_id = part.id.clone();
+                let unhover_id = part.id.clone();
                 let dimmed = dimmed_half.is_some_and(|dimmed| {
                     split_focus::part_half(input.document, &part.id) == Some(dimmed)
                 });
                 // Ticket 17: badge targets keep the violet dashed reference on
                 // the part outline too, matching the key rect above.
                 let anchor_target = badge_highlight.contains(&part.id);
+                // Ticket 02: key hover (prototype variant D), set while no
+                // amber preview claims the part so amber keeps winning ties.
+                let hovered = hovered_id.as_deref() == Some(part.id.as_str());
+                // Ticket 02: part names sit at the top of the part, clear of
+                // the tie dot: a fixed 12 px screen gap below the courtyard's
+                // top edge, at a fixed 11 px.
+                let label_top = definition
+                    .map(|definition| {
+                        definition
+                            .courtyard
+                            .iter()
+                            .map(|point| point.y)
+                            .fold(f64::NEG_INFINITY, f64::max)
+                    })
+                    .filter(|top| top.is_finite())
+                    .unwrap_or(0.0);
+                let part_label_y = label_top - px(12.0);
+                let hovered_part = input.hovered_part;
                 rsx! {
                     if layer_visible || show_keycap.is_some() {
                         g {
@@ -713,12 +777,21 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                             onpointerdown: move |event: PointerEvent| {
                                 on_pointer_down.call(PartPointerDown { event, part_id: part_id.clone() });
                             },
+                            onpointerenter: move |_| {
+                                hovered_part.set(Some(hover_id.clone()));
+                            },
+                            onpointerleave: move |_| {
+                                if hovered_part().as_deref() == Some(unhover_id.as_str()) {
+                                    hovered_part.set(None);
+                                }
+                            },
                             PartContents {
                                 source: PartSource {
                                     document: input.document.clone(), part_index: *part_index,
                                     definition_index: input.definition_indices.get(part.definition_id.as_str()).copied(),
                                 },
                                 selected, dimmed, layer_visible, footprints_on, show_keycap, anchor_target,
+                                hovered, label_font, part_label_y,
                             }
                         }
                     }
@@ -752,6 +825,14 @@ fn PartContents(
     footprints_on: bool,
     show_keycap: Option<Vec2>,
     #[props(default)] anchor_target: bool,
+    /// Ticket 02: the pointer rests on this part (prototype variant D). The
+    /// caller only sets it while no amber preview marks the part.
+    #[props(default)]
+    hovered: bool,
+    /// Ticket 02: fixed screen-size part label: 11 px font world size and the
+    /// label baseline below the courtyard's top edge.
+    label_font: f64,
+    part_label_y: f64,
 ) -> Element {
     #[cfg(test)]
     PART_CONTENT_RENDERS.with(|count| count.set(count.get() + 1));
@@ -762,10 +843,23 @@ fn PartContents(
     let courtyard = definition
         .map(|definition| polygon_points(&definition.courtyard))
         .unwrap_or_default();
+    // Ticket 02: key hover (prototype variant D) also tints the keycap face;
+    // the dimmed half hovers solid muted. Amber previews win ties: the
+    // caller only sets `hovered` while no preview marks this part.
+    let mut overlay_class = String::from("m1-keycap-overlay");
+    if selected {
+        overlay_class.push_str(" is-selected");
+    }
+    if dimmed {
+        overlay_class.push_str(" is-dimmed");
+    }
+    if hovered {
+        overlay_class.push_str(" is-hover");
+    }
     rsx! {
         if layer_visible {
             layout_matrix_relations::RelationPartOutline {
-                key: "{part.id}", part_id: part.id.clone(), selected, dimmed, anchor_target, points: courtyard
+                key: "{part.id}", part_id: part.id.clone(), selected, dimmed, anchor_target, hovered, points: courtyard
             }
         }
         if layer_visible && footprints_on {
@@ -794,7 +888,7 @@ fn PartContents(
             {
                 let inset = 1.5_f64.min(size.x / 6.0).min(size.y / 6.0);
                 rsx! {
-                    g { class: if selected { "m1-keycap-overlay is-selected" } else { "m1-keycap-overlay" }, "aria-hidden": "true",
+                    g { class: "{overlay_class}", "aria-hidden": "true",
                         rect { x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9" }
                         rect { class: "m1-keycap-top", x: "{-size.x / 2.0 + inset}", y: "{-size.y / 2.0 + inset}", width: "{size.x - inset * 2.0}", height: "{size.y - inset * 2.0}", rx: "0.7" }
                     }
@@ -803,7 +897,9 @@ fn PartContents(
             }
         }
         if layer_visible && show_keycap.is_none() {
-            text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{part.reference}" }
+            // Ticket 02: part names sit at the top of the part, clear of the
+            // tie dot, at a fixed 11 px (prototype variant D).
+            text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", style: "font-size:{label_font}px", x: "0", y: "{part_label_y}", "{part.reference}" }
         }
     }
 }
@@ -1022,6 +1118,7 @@ mod tests {
                     preview_active: preview(),
                     accepted_scene: None,
                     selected_ids: selected(), selected_context: None,
+                    view_width_world: 200.0, surface_width_px: 800.0,
                     keys_visible: keys(), components_visible: true, keycaps_visible: keys(), footprints_visible: false,
                     on_matrix_pointer_down: |_| {},
                     on_part_pointer_down: move |_| observed.set(captured_generation),
@@ -1350,6 +1447,7 @@ mod ghost_tests {
                     preview_active: false,
                     accepted_scene: Some(initial_scene.clone()),
                     selected_ids: Vec::new(), selected_context: None,
+                    view_width_world: 200.0, surface_width_px: 800.0,
                     keys_visible: true, components_visible: true, keycaps_visible: true, footprints_visible: false,
                     on_matrix_pointer_down: |_| {}, on_part_pointer_down: |_| {},
                 }
@@ -1511,6 +1609,7 @@ mod spacing_ghost_render_tests {
                     accepted_scene: props.accepted,
                     spacing_ghost: props.ghost,
                     selected_ids: Vec::new(), selected_context: None,
+                    view_width_world: 200.0, surface_width_px: 800.0,
                     keys_visible: true, components_visible: true, keycaps_visible: true, footprints_visible: false,
                     on_matrix_pointer_down: |_| {}, on_part_pointer_down: |_| {},
                 }
@@ -1703,5 +1802,447 @@ mod spacing_ghost_render_tests {
             "the axis note hides while a preview is up"
         );
         root.remove();
+    }
+}
+
+/// Ticket 02: fixed-size canvas chrome (prototype variant D). Technical
+/// labels draw at 11 px mono and the anchor ring at 7 px violet at every
+/// zoom; the canvas badge label moved into the "Placed from" readout.
+#[cfg(test)]
+mod screen_chrome_render_tests {
+    use super::super::{
+        CompactPanelState, Editor, ExportReturnWorkspace, LayerVisibility,
+        PreferenceStorageWarning, ResolvedTheme, SelectionAdapter, SetupGuideRequest, ThemeState,
+        WorkspaceState, objects, selection,
+    };
+    use super::*;
+    use crate::runtime::project_name_test_support as support;
+    use boardstudio_application::{Event, Session};
+    use boardstudio_core::CoreEngine;
+    use boardstudio_web_ui_shared::test_wait::wait_until;
+    use serde_json::json;
+    use std::cell::RefCell;
+    use std::collections::BTreeSet;
+    use std::rc::Rc;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    /// A split pair with a detached diode part: left/right 1x1 switch
+    /// matrices under a mirror link, plus `d1` placed from the left half
+    /// origin so the canvas draws the dim label, the axis note, the ring
+    /// and a part name together.
+    fn chrome_fixture() -> (Arc<ProjectDoc>, Arc<SceneDelta>) {
+        let mut document = ProjectDoc::empty("chrome", "Chrome");
+        for (half, part_id, origin_x) in [
+            ("left", "matrix/left/r0c0", -30.0),
+            ("right", "matrix/right/r0c0", 30.0),
+        ] {
+            document.parts.push(
+                serde_json::from_value(json!({
+                    "id": part_id, "definitionId": "switch", "reference": "SW1",
+                    "pose": {"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0}, "side": "front",
+                    "keycap": {"x": 18.0, "y": 18.0}
+                }))
+                .unwrap(),
+            );
+            document.matrices.push(
+                serde_json::from_value(json!({
+                    "id": half, "rows": 1, "columns": 1,
+                    "pitch": {"x": 19.05, "y": 19.05}, "origin": {"x": origin_x, "y": 0.0},
+                    "definitionId": "switch", "partIds": [part_id], "boardId": "board",
+                    "cells": [{"row": 0, "column": 0, "enabled": true, "definitionId": "switch", "assemblies": []}]
+                }))
+                .unwrap(),
+            );
+        }
+        document.parts.push(
+            serde_json::from_value(json!({
+                "id": "d1", "definitionId": "diode", "reference": "D1",
+                "pose": {"at": {"x": -20.0, "y": 10.0}, "rotation": 0.0}, "side": "front",
+                "keycap": null
+            }))
+            .unwrap(),
+        );
+        document.definitions.push(
+            serde_json::from_value(json!({
+                "id": "switch", "name": "Switch", "kind": "switch", "courtyard": [], "pads": []
+            }))
+            .unwrap(),
+        );
+        document.definitions.push(
+            serde_json::from_value(json!({
+                "id": "diode", "name": "Diode", "kind": "passive",
+                "courtyard": [
+                    {"x": -7.0, "y": -7.0}, {"x": 7.0, "y": -7.0},
+                    {"x": 7.0, "y": 7.0}, {"x": -7.0, "y": 7.0}
+                ],
+                "pads": []
+            }))
+            .unwrap(),
+        );
+        document.boards.push(
+            serde_json::from_value(json!({
+                "id": "board", "name": "Board",
+                "partIds": ["matrix/left/r0c0", "matrix/right/r0c0", "d1"],
+                "outlineIds": [], "netIds": [], "thickness": 1.6
+            }))
+            .unwrap(),
+        );
+        document.layouts.push(
+            serde_json::from_value(json!({
+                "id": "left", "name": "Left half", "boardId": "board",
+                "matrixIds": ["left"], "partIds": ["d1"]
+            }))
+            .unwrap(),
+        );
+        document.layouts.push(
+            serde_json::from_value(json!({
+                "id": "right", "name": "Right half", "boardId": "board",
+                "matrixIds": ["right"], "partIds": [],
+                "mirrorLink": { "sourceId": "left", "axisX": 0.0,
+                    "correspondences": [{ "kind": "matrix", "sourceId": "left", "mirrorId": "right" }],
+                    "exceptions": [] }
+            }))
+            .unwrap(),
+        );
+        let document = Arc::new(document);
+        let cell = |matrix: &str, x: f64| {
+            json!({
+                "row": 0, "column": 0, "enabled": true,
+                "memberId": format!("matrix/{matrix}/r0c0"),
+                "pose": {"at": {"x": x, "y": 0.0}, "rotation": 0.0},
+                "shiftFrame": {"origin": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0}},
+                "offsetFrame": {"origin": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0}}
+            })
+        };
+        let scene = Arc::new(
+            serde_json::from_value(json!({
+                "revision": 0, "transactionId": "fixture", "changedIds": [], "transforms": [],
+                "matrixScenes": [
+                    {"matrixId": "left", "cells": [cell("left", -30.0)], "columns": []},
+                    {"matrixId": "right", "cells": [cell("right", 30.0)], "columns": []}
+                ],
+                "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
+                "readiness": {"layout": true, "outline": false, "pcb": false, "case": false}
+            }))
+            .unwrap(),
+        );
+        (document, scene)
+    }
+
+    fn chrome_badge() -> anchor_badge::AnchorBadge {
+        anchor_badge::AnchorBadge {
+            anchor: Vec2 { x: -30.0, y: 0.0 },
+            selection: Vec2 { x: -11.0, y: 0.0 },
+            highlight: Vec::new(),
+            label: "Column 1 · spread, stagger, splay carry".to_owned(),
+            tied: true,
+        }
+    }
+
+    #[derive(Props, Clone, PartialEq)]
+    struct ChromeCaseProps {
+        document: Arc<ProjectDoc>,
+        scene: Arc<SceneDelta>,
+        ghost: SpacingGhost,
+        badge: anchor_badge::AnchorBadge,
+        view_width: f64,
+    }
+
+    #[component]
+    fn RenderChromeCase(props: ChromeCaseProps) -> Element {
+        let highlight = use_signal(|| None::<Vec<String>>);
+        use_context_provider(|| super::super::RelationHighlight(highlight));
+        rsx! {
+            svg {
+                Scene {
+                    source: SceneSource { document: props.document, scene: props.scene, board_id: "board".into() },
+                    preview_active: false,
+                    accepted_scene: None,
+                    spacing_ghost: Some(props.ghost),
+                    selected_ids: Vec::new(), selected_context: None,
+                    view_width_world: props.view_width, surface_width_px: 800.0,
+                    anchor_badge: Some(props.badge),
+                    focused_half: Some(SplitHalf::Left),
+                    keys_visible: true, components_visible: true, keycaps_visible: true, footprints_visible: false,
+                    on_matrix_pointer_down: |_| {}, on_part_pointer_down: |_| {},
+                }
+            }
+        }
+    }
+
+    async fn mount_chrome(view_width: f64) -> web_sys::Element {
+        let (document, scene) = chrome_fixture();
+        let ghost = SpacingGhost {
+            scene: scene.clone(),
+            delta_mm: 10.0,
+            axis_x: 0.0,
+        };
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new_with_props(
+                RenderChromeCase,
+                ChromeCaseProps {
+                    document,
+                    scene,
+                    ghost,
+                    badge: chrome_badge(),
+                    view_width,
+                },
+            ),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("the fixed-size chrome renders", || {
+            root.query_selector(".m1-split-focus-label")
+                .unwrap()
+                .is_some()
+        })
+        .await;
+        root
+    }
+
+    /// World units behind an inline `font-size:…px` style. Browsers may
+    /// serialize the declaration with whitespace or a trailing semicolon.
+    fn style_world_size(root: &web_sys::Element, selector: &str) -> f64 {
+        let node = root
+            .query_selector(selector)
+            .unwrap()
+            .unwrap_or_else(|| panic!("missing {selector}"));
+        let style = node
+            .dyn_into::<web_sys::SvgElement>()
+            .unwrap()
+            .get_attribute("style")
+            .unwrap_or_default();
+        style
+            .split(';')
+            .find_map(|declaration| {
+                let (name, value) = declaration.split_once(':')?;
+                (name.trim() == "font-size").then(|| value.trim().to_owned())
+            })
+            .and_then(|value| value.trim_end_matches("px").parse().ok())
+            .unwrap_or_else(|| panic!("no font-size in {selector} style {style:?}"))
+    }
+
+    /// World units per screen pixel for the mounted surface width.
+    fn on_screen(world: f64, view_width: f64) -> f64 {
+        world / (view_width / 800.0)
+    }
+
+    /// Ticket 02 RED: one scene at two zoom levels keeps every technical
+    /// label at 11 px on screen. It fails while labels use world units.
+    #[wasm_bindgen_test]
+    async fn labels_hold_eleven_px_across_zooms() {
+        for view_width in [200.0, 100.0] {
+            let root = mount_chrome(view_width).await;
+            for selector in [
+                ".m1-split-focus-label",
+                ".m1-spacing-ghost-note",
+                ".m1-part-label",
+            ] {
+                let px = on_screen(style_world_size(&root, selector), view_width);
+                assert!(
+                    (px - 11.0).abs() < 0.5,
+                    "{selector} reads {px:.2} px on screen at view width {view_width}, want 11"
+                );
+            }
+            assert!(
+                root.query_selector(".m1-anchor-badge-label")
+                    .unwrap()
+                    .is_none(),
+                "the canvas carries no badge label at view width {view_width}; it lives in the readout"
+            );
+            root.remove();
+        }
+    }
+
+    /// Ticket 02: the anchor ring holds 7 px on screen at both zooms.
+    #[wasm_bindgen_test]
+    async fn anchor_ring_holds_seven_px_across_zooms() {
+        for view_width in [200.0, 100.0] {
+            let root = mount_chrome(view_width).await;
+            let ring = root
+                .query_selector(".m1-anchor-badge-ring")
+                .unwrap()
+                .expect("the anchor ring renders");
+            let radius: f64 = ring
+                .get_attribute("r")
+                .unwrap_or_default()
+                .parse()
+                .expect("the ring radius parses");
+            let diameter = on_screen(2.0 * radius, view_width);
+            assert!(
+                (diameter - 7.0).abs() < 0.5,
+                "the ring reads {diameter:.2} px across at view width {view_width}, want 7"
+            );
+            root.remove();
+        }
+    }
+
+    #[derive(Clone)]
+    struct ChromeProbe {
+        runtime: Rc<crate::runtime::Runtime>,
+        root_id: &'static str,
+        adapter: Rc<RefCell<Option<SelectionAdapter>>>,
+    }
+
+    impl ChromeProbe {
+        fn select(&self, context: objects::TreeContext) {
+            selection::submit_context(
+                &self.runtime,
+                &self.adapter.borrow().clone().expect("mounted adapter"),
+                selection::ContextRequest {
+                    scope: self.runtime.scope().expect("opened project scope"),
+                    context,
+                    mode: boardstudio_application::SelectionMode::Replace,
+                },
+            );
+        }
+    }
+
+    fn chrome_host() -> Element {
+        let probe = use_context::<ChromeProbe>();
+        let workspace = use_signal(|| "Layout");
+        use_context_provider(|| WorkspaceState(workspace));
+        use_context_provider(|| ExportReturnWorkspace(workspace));
+        let version = use_signal(|| 0u64);
+        use_context_provider(|| version);
+        let created = use_signal(|| None::<SetupGuideRequest>);
+        use_context_provider(|| created);
+        let objects_open = use_signal(|| true);
+        let inspector_open = use_signal(|| true);
+        use_context_provider(|| CompactPanelState {
+            objects_open,
+            inspector_open,
+        });
+        let warning = use_signal(|| false);
+        use_context_provider(|| PreferenceStorageWarning(warning));
+        let theme = use_signal(|| "light");
+        use_context_provider(|| ThemeState(theme));
+        let resolved = use_memo(|| "light");
+        use_context_provider(|| ResolvedTheme(resolved));
+        let selected = use_signal(|| None);
+        let anchor = use_signal(|| None);
+        let generation = use_signal(|| 0u64);
+        let adapter = SelectionAdapter::new(selected, anchor, generation);
+        *probe.adapter.borrow_mut() = Some(adapter.clone());
+        use_context_provider(|| adapter);
+        let hidden = use_signal(BTreeSet::new);
+        let modules_hidden = use_signal(BTreeSet::new);
+        let footprints = use_signal(|| false);
+        use_context_provider(|| LayerVisibility {
+            hidden,
+            modules_hidden,
+            footprints,
+        });
+        boardstudio_web_ui_model::state::use_test_case_generation_state();
+        rsx! { Editor {} }
+    }
+
+    /// Mount the real Layout editor on the chrome document (empty matrix
+    /// scenes: only the detached diode part draws).
+    async fn mount_chrome_editor(root_id: &'static str) -> ChromeProbe {
+        let (document, _) = chrome_fixture();
+        let runtime = support::new_runtime();
+        support::install(&runtime, Session::new(), CoreEngine::new());
+        support::install_memory_persistence(&runtime);
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: (*document).clone(),
+        });
+        support::run_pending(&runtime).await;
+        let probe = ChromeProbe {
+            runtime: runtime.clone(),
+            root_id,
+            adapter: Rc::default(),
+        };
+        let dom_document = web_sys::window().unwrap().document().unwrap();
+        let root = dom_document.create_element("div").unwrap();
+        root.set_id(root_id);
+        dom_document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(chrome_host);
+        dom.provide_root_context(runtime.clone());
+        dom.provide_root_context(probe.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("the Layout canvas draws the diode part", || {
+            dom_document
+                .query_selector(&format!("#{root_id} .m1-scene-part"))
+                .unwrap()
+                .is_some()
+        })
+        .await;
+        probe
+    }
+
+    fn readout(root_id: &'static str) -> String {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!("#{root_id} .m1-canvas-anchor-readout"))
+            .unwrap()
+            .map(|node| node.text_content().unwrap_or_default())
+            .unwrap_or_default()
+    }
+
+    /// Ticket 02: a part selection names the half origin in the readout, and
+    /// clearing the selection clears the readout with the ring.
+    #[wasm_bindgen_test]
+    async fn part_selection_reads_placed_from_and_clears() {
+        let root_id = "chrome-part-readout";
+        let probe = mount_chrome_editor(root_id).await;
+        probe.select(objects::TreeContext::Component {
+            part_id: Some("d1".into()),
+            matrix_id: None,
+            row: None,
+            column: None,
+            assembly_id: None,
+        });
+        wait_until("the readout names the part anchor", || {
+            readout(root_id).contains("Left half origin · default")
+        })
+        .await;
+        assert_eq!(
+            readout(root_id),
+            "Placed from Left half origin · default",
+            "the readout carries the full Placed from text"
+        );
+        let dom_document = web_sys::window().unwrap().document().unwrap();
+        assert!(
+            dom_document
+                .query_selector(&format!("#{root_id} .m1-anchor-badge-ring"))
+                .unwrap()
+                .is_some(),
+            "the 7 px ring marks the anchor while the readout stands"
+        );
+        probe.select(objects::TreeContext::Board {
+            board_id: "board".into(),
+        });
+        wait_until("clearing the selection clears the readout", || {
+            readout(root_id).is_empty()
+        })
+        .await;
+        assert!(
+            dom_document
+                .query_selector(&format!("#{root_id} .m1-anchor-badge"))
+                .unwrap()
+                .is_none(),
+            "clearing the selection clears the ring with the readout"
+        );
     }
 }

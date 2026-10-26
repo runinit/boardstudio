@@ -708,6 +708,16 @@ preview; they do not edit the component or export. Missing or failed model
 previews use explicit text and a retry or import action instead of a perpetual
 loading state.
 
+Layout canvas chrome keeps fixed screen sizes at every zoom: technical labels
+(dimmed-half, spacing note, part names) draw at 11 px mono, and the anchor
+ring draws at 7 px violet, each mapped from screen pixels to canvas units for
+the current view. The badge label lives outside the canvas in a "Placed from"
+readout at the canvas's bottom left, in 11 px mono violet. Violet is only for
+anchoring — the ring, the tie, the readout and part outlines, with a selected
+part turning accent. Amber is only for keys that move — the field and drag
+previews — and the spacing note. Key hover is a 1.5 px accent stroke over a
+60% selection fill, and solid muted on the dimmed half.
+
 ### Motion and browser surfaces
 
 Motion tokens are `motion-feedback` (120ms), `motion-reveal` (180ms), and

@@ -1,4 +1,5 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
+pub(crate) use boardstudio_web_layout::anchor_badge;
 pub(crate) use boardstudio_web_layout::board_inspector;
 pub(crate) use boardstudio_web_ui_shared::canvas_layers;
 pub(crate) use boardstudio_web_ui_shared::canvas_navigation::{
@@ -6025,6 +6026,21 @@ fn Editor() -> Element {
         selected.scope == render_scope
             && selection::context_is_current(&model, &selected.scope, &selected.context)
     });
+    // Ticket 02: the anchor badge and the "Placed from" readout share one
+    // projection of the displayed scene. It clears with the selection, and
+    // the canvas ring reads the same value through its scene prop.
+    let canvas_anchor_badge = (!(layer_visibility.hidden)().contains("Keys"))
+        .then(|| {
+            selected_tree_context.as_ref().and_then(|selected| {
+                let scene_refs: Vec<_> = canvas_source.scene.matrix_scenes.iter().collect();
+                anchor_badge::anchor_badge(
+                    &canvas_source.document,
+                    &scene_refs,
+                    Some(&selected.context),
+                )
+            })
+        })
+        .flatten();
     // Ticket 18: the live spacing ghost, if it still describes this paint —
     // the revision and selection it was born with, and no drag preview up.
     // The revision check covers the paint between a commit landing and the
@@ -9498,6 +9514,9 @@ fn Editor() -> Element {
                             spacing_ghost: spacing_ghost_prop.clone(),
                             selected_ids: model.selected_part_ids.clone(),
                             selected_context: selected_tree_context.clone(),
+                            view_width_world: width,
+                            surface_width_px: zoom_surface_size().0,
+                            anchor_badge: canvas_anchor_badge.clone(),
                             keys_visible: !(layer_visibility.hidden)().contains("Keys"),
                             components_visible: !(layer_visibility.hidden)().contains("Components"),
                             keycaps_visible: !(layer_visibility.hidden)().contains("Keycaps"),
@@ -9592,6 +9611,12 @@ fn Editor() -> Element {
                               let at = placement.pending.part.pose.at;
                               let courtyard = polygon_points(&definition.courtyard);
                               let reference = placement.pending.part.reference.clone();
+                              // Ticket 02: the preview name keeps the part-label
+                              // rule: at the top of the part at a fixed 11 px.
+                              let preview_courtyard_top = definition.courtyard.iter().map(|point| point.y).fold(f64::NEG_INFINITY, f64::max);
+                              let preview_courtyard_top = if preview_courtyard_top.is_finite() { preview_courtyard_top } else { 0.0 };
+                              let preview_label_font = boardstudio_web_layout::screen_scale::px_to_world(11.0, width, zoom_surface_size().0);
+                              let preview_label_y = preview_courtyard_top - boardstudio_web_layout::screen_scale::px_to_world(12.0, width, zoom_surface_size().0);
                               rsx! {
                                 g {
                                     class: "m1-part-placement-preview",
@@ -9610,7 +9635,7 @@ fn Editor() -> Element {
                                             if let Some(drill) = pad.drill { circle { class: "m1-part-drill", r: "{drill / 2.0}" } }
                                         }
                                     }
-                                    text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{reference}" }
+                                    text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", style: "font-size:{preview_label_font}px", x: "0", y: "{preview_label_y}", "{reference}" }
                                 }
                               }
                             }
@@ -9695,6 +9720,18 @@ fn Editor() -> Element {
                         && let Some(state) = field_preview() {
                         div { class: "m1-canvas-field-preview-hint", role: "status",
                             "{state.hint}"
+                        }
+                    }
+                    // Ticket 02: the "Placed from" readout (prototype variant
+                    // D) names what the selection is placed from at the
+                    // canvas's bottom left. It shares the canvas ring's badge
+                    // projection and clears with the selection.
+                    if active_workspace == "Layout"
+                        && !layout_assembly_3d()
+                        && let Some(badge) = canvas_anchor_badge.as_ref()
+                    {
+                        div { class: "m1-canvas-anchor-readout",
+                            "Placed from {badge.label}"
                         }
                     }
                 }
