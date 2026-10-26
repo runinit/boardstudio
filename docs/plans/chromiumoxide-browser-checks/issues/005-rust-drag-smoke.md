@@ -848,3 +848,28 @@ Two intermediate builds failed to compile while implementing close-result
 formatting; the final controls and checks above ran after those corrections.
 The earlier failed full receipt remains failed; full supported verification,
 CI cutover, and independent closure review remain open.
+
+### 2026-10-26: refreshed parity after harness changes
+
+On clean `dda082fddd1ad4cae24de4da4fc0828c4bc5038f`, the supported
+`python3 scripts/check.py build` passed in 57.6 seconds under the build lock and
+`boardstudio-tests.slice`. The checked build regenerated the packaged site and
+reused current provider artifacts. Sequential Node and Rust launcher runs in the
+same slice each passed 15 checks with Chrome for Testing `145.0.7622.0`.
+The launcher verified both receipts. They agree on source HEAD, clean source
+digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`,
+site digest `44c6a27042b19479c66d4c50a16814dd9ea54b1f138ee99cb70c4f726097aeed`,
+1513 x 1043 viewport, ordered check names and overall passing verdict. Timing and
+measured values vary. Node receipt:
+`web/target/test-results/drag-browser/20261026T233809Z-8537c0ec1540/receipt.json`;
+Rust receipt:
+`web/target/test-results/drag-browser/20261026T233918Z-38e529d497f3/receipt.json`.
+Logs: `.evidence/ticket005-fresh-build-dda082fd.log`,
+`.evidence/ticket005-fresh-node-dda082fd.log`, and
+`.evidence/ticket005-fresh-rust-dda082fd.log`. Build receipt:
+`.evidence/ticket005-fresh-build-dda082fd.json`. The Rust run reported the
+expected post-boundary WebSocket reset after clean child exit.
+
+This is a local same-build comparison, not a full gate or CI cutover. The prior
+full receipt remains failed on Parts and Keycaps; full supported verification,
+CI cutover and independent closure review remain open. Ticket 005 stays claimed.
