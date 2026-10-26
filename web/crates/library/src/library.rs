@@ -2890,11 +2890,32 @@ mod mounted_tests {
         press(&field(), "Escape");
         let _ = field().blur();
         release.send(()).unwrap();
-        wait_until_step("the gated rename lands as Committed", async || {
-            support::run_pending(&runtime).await;
-            runtime.model().accepted.unwrap().document.name == "Committed"
-        })
+        let landed = wait_for_step(
+            "the gated rename lands as Committed",
+            WAIT_BOUND_MS,
+            async || {
+                support::run_pending(&runtime).await;
+                runtime
+                    .model()
+                    .accepted
+                    .as_ref()
+                    .is_some_and(|snapshot| snapshot.document.name == "Committed")
+            },
+        )
         .await;
+        if let Err(message) = landed {
+            let model = runtime.model();
+            panic!(
+                "{message}; accepted_name={:?}, lifecycle={:?}, durability={:?}, status={}",
+                model
+                    .accepted
+                    .as_ref()
+                    .map(|snapshot| &snapshot.document.name),
+                model.lifecycle,
+                model.durability,
+                runtime.status()
+            );
+        }
         // Escape and blur submit nothing after the landing: drain held work, then recheck.
         drain_and_yield(&runtime).await;
         assert_eq!(

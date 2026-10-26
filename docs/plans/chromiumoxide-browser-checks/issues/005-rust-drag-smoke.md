@@ -780,6 +780,33 @@ envelope or a causal explanation for the earlier failures. It does not replace
 the failed full receipt. Full supported verification, CI cutover, and closure
 review remain open; no default driver was changed.
 
+### 2026-10-26: Parts and Library test diagnostics
+
+The Parts upload test now waits for the accepted asset with a named 2,000 ms
+bound, preserving the queued Apply before the upload effect runs. It waits for
+the projected filename in place of the 30 ms sleep, and removes the helper's
+unreachable false branch. The Library rename wait retains its 5,000 ms bound
+and accepted-name assertion; a timeout now reports accepted name, lifecycle,
+durability and status, including when no accepted snapshot exists.
+
+Prior RED evidence: the original full receipt failed Parts with a missing key
+(`.evidence/drag-save-undo-default-6346fe98.log`); the instrumented 2.5-second
+delay also failed with the missing key after 100 iterations
+(`.evidence/c7e1-inject-2500-full-parts.log`). That injected run is a diagnostic,
+not a clean reproduction or proof of the original cause. A separate concurrent
+diagnostic failed the Library's gated rename wait after 5,000 ms
+(`.evidence/drag-diagnostic-concurrent-6346fe98.log`); its cause remains unknown.
+No new RED was induced for these diagnostic corrections.
+
+GREEN: the serial, resource-sliced partial browser run passed Parts 68/68 and
+Library 18/18 (`.evidence/ticket005-correction-browser.log` and receipt). The
+Library predicate changed while that run was in progress, so its final source
+was separately checked: 18/18 passed (`.evidence/ticket005-correction-library-final.log`
+and receipt). These results do not establish the original failure causes or
+replace the failed full gate. Keycaps was not changed or retested; its original
+failure occurred before tests started. Full browser verification, CI cutover,
+and independent closure review remain open.
+
 ### 2026-10-26: Spec follow-up
 
 Based on `0eceab475b05553ff3458275d466bba7be7c0aef`, this follow-up

@@ -2046,10 +2046,6 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn upload_preview_refresh_does_not_keep_a_later_failed_apply_draft() {
-        uploaded_model_projection(true).await;
-    }
-
-    async fn uploaded_model_projection(fail_queued_apply: bool) {
         let (root, fixture, handles) = mount_generator_editor().await;
         let initial = take_initial_default_request(&fixture.requests).await;
         finish_request(initial, Err("superseded".into())).await;
@@ -2092,35 +2088,37 @@ mod tests {
             .unwrap();
         let mut effects = VecDeque::new();
         let mut apply_queued = false;
-        for _ in 0..100 {
-            gloo_timers::future::TimeoutFuture::new(20).await;
-            effects.extend(support::take_held_effects(&fixture.runtime));
-            if fail_queued_apply && !apply_queued && !effects.is_empty() {
-                root.query_selector(".m1-generator-settings > button.m1-generator-apply")
+        boardstudio_web_ui_shared::test_wait::wait_for_step(
+            "the uploaded asset is accepted",
+            2000.0,
+            async || {
+                effects.extend(support::take_held_effects(&fixture.runtime));
+                if !apply_queued && !effects.is_empty() {
+                    root.query_selector(".m1-generator-settings > button.m1-generator-apply")
+                        .unwrap()
+                        .unwrap()
+                        .dyn_into::<web_sys::HtmlElement>()
+                        .unwrap()
+                        .click();
+                    apply_queued = true;
+                }
+                if let Some(effect) = effects.pop_front() {
+                    effects.extend(support::run_effect(&fixture.runtime, effect).await);
+                }
+                fixture
+                    .runtime
+                    .model()
+                    .accepted
+                    .as_ref()
                     .unwrap()
-                    .unwrap()
-                    .dyn_into::<web_sys::HtmlElement>()
-                    .unwrap()
-                    .click();
-                apply_queued = true;
-            }
-            if let Some(effect) = effects.pop_front() {
-                effects.extend(support::run_effect(&fixture.runtime, effect).await);
-            }
-            if fixture
-                .runtime
-                .model()
-                .accepted
-                .as_ref()
-                .unwrap()
-                .document
-                .assets
-                .iter()
-                .any(|asset| asset.name == "test.stl")
-            {
-                break;
-            }
-        }
+                    .document
+                    .assets
+                    .iter()
+                    .any(|asset| asset.name == "test.stl")
+            },
+        )
+        .await
+        .unwrap_or_else(|message| panic!("{message}"));
         let mut deferred_core = VecDeque::new();
         while let Some(effect) = effects.pop_front() {
             if matches!(effect, boardstudio_application::Effect::Core { .. }) {
@@ -2130,7 +2128,6 @@ mod tests {
             }
         }
         effects = deferred_core;
-        gloo_timers::future::TimeoutFuture::new(30).await;
         let accepted = fixture.runtime.model().accepted.unwrap();
         let filename = accepted.document.definitions[0]
             .generator
@@ -2146,6 +2143,13 @@ mod tests {
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
+        boardstudio_web_ui_shared::test_wait::wait_for(
+            "the uploaded filename is displayed",
+            30.0,
+            || displayed.value() == filename,
+        )
+        .await
+        .unwrap_or_else(|message| panic!("{message}"));
         assert_eq!(displayed.value(), filename);
         assert!(field.text_content().unwrap().contains("Remove model"));
         assert_eq!(
@@ -2165,36 +2169,28 @@ mod tests {
                 .iter()
                 .any(|model| filename == format!("boardstudio-asset:{}", model.asset_id))
         );
-        if fail_queued_apply {
-            assert!(apply_queued);
-            support::fail_next_core_reply(&fixture.runtime, "Apply after upload failed");
-        }
+        assert!(apply_queued);
+        support::fail_next_core_reply(&fixture.runtime, "Apply after upload failed");
         effects.extend(support::take_held_effects(&fixture.runtime));
         while let Some(effect) = effects.pop_front() {
             effects.extend(support::run_effect(&fixture.runtime, effect).await);
         }
-        if fail_queued_apply {
-            wait_for_text(&root, "[role='alert']", "Apply after upload failed").await;
-            assert_eq!(
-                root.query_selector("input[aria-label='Keycap Width']")
-                    .unwrap()
-                    .unwrap()
-                    .dyn_into::<web_sys::HtmlInputElement>()
-                    .unwrap()
-                    .value(),
-                "18.0"
-            );
-        }
+        wait_for_text(&root, "[role='alert']", "Apply after upload failed").await;
+        assert_eq!(
+            root.query_selector("input[aria-label='Keycap Width']")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap()
+                .value(),
+            "18.0"
+        );
         finish_request(refreshed, Ok(prepared)).await;
         let store = handles.borrow().as_ref().unwrap().store;
-        if fail_queued_apply {
-            assert!(
-                store.read().is_none(),
-                "late preview cannot restore the rejected draft"
-            );
-        } else {
-            assert!(store.read().as_ref().unwrap().definition.is_some());
-        }
+        assert!(
+            store.read().is_none(),
+            "late preview cannot restore the rejected draft"
+        );
         fixture.runtime.unsubscribe();
         root.remove();
     }
