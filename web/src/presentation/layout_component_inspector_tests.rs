@@ -1321,7 +1321,12 @@ async fn mounted_probe_configured(
 }
 
 async fn mounted_group_probe(root_id: &'static str) -> (MountedProbe, web_sys::Element) {
-    mounted_runtime_probe(root_id, |_| {}, &["selected-part", "source-part"]).await
+    mounted_runtime_probe(
+        root_id,
+        |document| document.layouts[0].part_ids.clear(),
+        &["selected-part", "source-part"],
+    )
+    .await
 }
 
 async fn settle_component_inspector(root_id: &str, mut generation: Signal<u64>) {
@@ -1643,6 +1648,7 @@ async fn mounted_part_mirror_toggle_mirrors_and_unmirrors_with_undo() {
         &["selected-part"],
     )
     .await;
+    settle_mounted_component_inspector(&probe).await;
 
     fn part_mirror(probe: &MountedProbe) -> Option<bool> {
         probe
@@ -2012,7 +2018,11 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
 
 #[wasm_bindgen_test]
 async fn mounted_component_inspector_production_handler_rejects_selection_aba_and_unmount() {
-    let (probe, root) = mounted_probe("layout-component-inspector-aba-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-inspector-aba-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     let old_projection = probe.projection.borrow().clone().unwrap();
     let old_action = *probe.action.borrow().as_ref().unwrap();
@@ -2199,7 +2209,11 @@ async fn mounted_component_margin_enter_commits_and_escape_restores_the_accepted
 #[wasm_bindgen_test]
 async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur_uses_latest_owner()
 {
-    let (probe, root) = mounted_probe("layout-component-inspector-refresh-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-inspector-refresh-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     let document = web_sys::window().unwrap().document().unwrap();
     let input = |label: &str| {
@@ -2349,6 +2363,8 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
     let (probe, root) = mounted_probe_configured(
         "layout-component-position-queued-xy-test-root",
         |document| {
+            // This test isolates queued edits from linked-half frame adoption.
+            document.layouts[0].part_ids.clear();
             let part = document
                 .parts
                 .iter_mut()
@@ -2425,7 +2441,11 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
 #[wasm_bindgen_test]
 async fn mounted_component_inspector_view_unmount_retires_held_field_observation_and_remount_refreshes()
  {
-    let (probe, root) = mounted_probe("layout-component-position-unmount-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-position-unmount-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     let (entered, release) =
         crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
@@ -2475,7 +2495,11 @@ async fn mounted_component_inspector_view_unmount_retires_held_field_observation
 
 #[wasm_bindgen_test]
 async fn mounted_edit_retires_when_the_part_becomes_locked_before_execution() {
-    let (probe, root) = mounted_probe("layout-component-position-retire-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-position-retire-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     // Hold the lock edit's Core reply so the position edit queues behind it.
     let (entered, release) =
