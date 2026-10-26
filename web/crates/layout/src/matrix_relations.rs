@@ -11,9 +11,45 @@ use crate::matrix_transform_operation::MatrixTransformField;
 use boardstudio_core::model::{
     AggregateMethod, Constraint, ConstraintEndpoint, ConstraintRelation, Follow, Matrix,
     MatrixAnchor, MatrixCompanionMode, MatrixCompanionPlacement, MatrixScene, MatrixSplayAffect,
-    Mirror, MirroredExceptionState, MirroredItemKind, ProjectDoc, Vec2,
+    Mirror, MirroredExceptionState, MirroredItemKind, Part, ProjectDoc, Vec2,
 };
 use boardstudio_web_ui_model::tree::TreeContext;
+
+/// "X, Y, rotation" for the Follow subset, or "none" when nothing follows.
+/// Free so the canvas anchor badge (ticket 17) reads the same words as the chain.
+pub(crate) fn follow_text(follow: &Follow) -> String {
+    let mut parts = Vec::new();
+    if follow.x {
+        parts.push("X");
+    }
+    if follow.y {
+        parts.push("Y");
+    }
+    if follow.rotation {
+        parts.push("rotation");
+    }
+    if parts.is_empty() {
+        "none".to_owned()
+    } else {
+        parts.join(", ")
+    }
+}
+
+/// "Average of 2 keys" or "Intersection of 2 keys", from the Core-admitted
+/// aggregate method. `None` for single-key anchors. Free so the canvas anchor
+/// badge (ticket 17) reads the same words as the chain.
+pub(crate) fn aggregate_kind_text(anchor: &MatrixAnchor) -> Option<String> {
+    let aggregate = anchor.aggregate.as_ref()?;
+    let method = match aggregate.method {
+        AggregateMethod::Average => "Average",
+        AggregateMethod::Intersect => "Intersection",
+    };
+    let count = aggregate.parts.len();
+    Some(format!(
+        "{method} of {count} {}",
+        if count == 1 { "key" } else { "keys" }
+    ))
+}
 
 /// One inherited fact, with an optional object to navigate to and the parts to highlight.
 #[derive(Clone, Debug, PartialEq)]
@@ -507,21 +543,7 @@ impl View<'_> {
 
     /// "X, Y, rotation" for the Follow subset, or "none" when nothing follows.
     fn follow_text(follow: &Follow) -> String {
-        let mut parts = Vec::new();
-        if follow.x {
-            parts.push("X");
-        }
-        if follow.y {
-            parts.push("Y");
-        }
-        if follow.rotation {
-            parts.push("rotation");
-        }
-        if parts.is_empty() {
-            "none".to_owned()
-        } else {
-            parts.join(", ")
-        }
+        follow_text(follow)
     }
 
     /// "row 2, column 2 of matrix main".
@@ -546,16 +568,7 @@ impl View<'_> {
     /// "Average of 2 keys" or "Intersection of 2 keys", from the Core-admitted
     /// aggregate method. `None` for single-key anchors.
     fn aggregate_kind_text(anchor: &MatrixAnchor) -> Option<String> {
-        let aggregate = anchor.aggregate.as_ref()?;
-        let method = match aggregate.method {
-            AggregateMethod::Average => "Average",
-            AggregateMethod::Intersect => "Intersection",
-        };
-        let count = aggregate.parts.len();
-        Some(format!(
-            "{method} of {count} {}",
-            if count == 1 { "key" } else { "keys" }
-        ))
+        aggregate_kind_text(anchor)
     }
 
     fn anchor_target(&self, anchor: &MatrixAnchor) -> TreeContext {
@@ -1699,6 +1712,38 @@ impl View<'_> {
                         matrix_id: dependant.id.clone(),
                     }),
                     self.scene_members(&dependant.id),
+                ),
+            );
+            insert_at += 1;
+        }
+        // Ticket 13: independent parts anchored to this key move with it too.
+        let mut anchored: Vec<&Part> = self
+            .document
+            .parts
+            .iter()
+            .filter(|part| {
+                part.anchor.as_ref().is_some_and(|anchor| {
+                    anchor.matrix_id == self.matrix.id
+                        && anchor.row == row
+                        && anchor.column == column
+                })
+            })
+            .collect();
+        anchored.sort_by(|a, b| a.id.cmp(&b.id));
+        for part in anchored {
+            structure.insert(
+                insert_at,
+                item(
+                    "Anchors part",
+                    self.label(&part.id),
+                    Some(TreeContext::Component {
+                        part_id: Some(part.id.clone()),
+                        matrix_id: None,
+                        row: None,
+                        column: None,
+                        assembly_id: None,
+                    }),
+                    vec![part.id.clone()],
                 ),
             );
             insert_at += 1;

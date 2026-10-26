@@ -437,6 +437,13 @@ pub(super) fn canonicalize(
                 mirrored: *mirrored,
             };
         }
+        // Ticket 13: part anchor edits name either copy and fan out inside
+        // the apply (the source copy is the authority there), so no link
+        // translation applies here; the canonical edit is the request.
+        Op::SetPartAnchor { .. }
+        | Op::SetPartAnchorFollow { .. }
+        | Op::DetachPartAnchor { .. }
+        | Op::SetPartAnchorValues { .. } => {}
         Op::SetLayout { layout } => match layout::translate(&links, layout)? {
             layout::Outcome::Translated(source) => {
                 canonical.operation = Op::SetLayout { layout: source };

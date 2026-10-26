@@ -235,6 +235,12 @@ pub struct Part {
     pub reference: String,
     pub pose: Pose2,
     pub side: Side,
+    /// Ticket 13: column-vocabulary anchor for an independent part. `None` is
+    /// a detached part placed from the half origin; `Some` derives the
+    /// evaluated pose from the anchor key, so anchor edits move the part.
+    /// Ignored while the part is a matrix member or generated companion.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<PartAnchor>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locked: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -244,6 +250,38 @@ pub struct Part {
         skip_serializing_if = "Option::is_none"
     )]
     pub generator_parameters: Option<BTreeMap<String, serde_json::Value>>,
+}
+
+/// Ticket 13: an independent part's placement in the column vocabulary. The
+/// part follows the anchor key's pose through the Follow subset; Spread,
+/// Stagger and Splay carry in the anchor frame, then Offset and Rotation
+/// apply for the part alone. `matrix_id` names the anchor key's matrix, which
+/// must live in the part's own layout.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PartAnchor {
+    pub matrix_id: String,
+    pub row: u32,
+    pub column: u32,
+    pub follow: Follow,
+    pub spread: f64,
+    pub stagger: f64,
+    pub splay: f64,
+    pub offset: Vec2,
+    pub rotation: f64,
+}
+
+/// Ticket 13: one typed edit to an anchored part's carried or local values.
+/// Spread/Stagger/Splay carry from the anchor; Offset/Rotation are the part's
+/// own. Anchor retargets, Follow changes and Detach are separate operations
+/// because they re-solve the values to keep the pose.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum PartAnchorValueChange {
+    Spread(f64),
+    Stagger(f64),
+    Splay(f64),
+    Offset(Vec2),
+    Rotation(f64),
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Pin {
@@ -2180,6 +2218,35 @@ pub enum EditOperation {
         #[serde(rename = "partId")]
         part_id: String,
         mirrored: bool,
+    },
+    /// Ticket 13: retarget an independent part's anchor key (Pick). Core
+    /// re-solves the carried and local values so the evaluated pose is
+    /// unchanged, in one Undo entry.
+    SetPartAnchor {
+        #[serde(rename = "partId")]
+        part_id: String,
+        anchor: PartAnchor,
+    },
+    /// Ticket 13: change the Follow subset an anchored part follows (the
+    /// anchor key stays). Core re-solves the carried and local values so the
+    /// evaluated pose is unchanged, in one Undo entry.
+    SetPartAnchorFollow {
+        #[serde(rename = "partId")]
+        part_id: String,
+        follow: Follow,
+    },
+    /// Ticket 13: clear an independent part's anchor (Detach), keeping its
+    /// evaluated pose from the half origin, in one Undo entry.
+    DetachPartAnchor {
+        #[serde(rename = "partId")]
+        part_id: String,
+    },
+    /// Ticket 13: edit one carried (Spread/Stagger/Splay) or local
+    /// (Offset/Rotation) value of an anchored part, in one Undo entry.
+    SetPartAnchorValues {
+        #[serde(rename = "partId")]
+        part_id: String,
+        change: PartAnchorValueChange,
     },
     RemoveConstraint {
         id: String,

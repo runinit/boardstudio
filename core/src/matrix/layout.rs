@@ -423,7 +423,10 @@ pub(crate) fn pair_gap(doc: &ProjectDoc, matrix_id: &str) -> Option<f64> {
 /// minimum)`, or the stored gap before the first adaptive pass). `None` for
 /// unlinked matrices and legacy pairs without a stored gap, whose origins
 /// stay board-coordinate.
-pub(crate) fn half_offset(doc: &ProjectDoc, matrix_id: &str) -> Option<Vec2> {
+///
+/// Ticket 17: the Layout canvas anchor badge reads this for the unanchored
+/// matrix anchor (the half origin); evaluation applies the same offset.
+pub fn half_offset(doc: &ProjectDoc, matrix_id: &str) -> Option<Vec2> {
     let (axis_x, gap, spacing, mirror_side) = pair_frame(doc, matrix_id)?;
     let gap = spacing.or(gap)?;
     Some(Vec2 {
@@ -876,7 +879,15 @@ pub(crate) fn is_member_or_companion(doc: &ProjectDoc, part_id: &str) -> bool {
 /// Ticket 12: evaluated (board-space) pose of a part: the stored half-frame
 /// pose plus the half offset on stored-gap pairs; the stored pose everywhere
 /// else. Rotations are frame-free, so only the position shifts.
+///
+/// Ticket 13: an anchored independent part derives its pose from its anchor
+/// key instead (the anchor column or key moving moves the part). A part whose
+/// anchor no longer resolves holds its stored pose; members and companions
+/// never derive.
 pub fn evaluated_part_pose(doc: &ProjectDoc, part: &Part) -> Pose2 {
+    if let Some(derived) = super::part_anchors::evaluate(doc, part) {
+        return derived;
+    }
     match part_half_offset(doc, &part.id) {
         Some(offset) => Pose2 {
             at: Vec2 {
@@ -2249,18 +2260,18 @@ pub(crate) fn clamp_part_to_half(doc: &ProjectDoc, part_id: &str, at: Vec2) -> V
     };
     // The request arrives board-space, like the canvas that sent it; sides and
     // extents compare against the evaluated center. Legacy sides compare
-    // board-space parts against the axis directly.
-    let offset_x = part_half_offset(doc, part_id)
-        .map(|offset| offset.x)
-        .unwrap_or(0.0);
-    let on_left = part.pose.at.x + offset_x < axis_x;
+    // board-space parts against the axis directly. Ticket 13: the evaluated
+    // pose is anchor-derived for anchored parts, whose stored pose goes stale
+    // when an anchor column or key moves them.
+    let evaluated = evaluated_part_pose(doc, part);
+    let on_left = evaluated.at.x < axis_x;
     let (min_rel, max_rel) = match doc
         .definitions
         .iter()
         .find(|definition| definition.id == part.definition_id)
     {
         Some(definition) => {
-            part_extent_offsets(&part.pose, part.side.clone(), part.keycap, definition)
+            part_extent_offsets(&evaluated, part.side.clone(), part.keycap, definition)
         }
         None => (0.0, 0.0),
     };
@@ -2347,7 +2358,11 @@ pub(crate) fn ensure_part_mirror(
     if doc.constraint_driving_part(&partner_id)?.is_some() {
         let partner = doc.parts.iter().find(|part| part.id == partner_id).cloned();
         if let Some(partner) = partner {
-            let source_half = reflect_half_part(doc, &authority_id, partner.pose);
+            // Ticket 13: mirror the fresh evaluated pose, like the forward
+            // path below; the stored pose goes stale while anchored.
+            let partner_half =
+                stored_part_pose(doc, &partner_id, evaluated_part_pose(doc, &partner));
+            let source_half = reflect_half_part(doc, &authority_id, partner_half);
             let source_board = match part_half_offset(doc, &authority_id) {
                 Some(offset) => Pose2 {
                     at: Vec2 {
@@ -2363,7 +2378,12 @@ pub(crate) fn ensure_part_mirror(
             return Ok(vec![authority_id, partner_id]);
         }
     }
-    let partner_pose = reflect_half_part(doc, &authority_id, authority.pose);
+    // Ticket 13: the authority's stored pose goes stale while anchored (anchor
+    // edits move it without rewriting storage), so the reflection starts from
+    // the fresh evaluated pose. Unanchored parts evaluate to their stored
+    // pose, which keeps this identical.
+    let authority_half = stored_part_pose(doc, &authority_id, evaluated_part_pose(doc, &authority));
+    let partner_pose = reflect_half_part(doc, &authority_id, authority_half);
     // Ticket 12: a following partner carries its own held offset with it, so
     // its drivers retune, like the legacy sync's pose write did. The drag
     // path already retuned both copies; the delta is zero there and this is a
@@ -2404,6 +2424,18 @@ pub(crate) fn ensure_part_mirror(
                 .to_string()
         };
         mirrored.pose = partner_pose;
+        // Ticket 13: the partner anchors to the counterpart key in its own
+        // layout with mirrored values, so each half derives its mirrored pose
+        // from its own anchor. No counterpart keeps the partner detached at
+        // the reflected pose.
+        mirrored.anchor = authority.anchor.as_ref().and_then(|anchor| {
+            super::part_anchors::map_anchor_for_mirror(
+                doc,
+                anchor,
+                &partner_layout_id,
+                super::part_anchors::is_controller_for(doc, &authority),
+            )
+        });
         mirrored
             .properties
             .get_or_insert_with(BTreeMap::new)
@@ -3068,15 +3100,19 @@ pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, Strin
                 },
                 rotation: 0.0,
             };
+            // Ticket 13: mirror the fresh evaluated pose; the stored pose goes
+            // stale while anchored. Unanchored parts evaluate to their stored
+            // pose, which keeps this identical.
+            let source_board = evaluated_part_pose(doc, &source);
             let mut target_pose = crate::model::Pose2 {
                 at: Vec2 {
-                    x: 2.0 * axis_x - source.pose.at.x,
-                    y: source.pose.at.y,
+                    x: 2.0 * axis_x - source_board.at.x,
+                    y: source_board.at.y,
                 },
                 rotation: pair::mirrored_part_heading(
                     is_controller,
                     axis_mapping,
-                    source.pose.rotation,
+                    source_board.rotation,
                 ),
             };
             let target_exists = doc.parts.iter().any(|part| part.id == target_id);
@@ -3349,7 +3385,7 @@ fn adopt_unassigned_components(
 /// offset with it. A mirror-constraint refusal stops the drag. `None` leaves
 /// a stored rotation bit-for-bit, like a direct drag. Returns whether a
 /// constraint was retuned.
-fn retune_driven_constraint(
+pub(crate) fn retune_driven_constraint(
     doc: &mut ProjectDoc,
     id: &str,
     board: crate::model::Pose2,

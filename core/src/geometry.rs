@@ -996,6 +996,7 @@ mod tests {
         for index in 0..keys {
             let id = format!("key-{index}");
             doc.parts.push(Part {
+                anchor: None,
                 id: id.clone(),
                 definition_id: "switch".into(),
                 reference: format!("SW{}", index + 1),

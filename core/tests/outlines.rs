@@ -102,6 +102,7 @@ fn automatic_part_envelopes_exclude_nonphysical_utilities() {
         generator: None,
     });
     doc.parts.push(Part {
+        anchor: None,
         id: "label".into(),
         definition_id: "utility".into(),
         reference: "TXT".into(),
@@ -140,6 +141,7 @@ fn automatic_envelope_reflects_asymmetric_back_side_footprints() {
         Vec2 { x: 0.0, y: 2.0 },
     ];
     doc.parts = vec![Part {
+        anchor: None,
         id: "back-part".into(),
         definition_id: "switch".into(),
         reference: "U1".into(),

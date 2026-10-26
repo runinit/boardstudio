@@ -88,6 +88,7 @@ Build (from 08):
 - 10 resolved: Core adaptive spacing ([ADR-0036](../../adr/0036-adaptive-split-spacing-on-commit.md)): every committed edit brings stored-gap pairs to `max(stored gap, minimum)` in the same Undo; newly adopted legacy pairs space only when touching; no-op commits and creation untouched. Inspector split section + status line are web follow-ups — see [10](issues/10-adaptive-spacing-on-commit.md).
 - 11 resolved: adaptive gap at creation stores `max(requested, 40 mm default, ticket-10 minimum)` and the setup previews it before placement; anchored matrices stay legacy; existing boards untouched — see [11](issues/11-adaptive-gap-at-creation.md).
 - 12 resolved: parts live in the half frame ([ADR-0037](../../adr/0037-half-frame-parts-mirrored-controller.md)); drags clamp at the axis and commit through 10's spacing, new controllers mirror by Part correspondence, either copy edits both, and the Inspector toggle makes parts local — see [12](issues/12-half-frame-parts-and-mirrored-controller.md).
+- 13 resolved: parts anchor to a column-vocabulary anchor key ([ADR-0038](../../adr/0038-part-anchoring-column-vocabulary.md)); Follow X/Y/rotation, Pick/Detach with pose-preserving re-solves, Spread/Stagger/Splay carried and Offset/Rotation local, mirrored partners share values through the mapped counterpart, and drops auto-anchor to the nearest key of their half — see [13](issues/13-part-anchoring-column-vocabulary.md).
 
 ## Not yet specified (fog)
 

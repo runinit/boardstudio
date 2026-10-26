@@ -1351,3 +1351,51 @@ fn non_number_fields_and_foreign_contexts_preview_nothing() {
         "a component context previews nothing"
     );
 }
+
+#[test]
+fn an_anchor_key_names_the_parts_anchored_to_it() {
+    let mut engine = CoreEngine::new();
+    let mut document = serde_json::to_value(base()).unwrap();
+    document["matrices"] = json!([matrix(2, 2, json!({}))]);
+    document["boards"] = json!([{ "id": "board", "name": "Board", "outlineIds": [],
+        "partIds": ["u1"], "netIds": [], "thickness": 1.6 }]);
+    document["layouts"] = json!([{ "id": "layout", "name": "Layout",
+        "boardId": "board", "matrixIds": [MATRIX], "partIds": ["u1"] }]);
+    document["parts"] = json!([{
+        "id": "u1", "definitionId": "switch", "reference": "U1",
+        "pose": { "at": { "x": 0.0, "y": 0.0 }, "rotation": 0.0 }, "side": "front",
+        "anchor": { "matrixId": MATRIX, "row": 0, "column": 1,
+          "follow": ["x", "y", "rotation"],
+          "spread": 0.0, "stagger": 0.0, "splay": 0.0,
+          "offset": { "x": 0.0, "y": 0.0 }, "rotation": 0.0 } }]);
+    let (scene, document) = scene_of(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: serde_json::from_value(document).unwrap(),
+    }));
+    let world = world_of(scene, document, MATRIX);
+    let anchored = relations(&world, key(0, 1)).expect("the anchor key has a chain");
+    let item = anchored
+        .structure
+        .iter()
+        .find(|item| item.label == "Anchors part")
+        .expect("the anchor key lists its anchored part");
+    assert_eq!(item.value, "U1");
+    assert_eq!(
+        item.target,
+        Some(TreeContext::Component {
+            part_id: Some("u1".into()),
+            matrix_id: None,
+            row: None,
+            column: None,
+            assembly_id: None,
+        })
+    );
+    let unanchored = relations(&world, key(0, 0)).expect("the plain key has a chain");
+    assert!(
+        unanchored
+            .structure
+            .iter()
+            .all(|item| item.label != "Anchors part"),
+        "a key with no anchored parts names none"
+    );
+}

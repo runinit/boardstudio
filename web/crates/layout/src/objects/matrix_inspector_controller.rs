@@ -3625,6 +3625,7 @@ mod tests {
                 document.parts.push(boardstudio_core::model::Part {
                     keycap: None,
                     outline: None,
+                    anchor: None,
                     id: (*id).into(),
                     definition_id: "switch:base".into(),
                     reference: format!("SW-M{}", column + 1),

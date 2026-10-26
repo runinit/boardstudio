@@ -674,6 +674,7 @@ fn mirrored_pair_with_held_left_component(
         vias: vec![],
     });
     doc.parts.push(Part {
+        anchor: None,
         id: "left-part".into(),
         definition_id: "diode".into(),
         reference: "D1".into(),

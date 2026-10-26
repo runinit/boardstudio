@@ -174,6 +174,7 @@ mod tests {
                 rotation: 0.0,
             },
             side: Side::Front,
+            anchor: None,
             locked: None,
             properties: None,
             generator_parameters: None,

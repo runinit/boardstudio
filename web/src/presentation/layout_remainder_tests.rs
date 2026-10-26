@@ -30,6 +30,7 @@ fn part(id: &str, x: f64) -> Part {
             rotation: 0.0,
         },
         side: Side::Front,
+        anchor: None,
         locked: None,
         properties: None,
         generator_parameters: None,

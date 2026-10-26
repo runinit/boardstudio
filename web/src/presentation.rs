@@ -1522,8 +1522,12 @@ fn layout_component_inspector_projection(
             Err(_) => return None,
         }
     }
-    let relationship_summary =
+    let mut relationship_summary =
         layout_relationship_summary(document, board, active_layout, Some(part));
+    // Ticket 13: the anchor fact leads for anchored parts.
+    if let Some(lead) = part_anchor_summary(document, part) {
+        relationship_summary = format!("{lead} {relationship_summary}");
+    }
     let definition_kind = match &definition.kind {
         PartKind::Switch => "switch",
         PartKind::Controller => "controller",
@@ -1554,7 +1558,14 @@ fn layout_component_inspector_projection(
                 .find(|part| part.id == *selected_id)
                 .is_none_or(|part| part.locked.unwrap_or(false))
         }),
-        position: part.pose.at,
+        // Ticket 13: the Inspector edits board-space positions, so an anchored
+        // part shows its evaluated pose (what the canvas shows); a detached
+        // part keeps its stored half-frame pose.
+        position: if part.anchor.is_some() {
+            boardstudio_core::evaluated_part_pose(document, part).at
+        } else {
+            part.pose.at
+        },
         selection_count: model.selected_part_ids.len(),
         layout_id: active_layout.map(|layout| layout.id.clone()),
         layouts,
@@ -1564,7 +1575,69 @@ fn layout_component_inspector_projection(
         relationship_summary,
         mirrored_half,
         part_mirror: part_mirror_projection(document, part_id, active_layout, is_matrix_member),
+        anchor: part_anchor_projection(document, part),
+        // Ticket 13: matrix members and companions follow the matrix refresh,
+        // so they get no anchor vocabulary and no Pick form.
+        anchor_choices: if is_matrix_member {
+            Vec::new()
+        } else {
+            part_anchor_choices(document, active_layout)
+        },
     })
+}
+
+/// Ticket 13: the part's column-vocabulary anchor for the Inspector: the
+/// anchor key and Follow subset, the carried Spread/Stagger/Splay and the
+/// local Offset/Rotation. `None` is a detached part; parts homed on a
+/// layout without an anchor stay detached.
+fn part_anchor_projection(
+    document: &boardstudio_core::model::ProjectDoc,
+    part: &boardstudio_core::model::Part,
+) -> Option<inspector::PartAnchorProjection> {
+    let anchor = part.anchor.as_ref()?;
+    let matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == anchor.matrix_id)?;
+    Some(inspector::PartAnchorProjection {
+        matrix_id: anchor.matrix_id.clone(),
+        matrix_name: matrix.name.clone().unwrap_or(matrix.id.clone()),
+        row: anchor.row,
+        column: anchor.column,
+        follow: anchor.follow,
+        spread: anchor.spread,
+        stagger: anchor.stagger,
+        splay: anchor.splay,
+        offset: anchor.offset,
+        rotation: anchor.rotation,
+    })
+}
+
+/// Ticket 13: the anchor-key choices for Pick: every matrix on the part's
+/// layout with its live dimensions.
+fn part_anchor_choices(
+    document: &boardstudio_core::model::ProjectDoc,
+    active_layout: Option<&boardstudio_core::model::Layout>,
+) -> Vec<inspector::AnchorKeyChoice> {
+    let Some(layout) = active_layout else {
+        return Vec::new();
+    };
+    layout
+        .matrix_ids
+        .iter()
+        .filter_map(|matrix_id| {
+            document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == *matrix_id)
+                .map(|matrix| inspector::AnchorKeyChoice {
+                    matrix_id: matrix.id.clone(),
+                    matrix_name: matrix.name.clone().unwrap_or(matrix.id.clone()),
+                    rows: matrix.rows,
+                    columns: matrix.columns,
+                })
+        })
+        .collect()
 }
 
 /// Ticket 12: the "Mirror on both halves" toggle for an independent part on a
@@ -2071,6 +2144,42 @@ fn layout_relationship_summary(
     driven.unwrap_or_else(|| "No saved placement relationship on this selection.".to_owned())
 }
 
+/// Ticket 13: the Relationships lead for an anchored part: its anchor key and
+/// Follow subset, ahead of the mirror-pairing summary.
+fn part_anchor_summary(
+    document: &boardstudio_core::model::ProjectDoc,
+    part: &boardstudio_core::model::Part,
+) -> Option<String> {
+    let anchor = part.anchor.as_ref()?;
+    let matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == anchor.matrix_id)?;
+    let name = matrix.name.clone().unwrap_or(matrix.id.clone());
+    let mut follows = Vec::new();
+    if anchor.follow.x {
+        follows.push("X");
+    }
+    if anchor.follow.y {
+        follows.push("Y");
+    }
+    if anchor.follow.rotation {
+        follows.push("rotation");
+    }
+    let follows = if follows.is_empty() {
+        "none".to_owned()
+    } else {
+        follows.join(", ")
+    };
+    Some(format!(
+        "Anchored to {} R{}C{}, following {}.",
+        name,
+        anchor.row + 1,
+        anchor.column + 1,
+        follows
+    ))
+}
+
 fn layout_component_inspector_owner_key(
     model: &ReadModel,
     workspace: &'static str,
@@ -2225,6 +2334,10 @@ fn submit_layout_component_edit(
         layout_component_edits::InspectorField::MirroredHalfState => "layout-mirrored-half-state",
         layout_component_edits::InspectorField::PartMirror => "layout-part-mirror",
         layout_component_edits::InspectorField::CompanionPlacement => "layout-companion-placement",
+        layout_component_edits::InspectorField::PartAnchorValue => "layout-part-anchor-value",
+        layout_component_edits::InspectorField::PartAnchorFollow => "layout-part-anchor-follow",
+        layout_component_edits::InspectorField::PartAnchorPick => "layout-part-anchor-pick",
+        layout_component_edits::InspectorField::PartAnchorDetach => "layout-part-anchor-detach",
     };
     if field.is_field() {
         helper.begin_field(
@@ -2258,7 +2371,11 @@ fn dispatch_layout_component_inspector_action(
         | inspector::LayoutComponentInspectorAction::ConvertOffsetAxes { owner, .. }
         | inspector::LayoutComponentInspectorAction::NavigateElectrical { owner }
         | inspector::LayoutComponentInspectorAction::SetMirroredHalfState { owner, .. }
-        | inspector::LayoutComponentInspectorAction::SetPartMirrored { owner, .. } => owner,
+        | inspector::LayoutComponentInspectorAction::SetPartMirrored { owner, .. }
+        | inspector::LayoutComponentInspectorAction::SetPartAnchorValue { owner, .. }
+        | inspector::LayoutComponentInspectorAction::SetPartAnchorFollow { owner, .. }
+        | inspector::LayoutComponentInspectorAction::SetPartAnchor { owner, .. }
+        | inspector::LayoutComponentInspectorAction::DetachPartAnchor { owner } => owner,
     };
     if !layout_component_inspector_owner_is_current(
         runtime,
@@ -2452,6 +2569,70 @@ fn dispatch_layout_component_inspector_action(
                 None,
             );
         }
+        inspector::LayoutComponentInspectorAction::SetPartAnchorValue { owner, change } => {
+            if !part_anchor_value_finite(&change) {
+                return;
+            }
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::PartAnchorValue,
+                layout_component_edits::part_anchor_value_resolver(owner.part_id, change),
+                None,
+            );
+        }
+        inspector::LayoutComponentInspectorAction::SetPartAnchorFollow { owner, follow } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::PartAnchorFollow,
+                layout_component_edits::part_anchor_follow_resolver(owner.part_id, follow),
+                None,
+            );
+        }
+        inspector::LayoutComponentInspectorAction::SetPartAnchor {
+            owner,
+            matrix_id,
+            row,
+            column,
+            follow,
+        } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::PartAnchorPick,
+                layout_component_edits::part_anchor_pick_resolver(
+                    owner.part_id,
+                    matrix_id,
+                    row,
+                    column,
+                    follow,
+                ),
+                None,
+            );
+        }
+        inspector::LayoutComponentInspectorAction::DetachPartAnchor { owner } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::PartAnchorDetach,
+                layout_component_edits::part_anchor_detach_resolver(owner.part_id),
+                None,
+            );
+        }
+    }
+}
+
+/// Ticket 13: finite check for anchor value edits; Follow, Pick and Detach
+/// carry no floats.
+fn part_anchor_value_finite(change: &boardstudio_core::model::PartAnchorValueChange) -> bool {
+    use boardstudio_core::model::PartAnchorValueChange as Change;
+    match change {
+        Change::Spread(value)
+        | Change::Stagger(value)
+        | Change::Splay(value)
+        | Change::Rotation(value) => value.is_finite(),
+        Change::Offset(offset) => offset.x.is_finite() && offset.y.is_finite(),
     }
 }
 

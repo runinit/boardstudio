@@ -292,6 +292,7 @@ mod layout_finding_return_regression_tests {
         document.parts.push(Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: "left-U1".into(),
             definition_id: "controller".into(),
             reference: "U1".into(),

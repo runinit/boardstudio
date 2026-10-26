@@ -65,6 +65,7 @@ fn preview_does_not_commit_and_stale_edit_fails() {
         generator: None,
     });
     doc.parts.push(Part {
+        anchor: None,
         id: "k1".into(),
         definition_id: "switch".into(),
         reference: "SW1".into(),
@@ -279,6 +280,7 @@ fn mechanical_holes_do_not_need_pad_numbers() {
         })
         .collect();
     doc.parts.push(Part {
+        anchor: None,
         id: "switch".into(),
         definition_id: "switch".into(),
         reference: "SW1".into(),
@@ -335,6 +337,7 @@ fn part_envelope_tracks_committed_move() {
         generator: None,
     });
     doc.parts.push(Part {
+        anchor: None,
         id: "k1".into(),
         definition_id: "switch".into(),
         reference: "SW1".into(),
@@ -498,6 +501,7 @@ fn added_part_joins_board_and_envelope_then_removes_cleanly() {
         document: doc,
     });
     let part = Part {
+        anchor: None,
         id: "k1".into(),
         definition_id: "switch".into(),
         reference: "SW1".into(),
@@ -569,6 +573,7 @@ fn add_part_targets_board_and_removal_cleans_both_boards() {
         document: doc,
     });
     let part = Part {
+        anchor: None,
         id: "k1".into(),
         definition_id: "switch".into(),
         reference: "SW1".into(),
@@ -682,6 +687,7 @@ fn pcb_readiness_checks_pads_outlines_and_thickness() {
         generator: None,
     });
     doc.parts.push(Part {
+        anchor: None,
         id: "k1".into(),
         definition_id: "switch".into(),
         reference: "SW1".into(),
@@ -758,6 +764,7 @@ fn invalid_definition_geometry_blocks_own_board() {
             vias: vec![],
         });
         doc.parts.push(Part {
+            anchor: None,
             id: format!("{id}-part"),
             definition_id: format!("{id}-def"),
             reference: id.into(),
@@ -877,6 +884,7 @@ fn empty_definition_and_pad_ids_are_reported() {
         generator: None,
     });
     doc.parts.push(Part {
+        anchor: None,
         id: "p".into(),
         definition_id: "".into(),
         reference: "U1".into(),
@@ -942,6 +950,7 @@ fn duplicate_pad_nets_and_invalid_case_block_readiness() {
         generator: None,
     });
     doc.parts.push(Part {
+        anchor: None,
         id: "u1".into(),
         definition_id: "part".into(),
         reference: "U1".into(),
@@ -1528,6 +1537,7 @@ fn matrixless_linked_add_part_projects_from_either_half_and_preserves_omission()
         definition.id = "catalog:matrixless-addition".into();
         definition.name = "Matrixless addition".into();
         let part = Part {
+            anchor: None,
             id: part_id.into(),
             definition_id: definition.id.clone(),
             reference: reference.into(),
@@ -1664,6 +1674,7 @@ fn matrixless_native_pair_with_omitted_part() -> (CoreEngine, ProjectDoc) {
     previous_definition.kind = PartKind::Passive;
     document.definitions.push(previous_definition.clone());
     document.parts.push(Part {
+        anchor: None,
         id: "part-previous".into(),
         definition_id: previous_definition.id,
         reference: "J0".into(),
@@ -3040,6 +3051,7 @@ fn matrix_duplicate_allocates_new_member_ids() {
 fn failed_matrix_preview_restores_document() {
     let mut doc = matrix_doc();
     doc.parts.push(Part {
+        anchor: None,
         id: "matrix/main/r0c1".into(),
         definition_id: "switch".into(),
         reference: "SW99".into(),
@@ -3452,6 +3464,7 @@ fn constraint_preview_commit_and_undo() {
     let mut doc = ProjectDoc::empty("p", "Project");
     for id in ["source", "target"] {
         doc.parts.push(Part {
+            anchor: None,
             id: id.into(),
             definition_id: "switch".into(),
             reference: id.into(),
@@ -4805,6 +4818,7 @@ fn undo_retains_only_the_latest_hundred_commits() {
     let mut engine = CoreEngine::new();
     let mut seed = ProjectDoc::empty("bounded-history", "0");
     seed.parts.push(Part {
+        anchor: None,
         id: "part-0".into(),
         definition_id: "catalog:unused".into(),
         reference: "P0".into(),

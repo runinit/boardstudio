@@ -193,6 +193,10 @@ pub(super) fn translate(
         | Op::SetLayout { .. }
         | Op::SetSplitGap { .. }
         | Op::SetMirroredPart { .. }
+        | Op::SetPartAnchor { .. }
+        | Op::SetPartAnchorFollow { .. }
+        | Op::DetachPartAnchor { .. }
+        | Op::SetPartAnchorValues { .. }
         | Op::CreateMirroredPair { .. }
         | Op::SetConstraint { .. }
         | Op::RemoveConstraint { .. }

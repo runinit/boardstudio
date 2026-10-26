@@ -150,6 +150,7 @@ fn project_with_optional_template(
                 rotation: 0.0,
             },
             side: Side::Front,
+            anchor: None,
             outline: Some(PartOutline {
                 excluded: true,
                 ..PartOutline::default()
@@ -435,6 +436,7 @@ mod tests {
         let definition = hole_template();
         document.definitions.push(definition.clone());
         document.parts.push(Part {
+            anchor: None,
             id: "authored".into(),
             definition_id: definition.id,
             reference: reference.into(),
@@ -515,6 +517,7 @@ mod tests {
             .parameters
             .insert("unrelated".into(), serde_json::json!({"preserve": true}));
         document.parts.push(Part {
+            anchor: None,
             id: "authored".into(),
             definition_id: "authored-def".into(),
             reference: "MH4294967295".into(),
@@ -538,6 +541,7 @@ mod tests {
             mirror_link: None,
         });
         document.parts.push(Part {
+            anchor: None,
             id: "case-closure/stale".into(),
             definition_id: "stale".into(),
             reference: "MH88".into(),

@@ -32,6 +32,7 @@ use geometry::{OutlineCache, outlines};
 pub use matrix::kernel as layout_kernel;
 use matrix::layout;
 pub use matrix::layout::evaluated_part_pose;
+pub use matrix::layout::half_offset;
 pub use matrix::layout::is_matrix_key;
 pub use matrix::layout::layout_half_offset;
 pub use matrix::layout::part_correspondence;
@@ -1403,6 +1404,7 @@ mod preview_backup_tests {
 
     fn part(id: &str) -> Part {
         Part {
+            anchor: None,
             keycap: None,
             outline: None,
             id: id.into(),
@@ -1567,6 +1569,10 @@ fn affects_outline(op: &EditOperation) -> bool {
             | EditOperation::SetLayout { .. }
             | EditOperation::SetSplitGap { .. }
             | EditOperation::SetMirroredPart { .. }
+            | EditOperation::SetPartAnchor { .. }
+            | EditOperation::SetPartAnchorFollow { .. }
+            | EditOperation::DetachPartAnchor { .. }
+            | EditOperation::SetPartAnchorValues { .. }
             | EditOperation::SetConstraint { .. }
             | EditOperation::RemoveConstraint { .. }
             | EditOperation::ReplaceDocument { .. }
@@ -1711,6 +1717,25 @@ fn add_part_placement(
     // Ticket 12: drops onto a stored-gap half arrive board-space; storage is
     // half-frame, so convert at insertion. Rotations are frame-free.
     let mut stored = part.clone();
+    // Ticket 13: an independent drop without an anchor takes the nearest key
+    // of its half, keeping the drop point upright. Members, companions and
+    // driven parts stay unanchored; a preset anchor is validated on use.
+    if stored.anchor.is_none()
+        && let Some(layout_id) = layout_id
+        && !matrix::layout::is_member_or_companion(document, &part.id)
+        && document
+            .constraint_driving_part(&part.id)
+            .ok()
+            .flatten()
+            .is_none()
+    {
+        stored.anchor = matrix::part_anchors::drop_anchor(document, layout_id, part.pose);
+    }
+    // A preset anchor is validated like a Pick: a stale key refuses instead
+    // of silently falling back to the stored pose.
+    if let Some(anchor) = stored.anchor.as_ref() {
+        matrix::part_anchors::validate_target(document, &stored, anchor)?;
+    }
     if let Some(layout_id) = layout_id
         && let Some(offset) = layout::layout_half_offset(document, layout_id)
         && !layout::is_member_or_companion(document, &part.id)
@@ -1927,6 +1952,12 @@ fn apply_with_ledger(
                 // Drags arrive board-space while storage is half-frame, so the
                 // retune delta measures against the evaluated pose.
                 let at = layout::clamp_part_to_half(doc, &position.id, position.at);
+                // Ticket 13: an anchored part re-solves Spread/Stagger from
+                // the clamped drop instead of writing the pose.
+                if doc.parts[index].anchor.is_some() {
+                    changed.extend(matrix::part_anchors::move_anchored(doc, &position.id, at)?);
+                    continue;
+                }
                 let current = layout::evaluated_part_pose(doc, &doc.parts[index]);
                 let delta = Vec2 {
                     x: at.x - current.at.x,
@@ -2013,6 +2044,16 @@ fn apply_with_ledger(
         },
         EditOperation::SetMirroredPart { part_id, mirrored } => {
             layout::set_part_mirrored(doc, part_id, *mirrored)
+        }
+        EditOperation::SetPartAnchor { part_id, anchor } => {
+            matrix::part_anchors::set_anchor(doc, part_id, anchor)
+        }
+        EditOperation::SetPartAnchorFollow { part_id, follow } => {
+            matrix::part_anchors::set_follow(doc, part_id, follow)
+        }
+        EditOperation::DetachPartAnchor { part_id } => matrix::part_anchors::detach(doc, part_id),
+        EditOperation::SetPartAnchorValues { part_id, change } => {
+            matrix::part_anchors::set_value(doc, part_id, change)
         }
         EditOperation::RemoveMatrix { id } => {
             let ids = doc
@@ -2786,6 +2827,7 @@ mod preview_electrical_loss_tests {
     fn document() -> ProjectDoc {
         let mut document = ProjectDoc::empty("project", "Test");
         document.parts.push(Part {
+            anchor: None,
             keycap: None,
             outline: None,
             id: "part:one".into(),

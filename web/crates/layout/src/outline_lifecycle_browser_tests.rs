@@ -1185,6 +1185,7 @@ async fn mounted_polygon_outline_inspector_with_points_and_connections(
             locked: None,
             keycap: None,
             outline: None,
+            anchor: None,
             properties: None,
             generator_parameters: None,
         });

@@ -655,6 +655,7 @@ mod tests {
 
     fn part(id: &str, x: f64, y: f64) -> Part {
         Part {
+            anchor: None,
             id: id.into(),
             definition_id: "key".into(),
             reference: id.into(),

@@ -99,6 +99,7 @@ fn assembly(id: &str, definition: &str, x: f64, y: f64) -> MatrixAssembly {
 
 fn companion_part() -> Part {
     Part {
+        anchor: None,
         id: "anchor".into(),
         definition_id: "switch".into(),
         reference: "ANCHOR".into(),

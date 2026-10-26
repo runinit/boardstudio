@@ -27,12 +27,13 @@ use crate::model::{
 };
 use serde_json::json;
 pub(crate) mod layout;
+pub(crate) mod part_anchors;
 pub(crate) mod placement;
 pub(crate) mod splay;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) const MAX_MATRIX_PARTS: u32 = 4096;
-const OVERRIDE: &str = "layoutOverride";
+pub(crate) const OVERRIDE: &str = "layoutOverride";
 const DEFAULT_EDGE_GAP_MM: f64 = 1.0;
 const SWITCH_ROW_PAD: &str = "one";
 const SWITCH_COLUMN_PAD: &str = "two";
@@ -760,6 +761,7 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
                         reference,
                         pose,
                         side,
+                        anchor: None,
                         locked: None,
                         keycap: None,
                         outline: None,
@@ -903,6 +905,7 @@ mod projection_tests {
 
     fn part(id: &str, x: f64, y: f64) -> Part {
         Part {
+            anchor: None,
             keycap: None,
             outline: None,
             id: id.into(),

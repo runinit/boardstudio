@@ -79,6 +79,7 @@ fn definitions() -> Vec<PartDefinition> {
 
 fn key_part(id: &str, x: f64, y: f64) -> Part {
     Part {
+        anchor: None,
         id: id.into(),
         definition_id: "switch".into(),
         reference: id.into(),

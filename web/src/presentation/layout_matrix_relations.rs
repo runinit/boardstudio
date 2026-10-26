@@ -420,6 +420,11 @@ pub(super) fn RelationMatrixKey(
     part_id: Option<String>,
     selected: bool,
     #[props(default)] dimmed: bool,
+    /// Ticket 17: the canvas anchor badge target. The violet dashed reference
+    /// stands while the selection does, so it wins over dimming like the
+    /// selection itself; the amber field preview still wins every tie.
+    #[props(default)]
+    anchor_target: bool,
     x: f64,
     y: f64,
     width: f64,
@@ -439,16 +444,17 @@ pub(super) fn RelationMatrixKey(
     // Ticket 14: selection stays solid on the dimmed half; only unselected
     // unfocused keys fade to the grey dashed outline. Ticket 16: the amber
     // at-rest field preview wins ties so the hovered field reads through
-    // selection, dimming and violet references alike.
+    // selection, dimming and violet references alike. Ticket 17: the badge
+    // target is selection chrome, so it wins over dimming like the selection.
     let previewed = field_previews(part_id.as_ref());
     let class = if previewed {
         "m1-matrix-key is-field-preview"
     } else if selected {
         "m1-matrix-key is-selected"
+    } else if anchor_target || highlighted {
+        "m1-matrix-key is-relation-highlight"
     } else if dimmed {
         "m1-matrix-key is-dimmed"
-    } else if highlighted {
-        "m1-matrix-key is-relation-highlight"
     } else {
         "m1-matrix-key"
     };
@@ -468,6 +474,9 @@ pub(super) fn RelationPartOutline(
     selected: bool,
     points: String,
     #[props(default)] dimmed: bool,
+    /// Ticket 17: the canvas anchor badge target, like the key rect above.
+    #[props(default)]
+    anchor_target: bool,
 ) -> Element {
     let RelationHighlight(highlight) = use_context::<RelationHighlight>();
     let highlighted = highlight()
@@ -478,10 +487,10 @@ pub(super) fn RelationPartOutline(
         "m1-part is-field-preview"
     } else if selected {
         "m1-part selected"
+    } else if anchor_target || highlighted {
+        "m1-part is-relation-highlight"
     } else if dimmed {
         "m1-part is-dimmed"
-    } else if highlighted {
-        "m1-part is-relation-highlight"
     } else {
         "m1-part"
     };

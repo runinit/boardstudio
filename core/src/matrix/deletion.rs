@@ -615,6 +615,7 @@ mod framed_constraint_deletion_tests {
 
     fn part(id: &str) -> Part {
         Part {
+            anchor: None,
             id: id.into(),
             definition_id: "key".into(),
             reference: id.into(),

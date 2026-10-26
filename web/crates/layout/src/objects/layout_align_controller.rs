@@ -908,6 +908,7 @@ mod resolver_tests {
         Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: id.into(),
             definition_id: "switch:base".into(),
             reference: id.to_uppercase(),
@@ -1066,6 +1067,7 @@ mod resolver_tests {
         Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: id.into(),
             definition_id: "switch:base".into(),
             reference: reference.into(),

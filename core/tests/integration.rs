@@ -141,3 +141,6 @@ mod split_creation_gap;
 
 #[path = "split_half_frame_parts.rs"]
 mod split_half_frame_parts;
+
+#[path = "split_part_anchoring.rs"]
+mod split_part_anchoring;

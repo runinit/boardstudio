@@ -57,6 +57,7 @@ pub(super) fn add_for_mount(
         reference,
         pose,
         side: instance.host_face.clone(),
+        anchor: None,
         locked: None,
         properties: None,
         generator_parameters: None,

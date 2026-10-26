@@ -2,8 +2,8 @@
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::model::{
     CompanionPlacementTarget, Constraint, ConstraintEndpoint, ConstraintRelation, EditOperation,
-    HalfExceptionState, MirroredCompanionMode, MirroredCompanionTweak, MirroredItemKind,
-    OffsetAxes, Part, PartOutline, Position, ProjectDoc, Vec2,
+    Follow, HalfExceptionState, MirroredCompanionMode, MirroredCompanionTweak, MirroredItemKind,
+    OffsetAxes, Part, PartAnchorValueChange, PartOutline, Position, ProjectDoc, Vec2,
 };
 
 use super::inspector::{ComponentPositionAxis, LayoutConstraintValues};
@@ -20,6 +20,10 @@ pub(super) enum InspectorField {
     MirroredHalfState,
     PartMirror,
     CompanionPlacement,
+    PartAnchorValue,
+    PartAnchorFollow,
+    PartAnchorPick,
+    PartAnchorDetach,
 }
 
 impl InspectorField {
@@ -101,17 +105,25 @@ pub fn position_resolver(
                     "A selected part no longer exists; the position was not changed.".into(),
                 );
             }
-            let mut at = part.pose.at;
+            // Ticket 13: typed positions are board-space, so an anchored part
+            // edits from its evaluated pose while a detached part edits from
+            // its stored half-frame pose.
+            let base = if part.anchor.is_some() {
+                boardstudio_core::evaluated_part_pose(document, part).at
+            } else {
+                part.pose.at
+            };
+            let mut at = base;
             match axis {
                 ComponentPositionAxis::X => at.x = value,
                 ComponentPositionAxis::Y => at.y = value,
             }
-            if at == part.pose.at {
+            if at == base {
                 return Resolution::Unchanged;
             }
             let delta = Vec2 {
-                x: at.x - part.pose.at.x,
-                y: at.y - part.pose.at.y,
+                x: at.x - base.x,
+                y: at.y - base.y,
             };
             let positions = selected_part_ids
                 .iter()
@@ -571,6 +583,130 @@ pub fn part_mirror_resolver(part_id: String, mirrored: bool) -> EditResolver {
             },
         )
     })
+}
+
+/// Ticket 13: the shared guard for part anchor edits: the part still exists
+/// and still carries an anchor (Pick also anchors a detached part, so it
+/// skips the anchor check).
+fn anchor_guard(
+    accepted: &AcceptedSnapshot,
+    part_id: &str,
+    needs_anchor: bool,
+) -> Option<Resolution> {
+    let document = &accepted.document;
+    let Some(part) = part_of(document, part_id) else {
+        return Some(Resolution::Retire("The part no longer exists.".into()));
+    };
+    if part.locked == Some(true) {
+        return Some(Resolution::Retire("This part is locked.".into()));
+    }
+    if needs_anchor && part.anchor.is_none() {
+        return Some(Resolution::Retire("The part is no longer anchored.".into()));
+    }
+    match document.constraint_driving_part(part_id) {
+        Ok(Some(_)) => Some(Resolution::Retire(
+            "This part is driven by a relationship.".into(),
+        )),
+        Ok(None) => None,
+        Err(_) => Some(Resolution::Retire(
+            "The saved placement relationship could not be verified.".into(),
+        )),
+    }
+}
+
+/// Ticket 13: edit one carried or local anchor value in one Undo entry via
+/// SetPartAnchorValues.
+pub fn part_anchor_value_resolver(part_id: String, change: PartAnchorValueChange) -> EditResolver {
+    EditResolver::new(
+        "layout-part-anchor-value",
+        move |accepted: &AcceptedSnapshot| {
+            if let Some(resolution) = anchor_guard(accepted, &part_id, true) {
+                return resolution;
+            }
+            commit(
+                EditOperation::SetPartAnchorValues {
+                    part_id: part_id.clone(),
+                    change: change.clone(),
+                },
+                vec![part_id.clone()],
+            )
+        },
+    )
+}
+
+/// Ticket 13: change the Follow subset in one Undo entry via
+/// SetPartAnchorFollow, keeping the pose.
+pub fn part_anchor_follow_resolver(part_id: String, follow: Follow) -> EditResolver {
+    EditResolver::new(
+        "layout-part-anchor-follow",
+        move |accepted: &AcceptedSnapshot| {
+            if let Some(resolution) = anchor_guard(accepted, &part_id, true) {
+                return resolution;
+            }
+            commit(
+                EditOperation::SetPartAnchorFollow {
+                    part_id: part_id.clone(),
+                    follow,
+                },
+                vec![part_id.clone()],
+            )
+        },
+    )
+}
+
+/// Ticket 13: retarget the anchor key (or anchor a detached part) in one Undo
+/// entry via SetPartAnchor, keeping the pose.
+pub fn part_anchor_pick_resolver(
+    part_id: String,
+    matrix_id: String,
+    row: u32,
+    column: u32,
+    follow: Follow,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-part-anchor-pick",
+        move |accepted: &AcceptedSnapshot| {
+            if let Some(resolution) = anchor_guard(accepted, &part_id, false) {
+                return resolution;
+            }
+            commit(
+                EditOperation::SetPartAnchor {
+                    part_id: part_id.clone(),
+                    anchor: boardstudio_core::model::PartAnchor {
+                        matrix_id: matrix_id.clone(),
+                        row,
+                        column,
+                        follow,
+                        spread: 0.0,
+                        stagger: 0.0,
+                        splay: 0.0,
+                        offset: Vec2::default(),
+                        rotation: 0.0,
+                    },
+                },
+                vec![part_id.clone()],
+            )
+        },
+    )
+}
+
+/// Ticket 13: detach the anchor in one Undo entry via DetachPartAnchor,
+/// keeping the pose.
+pub fn part_anchor_detach_resolver(part_id: String) -> EditResolver {
+    EditResolver::new(
+        "layout-part-anchor-detach",
+        move |accepted: &AcceptedSnapshot| {
+            if let Some(resolution) = anchor_guard(accepted, &part_id, true) {
+                return resolution;
+            }
+            commit(
+                EditOperation::DetachPartAnchor {
+                    part_id: part_id.clone(),
+                },
+                vec![part_id.clone()],
+            )
+        },
+    )
 }
 
 pub fn companion_placement_resolver(
