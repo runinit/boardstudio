@@ -176,10 +176,14 @@ instrumented save sequence showed it. The old runner's Undo failure and the
    froze the main thread; the layout launch could not finish. Present before
    these fixes (already on the Ticket 08 base); fixed by reading with `peek`.
 
-Still open and not caused by this work: layout test
-`detached_part_pick_anchors_from_the_half_origin` (fixture has no mirror link, so
-no half-origin ring), layout `matrix_transform_inspector` detach-pose failure
-(`detach_proposal_confirms_the_named_local_exception_atomically`, red on the
-base), and page-suite relation-highlight failures that also fail before Ticket 08.
+The layout test `detached_part_pick_anchors_from_the_half_origin` failed historically;
+the diagnosis that an unsplit fixture has no half-origin ring was incorrect. On
+the rebased worktree the mounted test passed in the focused anchor-pick run
+(9 passed), which checked for a major ring. A subsequent focused run passed
+the stronger assertion for the Half origin's white current dot (1 passed).
+The layout `matrix_transform_inspector` detach-pose
+test was red on the base, and page-suite relation-highlight failures also failed
+before Ticket 08. Follow-up focused receipts on the rebased worktree cover the
+detach test and Relations module; they do not establish full-suite acceptance.
 005's other gates are unchanged: joint library+browser pinning, protocol
 event-safety, and CI cutover. Playwright remains the default driver.

@@ -38,6 +38,9 @@ mod layout_layers_tests;
 #[cfg(test)]
 mod layout_relation_highlight_tests;
 #[cfg(test)]
+#[derive(Clone, Default)]
+struct RelationHighlightTestContext(Rc<RefCell<Option<Signal<Option<Vec<String>>>>>>);
+#[cfg(test)]
 mod layout_remainder_tests;
 #[cfg(test)]
 mod layout_spacing_ghost_tests;
@@ -3568,6 +3571,10 @@ fn Editor() -> Element {
     // The Relations highlight is transient view state. A selection, workspace or board change
     // clears it; an accepted revision that drops its parts is handled by the canvas filter.
     let relation_highlight = use_signal(|| None::<Vec<String>>);
+    #[cfg(test)]
+    if let Some(context) = try_consume_context::<RelationHighlightTestContext>() {
+        *context.0.borrow_mut() = Some(relation_highlight);
+    }
     use_context_provider(|| RelationHighlight(relation_highlight));
     let highlight_context = (
         adapter.selected_context.read().clone(),

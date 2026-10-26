@@ -18,6 +18,7 @@ const COLUMNS: u32 = 5;
 
 #[derive(Clone)]
 struct Probe {
+    relation_highlight: RelationHighlightTestContext,
     runtime: Rc<crate::runtime::Runtime>,
     root_id: &'static str,
     adapter: Rc<RefCell<Option<SelectionAdapter>>>,
@@ -26,6 +27,15 @@ struct Probe {
 }
 
 impl Probe {
+    fn highlighted_parts(&self) -> Option<Vec<String>> {
+        self.relation_highlight
+            .0
+            .borrow()
+            .expect("mounted highlight signal")
+            .peek()
+            .clone()
+    }
+
     fn select(&self, context: objects::TreeContext) {
         let adapter = self.adapter.borrow().clone().expect("mounted adapter");
         selection::submit_context(
@@ -273,17 +283,17 @@ async fn hovering_a_breadcrumb_chip_highlights_only_its_keys() {
     let chip = probe.element("nav.m1-placement-crumbs [data-crumb-label='Inherited by'] button");
     dispatch(&chip, "pointerenter");
     wait_until("hovering the chip highlights Column 4's keys", || {
-        highlighted_columns(root_id) == vec!["3".to_owned(); ROWS as usize]
+        highlighted_columns(root_id) == vec!["1", "3", "1", "3"]
     })
     .await;
     assert_eq!(
         highlighted_columns(root_id),
-        vec!["3".to_owned(); ROWS as usize],
-        "hovering the chip marks exactly Column 4's keys (data-column 3)"
+        vec!["1", "3", "1", "3"],
+        "hovering adds Column 4 to the persistent Column 2 anchor"
     );
     dispatch(&chip, "pointerleave");
-    wait_until("leaving the chip clears its highlight", || {
-        count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
+    wait_until("leaving the chip clears its transient highlight", || {
+        highlighted_columns(root_id) == vec!["1", "1"]
     })
     .await;
     assert_eq!(
@@ -408,6 +418,7 @@ async fn mount_with(root_id: &'static str, matrix: serde_json::Value) -> Probe {
     support::submit_fixed_command(&runtime, set_matrix_command(revision, matrix));
     support::run_pending(&runtime).await;
     let probe = Probe {
+        relation_highlight: RelationHighlightTestContext::default(),
         runtime: runtime.clone(),
         root_id,
         adapter: Rc::default(),
@@ -420,6 +431,7 @@ async fn mount_with(root_id: &'static str, matrix: serde_json::Value) -> Probe {
     dom_document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(host);
     dom.provide_root_context(runtime.clone());
+    dom.provide_root_context(probe.relation_highlight.clone());
     dom.provide_root_context(probe.clone());
     dioxus_web::launch::launch_virtual_dom(
         dom,
@@ -455,13 +467,13 @@ async fn hovering_an_inherited_column_highlights_only_its_keys() {
     let reference = probe.inherited_by_reference();
     dispatch(&reference, "pointerenter");
     wait_until("hovering Column 4 highlights its keys", || {
-        highlighted_columns(root_id) == vec!["3".to_owned(); ROWS as usize]
+        highlighted_columns(root_id) == vec!["1", "3", "1", "3"]
     })
     .await;
     assert_eq!(
         highlighted_columns(root_id),
-        vec!["3".to_owned(); ROWS as usize],
-        "hovering Column 4 marks exactly Column 4's keys (data-column 3)"
+        vec!["1", "3", "1", "3"],
+        "hovering adds Column 4 to the persistent Column 2 anchor"
     );
     assert_eq!(
         count(root_id, ".m1-matrix-key.is-selected"),
@@ -469,11 +481,12 @@ async fn hovering_an_inherited_column_highlights_only_its_keys() {
         "the selected Column 3 keys keep the selection treatment"
     );
     dispatch(&reference, "pointerleave");
-    wait_until("leaving the reference clears its highlight", || {
-        count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
-    })
+    wait_until(
+        "leaving the reference clears its transient highlight",
+        || highlighted_columns(root_id) == vec!["1", "1"],
+    )
     .await;
-    assert_eq!(count(root_id, ".m1-matrix-key.is-relation-highlight"), 0);
+    assert_eq!(highlighted_columns(root_id), vec!["1", "1"]);
     assert_eq!(
         probe.revision(),
         before,
@@ -486,22 +499,32 @@ async fn keyboard_focus_highlights_and_blur_clears() {
     let root_id = "relation-highlight-focus";
     let probe = mount_column_relations(root_id).await;
     let reference = probe.inherited_by_reference();
-    reference.focus().unwrap();
-    wait_until("keyboard focus highlights Column 4's keys", || {
-        highlighted_columns(root_id) == vec!["3".to_owned(); ROWS as usize]
-    })
-    .await;
     assert_eq!(
         highlighted_columns(root_id),
-        vec!["3".to_owned(); ROWS as usize],
-        "keyboard focus gives the same highlight as hover"
+        vec!["1", "1"],
+        "Column 2 is the persistent anchor target"
     );
-    reference.blur().unwrap();
-    wait_until("blurring the reference clears its highlight", || {
-        count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
+    reference.focus().unwrap();
+    assert!(
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .active_element()
+            .is_some_and(|active| active.is_same_node(Some(&reference))),
+        "the relation reference receives keyboard focus"
+    );
+    wait_until("keyboard focus highlights Column 4's keys", || {
+        highlighted_columns(root_id) == vec!["1", "3", "1", "3"]
     })
     .await;
-    assert_eq!(count(root_id, ".m1-matrix-key.is-relation-highlight"), 0);
+    assert_eq!(highlighted_columns(root_id), vec!["1", "3", "1", "3"]);
+    reference.blur().unwrap();
+    wait_until("blurring clears the transient highlight", || {
+        highlighted_columns(root_id) == vec!["1", "1"]
+    })
+    .await;
+    assert_eq!(highlighted_columns(root_id), vec!["1", "1"]);
 }
 
 #[wasm_bindgen_test]
@@ -510,10 +533,10 @@ async fn changing_the_selection_clears_the_highlight() {
     let probe = mount_column_relations(root_id).await;
     dispatch(&probe.inherited_by_reference(), "pointerenter");
     wait_until("hovering the reference highlights every key", || {
-        count(root_id, ".m1-matrix-key.is-relation-highlight") == ROWS
+        highlighted_columns(root_id) == vec!["1", "3", "1", "3"]
     })
     .await;
-    assert_eq!(count(root_id, ".m1-matrix-key.is-relation-highlight"), ROWS);
+    assert_eq!(highlighted_columns(root_id), vec!["1", "3", "1", "3"]);
     probe.select(objects::TreeContext::Key {
         matrix_id: MATRIX.into(),
         row: 0,
@@ -536,7 +559,7 @@ async fn a_key_removed_while_highlighted_leaves_nothing_highlighted() {
     let probe = mount_column_relations(root_id).await;
     dispatch(&probe.inherited_by_reference(), "pointerenter");
     wait_until("hovering the reference highlights Column 4", || {
-        count(root_id, ".m1-matrix-key.is-relation-highlight") == ROWS
+        highlighted_columns(root_id) == vec!["1", "3", "1", "3"]
     })
     .await;
     let keys_before = count(root_id, ".m1-matrix-key");
@@ -548,7 +571,7 @@ async fn a_key_removed_while_highlighted_leaves_nothing_highlighted() {
         "the removed keys leave the canvas and their highlight",
         || {
             count(root_id, ".m1-matrix-key") == keys_before - ROWS
-                && count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
+                && highlighted_columns(root_id) == vec!["1", "1"]
         },
     )
     .await;
@@ -562,9 +585,9 @@ async fn a_key_removed_while_highlighted_leaves_nothing_highlighted() {
         "the removed keys leave the canvas"
     );
     assert_eq!(
-        count(root_id, ".m1-matrix-key.is-relation-highlight"),
-        0,
-        "the removed keys are not highlighted"
+        highlighted_columns(root_id),
+        vec!["1", "1"],
+        "only the persistent anchor keys remain highlighted"
     );
     assert_eq!(count(root_id, "[role='alert']"), 0, "no error is raised");
 }
@@ -893,15 +916,22 @@ async fn hovering_follows_highlights_the_anchor_key() {
     .await;
     let before = probe.revision();
     let reference = probe.element("li[data-relation-label='Follows'] button");
+    assert_eq!(
+        highlighted_columns(root_id),
+        vec!["0"],
+        "the anchor key is persistently highlighted"
+    );
     dispatch(&reference, "pointerenter");
-    wait_until("the anchor key lights up", || {
-        highlighted_columns(root_id) == vec!["0".to_string()]
+    wait_until("hovering highlights the anchor key", || {
+        probe.highlighted_parts() == Some(vec!["matrix/main/r0c0".into()])
+            && highlighted_columns(root_id) == vec!["0"]
     })
     .await;
     dispatch(&reference, "pointerleave");
-    wait_until("leaving the reference clears its highlight", || {
-        count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
-    })
+    wait_until(
+        "leaving clears the transient highlight and preserves the anchor",
+        || probe.highlighted_parts().is_none() && highlighted_columns(root_id) == vec!["0"],
+    )
     .await;
     assert_eq!(
         probe.revision(),
@@ -1020,31 +1050,39 @@ async fn hovering_an_aggregate_part_highlights_only_its_key() {
         .unwrap()
         .dyn_into::<web_sys::Element>()
         .unwrap();
+    let anchors = vec![
+        ("0".to_owned(), "0".to_owned()),
+        ("1".to_owned(), "4".to_owned()),
+    ];
+    assert_eq!(
+        highlighted_keys(root_id),
+        anchors,
+        "both aggregate anchors are persistent"
+    );
     dispatch(&first, "pointerenter");
-    wait_until("hovering the first part highlights its key", || {
-        highlighted_keys(root_id) == vec![("0".to_owned(), "0".to_owned())]
+    wait_until("hovering the first part highlights only its key", || {
+        probe.highlighted_parts() == Some(vec!["matrix/main/r0c0".into()])
+            && highlighted_keys(root_id) == anchors
     })
     .await;
     dispatch(&first, "pointerleave");
-    wait_until("leaving the first part clears its highlight", || {
-        highlighted_keys(root_id).is_empty()
-    })
+    wait_until(
+        "leaving the first part clears its transient highlight",
+        || probe.highlighted_parts().is_none() && highlighted_keys(root_id) == anchors,
+    )
     .await;
     dispatch(&second, "pointerenter");
-    wait_until("hovering the second part highlights its key", || {
-        highlighted_keys(root_id) == vec![("1".to_owned(), "4".to_owned())]
+    wait_until("hovering the second part highlights only its key", || {
+        probe.highlighted_parts() == Some(vec!["matrix/main/r1c4".into()])
+            && highlighted_keys(root_id) == anchors
     })
     .await;
     dispatch(&second, "pointerleave");
-    wait_until("leaving the second part clears its highlight", || {
-        highlighted_keys(root_id).is_empty()
-    })
+    wait_until(
+        "leaving the second part clears its transient highlight",
+        || probe.highlighted_parts().is_none() && highlighted_keys(root_id) == anchors,
+    )
     .await;
-    assert_eq!(
-        highlighted_keys(root_id),
-        Vec::<(String, String)>::new(),
-        "no part stays highlighted"
-    );
     assert_eq!(
         probe.revision(),
         before,

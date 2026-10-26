@@ -11744,7 +11744,6 @@ mod tool_tests {
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
         panic!("the commit toast");
-
     }
 
     async fn arm_pick_via_token(root: &web_sys::Element) {
@@ -12218,11 +12217,19 @@ mod tool_tests {
             ],
             "a detached part can anchor to any layout key"
         );
+        let majors = root.query_selector_all(".m1-anchor-pick-major").unwrap();
+        let half_origin = (0..majors.length())
+            .filter_map(|index| majors.item(index))
+            .find(|major| major.text_content().as_deref() == Some("Half origin"))
+            .expect("the half origin major is rendered")
+            .dyn_into::<web_sys::Element>()
+            .unwrap();
         assert!(
-            root.query_selector(".m1-anchor-pick-major")
+            half_origin
+                .query_selector("circle[r='2.2'][style*='fill:#fff']")
                 .unwrap()
                 .is_some(),
-            "the half origin marks the current placement"
+            "the half origin marks the current placement with a white dot"
         );
         let revision = fixture_revision(&runtime);
         let target = pick_ring(&root, "matrix:0:0");

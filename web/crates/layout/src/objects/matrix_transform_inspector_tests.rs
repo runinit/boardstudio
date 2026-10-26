@@ -506,7 +506,7 @@ fn linked_detach_fixture() -> (ProjectDoc, TreeContext) {
         part_ids: vec![],
         mirror_link: Some(LayoutMirrorLink {
             source_id: "layout".into(),
-            axis_x: 10.0,
+            axis_x: 30.0,
             split_gap: None,
             spacing: None,
             correspondences: vec![
@@ -555,9 +555,9 @@ fn linked_detach_fixture() -> (ProjectDoc, TreeContext) {
         });
     };
     key("matrix/main/r0c0", "K1", 0.0, 0.0);
-    key("matrix/main2/r0c0", "K2", 12.0, 5.0);
+    key("matrix/main2/r0c0", "K2", 52.0, 5.0);
     key("matrix/thumb/r0c0", "K3", 0.0, -19.0);
-    key("matrix/thumb2/r0c0", "K4", 12.0, -14.0);
+    key("matrix/thumb2/r0c0", "K4", 52.0, -14.0);
     // The mirror anchor key is Local with a moved pose. The layout-override
     // mark is what MoveParts writes: without it Open recomputes the stored
     // pose from the mirror source.
@@ -626,7 +626,7 @@ fn linked_detach_fixture() -> (ProjectDoc, TreeContext) {
         "main2",
         "matrix/main2/r0c0",
         Some(boardstudio_core::model::Mirror::X),
-        Vec2 { x: 20.0, y: 0.0 },
+        Vec2 { x: 60.0, y: 0.0 },
         "main2",
     ));
     document.matrices.push(matrix(
@@ -640,7 +640,7 @@ fn linked_detach_fixture() -> (ProjectDoc, TreeContext) {
         "thumb2",
         "matrix/thumb2/r0c0",
         Some(boardstudio_core::model::Mirror::X),
-        Vec2 { x: 20.0, y: -19.0 },
+        Vec2 { x: 60.0, y: -19.0 },
         "main2",
     ));
     // `main` carries no anchor: it places itself.
@@ -3066,15 +3066,21 @@ async fn detach_proposal_confirms_the_named_local_exception_atomically() {
         .expect("an anchored matrix offers Detach")
         .dyn_into::<web_sys::HtmlElement>()
         .unwrap();
-    let poses_before: Vec<(String, Pose2)> = probe
+    let before = probe
         .runtime
         .model()
         .accepted
-        .expect("an accepted document")
+        .expect("an accepted document");
+    let poses_before: Vec<(String, Pose2)> = before
         .document
         .parts
         .iter()
-        .map(|part| (part.id.clone(), part.pose))
+        .map(|part| {
+            (
+                part.id.clone(),
+                boardstudio_core::evaluated_part_pose(&before.document, part),
+            )
+        })
         .collect();
     let revision_before = probe
         .runtime
@@ -3192,17 +3198,32 @@ async fn detach_proposal_confirms_the_named_local_exception_atomically() {
             "confirmed Detach clears {id}"
         );
     }
+    let link = confirmed
+        .document
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .unwrap()
+        .mirror_link
+        .as_ref()
+        .unwrap();
+    assert!(
+        link.split_gap.is_some() && link.spacing.is_none(),
+        "the separated legacy pair is adopted without spacing: {link:?}"
+    );
     for (id, pose) in &poses_before {
         assert_eq!(
-            confirmed
-                .document
-                .parts
-                .iter()
-                .find(|part| &part.id == id)
-                .expect("the part survives")
-                .pose,
+            boardstudio_core::evaluated_part_pose(
+                &confirmed.document,
+                confirmed
+                    .document
+                    .parts
+                    .iter()
+                    .find(|part| &part.id == id)
+                    .expect("the part survives"),
+            ),
             *pose,
-            "confirmed Detach keeps every pose"
+            "confirmed Detach keeps the pose of {id}"
         );
     }
     assert_eq!(
