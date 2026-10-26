@@ -23,6 +23,7 @@ use chromiumoxide::cdp::browser_protocol::target::{
     CreateBrowserContextParams, DisposeBrowserContextParams,
 };
 use chromiumoxide::cdp::js_protocol::runtime::{EvaluateParams, EventExceptionThrown};
+use chromiumoxide::error::CdpError;
 use chromiumoxide::handler::viewport::Viewport;
 use chromiumoxide::{Browser, BrowserConfig, Handler, Page};
 use futures::StreamExt;
@@ -43,23 +44,14 @@ pub const LAUNCH_ARGS: [&str; 2] = ["--use-angle=swiftshader", "--enable-unsafe-
 
 /// Launch Chrome with the shared flags and viewport under an isolated profile.
 ///
-/// Uses the default invalid-message handling: unsolicited experimental events
-/// degrade to a warning plus single-event loss, exactly as Playwright tolerates
-/// protocol additions. Command and subscription failures stay fatal at their
-/// call sites. The child's `XDG_CONFIG_HOME` is overridden so a broken user
-/// config can never crash the launch.
+/// Invalid protocol messages are surfaced and fail the run. The child's
+/// `XDG_CONFIG_HOME` is isolated from the user's configuration.
 pub async fn launch_chrome(chrome: &str, dirs: &IsolatedDirs) -> Result<(Browser, Handler)> {
     let config = BrowserConfig::builder()
         .chrome_executable(chrome)
         .user_data_dir(&dirs.profile_dir)
         .no_sandbox()
-        // NOTE: `surface_invalid_messages` was tried here and reverted:
-        // Chrome 156 emits ~19 messages per run that chromiumoxide 0.9's
-        // snapshot schema cannot parse (benign library/browser skew), which
-        // would fail every run. Joint library+browser pinning at cutover is
-        // the real fix; until then every required protocol interaction has
-        // a timeout or assertion that fails loudly on actual loss, and the
-        // skew stays a documented cutover blocker, not silent proof.
+        .surface_invalid_messages()
         .args(LAUNCH_ARGS)
         .viewport(Viewport {
             width: VIEWPORT_WIDTH,
@@ -84,9 +76,7 @@ pub async fn launch_chrome(chrome: &str, dirs: &IsolatedDirs) -> Result<(Browser
 
 /// Handler errors observed while the run is active.
 ///
-/// Any error here is a protocol or command-routing failure, never an expected
-/// event: the default config already absorbs unsolicited experimental events.
-/// A nonzero count fails the run at teardown.
+/// Protocol and command-routing failures, including invalid events, fail the run.
 #[derive(Debug, Default)]
 pub struct HandlerErrors {
     count: AtomicUsize,
@@ -144,31 +134,30 @@ pub fn spawn_handler_drain(
         let mut handler = handler;
         while let Some(event) = handler.next().await {
             if let Err(error) = event {
-                errors.record(redact(&error.to_string()));
+                let message = match error {
+                    CdpError::InvalidMessage(payload, cause) => {
+                        format!(
+                            "invalid protocol message: {cause}; payload: {}",
+                            redact(&payload)
+                        )
+                    }
+                    other => other.to_string(),
+                };
+                eprintln!("browser handler error: {message}");
+                errors.record(message);
             }
         }
     })
 }
 
-/// Redact secret-bearing headers from a raw protocol message, then cap its
-/// length so one event cannot flood the run log.
+/// Redact secret-bearing headers without truncating the protocol event.
 fn redact(message: &str) -> String {
-    const LIMIT: usize = 8192;
-    let scrubbed = match serde_json::from_str::<Value>(message) {
+    match serde_json::from_str::<Value>(message) {
         Ok(mut value) => {
             scrub_json(&mut value);
-            serde_json::to_string(&value).unwrap_or_else(|_| message.to_owned())
+            value.to_string()
         }
-        Err(_) => message.to_owned(),
-    };
-    if scrubbed.len() > LIMIT {
-        format!(
-            "{}…[truncated {} bytes]",
-            &scrubbed[..LIMIT],
-            scrubbed.len() - LIMIT
-        )
-    } else {
-        scrubbed
+        Err(_) => "[unparseable protocol message redacted]".to_owned(),
     }
 }
 
@@ -177,7 +166,14 @@ fn scrub_json(value: &mut Value) {
         Value::Object(map) => {
             for (key, entry) in map.iter_mut() {
                 let lower = key.to_lowercase();
-                if (lower == "headers" || lower == "responseheaders" || lower == "requestheaders")
+                if matches!(
+                    lower.as_str(),
+                    "headerstext" | "postdata" | "cookie" | "cookies"
+                ) {
+                    *entry = Value::String("[redacted]".to_owned());
+                } else if (lower == "headers"
+                    || lower == "responseheaders"
+                    || lower == "requestheaders")
                     && entry.is_object()
                 {
                     if let Value::Object(headers) = entry {

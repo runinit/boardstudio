@@ -50,6 +50,10 @@ jobs:
         with:
           path: ~/.cache/.wasm-pack
           key: wasm-pack-0.15.0-wasm-bindgen-0.2.129
+      # Prepare the pinned Rust drag-smoke browser without changing system Chrome,
+      # ChromeDriver, or the default Node runner before the cutover gates pass.
+      - name: Provision Rust drag-smoke Chrome
+        run: scripts/install-drag-chrome.sh "$RUNNER_TEMP/drag-chrome"
       - name: Verify headless Chrome tools
         run: |
           google-chrome --version

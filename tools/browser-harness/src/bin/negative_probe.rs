@@ -12,8 +12,6 @@ use std::time::Duration;
 
 use boardstudio_browser_harness::driver::{self, HandlerErrors, PageErrors};
 use boardstudio_browser_harness::{IsolatedDirs, Result};
-use chromiumoxide::cdp::js_protocol::runtime::EventExceptionThrown;
-use futures::StreamExt;
 
 use boardstudio_browser_harness::Error;
 
@@ -164,34 +162,23 @@ async fn run() -> Result<()> {
     )
     .await?;
 
-    // Unhandled rejection: rejected promises surface through the same listener.
-    {
-        let mut rejections = page
-            .event_listener::<EventExceptionThrown>()
-            .await
-            .map_err(|error| fail(format!("negative probe cannot listen: {error}")))?;
-        driver::eval(&page, "Promise.reject(new Error('probe rejection')); 0;").await?;
-        let found = tokio::time::timeout(Duration::from_secs(10), async {
-            while let Some(event) = rejections.next().await {
-                let detail = &event.exception_details;
-                let text = detail
-                    .exception
-                    .as_ref()
-                    .and_then(|exception| exception.description.clone())
-                    .unwrap_or_else(|| detail.text.clone());
-                if text.contains("probe rejection") {
-                    return true;
-                }
-            }
-            false
-        })
-        .await
-        .map_err(|_| fail("negative probe timed out waiting for the rejection"))?;
-        if !found {
-            return Err(fail("negative probe unhandled rejection: no event arrived"));
+    // Exercise the same collector and fatal verdict used by the drag consumer.
+    let rejection_errors = Arc::new(PageErrors::new());
+    driver::spawn_page_error_listener(&page, Arc::clone(&rejection_errors)).await?;
+    driver::eval(&page, "Promise.reject(new Error('probe rejection')); 0;").await?;
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while rejection_errors.messages().is_empty() {
+            tokio::task::yield_now().await;
         }
-        println!("negative probe unhandled rejection: failed as expected (probe rejection)");
-    }
+    })
+    .await
+    .map_err(|_| fail("negative probe timed out waiting for the rejection"))?;
+    expect_error(
+        "unhandled rejection",
+        rejection_errors.fail_if_any(),
+        "probe rejection",
+    )
+    .await?;
 
     // Protocol command failure: evaluating throwing JS is a fatal Err.
     expect_error(

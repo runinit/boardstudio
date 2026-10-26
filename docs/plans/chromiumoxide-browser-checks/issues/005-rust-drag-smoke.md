@@ -268,3 +268,42 @@ The previous full check at `6346fe98` remains failed/incomplete: Parts reported
 (`.evidence/drag-save-undo-default-6346fe98.json.md`). This comparison does not
 replace that receipt. Ticket remains claimed; CI provisioning, full supported
 check, protocol-event impact and closure review remain open.
+
+### 2026-10-26: pinned provisioning and fatal event preparation
+
+Starting at clean `187885fe40af7b9f514dd8596b962aea68f96c4d`, paired the
+existing chromiumoxide `=0.9.1` lock with Chrome for Testing `145.0.7622.0`.
+`scripts/install-drag-chrome.sh` downloads the Linux x64 archive, checks its
+SHA-256 and executable version, and CI provisions it in `RUNNER_TEMP`. The
+existing system Chrome, ChromeDriver, mounted WASM runner, other Playwright
+consumers and Node default are unchanged. CI does not yet select this browser
+or run the Rust path: cutover remains gated.
+
+The Rust handler now surfaces invalid messages, logs redacted event payloads,
+and fails on handler errors. The existing negative probe now checks an
+unhandled rejection through the same `PageErrors` collector and fatal verdict
+as the drag consumer. On Chrome 145, the negative probe passed, including
+exception, rejection, command, timeout, startup, lookup and isolation checks;
+format and clippy also passed (`.evidence/ticket005-final-probe-187885fe.log`).
+On Chrome 156.0.8078.47 the same probe failed as intended with one invalid
+`Network.requestWillBeSentExtraInfo` event and its redacted payload
+(`.evidence/ticket005-chrome156-negative-187885fe.log`). This confirms the
+incompatible event is observable and fatal; it does not establish safety for
+other consumers or browser versions.
+
+The actual Rust drag consumer passed 15 checks on Chrome 145 with invalid
+messages surfaced and no handler errors, receipt `20261026T223007Z-123d7dc720b1`
+(`.evidence/ticket005-event-runtime-187885fe.log`). It used the existing site
+build digest `6f9242d46d35eb540dfb9f5eaae11fc1e9ecfa83aafcd6c84f84df29f129cfdc`
+and a dirty source tree based on `187885fe`; a subsequent change expanded
+redaction of header text, cookies and request bodies, and the negative probe
+and clippy were rerun on that change. This receipt is focused runtime evidence,
+not a clean-source parity or full-gate result. Provisioning passed locally after
+correcting Chrome's trailing whitespace in version output
+(`.evidence/ticket005-provision-fixed-187885fe.log`); hosted CI has not run.
+
+The original full check remains failed/incomplete (Parts 33 failures, Keycaps
+incomplete, page listing and suite not run). Full supported check, required
+event safety for other consumers, CI Rust-path cutover, and closure review remain
+open. Ticket stays claimed; no default-driver change is authorized by these
+focused results.
