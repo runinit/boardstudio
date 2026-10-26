@@ -580,3 +580,34 @@ WebSocket reset at shutdown. The ordered event boundary remains open.
 The deterministic late-exception join control, successful Chrome probe,
 full supported gate, parity, launch-error cleanup and closure review remain
 open. Ticket 005 remains claimed.
+
+### 2026-10-26: target marker listener delivery increment
+
+The vendored handler now retires a target's listener queues at its active
+session's detach marker as well as at target destruction. Retired queues are
+delivered and closed while the transport remains open. A detach for another
+session does not retire the active session's listeners; destruction removes
+the target's remaining session mappings. Lifecycle markers carried by a parent
+session are processed before routing the event to that parent. No public
+visibility or transport reset handling changed. The existing redundant borrow
+in the vendored browser URL formatting was also removed to resolve the previous
+Clippy failure.
+
+A controlled handler regression queues an event without polling its listener,
+checks unrelated target and session markers, and then verifies delivery and
+stream closure at each matching detach or destroy marker, including markers
+carried by a parent session. Before the fix the detach case failed because the
+stream stayed open (`.evidence/ticket005-target-marker-red.log`); the final
+three vendored lifecycle tests passed (`.evidence/ticket005-target-marker-final-tests.log`).
+The harness's 13 library tests passed before the final test-only refinement
+(`.evidence/ticket005-target-marker-harness.log`); harness Clippy including
+the vendored dependency and formatting passed on the final patch
+(`.evidence/ticket005-target-marker-final-clippy.log`,
+`.evidence/ticket005-target-marker-final-fmt.log`).
+
+This proves delivery only for events already received by the handler; it does
+not establish renderer-to-browser dispatch, a real consumer join boundary, or
+successful Chrome shutdown. The prior Chrome reset and full-check failures
+remain failures. The late-exception consumer control, successful Chrome probe,
+full supported gate, parity, launch-error cleanup and closure review remain
+open. Ticket 005 remains claimed.

@@ -403,6 +403,11 @@ impl Handler {
 
     /// Process an incoming event read from the websocket
     fn on_event(&mut self, event: CdpEventMessage) {
+        match &event.params {
+            CdpEvent::TargetTargetDestroyed(ev) => self.on_target_destroyed(ev.clone()),
+            CdpEvent::TargetDetachedFromTarget(ev) => self.on_detached_from_target(ev.clone()),
+            _ => {}
+        }
         if let Some(ref session_id) = event.session_id {
             if let Some(session) = self.sessions.get(session_id.as_str()) {
                 if let Some(target) = self.targets.get_mut(session.target_id()) {
@@ -414,8 +419,6 @@ impl Handler {
         match params.clone() {
             CdpEvent::TargetTargetCreated(ev) => self.on_target_created(*ev),
             CdpEvent::TargetAttachedToTarget(ev) => self.on_attached_to_target(ev),
-            CdpEvent::TargetTargetDestroyed(ev) => self.on_target_destroyed(ev),
-            CdpEvent::TargetDetachedFromTarget(ev) => self.on_detached_from_target(ev),
             _ => {}
         }
         chromiumoxide_cdp::consume_event!(match params {
@@ -466,7 +469,11 @@ impl Handler {
         // remove the session
         if let Some(session) = self.sessions.remove(&event.session_id) {
             if let Some(target) = self.targets.get_mut(session.target_id()) {
-                target.session_id_mut().take();
+                if target.session_id() == Some(&event.session_id) {
+                    target.session_id_mut().take();
+                    self.retired_listeners
+                        .push(std::mem::take(target.event_listeners_mut()));
+                }
             }
         }
     }
@@ -476,9 +483,8 @@ impl Handler {
         if let Some(mut target) = self.targets.remove(&event.target_id) {
             self.retired_listeners
                 .push(std::mem::take(target.event_listeners_mut()));
-            if let Some(session) = target.session_id() {
-                self.sessions.remove(session);
-            }
+            self.sessions
+                .retain(|_, session| session.target_id() != &event.target_id);
         }
     }
 
@@ -816,9 +822,86 @@ mod lifecycle_tests {
     use super::*;
     use crate::listeners::EventStream;
     use chromiumoxide_cdp::cdp::browser_protocol::animation::EventAnimationCanceled;
-    use futures::{SinkExt, StreamExt};
+    use futures::{FutureExt, SinkExt, StreamExt};
     use std::time::Duration;
     use tokio::net::TcpListener;
+
+    #[tokio::test]
+    async fn matching_target_marker_drains_and_closes_delayed_listener() {
+        for marker in [
+            r#"{"method":"Target.detachedFromTarget","params":{"sessionId":"session"},"sessionId":"parent-session"}"#,
+            r#"{"method":"Target.targetDestroyed","params":{"targetId":"target"},"sessionId":"parent-session"}"#,
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            let server = tokio::spawn(async move {
+                let (socket, _) = listener.accept().await.unwrap();
+                async_tungstenite::tokio::accept_async(socket)
+                    .await
+                    .unwrap()
+            });
+            let conn = Connection::connect(format!("ws://{addr}")).await.unwrap();
+            let _socket = server.await.unwrap();
+            let (_tx, rx) = futures::channel::mpsc::channel(8);
+            let mut handler = Handler::new(conn, rx, HandlerConfig::default());
+            let send = |handler: &mut Handler, raw: &str| {
+                let Message::Event(event) = serde_json::from_str(raw).unwrap() else {
+                    panic!("expected event");
+                };
+                handler.on_event(event);
+            };
+            for raw in [
+                r#"{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"parent","type":"page","title":"","url":"about:blank","attached":false,"canAccessOpener":false}}}"#,
+                r#"{"method":"Target.attachedToTarget","params":{"sessionId":"parent-session","targetInfo":{"targetId":"parent","type":"page","title":"","url":"about:blank","attached":true,"canAccessOpener":false},"waitingForDebugger":false}}"#,
+                r#"{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"target","type":"page","title":"","url":"about:blank","attached":false,"canAccessOpener":false}}}"#,
+                r#"{"method":"Target.attachedToTarget","params":{"sessionId":"old","targetInfo":{"targetId":"target","type":"page","title":"","url":"about:blank","attached":true,"canAccessOpener":false},"waitingForDebugger":false}}"#,
+                r#"{"method":"Target.attachedToTarget","params":{"sessionId":"session","targetInfo":{"targetId":"target","type":"page","title":"","url":"about:blank","attached":true,"canAccessOpener":false},"waitingForDebugger":false}}"#,
+            ] {
+                send(&mut handler, raw);
+            }
+            let (event_tx, event_rx) = futures::channel::mpsc::unbounded();
+            handler
+                .targets
+                .get_mut(&TargetId::new("target"))
+                .unwrap()
+                .event_listeners_mut()
+                .add_listener(EventListenerRequest::new::<EventAnimationCanceled>(
+                    event_tx,
+                ));
+            let mut events = EventStream::<EventAnimationCanceled>::new(event_rx);
+            send(
+                &mut handler,
+                r#"{"method":"Target.detachedFromTarget","params":{"sessionId":"other","targetId":"other"}}"#,
+            );
+            send(
+                &mut handler,
+                r#"{"method":"Target.detachedFromTarget","params":{"sessionId":"old"}}"#,
+            );
+            send(
+                &mut handler,
+                r#"{"method":"Target.targetDestroyed","params":{"targetId":"other"}}"#,
+            );
+            assert!(
+                events.next().now_or_never().is_none(),
+                "unrelated marker closed the listener"
+            );
+            send(
+                &mut handler,
+                r#"{"method":"Animation.animationCanceled","params":{"id":"before"},"sessionId":"session"}"#,
+            );
+            send(&mut handler, marker);
+            std::future::poll_fn(|cx| {
+                let _ = Pin::new(&mut handler).poll_next(cx);
+                Poll::Ready(())
+            })
+            .await;
+            assert_eq!(events.next().now_or_never().flatten().unwrap().id, "before");
+            assert!(
+                matches!(events.next().now_or_never(), Some(None)),
+                "matching marker must close listener"
+            );
+        }
+    }
 
     #[tokio::test]
     async fn close_drains_late_events_before_target_destruction_and_socket_close() {
