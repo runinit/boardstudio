@@ -1978,8 +1978,27 @@ async fn run() -> Result<usize> {
         Ok::<_, Error>((browser_version, smoke.checks))
     }
     .await;
-    shutdown::finish_browser(browser, drain, &handler_errors).await?;
-    page_errors.fail_if_any()?;
+    let (shutdown, confirmed) = shutdown::finish_browser(browser, drain, &handler_errors).await;
+    if !confirmed {
+        eprintln!(
+            "browser termination unconfirmed; preserving profile at {}",
+            dirs.profile_dir.display()
+        );
+        std::mem::forget(dirs);
+    }
+    let page = page_errors.fail_if_any();
+    let errors: Vec<String> = [
+        outcome.as_ref().err(),
+        shutdown.as_ref().err(),
+        page.as_ref().err(),
+    ]
+    .into_iter()
+    .flatten()
+    .map(ToString::to_string)
+    .collect();
+    if !errors.is_empty() {
+        return Err(fail(errors.join("; ")));
+    }
     let (browser_version, checks) = outcome?;
 
     let receipt = Receipt {

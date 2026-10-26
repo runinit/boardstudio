@@ -390,3 +390,29 @@ regression, browser check, or review. The existing shutdown draft, its abnormal
 exit and unconfirmed-termination checks, combined diagnostics, launch-error
 cleanup, controlled late-event regression, full gate, and closure review remain
 open. The earlier focused receipts above are not new verification of this draft.
+
+### 2026-10-26: implementation baseline (incomplete)
+
+On `787a454`, with the three-file shutdown draft still uncommitted, the harness
+unit tests passed (11 tests) and the Chrome 145 negative probe passed under the
+build lock and `boardstudio-tests.slice` (`.evidence/ticket005-subagent-baseline-probe.log`).
+Neither check exercises an event arriving after the close response, listener
+completion, abnormal exit, or launch-error cleanup. The final-event boundary and
+the draft's verification remain open; these results are not a closure receipt.
+
+### 2026-10-26: bounded shutdown slice (partial)
+
+For a successfully launched browser, close, wait, forced kill, final wait and
+handler drain are bounded. A failed close triggers kill immediately; abnormal
+exit, forced termination, shutdown and handler errors remain failures. Both
+consumers report scenario, shutdown and page errors together and preserve the
+run directory when process termination cannot be confirmed.
+
+Harness formatting and 11 unit tests passed, and the existing negative probe
+passed on Chrome 145 under the build lock and `boardstudio-tests.slice`
+(`.evidence/ticket005-bounded-shutdown-tests.log` and
+`.evidence/ticket005-bounded-shutdown-probe.log`). These checks do not inject
+an abnormal exit, unconfirmed termination, or simultaneous scenario, page and
+shutdown failures; no dedicated RED/GREEN regression was run for this slice.
+Launch-error cleanup, final-event delivery and listener completion remain open,
+as do the full gate and closure review. This is not a ticket closure receipt.

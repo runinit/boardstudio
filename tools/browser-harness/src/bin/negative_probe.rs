@@ -326,9 +326,15 @@ async fn run() -> Result<()> {
 
     Ok(())
     }.await;
-    let result = shutdown::finish_browser(browser, drain, &handler_errors).await;
+    let (result, confirmed) = shutdown::finish_browser(browser, drain, &handler_errors).await;
+    if !confirmed {
+        eprintln!(
+            "browser termination unconfirmed; preserving profile at {}",
+            dirs.profile_dir.display()
+        );
+        std::mem::forget(dirs);
+    }
     server.abort();
-    result?;
     // The fixture page itself stayed clean apart from the deliberate errors.
     let unexpected: Vec<String> = page_errors
         .messages()
@@ -337,10 +343,19 @@ async fn run() -> Result<()> {
             !message.contains("probe page error") && !message.contains("probe rejection")
         })
         .collect();
+    let mut errors: Vec<String> = [outcome.err(), result.err()]
+        .into_iter()
+        .flatten()
+        .map(|error| error.to_string())
+        .collect();
     if !unexpected.is_empty() {
-        return Err(fail(format!(
+        errors.push(format!(
             "negative probe page errors: unexpected {unexpected:?}"
-        )));
+        ));
     }
-    outcome
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(fail(errors.join("; ")))
+    }
 }
