@@ -4140,7 +4140,10 @@ pub fn LayoutAnchorPickOverlay(
             armed.set(false);
             hovered_target.set(None);
             preview.set(Vec::new());
-            feedback.set(advance_feedback(&feedback(), FeedbackEvent::Dismiss));
+            // peek: the stale-arm effect calls this, and subscribing it to
+            // the feedback it writes would re-run it forever.
+            let dismissed = advance_feedback(&feedback.peek(), FeedbackEvent::Dismiss);
+            feedback.set(dismissed);
             pick_owner.set_active(svg_key, None);
         })
     };
@@ -4486,10 +4489,12 @@ pub fn LayoutAnchorPickOverlay(
                 Some("transform".into()),
                 anchor_pick_resolver(context.clone(), target.clone()),
             );
+            // Leave pick mode at the click: the rings go, and a second click
+            // cannot queue a second commit while this one settles.
+            disarm();
             let runtime_for_settle = runtime_for_commit.clone();
             let context_for_settle = context.clone();
             let target_for_settle = target.clone();
-            let disarm_for_settle = disarm.clone();
             let mut feedback_for_commit = feedback_for_commit;
             let mut toast_gen_for_commit = toast_gen_for_commit;
             spawn_local(async move {
@@ -4529,14 +4534,18 @@ pub fn LayoutAnchorPickOverlay(
                 let gen_for_timer = toast_gen_for_commit;
                 spawn_local(async move {
                     gloo_timers::future::TimeoutFuture::new(TOAST_TIMEOUT_MS).await;
-                    if gen_for_timer() == seen {
+                    // The overlay may unmount before the toast expires; a
+                    // dropped owner has no toast left to retire.
+                    let Ok(current) = gen_for_timer.try_peek() else {
+                        return;
+                    };
+                    if *current == seen {
                         feedback_for_timer.set(advance_feedback(
                             &feedback_for_timer(),
                             FeedbackEvent::Expire,
                         ));
                     }
                 });
-                disarm_for_settle();
             });
         })
     };
@@ -4683,7 +4692,11 @@ pub fn LayoutAnchorPickOverlay(
                     }
                     AnchorMajorKind::HalfOrigin => {
                         let layout = layout_id.clone()?;
-                        (layout_half_offset(&document, &layout)?, "Half origin".to_owned())
+                        // An unsplit layout has no half offset: its half frame
+                        // sits at the board origin.
+                        let origin = layout_half_offset(&document, &layout)
+                            .unwrap_or(Vec2 { x: 0.0, y: 0.0 });
+                        (origin, "Half origin".to_owned())
                     }
                 };
                 Some((major, pose, label))
@@ -11634,6 +11647,22 @@ mod tool_tests {
         radii
     }
 
+    /// The toast raises once the commit settles, a few frames after the
+    /// revision lands, so tests wait for it instead of reading it at once.
+    async fn wait_for_pick_toast(
+        runtime: &Rc<Runtime>,
+        root: &web_sys::Element,
+    ) -> web_sys::Element {
+        for _ in 0..100 {
+            support::run_pending(runtime).await;
+            if let Some(toast) = root.query_selector(".m1-feedback-toast").unwrap() {
+                return toast;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        panic!("the commit toast");
+    }
+
     async fn arm_pick_via_token(root: &web_sys::Element) {
         let token = pick_token(root).expect("the Anchor token draws");
         dispatch_pointer(&token, "pointerdown", false, false, 1, (50, 50));
@@ -11760,10 +11789,7 @@ mod tool_tests {
             pick_ring_values(&root).is_empty(),
             "committing leaves pick mode"
         );
-        let toast = root
-            .query_selector(".m1-feedback-toast")
-            .unwrap()
-            .expect("the commit toast");
+        let toast = wait_for_pick_toast(&runtime, &root).await;
         let text = toast.text_content().unwrap_or_default();
         assert!(
             text.contains("Dependent anchored to matrix R1C3")
@@ -12060,10 +12086,7 @@ mod tool_tests {
             revision + 1,
             "the pick lands as one revision"
         );
-        let toast = root
-            .query_selector(".m1-feedback-toast")
-            .unwrap()
-            .expect("the commit toast");
+        let toast = wait_for_pick_toast(&runtime, &root).await;
         let text = toast.text_content().unwrap_or_default();
         assert!(
             text.contains("U1 anchored to matrix R1C1")
