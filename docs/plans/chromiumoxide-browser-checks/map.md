@@ -25,30 +25,34 @@ Undo/reload checks, receipts and CI verdicts.
 
 - Destination confirmed by the user: real-page checks migrate; existing mounted Rust/WASM
   tests retain their runner. Coverage and CI verdicts must not weaken.
-- Research 001 resolved: spike's 19 errors are surfaced unsolicited-event loss in an
-  unsubscribed experimental Network domain, not command failures; exact field unknown
-  (truncated archive). See [001](issues/001-protocol-compatibility.md) and the
+- [Chrome protocol compatibility and event failures](issues/001-protocol-compatibility.md):
+  archived errors concern unsolicited Network events, not observed command failures; exact
+  mismatch and required-event safety remain unproven (truncated archive). See the
   [feasibility report](../../research/chromiumoxide-migration-feasibility.md) (§1),
   archived on `research/chromiumoxide-feasibility@74a6230`.
-- Research 002 resolved: consumer/launch inventory complete; proposed harness contract
+- [Portable isolated browser launch and prerequisite contract](issues/002-launch-contract.md):
+  consumer/launch inventory complete; proposed harness contract
   keeps `CHROME_BIN`-first discovery, process-owned profile plus child
   `XDG_CONFIG_HOME`, shared flags/viewport, and leaves the WASM runner untouched.
-  See [002](issues/002-launch-contract.md) and the
+  See the
   [feasibility report](../../research/chromiumoxide-migration-feasibility.md) (§2).
+
+- [Coverage and receipt parity at cutover](issues/003-parity-cutover.md): pin the CI browser
+  and library together; prove fidelity before replacement; cut over drag smoke first, then CAD
+  capture and Graphite acceptance, retaining each old runner until its parity gate passes.
 
 ## Children
 
 - [Chrome protocol compatibility and event failures](issues/001-protocol-compatibility.md)
 - [Portable isolated browser launch and prerequisite contract](issues/002-launch-contract.md)
 - [Coverage and receipt parity at cutover](issues/003-parity-cutover.md)
+- [Prove browser harness fidelity before cutover](issues/004-feasibility-proof.md)
 
 ## Not yet specified
 
-- Version support and upgrade policy, contingent on protocol evidence.
-- Minimal harness boundary, accessible-name lookup fidelity, and shared launch ownership.
-- Migration sequencing across drag smoke, CAD capture and Graphite acceptance.
-- Evidence needed to distinguish migration regressions from existing application failures.
-- Exact cutover gates and retirement of old dependencies, after the parity inventory.
+- Minimal harness boundary and exact per-consumer parity gates, informed by the feasibility
+  prototype rather than assumed from the archived spike.
+- How to handle any proven incompatibility without losing required events or error detection.
 
 ## Out of scope
 
