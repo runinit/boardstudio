@@ -52,10 +52,31 @@ Undo/reload checks, receipts and CI verdicts.
 - [Coverage and receipt parity at cutover](issues/003-parity-cutover.md)
 - [Prove browser harness fidelity before cutover](issues/004-feasibility-proof.md)
 
+## Approved build handoff
+
+The user approved these vertical slices after the Wayfinder decisions. The existing
+[Real-browser checks drive Chrome from Rust](../cad-deepening/issues/016-rust-browser-harness.md)
+remains the source proposal; the resolved decision tickets above govern its updated proof
+strategy. The following build tickets preserve those contracts and do not change this map's
+planning-only scope. They are published for implementation, not started by publication.
+
+- [Rust drag smoke end to end](issues/005-rust-drag-smoke.md) — first frontier; minimal harness
+  plus the supported launcher and same-build parity.
+- [Rust CAD runtime capture](issues/006-rust-cad-runtime-capture.md) — waits on drag smoke;
+  includes cache/service-worker and capture-output proof.
+- [Rust Graphite acceptance checks](issues/007-rust-graphite-acceptance.md) — waits on drag
+  smoke; covers both current acceptance entry points.
+- [Retire Playwright browser dependencies](issues/008-retire-playwright-dependencies.md) —
+  waits on all three migrations and their parity gates.
+
+Dependency sketch: drag smoke → {CAD capture, Graphite acceptance} → dependency retirement.
+Retain old runners until their respective gates pass; final shared dependency removal waits
+until all consumers have migrated. No parent specification is closed by this handoff.
+
 ## Not yet specified
 
-- No additional design decisions currently identified. The existing migration specification
-  must be reconciled with these decisions before build tickets are handed off.
+- No additional design decisions currently identified. The approved build handoff reconciles
+  the existing proposal with the resolved decisions; runtime proofs remain acceptance gates.
 - Any incompatibility discovered during the bounded acceptance probes returns here as a
   concrete decision; it does not authorize ignoring required events or weakening assertions.
 
