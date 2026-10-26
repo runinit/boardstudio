@@ -206,3 +206,14 @@ This identifies the mismatch for this local-page sample, not all messages during
 the drag smoke. It does not establish required-event safety, joint CI pinning,
 or parity on a passing full check. Those gates remain open; the failed default
 check and its browser failures remain failures.
+
+A subsequent diagnostic enabled `surface_invalid_messages` during the actual
+Rust drag runner on the existing checked site. It recorded 88 invalid messages,
+all `Network.requestWillBeSentExtraInfo` with the same missing old policy key
+and present new policy key; the redacted events are in
+`.evidence/protocol-drag-events-595463c.jsonl`. The Part, Column, Stagger,
+Ctrl Offset and Matrix drag/Undo checks and default collision observation were
+logged before the handler's 88 errors caused the run to fail at teardown. The
+runner did not produce a success receipt. This is evidence about the observed
+messages, not a passing parity run or proof for other Chrome versions or other
+consumers. The temporary handler instrumentation was restored after the run.
