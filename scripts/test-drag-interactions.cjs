@@ -109,12 +109,15 @@ async function setSlider(page, name, target) {
   // the pinned Playwright version instead of polling to its timeout, so each
   // wait re-evaluates here with the same 20 s bound.
   const pollUntil = async (check, message) => {
-    const deadline = Date.now() + 20000;
-    while (!await check()) {
-      if (Date.now() >= deadline) throw new Error(message);
-      await new Promise(resolve => setTimeout(resolve, 200));
+    let timer;
+    const expired = new Promise((_, reject) => { timer = setTimeout(() => reject(Error(message)), 20000); });
+    const pause = () => Promise.race([expired, new Promise(resolve => setTimeout(resolve, 200))]);
+    try {
+      while (!await Promise.race([expired, check()])) await pause();
+      return true;
+    } finally {
+      clearTimeout(timer);
     }
-    return true;
   };
   const waitDocument = signature => pollUntil(async () => {
     const project = (await readProjects())[0];

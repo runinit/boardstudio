@@ -88,7 +88,7 @@ hit-test now names the covering element).
 PARITY (same source/build, `web/target/site` 04:36Z): Rust passes all 15 checks
 when the app cooperates (full PASS receipts verified by the launcher). The old
 runner deterministically FAILS Part-drag Undo (`undone.signature !=
-before.signature`). Root cause (byte-exact, escalation-ready): the Undo save
+before.signature`). Root cause (SUPERSEDED 2026-10-26: unproven, see the correction at the end): the Undo save
 (rev N+1 = restored content, proven by waitDocument matching) is then clobbered
 by a STALE save carrying rev N / dragged content (final doc byte-equals the
 after-drag doc; revision regresses N+1 -> N). The same stale-save Undo race was
@@ -99,7 +99,7 @@ matrix-move-alone on healthy state is clean; pageerror: `unreachable`), which
 kills the app and leaves the `#__dx-toast` panic toast (max z-index,
 still hit-testable) covering the toolbar — the harness now fails fast with
 `the app panicked: ...` instead of burning the 60 s click bound. Both defects
-are app-side (harness implements the contract exactly; the panic also fires
+(attribution SUPERSEDED, see the correction at the end) are app-side (harness implements the contract exactly; the panic also fires
 under the reference Playwright driver) and are escalated separately — NO app
 code was changed here, and the ticket is NOT resolved by matching failures.
 
@@ -147,3 +147,39 @@ assertion is NOT creep: the old runner asserts the same Case-viewer-inside-
 viewport check. (d) `end_drag().await.ok()` sites all return the original
 error; cleanup is best-effort. (e) parity/CI gaps acknowledged — both
 deliberately held (parity blocked by the app defects above; CI after parity).
+
+### 2026-10-26: correction of the PARITY diagnosis (causes now proven; ticket still claimed)
+
+The "stale save clobbers the Undo save" root cause above is **retracted**: no
+instrumented save sequence showed it. The old runner's Undo failure and the
+`unreachable` panic had separate causes:
+
+1. **Runner wait bug (Node driver only).** Under the pinned playwright-core
+   1.62.1, `page.waitForFunction` with a promise-returning predicate
+   evaluates once and resolves with the first falsy value (probe: one
+   evaluation, result `false` after ~30 ms while the flag flips at 500 ms).
+   `waitDocument` and the matrix-state wait used such predicates, so the Undo
+   wait returned before the save landed. The original script against an app
+   build carrying the app fixes still fails `Part drag: Undo restored the
+   complete saved document`; the same script with Node-side polling (same 20 s
+   bound, same comparisons, every assertion unchanged) passes 15 checks, and
+   the Rust driver passes 15 checks on the identical build (equal
+   `build_sha256`, head `04016e7a0`). No app save defect was found.
+2. **App panic (both drivers).** The 1.8 s commit-toast timer touched overlay
+   signals after the overlay unmounted (scope and selection switches remount
+   it); Dioxus raised `ValueDroppedError`, which traps as WASM `unreachable`
+   and leaves `#__dx-toast`. Reproduced by the mounted regression test
+   `commit_toast_timer_survives_overlay_unmount` (red on the old timer body,
+   green with `try_peek`/`try_write`).
+3. **Anchor pick overlay mount hang (layout browser launch).** The overlay's
+   stale-arm effect read the signal it then wrote, so it re-ran forever and
+   froze the main thread; the layout launch could not finish. Present before
+   these fixes (already on the Ticket 08 base); fixed by reading with `peek`.
+
+Still open and not caused by this work: layout test
+`detached_part_pick_anchors_from_the_half_origin` (fixture has no mirror link, so
+no half-origin ring), layout `matrix_transform_inspector` detach-pose failure
+(`detach_proposal_confirms_the_named_local_exception_atomically`, red on the
+base), and page-suite relation-highlight failures that also fail before Ticket 08.
+005's other gates are unchanged: joint library+browser pinning, protocol
+event-safety, and CI cutover. Playwright remains the default driver.

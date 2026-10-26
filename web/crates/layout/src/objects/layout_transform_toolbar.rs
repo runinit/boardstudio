@@ -4501,11 +4501,6 @@ pub fn LayoutAnchorPickOverlay(
                     }
                     gloo_timers::future::TimeoutFuture::new(16).await;
                 }
-                // The overlay remounts on scope and selection changes; its
-                // signals die together, so one liveness probe covers the writes.
-                if toast_gen_for_commit.try_peek().is_err() {
-                    return;
-                }
                 let landed = runtime_for_settle
                     .model()
                     .accepted
@@ -4519,6 +4514,11 @@ pub fn LayoutAnchorPickOverlay(
                     });
                 if !landed {
                     runtime_for_settle.report("The anchor target is no longer available.");
+                    return;
+                }
+                // The overlay remounts on scope and selection changes; its
+                // signals die together, so one liveness probe covers the writes.
+                if toast_gen_for_commit.try_peek().is_err() {
                     return;
                 }
                 feedback_for_commit.set(advance_feedback(
@@ -8440,29 +8440,29 @@ mod tool_tests {
         }
         rsx! {
             if show() {
-            svg { id: "overlay-host-svg", view_box: "0 0 100 100", width: "400", height: "400",
-                LayoutTransformToolOverlay {
-                    runtime: props.runtime.clone(),
-                    svg: props.svg.clone(),
-                    arbiter,
-                    owner: props.owner.clone(),
-                    selected_context,
-                    scope_generation,
-                    workspace,
-                    matrix: props.matrix.clone(),
-                    projection: props.projection.clone(),
-                    context: props.context.clone(),
-                    tool: props.tool,
-                    snap_settings: super::super::layout_toolbar::LayoutSnapSettings::default(),
-                    snap_origins: Vec::new(),
-                    splay_affect,
-                    view_x: 0.0,
-                    view_y: 0.0,
-                    width: 100.0,
-                    height: 100.0,
-                    on_finish: EventHandler::new(|()| {}),
+                svg { id: "overlay-host-svg", view_box: "0 0 100 100", width: "400", height: "400",
+                    LayoutTransformToolOverlay {
+                        runtime: props.runtime.clone(),
+                        svg: props.svg.clone(),
+                        arbiter,
+                        owner: props.owner.clone(),
+                        selected_context,
+                        scope_generation,
+                        workspace,
+                        matrix: props.matrix.clone(),
+                        projection: props.projection.clone(),
+                        context: props.context.clone(),
+                        tool: props.tool,
+                        snap_settings: super::super::layout_toolbar::LayoutSnapSettings::default(),
+                        snap_origins: Vec::new(),
+                        splay_affect,
+                        view_x: 0.0,
+                        view_y: 0.0,
+                        width: 100.0,
+                        height: 100.0,
+                        on_finish: EventHandler::new(|()| {}),
+                    }
                 }
-            }
             }
         }
     }
@@ -8490,8 +8490,8 @@ mod tool_tests {
         (root, handle)
     }
 
-    /// `mount_context_overlay` plus the host's visibility toggle, so a test can
-    /// unmount the overlay exactly like a production scope switch while a
+    /// Mount a tool overlay and return the host's visibility toggle, so a test
+    /// can unmount the overlay exactly like a production scope switch while a
     /// commit-toast timer is still pending.
     async fn mount_toggle_overlay(
         runtime: &Rc<Runtime>,
