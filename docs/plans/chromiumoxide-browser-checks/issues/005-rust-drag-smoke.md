@@ -217,3 +217,22 @@ logged before the handler's 88 errors caused the run to fail at teardown. The
 runner did not produce a success receipt. This is evidence about the observed
 messages, not a passing parity run or proof for other Chrome versions or other
 consumers. The temporary handler instrumentation was restored after the run.
+
+### 2026-10-26: candidate Chrome for Testing comparison
+
+A candidate Chrome for Testing `145.0.7622.0` (Chromium revision `1566023`,
+close to chromiumoxide 0.9.1's CDP snapshot `1566079`) was downloaded to an
+isolated cache from the [Chrome for Testing version catalog](https://github.com/GoogleChromeLabs/chrome-for-testing).
+A diagnostic Rust drag run with invalid messages surfaced passed all 15 checks
+and recorded zero invalid messages. The diagnostic temporarily changed the
+handler; it is not a cutover receipt.
+
+With that instrumentation removed, Node and Rust each passed 15 checks on the
+same existing site build and candidate Chrome. Launcher-verified receipts
+`20261026T214238Z-45801fbfa40e` and `20261026T214336Z-0e4ec9a7bd64` both
+record source head `697faa1`, a clean source diff, the same build digest, browser
+version and check names. Logs: `.evidence/parity-cft145-node.log` and
+`.evidence/parity-cft145-rust.log`. This comparison does not independently
+establish that the existing site was built from that source head. It does not
+clear the failed default check, prove CI provisioning, pin a browser, or prove
+required-event safety for the other consumers. Ticket 005 remains claimed.
