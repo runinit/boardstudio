@@ -56,6 +56,36 @@ with tempfile.TemporaryDirectory(prefix="ticket005-controls-", dir="/tmp") as di
         if result.returncode == 0 or receipt.exists() or expected not in output:
             raise SystemExit(f"{name} control failed")
 
+    # Break removal of this consumer's run directory after Chrome has opened a page.
+    class BreakCleanup(BaseHTTPRequestHandler):
+        def do_GET(self):
+            runs = list(profile_root.glob("bs-drag-*"))
+            if len(runs) != 1:
+                raise RuntimeError(f"expected one owned run directory, got {runs}")
+            runs[0].rename(profile_root / "moved")
+            runs[0].write_text("not a directory")
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(("<!doctype html>" + BUTTONS + FIXTURE).encode())
+
+    profile_root = base / "profiles"
+    profile_root.mkdir()
+    server = HTTPServer(("127.0.0.1", 0), BreakCleanup)
+    receipt = base / "cleanup" / "receipt.json"
+    env.update(TMPDIR=str(profile_root),
+               BOARDSTUDIO_PREVIEW_URL=f"http://127.0.0.1:{server.server_port}/",
+               BOARDSTUDIO_DRAG_RECEIPT_PATH=str(receipt))
+    thread = threading.Thread(target=server.handle_request)
+    thread.start()
+    result = subprocess.run([str(BINARY)], env=env, text=True, capture_output=True, timeout=90)
+    thread.join(timeout=5)
+    server.server_close()
+    output = result.stdout + result.stderr
+    print(f"cleanup: exit {result.returncode}, receipt exists {receipt.exists()}\n{output}", flush=True)
+    if result.returncode == 0 or receipt.exists() or "cannot remove browser profile" not in output:
+        raise SystemExit("cleanup control failed")
+    env.pop("TMPDIR")
+
     # Kill only this consumer's Chrome child while its observed target is open.
     killed = threading.Event()
     class LoseTransport(BaseHTTPRequestHandler):

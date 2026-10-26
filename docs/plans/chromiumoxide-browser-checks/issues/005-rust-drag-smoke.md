@@ -699,3 +699,30 @@ on the existing site build (`.evidence/ticket005-launch-cleanup-final-drag.log`)
 This is not a fresh-build parity receipt. Earlier failed full and probe gates
 remain failures; full supported check, fresh parity, CI cutover and independent
 closure review remain open. Ticket 005 remains claimed.
+
+### 2026-10-26: review follow-up for launch and profile lifetime
+
+At `0d293bb`, independent review found the launch deadline ended at URL
+resolution and successful launch cleared profile preservation before the child
+was reaped. The same deadline now covers the WebSocket handshake and routes
+failure through the existing bounded kill/reap path. A launched profile stays
+preserved until the consumers explicitly remove it after confirmed termination.
+The redundant receipt cleanup argument and its plumbing-only test were removed;
+the consumer's existing verdict still checks cleanup before writing a receipt.
+
+The stalled-handshake control failed on the original implementation at the
+outer bound (`.evidence/review-handshake-red.log`), then passed and confirmed
+the child was reaped. The launch-cancellation profile control also failed on
+the original implementation (`.evidence/review-cancellation-red.log`) and
+passed after the fix. All 16 library tests and the drag binary test passed;
+Clippy, build and formatting passed (`.evidence/review-focused-tests.log`,
+`.evidence/review-drag-tests.log`, `.evidence/review-clippy.log`,
+`.evidence/review-build.log`, `.evidence/review-fmt.log`). The pinned Chrome
+145 negative probe passed (`.evidence/review-probe.log`). The real consumer
+control forced a profile-removal error, observed it in the final error and saw
+no receipt (`.evidence/review-consumer-controls.log`); the scenario also failed,
+so this does not isolate cleanup as the only failure. No OS-level kill failure
+was forced. The Rust drag smoke passed 15 checks on pinned Chrome 145 against
+the existing site build (`.evidence/review-smoke.log`); this is not fresh-build
+parity. Full supported check, fresh parity, CI cutover and independent closure
+review remain open; ticket stays claimed.

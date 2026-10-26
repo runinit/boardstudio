@@ -72,10 +72,7 @@ pub async fn launch_chrome(chrome: &str, dirs: &IsolatedDirs) -> Result<(Browser
     // The vendored launch path uses ChromeMessage when child cleanup is unconfirmed.
     dirs.preserve.set(true);
     match Browser::launch(config).await {
-        Ok(browser) => {
-            dirs.preserve.set(false);
-            Ok(browser)
-        }
+        Ok(browser) => Ok(browser),
         Err(error) => {
             if !matches!(error, CdpError::ChromeMessage(_)) {
                 dirs.preserve.set(false);
@@ -1121,6 +1118,79 @@ mod redaction_tests {
         );
         std::fs::remove_dir_all(root).unwrap();
     }
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn stalled_handshake_times_out_and_reaps_child() {
+        use std::os::unix::fs::PermissionsExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (_socket, _) = listener.accept().await.unwrap();
+            std::future::pending::<()>().await;
+        });
+        let root = std::env::temp_dir().join(format!("bs-stall-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let script = root.join("browser");
+        std::fs::write(&script, format!("#!/bin/sh\necho $$ > {}/pid\necho 'DevTools listening on ws://{address}/devtools/browser/test' >&2\nexec /usr/bin/tail -f /dev/null\n", root.display())).unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let config = chromiumoxide::BrowserConfig::builder()
+            .chrome_executable(&script)
+            .launch_timeout(std::time::Duration::from_millis(100))
+            .build()
+            .unwrap();
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            chromiumoxide::Browser::launch(config),
+        )
+        .await;
+        assert!(
+            matches!(
+                result,
+                Ok(Err(chromiumoxide::error::CdpError::LaunchTimeout(_)))
+            ),
+            "launch must time out during handshake"
+        );
+        let pid = std::fs::read_to_string(root.join("pid")).unwrap();
+        assert!(!std::path::Path::new(&format!("/proc/{}", pid.trim())).exists());
+        server.abort();
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn cancellation_after_launch_preserves_profile() {
+        use std::os::unix::fs::PermissionsExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let _ws = async_tungstenite::tokio::accept_async(socket)
+                .await
+                .unwrap();
+            std::future::pending::<()>().await;
+        });
+        let root = std::env::temp_dir().join(format!("bs-cancel-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let script = root.join("browser");
+        std::fs::write(&script, format!("#!/bin/sh\necho $$ > {}/pid\necho 'DevTools listening on ws://{address}/devtools/browser/test' >&2\nexec /usr/bin/tail -f /dev/null\n", root.display())).unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let dirs = crate::IsolatedDirs::create(&root).unwrap();
+        let profile = dirs.profile_dir.clone();
+        let (mut browser, handler) = super::launch_chrome(script.to_str().unwrap(), &dirs)
+            .await
+            .unwrap();
+        drop(handler);
+        drop(dirs);
+        let preserved = profile.exists();
+        browser.kill().await.unwrap().unwrap();
+        server.abort();
+        std::fs::remove_dir_all(root).unwrap();
+        assert!(
+            preserved,
+            "profile must survive cancellation before child termination"
+        );
+    }
+
     #[tokio::test]
     async fn transport_loss_fails_consumer_verdict() {
         use futures::StreamExt;

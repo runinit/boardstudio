@@ -148,8 +148,7 @@ impl Browser {
     ///
     /// This fails when no chromium executable could be detected.
     ///
-    /// This fails if no web socket url could be detected from the child
-    /// processes stderr for more than the configured `launch_timeout`
+    /// This fails if initialization exceeds the configured `launch_timeout`
     /// (20 seconds by default).
     pub async fn launch(mut config: BrowserConfig) -> Result<(Self, Handler)> {
         // Canonalize paths to reduce issues with sandboxing
@@ -167,11 +166,14 @@ impl Browser {
             child: &mut Child,
         ) -> Result<(String, Connection<CdpEventMessage>)> {
             let dur = config.launch_timeout;
-            let timeout_fut = Box::pin(tokio::time::sleep(dur));
+            let mut timeout_fut = Box::pin(tokio::time::sleep(dur));
 
-            // extract the ws:
-            let debug_ws_url = ws_url_from_output(child, timeout_fut).await?;
-            let conn = Connection::<CdpEventMessage>::connect(&debug_ws_url).await?;
+            // The same deadline covers both URL discovery and the WebSocket handshake.
+            let debug_ws_url = ws_url_from_output(child, &mut timeout_fut).await?;
+            let conn = tokio::select! {
+                result = Connection::<CdpEventMessage>::connect(&debug_ws_url) => result?,
+                _ = &mut timeout_fut => return Err(CdpError::LaunchTimeout(BrowserStderr::new(Vec::new()))),
+            };
             Ok((debug_ws_url, conn))
         }
 
