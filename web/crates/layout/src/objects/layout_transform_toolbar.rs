@@ -23,6 +23,9 @@ use boardstudio_core::model::{
 };
 use boardstudio_web_runtime::pending_edits::PendingEdits;
 use boardstudio_web_ui_model::state::{FieldPreview, FieldPreviewSource, FieldPreviewState};
+use boardstudio_web_ui_model::transform_feedback::{
+    FeedbackDelta, FeedbackEvent, FeedbackState, advance_feedback,
+};
 use boardstudio_web_ui_shared::controls::{
     BoardButton, BoardButtonDensity, BoardPopover, BoardToolbar, BoardToolbarButton,
 };
@@ -176,6 +179,181 @@ const GLYPH_FOUR: &str = "M0 -3.2v6.4M-3.2 0h6.4M-1.4 -1.8 0 -3.2l1.4 1.4M-1.4 1
 const GLYPH_SPLAY: &str = "M-5 4A9 9 0 0 1 4 -5M1.5 -6.5 4 -5l-1.3 2.4M-5 4h2";
 /// Prototype variant D bend token: a curved arrow, shared by row and key.
 const GLYPH_BEND: &str = "M-4 5C-4 0-1-4 4-4M1.5-6 4-4 1.5-2";
+
+/// Ticket 06: the commit toast lingers for 1.8 s, matching the prototype.
+const TOAST_TIMEOUT_MS: u32 = 1800;
+
+/// Ticket 06: the canvas label for one transform tool in popup and toast text.
+fn feedback_tool_name(tool: LayoutTransformTool) -> &'static str {
+    match tool {
+        LayoutTransformTool::Stagger => "Stagger",
+        LayoutTransformTool::Spread => "Spread",
+        LayoutTransformTool::Offset => "Offset",
+        LayoutTransformTool::Shift => "Shift",
+        LayoutTransformTool::Bend => "Bend",
+        LayoutTransformTool::Splay => "Splay",
+        LayoutTransformTool::Origin => "Origin",
+        LayoutTransformTool::Move => "Move",
+        LayoutTransformTool::Rotate => "Rotate",
+    }
+}
+
+/// Ticket 06: the committed value text for a placement result, matching the
+/// token value style ("Spread 28.57 mm" comes from the name plus this).
+fn format_placement_value(value: PlacementValue) -> String {
+    match value {
+        PlacementValue::Stagger(value) | PlacementValue::Spread(value) => {
+            format!("{value:.2} mm")
+        }
+        PlacementValue::Offset(value) | PlacementValue::Shift(value) => {
+            format!("X {:.2}, Y {:.2} mm", value.x, value.y)
+        }
+        PlacementValue::Bend(value) => format!("{value:.1}°"),
+        PlacementValue::Padding(value) => format!("{value:.2} mm"),
+    }
+}
+
+/// Ticket 06: a placement drag delta in the toast's display units.
+fn placement_feedback_delta(delta: PlacementDelta) -> FeedbackDelta {
+    match delta {
+        PlacementDelta::Stagger(value)
+        | PlacementDelta::Spread(value)
+        | PlacementDelta::Padding(value) => FeedbackDelta::Mm(value),
+        PlacementDelta::Offset(value) | PlacementDelta::Shift(value) => {
+            FeedbackDelta::Mm2(value.x, value.y)
+        }
+        PlacementDelta::Bend(value) => FeedbackDelta::Deg(value),
+    }
+}
+
+/// Ticket 06: estimated screen-px width of one chrome text line.
+fn feedback_line_width(text: &str, size_px: f64) -> f64 {
+    text.chars().count() as f64 * size_px * 0.58
+}
+
+/// Ticket 06: the value popup panel for resolved content, or `None` without
+/// a position. `top_left` is world; `px` is world units per screen px.
+fn feedback_popup_panel(
+    popup: &boardstudio_web_ui_model::transform_feedback::ValuePopup,
+    follow: Option<(f64, f64)>,
+    rail: Option<(f64, f64, f64, f64)>,
+    px: f64,
+) -> Option<Element> {
+    let mut rows: Vec<(String, f64, &'static str, bool)> = vec![
+        (popup.name.clone(), 11.0, "var(--wb-muted)", false),
+        (popup.value.clone(), 15.0, "inherit", true),
+    ];
+    if let Some(delta) = popup.delta.as_ref() {
+        rows.push((delta.clone(), 12.0, "var(--wb-accent)", false));
+    }
+    rows.push((
+        "Drag the handle, or type in the Inspector · Esc: close".to_owned(),
+        10.5,
+        "var(--wb-muted)",
+        false,
+    ));
+    let panel_w = rows
+        .iter()
+        .map(|(text, size, _, _)| feedback_line_width(text, *size))
+        .fold(0.0_f64, f64::max)
+        + 16.0;
+    // A following drag anchors its own top-left; a hover or focus centres
+    // the panel above the rail.
+    let top_left: Option<(f64, f64)> = follow
+        .or_else(|| rail.map(|(x, y, w, h)| (x + w / 2.0 - panel_w * px / 2.0, y + h + 8.0 * px)));
+    let (panel_x, panel_y) = top_left?;
+    Some(rsx! {
+        g {
+            class: "m1-feedback-popup",
+            transform: "translate({panel_x} {panel_y}) scale({px} {-px})",
+            style: "pointer-events:none",
+            "aria-hidden": "true",
+            {feedback_panel_contents(panel_w, rows)}
+        }
+    })
+}
+
+/// Ticket 06: the commit toast panel at the top centre of the canvas view.
+/// The value renders bold, the rest plain, inside one `role="status"` group
+/// that never takes focus.
+fn feedback_toast_panel(
+    toast: &boardstudio_web_ui_model::transform_feedback::CommitToast,
+    view_x: f64,
+    view_y: f64,
+    view_width: f64,
+    px: f64,
+) -> Element {
+    let width_px = feedback_line_width(&toast.text(), 12.5) + 24.0;
+    let panel_x = view_x + view_width / 2.0 - width_px * px / 2.0;
+    let panel_y = -view_y - 8.0 * px;
+    let value = toast.value.clone();
+    let rest = format!(" ({}) · 1 Undo step", toast.delta);
+    rsx! {
+        g {
+            class: "m1-feedback-toast",
+            role: "status",
+            transform: "translate({panel_x} {panel_y}) scale({px} {-px})",
+            style: "pointer-events:none",
+            rect {
+                x: "0",
+                y: "0",
+                width: "{width_px}",
+                height: "33.5",
+                rx: "8",
+                style: "fill:var(--wb-panel);stroke:var(--wb-rule-strong);stroke-width:1px;vector-effect:non-scaling-stroke;filter:drop-shadow(0 6px 18px rgb(24 35 49 / 18%))",
+            }
+            text {
+                x: "12",
+                y: "20.5",
+                style: "font-size:12.5px",
+                tspan { style: "font-weight:700", "{value}" }
+                tspan { "{rest}" }
+            }
+        }
+    }
+}
+
+/// Ticket 06: the rect plus left-aligned text rows of one view-only chrome
+/// panel, drawn in a y-down px group the caller positions. Rows carry
+/// (text, size px, fill, mono-600). Static panels only: reduced motion drops
+/// travel, and there is no travel to drop.
+fn feedback_panel_contents(width_px: f64, rows: Vec<(String, f64, &'static str, bool)>) -> Element {
+    let pad = 8.0;
+    let height_px: f64 = rows.iter().map(|(_, size, _, _)| size * 1.4).sum::<f64>() + pad * 2.0;
+    let mut baseline = pad;
+    let placed: Vec<(String, f64, &'static str, String, f64)> = rows
+        .into_iter()
+        .map(|(text, size, fill, mono)| {
+            baseline += size;
+            let y = baseline;
+            baseline += size * 0.4;
+            let style = if mono {
+                "font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600".to_owned()
+            } else {
+                String::new()
+            };
+            (text, size, fill, style, y)
+        })
+        .collect();
+    rsx! {
+        rect {
+            x: "0",
+            y: "0",
+            width: "{width_px}",
+            height: "{height_px}",
+            rx: "8",
+            style: "fill:var(--wb-panel);stroke:var(--wb-rule-strong);stroke-width:1px;vector-effect:non-scaling-stroke;filter:drop-shadow(0 2px 4px rgb(24 35 49 / 12%))",
+        }
+        for (text, size, fill, style, y) in placed {
+            text {
+                x: "{pad}",
+                y: "{y}",
+                style: "font-size:{size}px;fill:{fill};{style}",
+                "{text}"
+            }
+        }
+    }
+}
 const GLYPH_ROTATE: &str = "M4.5 -2A5 5 0 1 1 -2 -4.6M4.6 -5v3h-3";
 
 /// The token glyph for one rail tool: the axis arrow along `glyph_degrees`
@@ -485,6 +663,12 @@ pub fn LayoutTransformToolOverlay(
     let hovered = use_signal(|| false);
     // Keyboard focus previews like hover, matching the Inspector fields.
     let focused = use_signal(|| false);
+    // Ticket 06: the value popup and commit toast content (pure reducer;
+    // rendering only), the popup's top-left in world units (`None` docks it
+    // above the rail), and the toast generation the 1.8 s timer checks.
+    let feedback = use_signal(FeedbackState::default);
+    let popup_at = use_signal(|| None::<(f64, f64)>);
+    let toast_gen = use_signal(|| 0_u64);
     let preview = try_use_context::<FieldPreview>();
     let preview_source = try_use_context::<Option<FieldPreviewSource>>().flatten();
     let shown = use_hook(|| Rc::new(RefCell::new(Vec::<String>::new())));
@@ -556,6 +740,8 @@ pub fn LayoutTransformToolOverlay(
         let runtime = runtime.0.clone();
         let drag = drag.clone();
         let arbiter = arbiter.clone();
+        let feedback_for_escape = feedback;
+        let popup_at_for_escape = popup_at;
         move || {
             let Some(document) = web_sys::window().and_then(|window| window.document()) else {
                 return;
@@ -563,6 +749,8 @@ pub fn LayoutTransformToolOverlay(
             let runtime = runtime.clone();
             let drag = drag.clone();
             let arbiter = arbiter.clone();
+            let mut feedback_for_escape = feedback_for_escape;
+            let mut popup_at_for_escape = popup_at_for_escape;
             let callback = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
                 if event.key() != "Escape" || event.default_prevented() {
                     return;
@@ -586,6 +774,12 @@ pub fn LayoutTransformToolOverlay(
                 }
                 event.prevent_default();
                 let mut guide = snap_guide;
+                // Ticket 06: Escape clears the chosen tool and its popup.
+                feedback_for_escape.set(advance_feedback(
+                    &feedback_for_escape(),
+                    FeedbackEvent::Dismiss,
+                ));
+                popup_at_for_escape.set(None);
                 cancel_transform_drag(
                     &runtime,
                     &drag,
@@ -868,6 +1062,7 @@ pub fn LayoutTransformToolOverlay(
     let drag_for_start = drag.clone();
     let arbiter_for_start = arbiter.clone();
     let guide_for_start = snap_guide;
+    let popup_at_for_start = popup_at;
     let start_drag = Rc::new(move |event: PointerEvent, gesture: TransformGesture| {
         let mut guide_for_start = guide_for_start;
         let mut quick_for_start = quick_glyph;
@@ -1041,6 +1236,13 @@ pub fn LayoutTransformToolOverlay(
             preview_submitted: false,
         });
         guide_for_start.set(None);
+        // Ticket 06: the popup follows the pointer from pointer-down, 18 px
+        // off it like the prototype, until the drop re-docks or clears it.
+        let mut popup_at_for_start = popup_at_for_start;
+        popup_at_for_start.set(Some((
+            start_point.x + 18.0 * world_per_screen,
+            start_point.y - 18.0 * world_per_screen,
+        )));
         rail_set_active(svg_key_for_start, Some(tool));
         quick_for_start.set(matches!(
             gesture,
@@ -1061,10 +1263,14 @@ pub fn LayoutTransformToolOverlay(
     let drag_for_move = drag.clone();
     let arbiter_for_move = arbiter.clone();
     let guide_for_move = snap_guide;
+    let feedback_for_move = feedback;
+    let popup_at_for_move = popup_at;
     let snap_settings_for_move = snap_settings.clone();
     let snap_origins_for_move = snap_origins.clone();
     let move_drag = Rc::new(move |event: PointerEvent| {
         let mut guide_for_move = guide_for_move;
+        let mut feedback_for_move = feedback_for_move;
+        let mut popup_at_for_move = popup_at_for_move;
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
@@ -1126,6 +1332,27 @@ pub fn LayoutTransformToolOverlay(
         {
             submit_transform_edit(&runtime_for_move, &active, operation.clone());
             active.preview_submitted = true;
+            // Ticket 06: the popup follows the pointer with the live value
+            // and delta; a non-placement gesture keeps its docked content.
+            if let Some(TransformDragResult::Placement { delta, .. }) =
+                transform_drag_result(&active, &operation)
+            {
+                let value = placement_target(&operation, &active.matrix)
+                    .map(|(_, end)| format_placement_value(end))
+                    .unwrap_or_default();
+                feedback_for_move.set(advance_feedback(
+                    &feedback_for_move(),
+                    FeedbackEvent::Drag {
+                        name: feedback_tool_name(tool).to_owned(),
+                        value,
+                        delta: placement_feedback_delta(delta),
+                    },
+                ));
+            }
+            popup_at_for_move.set(Some((
+                point.x + 18.0 * world_per_screen,
+                point.y - 18.0 * world_per_screen,
+            )));
             active.pending = Some(operation);
             *drag_for_move.borrow_mut() = Some(active);
         }
@@ -1136,8 +1363,14 @@ pub fn LayoutTransformToolOverlay(
     let drag_for_end = drag.clone();
     let arbiter_for_end = arbiter.clone();
     let guide_for_end = snap_guide;
+    let feedback_for_end = feedback;
+    let popup_at_for_end = popup_at;
+    let toast_gen_for_end = toast_gen;
     let end_drag = Rc::new(move |event: PointerEvent| {
         let mut guide_for_end = guide_for_end;
+        let mut feedback_for_end = feedback_for_end;
+        let mut popup_at_for_end = popup_at_for_end;
+        let mut toast_gen_for_end = toast_gen_for_end;
         let svg_key_for_end = svg_key;
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
@@ -1203,6 +1436,12 @@ pub fn LayoutTransformToolOverlay(
                 )
             })
             .or_else(|| active.pending.clone());
+        // The live value behind the toast and the re-docked popup.
+        let live_value = operation
+            .as_ref()
+            .and_then(|operation| placement_target(operation, &active.matrix))
+            .map(|(_, end)| format_placement_value(end))
+            .unwrap_or_default();
         if let Some(operation) = operation {
             if active.pending.as_ref() != Some(&operation) {
                 submit_transform_edit(&runtime_for_end, &active, operation.clone());
@@ -1210,12 +1449,56 @@ pub fn LayoutTransformToolOverlay(
             }
             if !same_transform_as_start(&active, &operation) {
                 commit_transform_drag(&runtime_for_end, &active, &operation);
+                // Ticket 06: a committed placement drag raises the value
+                // toast as one Undo step. The toast writes nothing: it is a
+                // signal the 1.8 s timer clears.
+                if let Some(TransformDragResult::Placement { delta, .. }) =
+                    transform_drag_result(&active, &operation)
+                {
+                    feedback_for_end.set(advance_feedback(
+                        &feedback_for_end(),
+                        FeedbackEvent::Commit {
+                            value: format!("{} {live_value}", feedback_tool_name(tool)),
+                            delta: placement_feedback_delta(delta),
+                        },
+                    ));
+                    let seen = {
+                        toast_gen_for_end.set(toast_gen_for_end() + 1);
+                        toast_gen_for_end()
+                    };
+                    let mut feedback_for_timer = feedback_for_end;
+                    let gen_for_timer = toast_gen_for_end;
+                    spawn_local(async move {
+                        gloo_timers::future::TimeoutFuture::new(TOAST_TIMEOUT_MS).await;
+                        if gen_for_timer() == seen {
+                            feedback_for_timer.set(advance_feedback(
+                                &feedback_for_timer(),
+                                FeedbackEvent::Expire,
+                            ));
+                        }
+                    });
+                }
             } else if active.preview_submitted {
                 clear_transform_preview(&runtime_for_end, &active);
+                feedback_for_end.set(advance_feedback(
+                    &feedback_for_end(),
+                    FeedbackEvent::Choose {
+                        name: feedback_tool_name(tool).to_owned(),
+                        value: live_value.clone(),
+                    },
+                ));
             }
         } else if active.preview_submitted {
             clear_transform_preview(&runtime_for_end, &active);
+            feedback_for_end.set(advance_feedback(
+                &feedback_for_end(),
+                FeedbackEvent::Choose {
+                    name: feedback_tool_name(tool).to_owned(),
+                    value: live_value,
+                },
+            ));
         }
+        popup_at_for_end.set(None);
         guide_for_end.set(None);
         rail_set_active(svg_key_for_end, None);
         let mut quick_for_end = quick_glyph;
@@ -1234,8 +1517,12 @@ pub fn LayoutTransformToolOverlay(
     let drag_for_cancel = drag.clone();
     let arbiter_for_cancel = arbiter.clone();
     let guide_for_cancel = snap_guide;
+    let feedback_for_cancel = feedback;
+    let popup_at_for_cancel = popup_at;
     let cancel_drag = Rc::new(move |event: PointerEvent| {
         let mut guide_for_cancel = guide_for_cancel;
+        let mut feedback_for_cancel = feedback_for_cancel;
+        let mut popup_at_for_cancel = popup_at_for_cancel;
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
@@ -1246,6 +1533,12 @@ pub fn LayoutTransformToolOverlay(
         {
             pointer.prevent_default();
             pointer.stop_propagation();
+            // Ticket 06: a cancelled drag takes its popup with it.
+            feedback_for_cancel.set(advance_feedback(
+                &feedback_for_cancel(),
+                FeedbackEvent::Dismiss,
+            ));
+            popup_at_for_cancel.set(None);
             cancel_transform_drag(
                 &runtime_for_cancel,
                 &drag_for_cancel,
@@ -1262,14 +1555,24 @@ pub fn LayoutTransformToolOverlay(
     let drag_for_key = drag.clone();
     let arbiter_for_key = arbiter.clone();
     let guide_for_key = snap_guide;
+    let feedback_for_key = feedback;
+    let popup_at_for_key = popup_at;
     let on_key_down = Rc::new(move |event: KeyboardEvent| {
         let mut guide_for_key = guide_for_key;
+        let mut feedback_for_key = feedback_for_key;
+        let mut popup_at_for_key = popup_at_for_key;
         let Some(key) = event.data().try_as_web_event() else {
             return;
         };
         if key.key() == "Escape" {
             key.prevent_default();
             key.stop_propagation();
+            // Ticket 06: Escape clears the chosen tool and its popup.
+            feedback_for_key.set(advance_feedback(
+                &feedback_for_key(),
+                FeedbackEvent::Dismiss,
+            ));
+            popup_at_for_key.set(None);
             cancel_transform_drag(
                 &runtime_for_key,
                 &drag_for_key,
@@ -1677,6 +1980,8 @@ pub fn LayoutTransformToolOverlay(
     } else {
         gesture
     };
+    // Ticket 06: the popup and toast content behind the chrome below.
+    let feedback_state = feedback();
     rsx! {
         if let Some(guide) = snap_guide() {
             g { class: "m1-transform-snap-guide", "aria-hidden": "true",
@@ -1744,10 +2049,14 @@ pub fn LayoutTransformToolOverlay(
                             onpointercancel: { let handler = cancel_drag.clone(); move |event| handler(event) },
                             onlostpointercapture: { let handler = cancel_drag.clone(); move |event| handler(event) },
                             onkeydown: { let handler = on_key_down.clone(); move |event| handler(event) },
-                            onpointerenter: { let mut hovered = hovered; move |_| { hovered.set(true); show_hover(); } },
-                            onpointerleave: { let mut hovered = hovered; move |_| { hovered.set(false); hide_hover(); } },
-                            onfocus: { let mut focused = focused; move |_| { focused.set(true); show_focus(); } },
-                            onblur: { let mut focused = focused; move |_| { focused.set(false); hide_focus(); } },
+                            // Ticket 06: hovering or focusing a token docks the
+                            // value popup above the rail; leaving clears it.
+                            // The content comes from the pure reducer, so the
+                            // chrome never writes.
+                            onpointerenter: { let mut hovered = hovered; let mut feedback = feedback; let mut popup_at = popup_at; let name = feedback_tool_name(tool).to_owned(); let value = handle_value.clone(); move |_| { hovered.set(true); show_hover(); popup_at.set(None); feedback.set(advance_feedback(&feedback(), FeedbackEvent::Choose { name: name.clone(), value: value.clone() })); } },
+                            onpointerleave: { let mut hovered = hovered; let mut feedback = feedback; move |_| { hovered.set(false); hide_hover(); feedback.set(advance_feedback(&feedback(), FeedbackEvent::Dismiss)); } },
+                            onfocus: { let mut focused = focused; let mut feedback = feedback; let mut popup_at = popup_at; let name = feedback_tool_name(tool).to_owned(); let value = handle_value.clone(); move |_| { focused.set(true); show_focus(); popup_at.set(None); feedback.set(advance_feedback(&feedback(), FeedbackEvent::Choose { name: name.clone(), value: value.clone() })); } },
+                            onblur: { let mut focused = focused; let mut feedback = feedback; move |_| { focused.set(false); hide_focus(); feedback.set(advance_feedback(&feedback(), FeedbackEvent::Dismiss)); } },
                             rect { x: "-9", y: "-9", width: "18", height: "18", rx: "4", style: "{tok_style}" }
                             rect { x: "-10", y: "-12", width: "20", height: "24", style: "{hit_style}" }
                             {glyph}
@@ -1825,6 +2134,28 @@ pub fn LayoutTransformToolOverlay(
                     title { "Move splay origin" }
                 }
             }
+        }
+        // Ticket 06: the value popup — docked 8 px above the rail while a
+        // tool is hovered or focused, 18 px off the pointer while dragging —
+        // and the commit toast at the top centre of the canvas. Both are
+        // view-only: `pointer-events: none`, no tabindex, no document write.
+        if let Some(popup) = feedback_state.popup.as_ref() {
+            {feedback_popup_panel(
+                popup,
+                popup_at(),
+                rail_layout.as_ref().map(|layout| {
+                    (
+                        layout.rail.x,
+                        layout.rail.y,
+                        layout.rail.w,
+                        layout.rail.h,
+                    )
+                }),
+                px,
+            )}
+        }
+        if let Some(toast) = feedback_state.toast.as_ref() {
+            {feedback_toast_panel(toast, view_x, view_y, width, px)}
         }
     }
 }
@@ -6530,6 +6861,116 @@ mod tool_tests {
                 .unwrap_or_default(),
             Vec2::default(),
             "one Undo restores the key's shift"
+        );
+        root.remove();
+    }
+
+    /// Ticket 06: the value popup docks above the rail on hover, follows the
+    /// pointer during a drag with the live value and delta, and the drop
+    /// raises one commit toast with no extra revision; the toast is gone
+    /// after its timeout. Sixty pixels up are fifteen world millimetres, so
+    /// the snapped stagger lands three grid steps out.
+    #[wasm_bindgen_test]
+    async fn value_popup_follows_the_drag_and_commit_toast_expires() {
+        fn translate_of(element: &web_sys::Element) -> (f64, f64) {
+            let transform = element.get_attribute("transform").unwrap_or_default();
+            let inner = transform
+                .strip_prefix("translate(")
+                .and_then(|rest| rest.split(')').next())
+                .unwrap_or("");
+            let mut parts = inner.split(' ');
+            (
+                parts.next().and_then(|x| x.parse().ok()).unwrap_or(0.0),
+                parts.next().and_then(|y| y.parse().ok()).unwrap_or(0.0),
+            )
+        }
+        let runtime = fixture::open_matrix_runtime().await;
+        wait_until_editable(&runtime).await;
+        let context = TreeContext::Column {
+            matrix_id: fixture::MATRIX_ID.into(),
+            column: 1,
+        };
+        let (root, _) =
+            mount_context_overlay(&runtime, LayoutTransformTool::Stagger, context).await;
+        let handle = root
+            .query_selector("[aria-label='Drag to stagger']")
+            .unwrap()
+            .expect("the stagger token draws");
+        dispatch_pointer(&handle, "pointerenter", false, false, 0, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(60).await;
+        let popup = root
+            .query_selector(".m1-feedback-popup")
+            .unwrap()
+            .expect("hover docks the value popup");
+        let (_, token_y) = translate_of(&handle);
+        let (_, popup_y) = translate_of(&popup);
+        assert!(
+            popup_y > token_y,
+            "the docked popup sits above the rail token"
+        );
+        assert!(
+            popup.text_content().unwrap_or_default().contains("Stagger"),
+            "the popup names the field"
+        );
+
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(60).await;
+        let (_, following_start) =
+            translate_of(&root.query_selector(".m1-feedback-popup").unwrap().unwrap());
+        dispatch_pointer(&handle, "pointermove", false, false, 1, (100, 40));
+        gloo_timers::future::TimeoutFuture::new(60).await;
+        let popup = root.query_selector(".m1-feedback-popup").unwrap().unwrap();
+        let (_, following_end) = translate_of(&popup);
+        assert!(
+            (following_end - following_start - 15.0).abs() < 1.5,
+            "the popup follows the pointer up by the dragged world distance"
+        );
+        assert!(
+            popup
+                .text_content()
+                .unwrap_or_default()
+                .contains("+14.29 mm"),
+            "the popup shows the live delta"
+        );
+
+        dispatch_pointer(&handle, "pointerup", false, false, 0, (100, 40));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision + 1,
+            "one accepted edit"
+        );
+        let toast = root
+            .query_selector(".m1-feedback-toast")
+            .unwrap()
+            .expect("the commit raises a toast");
+        assert_eq!(toast.get_attribute("role").as_deref(), Some("status"));
+        assert_eq!(
+            toast.get_attribute("tabindex"),
+            None,
+            "the toast never takes focus"
+        );
+        assert_eq!(
+            toast.text_content().unwrap_or_default(),
+            "Stagger 14.29 mm (+14.29 mm) · 1 Undo step"
+        );
+        gloo_timers::future::TimeoutFuture::new(300).await;
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision + 1,
+            "the toast writes no extra revision"
+        );
+        gloo_timers::future::TimeoutFuture::new(2200).await;
+        assert!(
+            root.query_selector(".m1-feedback-toast").unwrap().is_none(),
+            "the toast is gone after its timeout"
         );
         root.remove();
     }
