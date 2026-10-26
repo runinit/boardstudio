@@ -750,3 +750,32 @@ The preceding reviewed-head negative probe is recorded above and was not rerun.
 This comparison does not close the full supported gate: the previous Parts and
 Keycaps failures remain open, as do CI cutover and independent closure review.
 Ticket 005 remains claimed.
+
+### 2026-10-26: Parts upload and Keycaps resource investigation
+
+The original full receipt `.evidence/drag-save-undo-default-6346fe98.json`
+remains failed: Parts first failed on a missing uploaded parameter and Keycaps
+did not start its tests after a renderer script-load timeout. The page suite
+was not run. The separate concurrent diagnostic had a Library rename timeout;
+it is not an original full-receipt failure.
+
+In `upload_preview_refresh_does_not_keep_a_later_failed_apply_draft`, the test
+drains held effects and checks for the accepted asset for at most 100 iterations
+with a 20 ms timer, then indexes the uploaded parameter. The prior injected
+2.5-second delay reproduced the missing-key failure before the upload landed
+(`.evidence/c7e1-inject-2500-full-parts.log`); this proves that delay can cause
+the symptom, not that it caused the original failure. Prior CPU-stress probes
+also produced renderer script-load timeouts, without establishing the original
+Keycaps cause. The shared bounded wait would extend this test's bound; no such
+change or product fix was made without evidence that it addresses the original
+failure and preserves the required failure signal.
+
+On clean `2612afc329ef362741ad63d223579399a35a0d76`, the supported partial
+`check.py browser --only keycaps,parts --keep-going` ran under the build lock
+and `boardstudio-tests.slice` with `BOARDSTUDIO_CHECK_JOBS=1`. Keycaps passed
+31/31 and Parts 68/68 (`.evidence/ticket005-serial-keycaps-parts.json` and
+`.evidence/ticket005-serial-keycaps-parts.log`). This single serial subset
+shows a usable scheduler setting for this run, not a proven stable resource
+envelope or a causal explanation for the earlier failures. It does not replace
+the failed full receipt. Full supported verification, CI cutover, and closure
+review remain open; no default driver was changed.
