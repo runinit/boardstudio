@@ -331,7 +331,8 @@ async fn run() -> Result<()> {
     driver::dispose_isolated_page(&browser, None, page, &page_errors).await?;
     Ok(())
     }.await;
-    let (result, confirmed) = shutdown::finish_browser(browser, drain, &handler_errors).await;
+    let (result, confirmed) =
+        shutdown::finish_browser(browser, drain, &handler_errors, outcome.is_ok()).await;
     if !confirmed {
         eprintln!(
             "browser termination unconfirmed; preserving profile at {}",

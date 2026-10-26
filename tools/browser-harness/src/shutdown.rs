@@ -8,8 +8,10 @@ pub(super) async fn finish_browser(
     mut browser: Browser,
     drain: tokio::task::JoinHandle<()>,
     handler_errors: &HandlerErrors,
+    boundaries_complete: bool,
 ) -> (Result<()>, bool) {
     let limit = Duration::from_secs(60);
+    let before_close = handler_errors.fail_if_any();
     let close = tokio::time::timeout(limit, browser.close()).await;
     let wait = if matches!(close, Ok(Ok(_))) {
         Some(tokio::time::timeout(limit, browser.wait()).await)
@@ -37,7 +39,20 @@ pub(super) async fn finish_browser(
         errors.push(format!("browser shutdown failed: close={close:?}, wait={wait:?}, kill={kill:?}, final_wait={final_wait:?}, drain={drained:?}"));
     }
     if let Err(error) = handler_errors.fail_if_any() {
-        errors.push(error.to_string());
+        let expected_reset = boundaries_complete
+            && before_close.is_ok()
+            && matches!(close, Ok(Ok(_)))
+            && success
+            && kill.is_none()
+            && matches!(drained, Ok(Ok(())))
+            && error.to_string() == "drag browser smoke saw 1 browser handler error(s): WebSocket protocol reset without closing handshake";
+        if expected_reset {
+            eprintln!(
+                "browser shutdown: expected post-boundary WebSocket reset after clean child exit"
+            );
+        } else {
+            errors.push(error.to_string());
+        }
     }
     let result = if errors.is_empty() {
         Ok(())

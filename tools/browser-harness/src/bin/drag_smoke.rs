@@ -2014,7 +2014,8 @@ async fn run() -> Result<usize> {
         Ok::<_, Error>((browser_version, smoke.checks))
     }
     .await;
-    let (shutdown, confirmed) = shutdown::finish_browser(browser, drain, &handler_errors).await;
+    let (shutdown, confirmed) =
+        shutdown::finish_browser(browser, drain, &handler_errors, outcome.is_ok()).await;
     if !confirmed {
         eprintln!(
             "browser termination unconfirmed; preserving profile at {}",

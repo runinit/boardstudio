@@ -645,3 +645,33 @@ tests because their parallel processes shared a profile lock
 (`.evidence/ticket005-boundary-checks.log`); this is not a passing workspace
 test. Full supported check, parity, CI cutover, launch-error cleanup and closure
 review remain open. Ticket 005 remains claimed.
+
+### 2026-10-26: bounded Chrome teardown reset
+
+Starting from clean `5aaefe715c4b56ddbf4ac1e7e6b7047d50504e14`, classify only
+the WebSocket `ResetWithoutClosingHandshake` as expected when the consumer's
+observed target boundaries completed, the handler was clean before close,
+`Browser.close` was acknowledged, the separately waited child exited
+successfully without a kill, and the handler and listeners drained. All other
+handler errors and unsuccessful or incomplete cleanup remain fatal. The
+boundary remains limited to events delivered before the target marker; it is
+not a renderer-to-browser delivery guarantee.
+
+The prior pinned Chrome probe failed on this reset after its target boundaries
+(`.evidence/ticket005-boundary-probe.log`). On this change the Chrome 145
+negative probe passed and collected its late rejection
+(`.evidence/ticket005-reset-probe.log`). Real consumer controls killed the
+consumer's own Chrome while its target was open and observed a fatal verdict
+with no receipt; assertion, exception, rejection, and close-time exception
+controls also failed without receipts (`.evidence/ticket005-reset-controls.log`).
+The harness tests passed 13 library and one scenario test; build and Clippy
+passed (`.evidence/ticket005-reset-focused.log`), as did formatting.
+
+The Rust launcher passed 15 checks on pinned Chrome and verified receipt
+`20261026T230931Z-b84b6c4f5700` on the existing site build digest
+`6f9242d46d35eb540dfb9f5eaae11fc1e9ecfa83aafcd6c84f84df29f129cfdc`
+(`.evidence/ticket005-reset-rust-smoke.log`). Its source identity is the dirty
+implementation tree based on `5aaefe715`; this is not a fresh-build parity
+receipt. The earlier failed probe and workspace test with shared profile-lock
+failures remain failures. Full supported check, fresh parity, CI cutover,
+launch-error cleanup and closure review remain open; ticket stays claimed.

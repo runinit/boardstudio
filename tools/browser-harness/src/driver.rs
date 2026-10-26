@@ -140,6 +140,11 @@ pub fn spawn_handler_drain(
                             redact(&payload)
                         )
                     }
+                    CdpError::Ws(error)
+                        if format!("{error:?}") == "Protocol(ResetWithoutClosingHandshake)" =>
+                    {
+                        "WebSocket protocol reset without closing handshake".to_owned()
+                    }
                     other => other.to_string(),
                 };
                 eprintln!("browser handler error: {message}");
@@ -1109,7 +1114,7 @@ mod redaction_tests {
             .unwrap();
         let verdict = handler_errors.fail_if_any().unwrap_err().to_string();
         assert!(
-            verdict.contains("Connection reset without closing handshake"),
+            verdict.contains("WebSocket protocol reset without closing handshake"),
             "{verdict}"
         );
         server.await.unwrap();

@@ -5,9 +5,12 @@ Build the drag-smoke binary first and supply the pinned browser via CHROME_BIN.
 """
 
 import os
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+import signal
 import subprocess
 import tempfile
+import threading
 
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = ROOT / "tools/browser-harness/target/debug/drag-smoke"
@@ -52,3 +55,31 @@ with tempfile.TemporaryDirectory(prefix="ticket005-controls-", dir="/tmp") as di
         print(output, flush=True)
         if result.returncode == 0 or receipt.exists() or expected not in output:
             raise SystemExit(f"{name} control failed")
+
+    # Kill only this consumer's Chrome child while its observed target is open.
+    killed = threading.Event()
+    class LoseTransport(BaseHTTPRequestHandler):
+        def do_GET(self):
+            children = Path(f"/proc/{process.pid}/task/{process.pid}/children").read_text().split()
+            chrome = Path(os.environ["CHROME_BIN"]).resolve()
+            matches = [int(pid) for pid in children if Path(f"/proc/{pid}/exe").resolve() == chrome]
+            if len(matches) != 1:
+                raise RuntimeError(f"expected one owned Chrome child, got {matches}")
+            os.kill(matches[0], signal.SIGKILL)
+            killed.set()
+            self.send_response(200)
+            self.end_headers()
+
+    server = HTTPServer(("127.0.0.1", 0), LoseTransport)
+    receipt = base / "transport-loss" / "receipt.json"
+    env.update(BOARDSTUDIO_PREVIEW_URL=f"http://127.0.0.1:{server.server_port}/",
+               BOARDSTUDIO_DRAG_RECEIPT_PATH=str(receipt))
+    process = subprocess.Popen([str(BINARY)], env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    thread = threading.Thread(target=server.handle_request)
+    thread.start()
+    output, _ = process.communicate(timeout=90)
+    thread.join(timeout=5)
+    server.server_close()
+    print(f"transport-loss: exit {process.returncode}, receipt exists {receipt.exists()}\n{output}", flush=True)
+    if not killed.is_set() or process.returncode == 0 or receipt.exists() or "browser shutdown failed" not in output:
+        raise SystemExit("transport-loss control failed")
