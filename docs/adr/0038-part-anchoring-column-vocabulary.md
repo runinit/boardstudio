@@ -21,9 +21,13 @@ Detached parts keep ticket-12 behavior exactly.
   the stored pose goes stale and readers must keep using
   `evaluated_part_pose`. An anchor that stops resolving (removed key or
   matrix) holds the stored pose instead of failing evaluation.
-- **Pose-preserving retargets.** Pick (`SetPartAnchor`), Follow changes
+- **Retargets (Pick moves; Follow and Detach hold the pose).** Follow changes
   (`SetPartAnchorFollow`) and Detach (`DetachPartAnchor`) re-solve the carried
   and local values from the current evaluated pose, each in one Undo entry.
+  Pick (`SetPartAnchor`) instead keeps the stored carried and local values and
+  places the part freshly from the new anchor key (target and Follow subset
+  come from the Pick), so the part moves — see the layout-controls-polish
+  [re-anchor decision](../plans/layout-controls-polish/issues/04-re-anchor-moves.md).
   Typed value edits (`SetPartAnchorValues`), drops and drags move the part by
   design: a drag re-solves Spread/Stagger from the clamped drop, keeping
   rotation; typed X/Y edits start from the evaluated pose for anchored parts.

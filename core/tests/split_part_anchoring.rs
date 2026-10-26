@@ -263,20 +263,16 @@ fn drop_anchors_to_the_nearest_key_and_keeps_the_drop_point_upright() {
     assert_eq!(pose.rotation, 0.0);
 }
 
-#[test]
-fn pick_keeps_the_pose_and_is_one_undo_entry() {
-    let (mut engine, _, doc) = open(pair_doc());
-    let dropped = drop_u1(&mut engine, &doc);
-    let before = board_pose(&dropped, "u1");
-    let picked = edit(
-        &mut engine,
-        &dropped,
+fn pick_r2c5(engine: &mut CoreEngine, doc: &ProjectDoc) -> ProjectDoc {
+    edit(
+        engine,
+        doc,
         EditOperation::SetPartAnchor {
             part_id: "u1".into(),
             anchor: PartAnchor {
                 matrix_id: "main".into(),
-                row: 0,
-                column: 0,
+                row: 1,
+                column: 4,
                 follow: Follow {
                     x: true,
                     y: true,
@@ -290,24 +286,91 @@ fn pick_keeps_the_pose_and_is_one_undo_entry() {
             },
         },
     )
+    .1
+}
+
+#[test]
+fn pick_moves_the_part_from_the_new_anchor_and_is_one_undo_entry() {
+    let (mut engine, _, doc) = open(pair_doc());
+    let dropped = drop_u1(&mut engine, &doc);
+    // Give the part carried Spread so the Pick has stored values to keep.
+    let spread = edit(
+        &mut engine,
+        &dropped,
+        EditOperation::SetPartAnchorValues {
+            part_id: "u1".into(),
+            change: PartAnchorValueChange::Spread(4.0),
+        },
+    )
     .1;
-    assert_eq!(board_pose(&picked, "u1"), before);
+    let before = board_pose(&spread, "u1");
+    let stored = part_of(&spread, "u1").anchor.expect("spread anchor");
+    assert_eq!((stored.row, stored.column), (2, 5));
+    assert_eq!(stored.spread, 4.0);
+    // Pick R2C5 with zeroed values: the stored carried/local values win and
+    // the part moves to the fresh placement from the new anchor key.
+    let picked = pick_r2c5(&mut engine, &spread);
+    let anchor = part_of(&picked, "u1").anchor.expect("picked anchor");
+    assert_eq!(anchor.matrix_id, "main");
+    assert_eq!((anchor.row, anchor.column), (1, 4));
+    assert!(anchor.follow.x && anchor.follow.y && anchor.follow.rotation);
+    assert_eq!(anchor.spread, 4.0);
+    assert_eq!(anchor.stagger, stored.stagger);
+    assert_eq!(anchor.splay, 0.0);
+    assert_eq!(anchor.offset, Vec2::default());
+    assert_eq!(anchor.rotation, 0.0);
+    // ADR-0038 placement from R2C5's key pose with the kept values.
+    let key = board_pose(&picked, &member("main", 1, 4));
     assert_eq!(
-        part_of(&picked, "u1")
-            .anchor
-            .as_ref()
-            .expect("picked anchor")
-            .matrix_id,
-        "main"
+        board_pose(&picked, "u1"),
+        Pose2 {
+            at: Vec2 {
+                x: key.at.x + 4.0,
+                y: key.at.y + stored.stagger,
+            },
+            rotation: key.rotation,
+        }
     );
-    assert_eq!(part_of(&picked, "u1").anchor.as_ref().expect("row").row, 0);
-    // One Undo entry returns the anchored pose and target.
+    assert_ne!(board_pose(&picked, "u1"), before);
+    // One Undo entry restores the old anchor and pose.
     let undone_doc = undone(&mut engine);
-    assert_eq!(board_pose(&undone_doc, "u1"), before);
-    let anchor = part_of(&undone_doc, "u1")
+    let restored = part_of(&undone_doc, "u1")
         .anchor
         .expect("undo restores the drop anchor");
-    assert_eq!((anchor.row, anchor.column), (2, 5));
+    assert_eq!((restored.row, restored.column), (2, 5));
+    assert_eq!(restored.spread, 4.0);
+    assert_eq!(board_pose(&undone_doc, "u1"), before);
+}
+
+#[test]
+fn pick_moves_the_mirror_partner_by_the_mirrored_amount() {
+    let (mut engine, _, doc) = open(pair_doc());
+    let dropped = drop_u1(&mut engine, &doc);
+    let partner_id = part_records(&dropped)[0].mirror_id.clone();
+    let spread = edit(
+        &mut engine,
+        &dropped,
+        EditOperation::SetPartAnchorValues {
+            part_id: "u1".into(),
+            change: PartAnchorValueChange::Spread(4.0),
+        },
+    )
+    .1;
+    let stored = part_of(&spread, "u1").anchor.expect("spread anchor");
+    let picked = pick_r2c5(&mut engine, &spread);
+    let source_pose = board_pose(&picked, "u1");
+    let anchor = part_of(&picked, &partner_id)
+        .anchor
+        .expect("partner anchor");
+    // The partner maps to the counterpart key with mirrored values.
+    assert_eq!(anchor.matrix_id, "main-mirror");
+    assert_eq!((anchor.row, anchor.column), (1, 4));
+    assert_eq!(anchor.spread, -4.0);
+    assert_eq!(anchor.stagger, stored.stagger);
+    // The partner pose mirrors across the split axis.
+    let partner_pose = board_pose(&picked, &partner_id);
+    assert_eq!(partner_pose.at.x, 2.0 * 40.0 - source_pose.at.x);
+    assert_eq!(partner_pose.at.y, source_pose.at.y);
 }
 
 #[test]

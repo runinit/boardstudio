@@ -2219,9 +2219,11 @@ pub enum EditOperation {
         part_id: String,
         mirrored: bool,
     },
-    /// Ticket 13: retarget an independent part's anchor key (Pick). Core
-    /// re-solves the carried and local values so the evaluated pose is
-    /// unchanged, in one Undo entry.
+    /// Ticket 13, retarget rule 04: retarget an independent part's anchor
+    /// key (Pick) to a new target and Follow subset. Core keeps the stored
+    /// carried (Spread/Stagger/Splay) and local (Offset/Rotation) values, so
+    /// the part moves to the fresh placement from the new anchor key, in one
+    /// Undo entry.
     SetPartAnchor {
         #[serde(rename = "partId")]
         part_id: String,
