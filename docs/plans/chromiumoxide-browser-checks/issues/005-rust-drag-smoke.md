@@ -113,4 +113,37 @@ both runners; down/move records byte-identical modulo capture retargeting).
 
 Open: app-bug escalation (stale-save Undo race + `unreachable` panic);
 parity re-run after app fix; CI wiring of the Rust path only after parity truly
-passes; two independent reviews (Standards + Spec vs d800bff12) still to run.
+passes.
+
+### 2026-10-26: two independent reviews done; findings answered (ticket still claimed)
+
+Standards review (claude-sonnet-5-5, commit `6a45f68ac` vs `d800bff12`,
+ticket005 paths only): no orchestrator-standard violations beyond judgement
+calls; evidence rules met. Fixed as committed follow-up: removed the
+`/usr/bin/chromium` fallback in `resolve_chrome` (CHROME_BIN-first + PATH
+probes only; runner always sets CHROME_BIN); `canonical` scene signatures and
+receipt bytes now fail loud (`expect`) instead of `unwrap_or_default`;
+`Error::new` replaces both `fn fail` copies; exec-bit check factored out.
+Deferred by design (not fixed): dependabot/CI-cache coverage for the new crate
+(CI wiring waits for parity per this ticket); `BOARDSTUDIO_DRAG_DRIVER` default
+in three places; bespoke `iso_now`/hex (avoids new deps); tuple/i64 shapes.
+Build-lock path `~/.cache/tmp/boardstudio-build.lock` follows the session
+resource guards; nothing else contends for the harness target dir.
+
+Spec review (first delegate refused on its own tool limits; retry with
+claude-opus-5-5 completed): verdict "not resolved" — agrees the ticket stays
+claimed. Findings: (a) invalid-protocol-event evidence missing — ANSWERED BY
+EXPERIMENT: `surface_invalid_messages()` was enabled and immediately caught
+real drift (19 `untagged enum Message` parse failures per run: Chrome 156 vs
+chromiumoxide 0.9 snapshot), failing the teardown scan even though all drag
+checks passed. Failing every run on benign skew makes the gate unusable, so
+tolerance was restored with a code comment recording the evidence; joint
+library+browser pinning at cutover is the real fix, and every required
+protocol interaction already has a timeout/assertion that fails loudly on
+actual loss. Cutover stays blocked on this too. (b) panic-toast fail-fast
+kept deliberately: same FAIL verdict, clearer message than a 60 s hit-test
+timeout (old runner would also time out on a dead app). (c) viewport
+assertion is NOT creep: the old runner asserts the same Case-viewer-inside-
+viewport check. (d) `end_drag().await.ok()` sites all return the original
+error; cleanup is best-effort. (e) parity/CI gaps acknowledged — both
+deliberately held (parity blocked by the app defects above; CI after parity).

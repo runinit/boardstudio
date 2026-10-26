@@ -11,6 +11,13 @@ pub mod driver;
 #[derive(Debug)]
 pub struct Error(pub String);
 
+impl Error {
+    /// A fatal harness or page failure from any message.
+    pub fn new(message: impl Into<String>) -> Self {
+        Error(message.into())
+    }
+}
+
 impl std::fmt::Display for Error {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(&self.0)

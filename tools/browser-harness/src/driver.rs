@@ -53,6 +53,13 @@ pub async fn launch_chrome(chrome: &str, dirs: &IsolatedDirs) -> Result<(Browser
         .chrome_executable(chrome)
         .user_data_dir(&dirs.profile_dir)
         .no_sandbox()
+        // NOTE: `surface_invalid_messages` was tried here and reverted:
+        // Chrome 156 emits ~19 messages per run that chromiumoxide 0.9's
+        // snapshot schema cannot parse (benign library/browser skew), which
+        // would fail every run. Joint library+browser pinning at cutover is
+        // the real fix; until then every required protocol interaction has
+        // a timeout or assertion that fails loudly on actual loss, and the
+        // skew stays a documented cutover blocker, not silent proof.
         .args(LAUNCH_ARGS)
         .viewport(Viewport {
             width: VIEWPORT_WIDTH,

@@ -18,7 +18,7 @@ use futures::StreamExt;
 use boardstudio_browser_harness::Error;
 
 fn fail(message: impl Into<String>) -> Error {
-    Error(message.into())
+    Error::new(message)
 }
 
 const FIXTURE: &str = r#"<!doctype html>

@@ -17,15 +17,16 @@ use chromiumoxide::{Browser, Page};
 use serde_json::{json, Value};
 
 const STORAGE_DATABASE: &str = "boardstudio-m1-boardstudio";
-/// Legacy direct-run fallback, matching the old runner's default.
-const LEGACY_CHROME: &str = "/usr/bin/chromium";
 
 fn fail(message: impl Into<String>) -> Error {
-    Error(message.into())
+    Error::new(message)
 }
 
 fn signature_of(value: &Value) -> String {
-    serde_json::to_string(&boardstudio_browser_harness::canonical(value)).unwrap_or_default()
+    // Serialization of a canonical `Value` cannot fail; a silent empty
+    // default would let two empty scenes compare equal, so be loud instead.
+    serde_json::to_string(&boardstudio_browser_harness::canonical(value))
+        .expect("canonical scene serializes")
 }
 
 fn iso_now() -> String {
@@ -60,8 +61,16 @@ fn env(name: &str) -> Result<String> {
         .map_err(|_| fail(format!("drag browser smoke needs {name} from its runner")))
 }
 
-fn is_executable(path: &str) -> bool {
+fn has_exec_bit(path: &std::path::Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
+    path.is_file()
+        && path
+            .metadata()
+            .map(|meta| meta.permissions().mode() & 0o111 != 0)
+            .unwrap_or(false)
+}
+
+fn is_executable(path: &str) -> bool {
     let candidate = if path.contains('/') {
         std::path::PathBuf::from(path)
     } else {
@@ -70,33 +79,19 @@ fn is_executable(path: &str) -> bool {
         };
         std::env::split_paths(&paths)
             .map(|dir| dir.join(path))
-            .find(|candidate| {
-                candidate.is_file()
-                    && candidate
-                        .metadata()
-                        .map(|meta| meta.permissions().mode() & 0o111 != 0)
-                        .unwrap_or(false)
-            })
+            .find(|candidate| has_exec_bit(candidate))
             .unwrap_or_else(|| std::path::PathBuf::from(path))
     };
-    candidate.is_file()
-        && candidate
-            .metadata()
-            .map(|meta| meta.permissions().mode() & 0o111 != 0)
-            .unwrap_or(false)
+    has_exec_bit(&candidate)
 }
 
 fn resolve_chrome() -> Result<String> {
+    // No personal absolute fallbacks: `CHROME_BIN` first, then the usual
+    // executable names from `PATH`. The runner always sets `CHROME_BIN`.
     let get_env = |name: &str| std::env::var(name).ok();
-    if let Ok(chrome) = boardstudio_browser_harness::discover_chrome(&get_env, &is_executable) {
-        return Ok(chrome);
-    }
-    if is_executable(LEGACY_CHROME) {
-        return Ok(LEGACY_CHROME.to_owned());
-    }
-    Err(fail(
-        "drag browser smoke needs Chrome or Chromium; set CHROME_BIN to its executable",
-    ))
+    boardstudio_browser_harness::discover_chrome(&get_env, &is_executable).map_err(|_| {
+        fail("drag browser smoke needs Chrome or Chromium; set CHROME_BIN to its executable")
+    })
 }
 
 /// First differing paths between two canonical values, for actionable failure
@@ -1878,7 +1873,9 @@ struct ReceiptCheck {
 }
 
 fn receipt_json(receipt: &Receipt) -> String {
-    serde_json::to_string(receipt).unwrap_or_default()
+    // A receipt must never silently serialize to empty: the launcher checksums
+    // these bytes, so fail loud instead of shipping a vacuous receipt.
+    serde_json::to_string(receipt).expect("receipt serializes")
 }
 
 #[tokio::main]
