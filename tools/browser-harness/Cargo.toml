@@ -20,6 +20,9 @@ serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "io-util"] }
 
+[dev-dependencies]
+async-tungstenite = { version = "0.32", features = ["tokio-runtime"] }
+
 [[bin]]
 name = "drag-smoke"
 path = "src/bin/drag_smoke.rs"

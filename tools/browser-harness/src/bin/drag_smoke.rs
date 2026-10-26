@@ -1920,8 +1920,12 @@ async fn run() -> Result<usize> {
     })?;
     let (browser, handler) = driver::launch_chrome(&chrome, &dirs).await?;
     let handler_errors = Arc::new(HandlerErrors::new());
-    let drain = driver::spawn_handler_drain(handler, Arc::clone(&handler_errors));
     let page_errors = Arc::new(PageErrors::new());
+    let drain = driver::spawn_handler_drain(
+        handler,
+        Arc::clone(&handler_errors),
+        Arc::clone(&page_errors),
+    );
     let outcome = async {
         let version = tokio::time::timeout(Duration::from_secs(60), browser.version())
             .await

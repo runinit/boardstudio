@@ -122,8 +122,12 @@ async fn run() -> Result<()> {
     let (url, server) = serve_fixture().await?;
     let (browser, handler) = driver::launch_chrome(&chrome, &dirs).await?;
     let handler_errors = Arc::new(HandlerErrors::new());
-    let drain = driver::spawn_handler_drain(handler, Arc::clone(&handler_errors));
     let page_errors = Arc::new(PageErrors::new());
+    let drain = driver::spawn_handler_drain(
+        handler,
+        Arc::clone(&handler_errors),
+        Arc::clone(&page_errors),
+    );
 
     let outcome = async {
     // Startup failure: an executable that is not Chrome cannot launch.
@@ -167,11 +171,9 @@ async fn run() -> Result<()> {
     .await?;
 
     // Exercise the same collector and fatal verdict used by the drag consumer.
-    let rejection_errors = Arc::new(PageErrors::new());
-    driver::spawn_page_error_listener(&page, Arc::clone(&rejection_errors)).await?;
     driver::eval(&page, "Promise.reject(new Error('probe rejection')); 0;").await?;
     tokio::time::timeout(Duration::from_secs(10), async {
-        while rejection_errors.messages().is_empty() {
+        while !page_errors.messages().iter().any(|message| message.contains("probe rejection")) {
             tokio::task::yield_now().await;
         }
     })
@@ -179,7 +181,7 @@ async fn run() -> Result<()> {
     .map_err(|_| fail("negative probe timed out waiting for the rejection"))?;
     expect_error(
         "unhandled rejection",
-        rejection_errors.fail_if_any(),
+        page_errors.fail_if_any(),
         "probe rejection",
     )
     .await?;
@@ -324,6 +326,8 @@ async fn run() -> Result<()> {
     }
     println!("negative probe isolation: contexts do not share IndexedDB");
 
+    // Do not wait for the listener: the final verdict must join it.
+    driver::eval(&page, "Promise.reject(new Error('probe late rejection')); 0;").await?;
     Ok(())
     }.await;
     let (result, confirmed) = shutdown::finish_browser(browser, drain, &handler_errors).await;
@@ -340,7 +344,9 @@ async fn run() -> Result<()> {
         .messages()
         .into_iter()
         .filter(|message| {
-            !message.contains("probe page error") && !message.contains("probe rejection")
+            !message.contains("probe page error")
+                && !message.contains("probe rejection")
+                && !message.contains("probe late rejection")
         })
         .collect();
     let mut errors: Vec<String> = [outcome.err(), result.err()]
@@ -348,6 +354,16 @@ async fn run() -> Result<()> {
         .flatten()
         .map(|error| error.to_string())
         .collect();
+    if !page_errors
+        .messages()
+        .iter()
+        .any(|message| message.contains("probe late rejection"))
+    {
+        errors
+            .push("negative probe: late rejection was not collected before the verdict".to_owned());
+    } else {
+        println!("negative probe late rejection: collected before the verdict");
+    }
     if !unexpected.is_empty() {
         errors.push(format!(
             "negative probe page errors: unexpected {unexpected:?}"

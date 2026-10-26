@@ -127,6 +127,7 @@ impl HandlerErrors {
 pub fn spawn_handler_drain(
     handler: Handler,
     errors: Arc<HandlerErrors>,
+    page_errors: Arc<PageErrors>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut handler = handler;
@@ -143,6 +144,19 @@ pub fn spawn_handler_drain(
                 };
                 eprintln!("browser handler error: {message}");
                 errors.record(message);
+            }
+        }
+        let mut listeners = {
+            let mut state = page_errors
+                .listeners
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            state.0 = true;
+            std::mem::take(&mut state.1)
+        };
+        while let Some(result) = listeners.join_next().await {
+            if let Err(error) = result {
+                errors.record(format!("page error listener failed: {error}"));
             }
         }
     })
@@ -220,6 +234,7 @@ fn scrub_json(value: &mut Value) {
 #[derive(Debug, Default)]
 pub struct PageErrors {
     messages: std::sync::Mutex<Vec<String>>,
+    listeners: std::sync::Mutex<(bool, tokio::task::JoinSet<()>)>,
 }
 
 impl PageErrors {
@@ -260,7 +275,17 @@ pub async fn spawn_page_error_listener(page: &Page, errors: Arc<PageErrors>) -> 
                 "drag browser smoke cannot listen for page errors: {error}"
             ))
         })?;
-    tokio::spawn(async move {
+    let mut listeners = errors
+        .listeners
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if listeners.0 {
+        return Err(Error(
+            "cannot listen for page errors after handler termination".to_owned(),
+        ));
+    }
+    let listener_errors = Arc::clone(&errors);
+    listeners.1.spawn(async move {
         while let Some(event) = exceptions.next().await {
             let detail = &event.exception_details;
             let text = detail
@@ -268,7 +293,7 @@ pub async fn spawn_page_error_listener(page: &Page, errors: Arc<PageErrors>) -> 
                 .as_ref()
                 .and_then(|exception| exception.description.clone())
                 .unwrap_or_else(|| detail.text.clone());
-            let mut messages = errors
+            let mut messages = listener_errors
                 .messages
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -979,6 +1004,58 @@ pub async fn dispose_isolated_page(browser: &Browser, context: BrowserContextId)
 
 #[cfg(test)]
 mod redaction_tests {
+    #[tokio::test]
+    async fn late_invalid_event_fails_consumer_after_close_response() {
+        use futures::StreamExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut ws = async_tungstenite::tokio::accept_async(socket)
+                .await
+                .unwrap();
+            while let Some(message) = ws.next().await {
+                let message = message.unwrap();
+                let command: serde_json::Value =
+                    serde_json::from_str(message.to_text().unwrap()).unwrap();
+                if command["method"] == "Browser.close" {
+                    ws.send(format!(r#"{{"id":{},"result":{{}}}}"#, command["id"]).into())
+                        .await
+                        .unwrap();
+                    ws.send(r#"{"method":"Runtime.exceptionThrown","params":{}}"#.into())
+                        .await
+                        .unwrap();
+                    ws.close(None).await.unwrap();
+                    break;
+                }
+            }
+        });
+        let config = chromiumoxide::handler::HandlerConfig {
+            ignore_invalid_messages: false,
+            ..Default::default()
+        };
+        let (mut browser, handler) =
+            chromiumoxide::Browser::connect_with_config(format!("ws://{address}"), config)
+                .await
+                .unwrap();
+        let handler_errors = std::sync::Arc::new(super::HandlerErrors::new());
+        let page_errors = std::sync::Arc::new(super::PageErrors::new());
+        let drain = super::spawn_handler_drain(handler, handler_errors.clone(), page_errors);
+        browser.close().await.unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(5), drain)
+            .await
+            .unwrap()
+            .unwrap();
+        let verdict = handler_errors.fail_if_any().unwrap_err().to_string();
+        assert!(
+            verdict.contains("invalid protocol message")
+                && verdict.contains("Runtime.exceptionThrown"),
+            "{verdict}"
+        );
+        server.await.unwrap();
+    }
+
     #[test]
     fn redacts_nested_header_arrays() {
         let input = r#"{"params":{"nested":[{"headers":[{"name":"Authorization","value":"bearer-secret"},{"name":"Set-Cookie","value":"cookie-secret"},{"name":"Accept","value":"safe"}]}]}}"#;

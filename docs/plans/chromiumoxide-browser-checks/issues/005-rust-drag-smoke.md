@@ -466,3 +466,64 @@ page listener tasks are still detached and are not joined before inspecting
 page errors; a real late page-exception boundary has not been proved. The
 launch-error cleanup, full supported check, CI cutover, parity and closure review
 remain open. Ticket 005 remains claimed.
+
+### 2026-10-26: Chrome 145 shutdown source and partial listener ownership
+
+At `1897387722103b14a6e950b0f41888da28af1ce5`, the original Chrome 145
+negative-probe failure above remains a failure. The exact [Chrome 145 DevTools
+HTTP handler](https://chromium.googlesource.com/chromium/src/+/refs/tags/145.0.7622.0/content/browser/devtools/devtools_http_handler.cc)
+posts an `Inspector.detached` message followed by `ServerWrapper::Close` when
+an agent host closes, and its destructor explicitly accounts for last-minute
+messages during session disconnection. `ServerWrapper::Close` calls
+[HttpServer::Close](https://chromium.googlesource.com/chromium/src/+/refs/tags/145.0.7622.0/net/server/http_server.cc),
+which removes the connection and schedules its destruction; that path does not
+perform a WebSocket close handshake. This explains why a reset is compatible
+with expected shutdown, but neither a successful close response nor a zero
+process exit establishes delivery of all queued messages. A premature loss can
+therefore not safely be classified as a clean shutdown from that evidence
+alone. The reset remains fatal.
+
+The consumer changes in this working tree retain the page exception tasks in
+`PageErrors` and join them after handler termination before the drain succeeds;
+late registration after termination fails. A timed-out drain aborts the task set
+and fails shutdown, so completion of each listener is not established on that
+failure path. Both consumer binaries use the same collector for all their
+listeners. Harness unit tests (11), vendored lifecycle tests (2), formatting,
+and harness Clippy passed under the build lock and `boardstudio-tests.slice`
+(`.evidence/ticket005-listener-join-tests.log`,
+`.evidence/ticket005-listener-join-checks.log`). These existing checks do not
+prove the new consumer join boundary. No controlled late consumer exception or
+invalid-event negative control has yet been run, and no fresh Chrome probe or
+drag was run: the reset ambiguity has not been fixed. The full supported check,
+parity, CI cutover, launch-error cleanup and closure review remain open.
+
+### 2026-10-26: consumer controls and unresolved transport boundary
+
+The consumer now owns and joins its page listener tasks before its final
+verdict. A Chrome 145 negative probe triggers a rejection immediately before
+shutdown without waiting for its listener, and observed that rejection at the
+final verdict. The same run failed on `Connection reset without closing
+handshake`; this remains a fatal error, not a successful probe
+(`.evidence/ticket005-late-consumer-probe.log`). This observation does not
+force the listener to lag the handler and is not a RED/GREEN proof of the join.
+
+A controlled WebSocket peer sends an invalid `Runtime.exceptionThrown` after
+the `Browser.close` response and a close frame. The real consumer handler drain
+records its payload and its fatal verdict rejects it. The harness's 12 tests,
+the two vendored lifecycle controls, project-scoped harness Clippy and format
+checks passed (`.evidence/ticket005-consumer-verified-tests.log`,
+`.evidence/ticket005-join-vendor-tests.log`, and
+`.evidence/ticket005-consumer-verified-clippy.log`). An earlier Clippy run
+without `--no-deps` failed on an existing vendored lint; the first run with the
+new control failed on two test lints, corrected before the final checks.
+
+Chrome 145's [WebSocket reader](https://chromium.googlesource.com/chromium/src/+/refs/tags/145.0.7622.0/net/server/web_socket.cc)
+does send a reply when the client starts the close handshake, but
+`HttpServer::DoReadLoop` closes the connection after that frame, while DevTools
+messages are independently posted from the UI thread to the socket thread.
+An acknowledgement therefore cannot establish that later UI-thread messages
+were delivered; `Browser.close` response, TCP loss, close acknowledgement and
+process exit are distinct observations. No client-initiated shutdown change was
+made without an ordering guarantee. A deterministic delayed-listener control,
+a defensible complete transport boundary, full supported check, parity, CI
+cutover, launch-error cleanup and closure review remain open.
