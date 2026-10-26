@@ -900,3 +900,30 @@ expected post-boundary WebSocket reset after clean child exit.
 This is a local same-build comparison, not a full gate or CI cutover. The prior
 full receipt remains failed on Parts and Keycaps; full supported verification,
 CI cutover and independent closure review remain open. Ticket 005 stays claimed.
+
+### 2026-10-26: consumer-control registration and process discovery
+
+The default check at `89c0fe050` failed in tooling because the consumer-control
+script was unregistered (`.evidence/full-default-89c0fe05-20261026/check.log`).
+The Rust launcher now invokes the controls and the registration check records
+that delegation. The pre-boundary transport-loss control remains necessary:
+the controlled peer test drops transport after `Browser.close`, whereas this
+control interrupts the actual drag consumer while its target is open and checks
+for a fatal shutdown and no receipt.
+
+The prior targeted run reported five controls passing and transport discovery
+failing without a kill; no log was saved. A no-kill real-consumer probe found
+Chrome owned by a Tokio worker task, not the leader task, and the selected
+`/usr/bin/chromium` resolved to a running `/usr/lib/chromium/chromium`
+(`.evidence/ticket005-process-discovery-probe.log`). The first profile-based
+fix still failed without a kill (`.evidence/ticket005-consumer-discovery-fix.log`);
+a second probe showed Chromium had rewritten its command line into one argument
+(`.evidence/ticket005-profile-discovery-probe.log`). The control now finds a
+direct child across the consumer's tasks by its unique isolated profile and
+signals it through a pidfd. All six controls passed on local Chromium 156,
+including pre-boundary termination, fatal shutdown and no receipt
+(`.evidence/ticket005-consumer-discovery-final.log`). Chromium 156 also emitted
+protocol errors in other controls; these are not a successful browser smoke.
+The script-registration test passed 31/31
+(`.evidence/ticket005-registration-check.log`). The earlier failed full check
+and intermediate control failure remain failures.

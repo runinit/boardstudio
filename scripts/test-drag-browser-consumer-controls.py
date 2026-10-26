@@ -87,22 +87,37 @@ with tempfile.TemporaryDirectory(prefix="ticket005-controls-", dir="/tmp") as di
     env.pop("TMPDIR")
 
     # Kill only this consumer's Chrome child while its observed target is open.
+    transport_profiles = base / "transport-profiles"
+    transport_profiles.mkdir()
     killed = threading.Event()
     class LoseTransport(BaseHTTPRequestHandler):
         def do_GET(self):
-            children = Path(f"/proc/{process.pid}/task/{process.pid}/children").read_text().split()
-            chrome = Path(os.environ["CHROME_BIN"]).resolve()
-            matches = [int(pid) for pid in children if Path(f"/proc/{pid}/exe").resolve() == chrome]
+            runs = list(transport_profiles.glob("bs-drag-*"))
+            if len(runs) != 1:
+                raise RuntimeError(f"expected one owned run directory, got {runs}")
+            profile_arg = f"--user-data-dir={runs[0] / 'profile'}".encode()
+            tasks = Path(f"/proc/{process.pid}/task")
+            children = {pid for task in tasks.iterdir()
+                        for pid in (task / "children").read_text().split()}
+            matches = [int(pid) for pid in children
+                       if profile_arg in Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").split()]
             if len(matches) != 1:
                 raise RuntimeError(f"expected one owned Chrome child, got {matches}")
-            os.kill(matches[0], signal.SIGKILL)
+            fd = os.pidfd_open(matches[0])
+            try:
+                if profile_arg not in Path(f"/proc/{matches[0]}/cmdline").read_bytes().replace(b"\0", b" ").split():
+                    raise RuntimeError("Chrome child changed before signalling")
+                signal.pidfd_send_signal(fd, signal.SIGKILL)
+            finally:
+                os.close(fd)
             killed.set()
             self.send_response(200)
             self.end_headers()
 
     server = HTTPServer(("127.0.0.1", 0), LoseTransport)
     receipt = base / "transport-loss" / "receipt.json"
-    env.update(BOARDSTUDIO_PREVIEW_URL=f"http://127.0.0.1:{server.server_port}/",
+    env.update(TMPDIR=str(transport_profiles),
+               BOARDSTUDIO_PREVIEW_URL=f"http://127.0.0.1:{server.server_port}/",
                BOARDSTUDIO_DRAG_RECEIPT_PATH=str(receipt))
     process = subprocess.Popen([str(BINARY)], env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     thread = threading.Thread(target=server.handle_request)
