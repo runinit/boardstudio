@@ -334,3 +334,40 @@ boundary; the drain ordering is implemented but that specific regression is
 not independently demonstrated. The earlier full default check remains
 failed/incomplete (Parts 33 failures, Keycaps incomplete); no full check or
 closure review is claimed here. Ticket remains claimed.
+
+### 2026-10-26: shutdown and diagnostics follow-up (partial)
+
+The handler now scrubs authorization and cookie values in nested CDP name/value
+objects, and reports all collected handler and page errors. A separate uncommitted
+shutdown follow-up attempts to retain scenario, page and shutdown failures together,
+bound shutdown operations and preserve the profile when exit is unconfirmed. That
+follow-up is not part of the committed slice and still needs direct verification.
+
+The focused regression initially failed for a leaked authorization value and a
+missing second page error (`.evidence/ticket005-followup-red.log`); the harness
+tests and clippy passed after the change (`.evidence/ticket005-followup-final-tests.log`,
+`.evidence/ticket005-followup-clippy.log`). The Chrome 145 negative probe passed on the uncommitted follow-up
+(`.evidence/ticket005-followup-probe.log`). A later fmt, 11 unit tests and clippy
+run also passed on that worktree (`.evidence/ticket005-current-checks.log`). Abnormal exit, unconfirmed termination,
+and simultaneous scenario/page/shutdown failures have not received dedicated
+red/green regression checks, so this follow-up is not yet verified for closure.
+The original full default check remains failed/incomplete (Parts 33 failures,
+Keycaps incomplete); no full check or closure review is claimed.
+
+The final-event boundary remains unresolved. In chromiumoxide 0.9.1,
+`Handler::poll_next` returns `None` immediately on the `Browser.close` response,
+without reading subsequent websocket messages. A local dependency patch or
+upstream change could drain through websocket closure and expose a reliable
+completion signal, but needs a late-event regression and proof of ordering.
+Sending `Browser.close` through the existing generic `Browser::execute` avoids
+that special close-response branch, but the handler treats websocket EOF as
+pending rather than terminating; it therefore cannot currently confirm a drain.
+A separate raw CDP transport could own and observe the connection to closure,
+but would require a larger integration and proof that it sees the relevant
+sessions and errors. None of these alternatives is demonstrated here, and no
+member visibility was widened.
+
+Also, chromiumoxide's launch-error cleanup itself calls unbounded `kill().await`
+and `wait().await` and panics on cleanup errors before returning a `Browser`.
+The shutdown changes above cover only a successfully returned browser; launch
+failure termination and profile preservation require further work.

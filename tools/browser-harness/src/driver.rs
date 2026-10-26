@@ -100,9 +100,7 @@ impl HandlerErrors {
             .first
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if first.len() < 5 {
-            first.push(message);
-        }
+        first.push(message);
     }
 
     /// Fail the run when any handler error was recorded.
@@ -115,9 +113,9 @@ impl HandlerErrors {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         Err(Error(format!(
-            "drag browser smoke saw {} browser handler error(s); first: {}",
+            "drag browser smoke saw {} browser handler error(s): {}",
             self.count(),
-            first.first().cloned().unwrap_or_default()
+            first.join("; ")
         )))
     }
 }
@@ -164,6 +162,15 @@ fn redact(message: &str) -> String {
 fn scrub_json(value: &mut Value) {
     match value {
         Value::Object(map) => {
+            let sensitive_header = map.get("name").and_then(Value::as_str).is_some_and(|name| {
+                let name = name.to_lowercase();
+                name.contains("cookie") || name.contains("authoriz")
+            });
+            if sensitive_header {
+                if let Some(value) = map.get_mut("value") {
+                    *value = Value::String("[redacted]".to_owned());
+                }
+            }
             for (key, entry) in map.iter_mut() {
                 let lower = key.to_lowercase();
                 if matches!(
@@ -236,9 +243,9 @@ impl PageErrors {
             return Ok(());
         }
         Err(Error(format!(
-            "page raised {} uncaught browser error(s); first: {}",
+            "page raised {} uncaught browser error(s): {}",
             messages.len(),
-            messages.first().cloned().unwrap_or_default()
+            messages.join("; ")
         )))
     }
 }
@@ -972,6 +979,27 @@ pub async fn dispose_isolated_page(browser: &Browser, context: BrowserContextId)
 
 #[cfg(test)]
 mod redaction_tests {
+    #[test]
+    fn redacts_nested_header_arrays() {
+        let input = r#"{"params":{"nested":[{"headers":[{"name":"Authorization","value":"bearer-secret"},{"name":"Set-Cookie","value":"cookie-secret"},{"name":"Accept","value":"safe"}]}]}}"#;
+        let output = super::redact(input);
+        assert!(!output.contains("bearer-secret"));
+        assert!(!output.contains("cookie-secret"));
+        assert!(output.contains("safe"));
+    }
+
+    #[test]
+    fn reports_all_page_errors() {
+        let errors = super::PageErrors::new();
+        errors
+            .messages
+            .lock()
+            .unwrap()
+            .extend(["first".into(), "second".into()]);
+        let message = errors.fail_if_any().unwrap_err().to_string();
+        assert!(message.contains("first") && message.contains("second"));
+    }
+
     #[test]
     fn redacts_request_body_entries_and_cookie_lines() {
         let input = r#"{"params":{"postDataEntries":[{"bytes":"body-secret"}],"cookieLine":"cookie-secret","url":"safe"}}"#;
