@@ -431,9 +431,8 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
     let px = |pixels: f64| px_to_world(pixels, input.view_width_world, input.surface_width_px);
     // Ticket 02: the pointer's part id, or `None` while no amber preview
     // claims the part, so the violet hover below never overrides amber.
-    let hovered_id = input
-        .hovered_part()
-        .filter(|id| !layout_matrix_relations::field_previews(Some(id)));
+    let mut hovered_part = input.hovered_part;
+    let hovered_id = hovered_part().filter(|id| !layout_matrix_relations::field_previews(Some(id)));
     // Ticket 14: the half without editing focus dims. Focus is Layout-only
     // workspace state, so a `None` focus (no split, PCB/Case) draws solid.
     let dimmed_half = input
@@ -766,7 +765,6 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                     .filter(|top| top.is_finite())
                     .unwrap_or(0.0);
                 let part_label_y = label_top - px(12.0);
-                let hovered_part = input.hovered_part;
                 rsx! {
                     if layer_visible || show_keycap.is_some() {
                         g {
@@ -1706,11 +1704,13 @@ mod spacing_ghost_render_tests {
             .unwrap()
             .expect("the axis carries the widening delta");
         assert_eq!(note.text_content().as_deref(), Some("+10.0 mm"));
+        // Ticket 02: the note sits a fixed 14 px screen gap above the top
+        // key edge: 9.025 half key plus 3.5 world units at this zoom.
         assert!(
             note.get_attribute("transform")
                 .as_deref()
                 .unwrap_or_default()
-                .contains("translate(0 6)"),
+                .contains("translate(0 12.5"),
             "the note sits on the axis above the keys"
         );
         root.remove();
@@ -2094,7 +2094,6 @@ mod screen_chrome_render_tests {
     #[derive(Clone)]
     struct ChromeProbe {
         runtime: Rc<crate::runtime::Runtime>,
-        root_id: &'static str,
         adapter: Rc<RefCell<Option<SelectionAdapter>>>,
     }
 
@@ -2165,7 +2164,6 @@ mod screen_chrome_render_tests {
         support::run_pending(&runtime).await;
         let probe = ChromeProbe {
             runtime: runtime.clone(),
-            root_id,
             adapter: Rc::default(),
         };
         let dom_document = web_sys::window().unwrap().document().unwrap();
