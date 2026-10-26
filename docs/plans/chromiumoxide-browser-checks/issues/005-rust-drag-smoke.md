@@ -726,3 +726,27 @@ was forced. The Rust drag smoke passed 15 checks on pinned Chrome 145 against
 the existing site build (`.evidence/review-smoke.log`); this is not fresh-build
 parity. Full supported check, fresh parity, CI cutover and independent closure
 review remain open; ticket stays claimed.
+
+### 2026-10-26: fresh parity on reviewed head
+
+On clean `3eea7b854aab261219a7a08e4e12bf4e50edf77a`, the supported
+`python3 scripts/check.py build` passed under the build lock and capped
+`boardstudio-tests.slice` (60.4 s). The build regenerated the packaged site;
+its own freshness checks reused current provider artifacts. Sequential Node and
+Rust launcher runs in the same slice both passed 15 checks with Chrome for
+Testing `145.0.7622.0` and the locked, vendored chromiumoxide `0.9.1` patch.
+The launcher verified both receipts: source head and clean source digest
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`, site digest
+`f96920045ed4f07eba4cf815e50dcf6d21f5870702ce87f894c0ef61278645ef`, browser,
+viewport, ordered check names and passing verdict agree. Node receipt:
+`20261026T232050Z-e8bee5c15895`; Rust receipt: `20261026T232152Z-5602bc62f0a2`,
+under `web/target/test-results/drag-browser/`. Logs are
+`.evidence/ticket005-fresh-build-3eea7b85.log`,
+`.evidence/ticket005-fresh-node-3eea7b85.log` and
+`.evidence/ticket005-fresh-rust-3eea7b85.log`. The Rust run reported the
+post-boundary WebSocket reset classified as expected after clean child exit.
+The preceding reviewed-head negative probe is recorded above and was not rerun.
+
+This comparison does not close the full supported gate: the previous Parts and
+Keycaps failures remain open, as do CI cutover and independent closure review.
+Ticket 005 remains claimed.
