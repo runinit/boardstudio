@@ -26,6 +26,8 @@ with tempfile.TemporaryDirectory(prefix="ticket005-controls-", dir="/tmp") as di
     base = Path(directory)
     controls = (
         ("assertion", "", "slider Rows did not reach 10"),
+        ("exception", "<script>setTimeout(() => { throw new Error('consumer exception control'); }, 0)</script>",
+         "consumer exception control"),
         ("rejection", "<script>Promise.reject(new Error('consumer rejection control'))</script>",
          "consumer rejection control"),
     )

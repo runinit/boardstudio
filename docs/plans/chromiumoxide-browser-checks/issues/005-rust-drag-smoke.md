@@ -320,8 +320,8 @@ The drag consumer checks page errors before writing the receipt.
 The harness fmt, clippy and nine unit tests passed, as did the existing negative
 probe on Chrome 145 (`.evidence/ticket005-review-final-checks.log`). The
 consumer controls in `scripts/test-drag-browser-consumer-controls.py` exercised
-an actual slider assertion failure and an unhandled rejection: both exited 1
-with the expected error and no receipt
+an actual slider assertion failure, a page exception and an unhandled rejection:
+each exited 1 with the expected error and no receipt
 (`.evidence/ticket005-review-committed-controls.log`). The Rust drag consumer
 passed 15 checks against the existing site build on Chrome 145, receipt
 `20261026T223553Z-f9b33f30d307`
