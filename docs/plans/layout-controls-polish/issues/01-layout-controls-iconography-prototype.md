@@ -80,3 +80,10 @@ The prototype's spec sheet is the reference for exact values.
   Should matrices also hold still?
 
 ## Comments
+
+- 2026-10-26 user decisions (see [map.md](../map.md)): (1) YES — a selected part's toolbar
+  also offers Spread and Stagger carried from its anchor key, matching split-board-editing
+  ticket 13. (2) NO hold-still on re-anchor — re-anchoring a part, matrix, or anything else
+  MOVES it, placed from the new anchor using its current settings; this supersedes ticket
+  13's pose-preserving retarget and the prototype's "keeps its position" behaviour, and is
+  flagged as a behaviour change needing its own build ticket when slicing.

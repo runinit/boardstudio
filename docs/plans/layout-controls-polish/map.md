@@ -35,12 +35,16 @@ style, fixed screen-size labels, and accent, violet and amber used only for thei
   above the selection, with an Anchor pick mode, a value popup and a commit toast. Parts are
   selectable and use Move / Rotate / Anchor. See
   [01](issues/01-layout-controls-iconography-prototype.md#answer).
+- **Parts' carried tools (2026-10-26):** YES — a selected part's toolbar also offers Spread and
+  Stagger carried from its anchor key, matching
+  [split-board-editing 13](../split-board-editing/issues/13-part-anchoring-column-vocabulary.md).
+- **Re-anchor moves (2026-10-26):** NO hold-still on re-anchor — re-anchoring a part, matrix,
+  or anything else MOVES it: it is placed from the new anchor using its current settings
+  (Spread/Stagger/Splay/Offset/Rotation as applicable). This supersedes ticket 13's
+  pose-preserving retarget and the prototype's "keeps its position" behaviour; flag as a
+  behaviour change needing its own build ticket when slicing.
 
-## Open fog
+## Not yet specified
 
-- **Parts' carried tools:** should a selected part's rail also carry Spread and Stagger from its
-  anchor key, as [ticket 13](../split-board-editing/issues/13-part-anchoring-column-vocabulary.md)
-  specifies? The prototype gives parts only Move / Rotate / Anchor. Related: should the
-  Matrix / Row / Column / Key mode toolbar change when a part is selected?
-- **Matrix re-anchor:** re-anchoring a part keeps its pose. Should re-anchoring a matrix (the
-  thumb cluster) also hold still, or keep moving onto the new anchor as it does in the prototype?
+- Whether the re-anchor move is one Undo entry with status naming the new anchor (default
+  assumption to confirm at slicing; not decided).
