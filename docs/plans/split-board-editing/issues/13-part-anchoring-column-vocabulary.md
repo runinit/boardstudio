@@ -95,9 +95,8 @@ Evidence: Core integration 895 pass (incl. 7 new); web-layout lib 140 pass
 golden diff is anchor-only. Browser-mounted coverage for the part
 badge/Inspector was recorded but not run (browser env-blocked here), same as
 ticket 12's toggle test.
-Open point for the user (acceptance "Confirm with the user"): a dropped part
-anchors to the nearest key of its half (07 carried point) — implemented;
-confirm the default stands.
+Confirmed by the user on 2026-10-26: a dropped part anchors to the nearest
+key of its half — the default stands.
 
 Final gate pass (closing): the last `quick` run surfaced 28 `missing field
 anchor` errors in web-layout lib-test and pcb test targets (Part literals in
