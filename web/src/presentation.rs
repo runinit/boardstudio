@@ -38,8 +38,10 @@ mod layout_layers_tests;
 #[cfg(test)]
 mod layout_relation_highlight_tests;
 #[cfg(test)]
+type RelationHighlightSignal = Signal<Option<Vec<String>>>;
+#[cfg(test)]
 #[derive(Clone, Default)]
-struct RelationHighlightTestContext(Rc<RefCell<Option<Signal<Option<Vec<String>>>>>>);
+struct RelationHighlightTestContext(Rc<RefCell<Option<RelationHighlightSignal>>>);
 #[cfg(test)]
 mod layout_remainder_tests;
 #[cfg(test)]
