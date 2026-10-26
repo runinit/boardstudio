@@ -1953,8 +1953,12 @@ mod screen_chrome_render_tests {
     fn RenderChromeCase(props: ChromeCaseProps) -> Element {
         let highlight = use_signal(|| None::<Vec<String>>);
         use_context_provider(|| super::super::RelationHighlight(highlight));
+        // A real viewport mapping: 800x600 CSS px over the view box, so the
+        // browser maps world units to screen pixels and getBBox reads true
+        // on-screen sizes.
+        let view_box = format!("0 0 {} {}", props.view_width, props.view_width * 0.75);
         rsx! {
-            svg {
+            svg { width: "800", height: "600", view_box: "{view_box}",
                 Scene {
                     source: SceneSource { document: props.document, scene: props.scene, board_id: "board".into() },
                     preview_active: false,
@@ -2041,10 +2045,22 @@ mod screen_chrome_render_tests {
         world / (view_width / 800.0)
     }
 
+    /// True on-screen height in CSS px through the browser's own view-box
+    /// mapping (all transforms included), independent of the helper under
+    /// test.
+    fn bbox_height(root: &web_sys::Element, selector: &str) -> f64 {
+        root.query_selector(selector)
+            .unwrap()
+            .unwrap_or_else(|| panic!("missing {selector}"))
+            .get_bounding_client_rect()
+            .height()
+    }
+
     /// Ticket 02 RED: one scene at two zoom levels keeps every technical
     /// label at 11 px on screen. It fails while labels use world units.
     #[wasm_bindgen_test]
     async fn labels_hold_eleven_px_across_zooms() {
+        let mut real_heights: Vec<Vec<f64>> = Vec::new();
         for view_width in [200.0, 100.0] {
             let root = mount_chrome(view_width).await;
             for selector in [
@@ -2058,6 +2074,16 @@ mod screen_chrome_render_tests {
                     "{selector} reads {px:.2} px on screen at view width {view_width}, want 11"
                 );
             }
+            real_heights.push(
+                [
+                    ".m1-split-focus-label",
+                    ".m1-spacing-ghost-note",
+                    ".m1-part-label",
+                ]
+                .iter()
+                .map(|selector| bbox_height(&root, selector))
+                .collect(),
+            );
             assert!(
                 root.query_selector(".m1-anchor-badge-label")
                     .unwrap()
@@ -2065,6 +2091,14 @@ mod screen_chrome_render_tests {
                 "the canvas carries no badge label at view width {view_width}; it lives in the readout"
             );
             root.remove();
+        }
+        // True pixels through the browser mapping: the same label measures
+        // the same height at both zooms.
+        for (wide, close) in real_heights[0].iter().zip(real_heights[1].iter()) {
+            assert!(
+                (wide - close).abs() < 0.5,
+                "label measures {wide:.2} px at one zoom and {close:.2} px at the other"
+            );
         }
     }
 
@@ -2086,6 +2120,12 @@ mod screen_chrome_render_tests {
             assert!(
                 (diameter - 7.0).abs() < 0.5,
                 "the ring reads {diameter:.2} px across at view width {view_width}, want 7"
+            );
+            // True pixels through the browser mapping.
+            let real = bbox_height(&root, ".m1-anchor-badge-ring");
+            assert!(
+                (real - 7.0).abs() < 0.5,
+                "the ring measures {real:.2} px across at view width {view_width}, want 7"
             );
             root.remove();
         }
