@@ -41,6 +41,10 @@ Undo/reload checks, receipts and CI verdicts.
   and library together; prove fidelity before replacement; cut over drag smoke first, then CAD
   capture and Graphite acceptance, retaining each old runner until its parity gate passes.
 
+- [Prove browser harness fidelity before cutover](issues/004-feasibility-proof.md): reuse the
+  existing input spike; keep a consumer-driven minimal harness and make missing fidelity
+  proofs per-consumer migration gates, not another broad prototype.
+
 ## Children
 
 - [Chrome protocol compatibility and event failures](issues/001-protocol-compatibility.md)
@@ -50,9 +54,10 @@ Undo/reload checks, receipts and CI verdicts.
 
 ## Not yet specified
 
-- Minimal harness boundary and exact per-consumer parity gates, informed by the feasibility
-  prototype rather than assumed from the archived spike.
-- How to handle any proven incompatibility without losing required events or error detection.
+- No additional design decisions currently identified. The existing migration specification
+  must be reconciled with these decisions before build tickets are handed off.
+- Any incompatibility discovered during the bounded acceptance probes returns here as a
+  concrete decision; it does not authorize ignoring required events or weakening assertions.
 
 ## Out of scope
 
