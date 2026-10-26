@@ -107,12 +107,18 @@ impl IsolatedDirs {
         let profile_dir = temp.path().join("profile");
         let config_dir = temp.path().join("config");
         for dir in [&profile_dir, &config_dir] {
-            std::fs::create_dir(dir).map_err(|error| {
-                format!(
+            if let Err(error) = std::fs::create_dir(dir) {
+                let message = format!(
                     "drag browser smoke needs a writable profile under '{}': {error}",
                     tmp_root.display()
-                )
-            })?;
+                );
+                return Err(match temp.close() {
+                    Ok(()) => message,
+                    Err(cleanup) => {
+                        format!("{message}; cannot remove partial browser directory: {cleanup}")
+                    }
+                });
+            }
         }
         let run_dir = temp.keep();
         Ok(Self {

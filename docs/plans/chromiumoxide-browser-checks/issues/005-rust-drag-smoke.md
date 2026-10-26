@@ -816,3 +816,35 @@ control is run explicitly); formatting and final Clippy passed
 on a nested conditional in the new control and is preserved in
 `.evidence/ticket005-dispatch-clippy.log`. Prior full-gate failures, full
 supported verification, CI cutover and independent closure review remain open.
+
+### 2026-10-26: In-flight click timeout recheck
+
+At `a89b3e9b7286a786436811a322d54bfe0add5261`, the click operation's
+outer deadline could cancel a `CommandFuture` after CDP had sent a mouse press
+or release. The pinned Chrome 145 relay forwarded each selected input and
+withheld its response: both backend and role clicks returned an actionability
+timeout and left the target usable (`.evidence/ticket005-inflight-red.log`).
+The actionability deadline now ends before dispatch; a deadline during input,
+including chromiumoxide's own command timeout, reports an ambiguous input and
+attempts bounded target termination. Other protocol errors remain fatal and
+unchanged. The relay control confirmed each command reached Chrome, returned
+one ambiguous failure without retry, and found the target closed in all four
+press/release and backend/role cases (`.evidence/ticket005-inflight-final.log`).
+The existing protocol-error relay also passed for all four cases
+(`.evidence/ticket005-inflight-protocol.log`). The drag consumer propagates
+scenario failures before writing a receipt; the relay control did not inject
+this fault into the full receipt-writing process.
+
+Partial profile/config creation now explicitly closes its temporary directory
+and reports cleanup failure alongside the creation failure. That exceptional
+cleanup failure was not injected. Harness tests passed 17 library and one drag
+binary test (two Chrome controls ignored in the ordinary suite), and Clippy and
+formatting passed (`.evidence/ticket005-inflight-tests.log`,
+`.evidence/ticket005-inflight-clippy.log`, `.evidence/ticket005-inflight-fmt.log`).
+The pinned Chrome 145 negative probe passed and the Rust drag smoke passed 15
+checks against the existing site build (`.evidence/ticket005-inflight-probe.log`,
+`.evidence/ticket005-inflight-drag.log`); this is not a fresh-build parity run.
+Two intermediate builds failed to compile while implementing close-result
+formatting; the final controls and checks above ran after those corrections.
+The earlier failed full receipt remains failed; full supported verification,
+CI cutover, and independent closure review remain open.

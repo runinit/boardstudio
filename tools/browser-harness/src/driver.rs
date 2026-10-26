@@ -525,6 +525,22 @@ pub async fn center(page: &Page, id: BackendNodeId) -> Result<(f64, f64)> {
     Ok((x + width / 2.0, y + height / 2.0))
 }
 
+enum MouseError {
+    Timeout,
+    Other(Error),
+}
+
+impl From<MouseError> for Error {
+    fn from(error: MouseError) -> Self {
+        match error {
+            MouseError::Timeout => {
+                Error(format!("trusted mouse event failed: {}", CdpError::Timeout))
+            }
+            MouseError::Other(error) => error,
+        }
+    }
+}
+
 async fn dispatch_mouse(
     page: &Page,
     kind: DispatchMouseEventType,
@@ -532,7 +548,7 @@ async fn dispatch_mouse(
     y: f64,
     buttons: i64,
     modifiers: i64,
-) -> Result<()> {
+) -> std::result::Result<(), MouseError> {
     let pressed_or_released = matches!(
         kind,
         DispatchMouseEventType::MousePressed | DispatchMouseEventType::MouseReleased
@@ -562,13 +578,16 @@ async fn dispatch_mouse(
     if pressed_or_released {
         params = params.click_count(1);
     }
-    page.execute(
-        params
-            .build()
-            .map_err(|error| Error(format!("cannot build a trusted mouse event: {error}")))?,
-    )
+    page.execute(params.build().map_err(|error| {
+        MouseError::Other(Error(format!(
+            "cannot build a trusted mouse event: {error}"
+        )))
+    })?)
     .await
-    .map_err(|error| Error(format!("trusted mouse event failed: {error}")))?;
+    .map_err(|error| match error {
+        CdpError::Timeout => MouseError::Timeout,
+        other => MouseError::Other(Error(format!("trusted mouse event failed: {other}"))),
+    })?;
     Ok(())
 }
 
@@ -658,7 +677,7 @@ pub async fn click_actionable(page: &Page, id: BackendNodeId, timeout: Duration)
     let operation = async {
         loop {
             match try_click_once(page, id).await {
-                Ok(()) => return Ok(()),
+                Ok(center) => return Ok(center),
                 Err(ClickError::Fatal(error)) => return Err(error),
                 Err(ClickError::Transient(error)) => last = Some(error),
             }
@@ -666,7 +685,8 @@ pub async fn click_actionable(page: &Page, id: BackendNodeId, timeout: Duration)
         }
     };
     match tokio::time::timeout_at(deadline.into(), operation).await {
-        Ok(result) => result,
+        Ok(Ok((x, y))) => dispatch_click(page, x, y, deadline, timeout).await,
+        Ok(Err(error)) => Err(error),
         Err(_) => Err(Error(format!(
             "timed out waiting for target actionability{}",
             last.map(|error| format!(": {error}")).unwrap_or_default()
@@ -685,7 +705,10 @@ impl From<Error> for ClickError {
     }
 }
 
-async fn try_click_once(page: &Page, id: BackendNodeId) -> std::result::Result<(), ClickError> {
+async fn try_click_once(
+    page: &Page,
+    id: BackendNodeId,
+) -> std::result::Result<(f64, f64), ClickError> {
     async fn actionable_center(
         page: &Page,
         id: BackendNodeId,
@@ -722,10 +745,44 @@ async fn try_click_once(page: &Page, id: BackendNodeId) -> std::result::Result<(
             "target is disabled".to_owned(),
         )));
     }
-    dispatch_mouse(page, DispatchMouseEventType::MouseMoved, x, y, 0, 0).await?;
-    dispatch_mouse(page, DispatchMouseEventType::MousePressed, x, y, 1, 0).await?;
-    dispatch_mouse(page, DispatchMouseEventType::MouseReleased, x, y, 0, 0).await?;
-    Ok(())
+    Ok((x, y))
+}
+
+async fn dispatch_click(
+    page: &Page,
+    x: f64,
+    y: f64,
+    deadline: Instant,
+    timeout: Duration,
+) -> Result<()> {
+    if Instant::now() >= deadline {
+        return Err(Error("timed out waiting for target actionability".into()));
+    }
+    let input = async {
+        dispatch_mouse(page, DispatchMouseEventType::MouseMoved, x, y, 0, 0).await?;
+        dispatch_mouse(page, DispatchMouseEventType::MousePressed, x, y, 1, 0).await?;
+        dispatch_mouse(page, DispatchMouseEventType::MouseReleased, x, y, 0, 0).await
+    };
+    match tokio::time::timeout_at(deadline.into(), input).await {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(MouseError::Other(error))) => Err(error),
+        Ok(Err(MouseError::Timeout)) | Err(_) => {
+            use chromiumoxide::cdp::browser_protocol::target::CloseTargetParams;
+            let close = tokio::time::timeout(
+                timeout,
+                page.execute(CloseTargetParams::new(page.target_id().clone())),
+            )
+            .await;
+            let status = match close {
+                Ok(Ok(_)) => "closed".to_owned(),
+                Ok(Err(error)) => format!("close failed: {error}"),
+                Err(_) => "close timed out".to_owned(),
+            };
+            Err(Error(format!(
+                "ambiguous input outcome: input deadline expired; target termination: {status}"
+            )))
+        }
+    }
 }
 
 /// Whether the topmost element at the node's center is the node itself or a
@@ -858,7 +915,7 @@ pub async fn click_role_timeout(
             let matches = find_role(page, root, role, name).await?;
             match matches.as_slice() {
                 [single] => match try_click_once(page, single.0).await {
-                    Ok(()) => return Ok(()),
+                    Ok(center) => return Ok(center),
                     Err(ClickError::Fatal(error)) => return Err(error),
                     Err(ClickError::Transient(error)) => last = Some(error),
                 },
@@ -874,7 +931,8 @@ pub async fn click_role_timeout(
         }
     };
     match tokio::time::timeout_at(deadline.into(), operation).await {
-        Ok(result) => result,
+        Ok(Ok((x, y))) => dispatch_click(page, x, y, deadline, timeout).await,
+        Ok(Err(error)) => Err(error),
         Err(_) => Err(Error(format!(
             "timed out waiting for {role} {name:?}{}",
             last.map(|error| format!(": {error}")).unwrap_or_default()
@@ -1248,6 +1306,124 @@ mod redaction_tests {
                 "{result:?}"
             );
             assert_eq!(clicks, 0, "failed dispatch produced a click receipt");
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "requires CHROME_BIN; run explicitly for the real CDP failure control"]
+    async fn inflight_dispatch_timeout_closes_target() {
+        use futures::StreamExt;
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        use std::time::Duration;
+
+        let dirs = crate::IsolatedDirs::create(std::path::Path::new("/tmp")).unwrap();
+        let (mut chrome, handler) =
+            super::launch_chrome(&std::env::var("CHROME_BIN").unwrap(), &dirs)
+                .await
+                .unwrap();
+        let drain = super::spawn_handler_drain(
+            handler,
+            Arc::new(super::HandlerErrors::new()),
+            Arc::new(super::PageErrors::new()),
+        );
+        let mut outcomes = Vec::new();
+        for (kind, role) in [
+            ("mousePressed", false),
+            ("mouseReleased", false),
+            ("mousePressed", true),
+            ("mouseReleased", true),
+        ] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let upstream = chrome.websocket_address().clone();
+            let attempts = Arc::new(AtomicUsize::new(0));
+            let count = attempts.clone();
+            let responses = Arc::new(AtomicUsize::new(0));
+            let response_count = responses.clone();
+            let relay = tokio::spawn(async move {
+                let mut withheld = None;
+                let (socket, _) = listener.accept().await.unwrap();
+                let mut client = async_tungstenite::tokio::accept_async(socket)
+                    .await
+                    .unwrap();
+                let (mut server, _) = async_tungstenite::tokio::connect_async(upstream)
+                    .await
+                    .unwrap();
+                loop {
+                    tokio::select! {
+                        message = client.next() => {
+                            let Some(Ok(message)) = message else { break };
+                            if let Ok(command) = serde_json::from_str::<serde_json::Value>(message.to_text().unwrap_or("")) {
+                                if command["method"] == "Input.dispatchMouseEvent" && command["params"]["type"] == kind
+                                    && count.fetch_add(1, Ordering::SeqCst) == 0 {
+                                    withheld = Some(command["id"].clone());
+                                }
+                            }
+                            if server.send(message).await.is_err() { break; }
+                        }
+                        message = server.next() => {
+                            let Some(Ok(message)) = message else { break };
+                            if let Ok(response) = serde_json::from_str::<serde_json::Value>(message.to_text().unwrap_or("")) {
+                                if withheld.as_ref() == Some(&response["id"]) {
+                                    response_count.fetch_add(1, Ordering::SeqCst);
+                                    continue;
+                                }
+                            }
+                            if client.send(message).await.is_err() { break; }
+                        }
+                    }
+                }
+            });
+            let (browser, handler) = chromiumoxide::Browser::connect(format!("ws://{address}"))
+                .await
+                .unwrap();
+            let proxy_drain = super::spawn_handler_drain(
+                handler,
+                Arc::new(super::HandlerErrors::new()),
+                Arc::new(super::PageErrors::new()),
+            );
+            let page = browser.new_page("about:blank").await.unwrap();
+            super::eval(&page, "document.body.innerHTML = '<button>Probe</button>'; window.clicks = 0; document.querySelector('button').onclick = () => window.clicks++;").await.unwrap();
+            let result = if role {
+                super::click_role_timeout(&page, None, "button", "Probe", Duration::from_secs(2))
+                    .await
+            } else {
+                let id = super::backend_of(&page, "button").await.unwrap();
+                super::click_actionable(&page, id, Duration::from_secs(2)).await
+            };
+            let closed = super::eval(&page, "window.clicks").await.is_err();
+            outcomes.push((
+                kind,
+                role,
+                attempts.load(Ordering::SeqCst),
+                responses.load(Ordering::SeqCst),
+                result.map_err(|error| error.to_string()),
+                closed,
+            ));
+            drop(page);
+            drop(browser);
+            proxy_drain.abort();
+            relay.abort();
+        }
+        chrome.close().await.unwrap();
+        chrome.wait().await.unwrap().unwrap();
+        drop(chrome);
+        drain.await.unwrap();
+        dirs.preserve.set(false);
+        for (kind, role, count, responses, result, closed) in &outcomes {
+            eprintln!("{kind} role={role}: attempts={count}, responses={responses}, result={result:?}, closed={closed}");
+        }
+        for (kind, role, count, responses, result, closed) in outcomes {
+            assert_eq!(count, 1, "{kind} role={role} retried dispatch");
+            assert_eq!(responses, 1, "{kind} role={role} did not reach Chrome");
+            assert!(
+                matches!(result, Err(ref message) if message.contains("ambiguous input outcome")),
+                "{result:?}"
+            );
+            assert!(closed, "ambiguous input left the target usable");
         }
     }
 
