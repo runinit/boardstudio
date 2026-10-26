@@ -434,3 +434,35 @@ crates, so an internal join boundary still needs to be designed without
 widening the existing API. This is an unresolved design problem, not proof that
 such a boundary is impossible. The late invalid-protocol and late page-exception
 RED/GREEN checks, launch-error cleanup, full gate and closure review remain open.
+
+### 2026-10-26: local chromiumoxide event-queue patch (partial, consumer blocked)
+
+On clean base `a324aeb41c45c6d9382b4e1e2a10544d5f5a3b7f`, vendored
+chromiumoxide 0.9.1 under the harness and patched only its event/transport
+lifecycle. `Browser.close` now returns protocol errors and no longer ends the
+handler on its response. The handler reads until transport termination,
+retains destroyed targets' listener queues until delivery, drains remaining
+listeners before terminating, and reports unexpected termination and transport
+errors. Socket flush/readiness errors are propagated. No existing public API or
+member visibility was widened. Harness Clippy uses `--no-deps` to retain its
+previous registry-dependency lint boundary for the new local fork.
+
+A local WebSocket regression sent a successful close response, a late session
+event, target destruction, an invalid event, and a close frame in sequence. It
+failed on upstream with the late invalid event missing
+(`.evidence/chromiumoxide-lifecycle-red.log`) and passed with the patch; the
+listener received its event and closed after draining. A second focused test
+verifies a close protocol error and unexpected transport close are failures.
+Both tests passed after the final transport changes
+(`.evidence/chromiumoxide-final-checks.log`). Harness unit tests passed 11/11;
+format and the harness Clippy command with `--no-deps` passed.
+
+The Chrome for Testing 145 negative probe ran all its scenarios but failed
+shutdown because Chrome reset the WebSocket without a closing handshake
+(`.evidence/chromiumoxide-harness-probe.log`). The reset remains a fatal
+transport error: this patch does not establish that all events reached the
+consumer across that reset. It is not a passing browser receipt. The consumer's
+page listener tasks are still detached and are not joined before inspecting
+page errors; a real late page-exception boundary has not been proved. The
+launch-error cleanup, full supported check, CI cutover, parity and closure review
+remain open. Ticket 005 remains claimed.

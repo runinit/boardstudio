@@ -10,6 +10,7 @@ edition = "2021"
 publish = false
 
 [workspace]
+members = ["vendor/chromiumoxide"]
 
 [dependencies]
 chromiumoxide = "=0.9.1"
@@ -22,3 +23,6 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net",
 [[bin]]
 name = "drag-smoke"
 path = "src/bin/drag_smoke.rs"
+
+[patch.crates-io]
+chromiumoxide = { path = "vendor/chromiumoxide" }

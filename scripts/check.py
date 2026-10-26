@@ -139,7 +139,7 @@ LINT: list[list[str]] = [
     # The browser harness lives outside the workspace with its own lockfile, so
     # it gets its own manifest-scoped format and lint commands.
     ["cargo", "fmt", "--manifest-path", HARNESS_MANIFEST, "--", "--check"],
-    ["cargo", "clippy", "--manifest-path", HARNESS_MANIFEST, "--all-targets", "--locked", "--", "-D", "warnings"],
+    ["cargo", "clippy", "--manifest-path", HARNESS_MANIFEST, "--all-targets", "--locked", "--no-deps", "--", "-D", "warnings"],
 ]
 
 STEPS: dict[str, tuple[bool, list[Command]]] = {
