@@ -236,3 +236,35 @@ version and check names. Logs: `.evidence/parity-cft145-node.log` and
 establish that the existing site was built from that source head. It does not
 clear the failed default check, prove CI provisioning, pin a browser, or prove
 required-event safety for the other consumers. Ticket 005 remains claimed.
+
+### 2026-10-26: fresh-build comparison and provisioning boundary
+
+On clean `4c6eaec1c431deee9fd651983f40220fecb96bba`, ran the checked
+`check.py build` under the build lock (pass, 68.6 s), then ran the Node and Rust
+launchers sequentially against that unchanged site with isolated Chrome for Testing
+`145.0.7622.0` and chromiumoxide `0.9.1`. Both passed 15 checks and their
+launcher-verified receipts have the same clean source digest, build digest
+`6f9242d46d35eb540dfb9f5eaae11fc1e9ecfa83aafcd6c84f84df29f129cfdc`,
+viewport and ordered check names. Node receipt: `20261026T222606Z-bd77152ab857`;
+Rust receipt: `20261026T222702Z-7ab800106a3e`. Timing and measured viewer
+geometry vary between runs. Logs are `.evidence/ticket005-fresh-build-4c6eaec.log`,
+`.evidence/ticket005-fresh-node-4c6eaec.log`, and
+`.evidence/ticket005-fresh-rust-4c6eaec.log`. This is a local same-source,
+same-build drag comparison, not a passing full gate or CI proof.
+
+The [version-specific Chrome for Testing catalog](https://googlechromelabs.github.io/chrome-for-testing/145.0.7622.0.json)
+lists Linux x64 Chrome and matching ChromeDriver downloads, revision `1566023`.
+A CI cutover must provision and verify an exact browser version alongside the
+locked library, pass its executable via `CHROME_BIN` to the real-page runner,
+log both versions, and preserve the existing mounted WASM ChromeDriver runner
+and other Playwright consumers. Current CI merely checks the hosted Chrome and
+ChromeDriver versions and runs the default Node path; it does not provision this
+pair. Availability of the catalog and this local candidate do not establish a
+supported CI installation or required-event safety beyond the observed diagnostic.
+Do not switch the default until those requirements and the full gate pass.
+
+The previous full check at `6346fe98` remains failed/incomplete: Parts reported
+33 failures, Keycaps was incomplete, and page listing and page suite did not run
+(`.evidence/drag-save-undo-default-6346fe98.json.md`). This comparison does not
+replace that receipt. Ticket remains claimed; CI provisioning, full supported
+check, protocol-event impact and closure review remain open.
