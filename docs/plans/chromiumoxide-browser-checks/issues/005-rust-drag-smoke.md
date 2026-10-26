@@ -416,3 +416,21 @@ an abnormal exit, unconfirmed termination, or simultaneous scenario, page and
 shutdown failures; no dedicated RED/GREEN regression was run for this slice.
 Launch-error cleanup, final-event delivery and listener completion remain open,
 as do the full gate and closure review. This is not a ticket closure receipt.
+
+### 2026-10-26: additional event-delivery ordering finding
+
+At `9127cb266`, inspection of chromiumoxide 0.9.1 found that draining only at
+websocket termination is insufficient. The handler can read a session event,
+queue it on a target listener, and then read `Target.targetDestroyed` in the
+same websocket polling loop. The latter removes the target before the next
+listener poll, dropping the queued event. A patch must deliver queued listener
+events before a subsequent message can remove their target, as well as drain
+through transport termination and join the consumers' listener tasks.
+
+No implementation or controlled late-event regression was completed in this
+inspection. The existing public listener and page-creation helpers return no
+listener task handle; the binary consumers and shared driver are separate
+crates, so an internal join boundary still needs to be designed without
+widening the existing API. This is an unresolved design problem, not proof that
+such a boundary is impossible. The late invalid-protocol and late page-exception
+RED/GREEN checks, launch-error cleanup, full gate and closure review remain open.
