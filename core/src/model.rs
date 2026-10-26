@@ -2250,6 +2250,14 @@ pub enum EditOperation {
         part_id: String,
         change: PartAnchorValueChange,
     },
+    /// Ticket 07: set a detached independent part's board rotation in one
+    /// Undo entry. Anchored parts keep using `SetPartAnchorValues::Rotation`;
+    /// members, companions, locked and constraint-driven parts refuse.
+    SetPartRotation {
+        #[serde(rename = "partId")]
+        part_id: String,
+        rotation: f64,
+    },
     RemoveConstraint {
         id: String,
     },

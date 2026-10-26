@@ -45,6 +45,29 @@ fn undone(engine: &mut CoreEngine) -> ProjectDoc {
     }
 }
 
+fn redone(engine: &mut CoreEngine) -> ProjectDoc {
+    match engine.handle(CoreRequest::Redo { id: "redo".into() }) {
+        CoreReply::Scene { document, .. } => *document,
+        other => panic!("expected scene: {other:?}"),
+    }
+}
+
+fn edit_error(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> String {
+    match engine.handle(CoreRequest::Edit {
+        id: "edit".into(),
+        command: EditCommand {
+            base_revision: doc.revision,
+            transaction_id: "edit".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation,
+        },
+    }) {
+        CoreReply::Error { message, .. } => message,
+        other => panic!("expected error, got: {other:?}"),
+    }
+}
+
 fn definitions() -> Vec<PartDefinition> {
     serde_json::from_value(serde_json::json!([
         {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]},
@@ -509,4 +532,184 @@ fn mirror_partners_share_half_frame_values_while_splay_mirrors() {
         .anchor
         .expect("partner anchor");
     assert_eq!(partner_anchor.splay, -20.0);
+}
+
+/// Ticket 07: a detached Rotate commits the exact board rotation through the
+/// public routes, with one Undo/Redo and a reload keeping it. The position
+/// stays exactly where the part was.
+#[test]
+fn detached_rotation_commits_exact_pose_with_undo_redo_and_reload() {
+    let (mut engine, _, doc) = open(pair_doc());
+    let dropped = drop_u1(&mut engine, &doc);
+    let before = board_pose(&dropped, "u1");
+    let detached = edit(
+        &mut engine,
+        &dropped,
+        EditOperation::DetachPartAnchor {
+            part_id: "u1".into(),
+        },
+    )
+    .1;
+    assert!(part_of(&detached, "u1").anchor.is_none());
+    let rotated = edit(
+        &mut engine,
+        &detached,
+        EditOperation::SetPartRotation {
+            part_id: "u1".into(),
+            rotation: 45.0,
+        },
+    )
+    .1;
+    let after = board_pose(&rotated, "u1");
+    assert_eq!(after.at, before.at);
+    assert!((after.rotation - 45.0).abs() < 1e-9);
+    assert_eq!(part_of(&rotated, "u1").pose.rotation, 45.0);
+    let restored = undone(&mut engine);
+    assert_eq!(board_pose(&restored, "u1"), board_pose(&detached, "u1"));
+    let again = redone(&mut engine);
+    assert_eq!(board_pose(&again, "u1"), after);
+    // Reload keeps the exact rotation.
+    let saved = serde_json::to_string(&again).expect("serialize");
+    let reloaded: ProjectDoc = serde_json::from_str(&saved).expect("deserialize");
+    let (_, _, reopened) = open(reloaded);
+    assert_eq!(board_pose(&reopened, "u1"), after);
+}
+
+/// Ticket 07: detached rotation keeps the locked/member/anchored guards and
+/// refuses non-finite and unknown parts. Anchored parts keep using
+/// `SetPartAnchorValues::Rotation`.
+#[test]
+fn detached_rotation_keeps_guards_and_refuses_bad_input() {
+    let (mut engine, _, doc) = open(pair_doc());
+    let dropped = drop_u1(&mut engine, &doc);
+    // Anchored refuses: use SetPartAnchorValues instead.
+    let message = edit_error(
+        &mut engine,
+        &dropped,
+        EditOperation::SetPartRotation {
+            part_id: "u1".into(),
+            rotation: 10.0,
+        },
+    );
+    assert!(message.contains("anchored"), "anchored refuses: {message}");
+    let detached = edit(
+        &mut engine,
+        &dropped,
+        EditOperation::DetachPartAnchor {
+            part_id: "u1".into(),
+        },
+    )
+    .1;
+    // Non-finite refuses.
+    let message = edit_error(
+        &mut engine,
+        &detached,
+        EditOperation::SetPartRotation {
+            part_id: "u1".into(),
+            rotation: f64::NAN,
+        },
+    );
+    assert!(message.contains("finite"), "non-finite refuses: {message}");
+    // Unknown refuses.
+    let message = edit_error(
+        &mut engine,
+        &detached,
+        EditOperation::SetPartRotation {
+            part_id: "missing".into(),
+            rotation: 10.0,
+        },
+    );
+    assert!(message.contains("Unknown"), "unknown refuses: {message}");
+    // A matrix member keeps its matrix's tools.
+    let message = edit_error(
+        &mut engine,
+        &detached,
+        EditOperation::SetPartRotation {
+            part_id: member("main", 0, 0),
+            rotation: 10.0,
+        },
+    );
+    assert!(
+        message.contains("follows its matrix"),
+        "member refuses: {message}"
+    );
+}
+
+/// Ticket 07: a locked detached part cannot rotate.
+#[test]
+fn detached_rotation_refuses_locked_parts() {
+    let (mut engine, _, doc) = open(pair_doc());
+    let dropped = drop_u1(&mut engine, &doc);
+    let detached = edit(
+        &mut engine,
+        &dropped,
+        EditOperation::DetachPartAnchor {
+            part_id: "u1".into(),
+        },
+    )
+    .1;
+    let mut locked_doc = detached.clone();
+    if let Some(part) = locked_doc.parts.iter_mut().find(|part| part.id == "u1") {
+        part.locked = Some(true);
+    }
+    // Lock through MoveParts would refuse; rotate through the new op too.
+    // Apply the lock first via a fresh open so the revision matches.
+    let (mut locked_engine, _, locked_accepted) = open(locked_doc);
+    let message = edit_error(
+        &mut locked_engine,
+        &locked_accepted,
+        EditOperation::SetPartRotation {
+            part_id: "u1".into(),
+            rotation: 10.0,
+        },
+    );
+    assert!(message.contains("locked"), "locked refuses: {message}");
+}
+
+/// Ticket 07: a detached rotation on one half mirrors the partner heading in
+/// the same Undo entry (controller keeps the world rotation).
+#[test]
+fn detached_rotation_mirrors_the_partner_in_one_entry() {
+    let (mut engine, _, doc) = open(pair_doc());
+    let dropped = drop_u1(&mut engine, &doc);
+    let partner_id = part_records(&dropped)[0].mirror_id.clone();
+    let detached = edit(
+        &mut engine,
+        &dropped,
+        EditOperation::DetachPartAnchor {
+            part_id: "u1".into(),
+        },
+    )
+    .1;
+    let both = edit(
+        &mut engine,
+        &detached,
+        EditOperation::DetachPartAnchor {
+            part_id: partner_id.clone(),
+        },
+    )
+    .1;
+    let rotated = edit(
+        &mut engine,
+        &both,
+        EditOperation::SetPartRotation {
+            part_id: "u1".into(),
+            rotation: 30.0,
+        },
+    )
+    .1;
+    assert!((board_pose(&rotated, "u1").rotation - 30.0).abs() < 1e-9);
+    // The MCU is a controller: the mirror takes the plain reflected heading
+    // (-30, normalized to 330), no extra half turn.
+    let partner_rotation = board_pose(&rotated, &partner_id).rotation;
+    assert!(
+        (partner_rotation - 330.0).abs() < 1e-9 || (partner_rotation + 30.0).abs() < 1e-9,
+        "partner mirrors: {partner_rotation}"
+    );
+    let undone_doc = undone(&mut engine);
+    assert_eq!(board_pose(&undone_doc, "u1"), board_pose(&both, "u1"));
+    assert_eq!(
+        board_pose(&undone_doc, &partner_id),
+        board_pose(&both, &partner_id)
+    );
 }

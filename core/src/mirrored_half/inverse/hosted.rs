@@ -197,6 +197,7 @@ pub(super) fn translate(
         | Op::SetPartAnchorFollow { .. }
         | Op::DetachPartAnchor { .. }
         | Op::SetPartAnchorValues { .. }
+        | Op::SetPartRotation { .. }
         | Op::CreateMirroredPair { .. }
         | Op::SetConstraint { .. }
         | Op::RemoveConstraint { .. }

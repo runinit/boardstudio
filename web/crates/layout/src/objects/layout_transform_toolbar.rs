@@ -2248,8 +2248,7 @@ fn part_rail_active_tool(svg_key: usize) -> Option<LayoutTransformTool> {
 /// Ticket 07: which anchor value a part drag writes. Spread and Stagger edit
 /// the values carried from the anchor key; Offset and Rotation edit the
 /// part's local values. Detached parts have no anchor: Move drives the
-/// shipped part-drag gesture, and Rotate has no Core commit path (its sweep
-/// previews the popup and retires on drop).
+/// shipped part-drag gesture, and Rotate commits one `SetPartRotation`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum PartAnchorAxis {
     Spread,
@@ -2511,7 +2510,9 @@ fn cancel_part_drag(
         return false;
     };
     match active.kind {
-        PartRailDragKind::AnchorValue(_) => clear_part_preview(runtime, &active),
+        PartRailDragKind::AnchorValue(_) | PartRailDragKind::DetachedRotate => {
+            clear_part_preview(runtime, &active)
+        }
         PartRailDragKind::DetachedMove => {
             if active.gesture_begun {
                 runtime.submit(Event::GestureCancel {
@@ -2519,7 +2520,6 @@ fn cancel_part_drag(
                 });
             }
         }
-        PartRailDragKind::DetachedRotate => {}
     }
     if active.capture.has_pointer_capture(active.pointer_id as i32) {
         let _ = active
@@ -2539,6 +2539,86 @@ fn commit_part_anchor_drag(runtime: &Rc<Runtime>, drag: &PartDrag, delta: PartAx
         "layout-part-rail-drag",
         Some("transform".into()),
         part_anchor_drag_resolver(drag.part_id.clone(), drag.transaction_id.clone(), delta),
+    );
+    spawn_local(async move {
+        loop {
+            if !edits.settle(true).is_empty() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(16).await;
+        }
+    });
+}
+
+/// Ticket 07: why a detached Rotate edit has to retire: the part is gone,
+/// locked, anchored, a member, or driven. Mirrors the Inspector's guards so
+/// rail drags and typed edits agree.
+fn part_detached_rotate_guard(document: &ProjectDoc, part_id: &str) -> Option<String> {
+    let Some(part) = document.parts.iter().find(|part| part.id == part_id) else {
+        return Some("The part no longer exists.".into());
+    };
+    if part.locked == Some(true) {
+        return Some("This part is locked.".into());
+    }
+    if part.anchor.is_some() {
+        return Some("The part is now anchored.".into());
+    }
+    if document
+        .matrices
+        .iter()
+        .any(|matrix| matrix.part_ids.contains(&part.id))
+    {
+        return Some("This part follows its matrix.".into());
+    }
+    match document.constraint_driving_part(part_id) {
+        Ok(Some(_)) => Some("This part is driven by a relationship.".into()),
+        Ok(None) => None,
+        Err(_) => Some("The saved placement relationship could not be verified.".into()),
+    }
+}
+
+/// Ticket 07: resolve a finished detached Rotate drag against the accepted
+/// document: the net delta applies to whatever the pose holds when the edit
+/// runs, so a drag queued behind other edits composes.
+fn part_detached_rotate_resolver(
+    part_id: String,
+    transaction_id: String,
+    delta: f64,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-part-rail-drag",
+        move |accepted: &AcceptedSnapshot| {
+            let document = &accepted.document;
+            if let Some(reason) = part_detached_rotate_guard(document, &part_id) {
+                return Resolution::Retire(reason);
+            }
+            let rotation = document
+                .parts
+                .iter()
+                .find(|part| part.id == part_id)
+                .map(|part| evaluated_part_pose(document, part).rotation)
+                .expect("guarded above")
+                + delta;
+            Resolution::submit_with_transaction_id(
+                vec![part_id.clone()],
+                transaction_id.clone(),
+                EditOperation::SetPartRotation {
+                    part_id: part_id.clone(),
+                    rotation,
+                },
+            )
+        },
+    )
+}
+
+fn commit_part_detached_rotate(runtime: &Rc<Runtime>, drag: &PartDrag, delta: f64) {
+    let mut edits = PendingEdits::default();
+    edits.begin(
+        runtime,
+        (),
+        "layout-part-rail-drag",
+        Some("transform".into()),
+        part_detached_rotate_resolver(drag.part_id.clone(), drag.transaction_id.clone(), delta),
     );
     spawn_local(async move {
         loop {
@@ -2678,8 +2758,8 @@ fn part_start_is_editable(
 /// Ticket 07: the rail token for one independent part tool. Move and Rotate
 /// edit the part's local Offset and Rotation; Spread and Stagger edit the
 /// values carried from its anchor key. A detached part moves through the
-/// shipped part-drag gesture; its Rotate sweep previews the popup and
-/// retires, since no Core op writes a detached pose rotation.
+/// shipped part-drag gesture; its Rotate sweep previews the popup and commits
+/// one `SetPartRotation`.
 #[component]
 #[allow(clippy::too_many_arguments)]
 pub fn LayoutPartToolOverlay(
@@ -3340,15 +3420,25 @@ pub fn LayoutPartToolOverlay(
                 let swept = angle.sin().atan2(angle.cos()).to_degrees();
                 let value = part_rotate_value(active.start_rotation, swept, alt);
                 let delta = value - active.start_rotation;
-                feedback_for_move.set(advance_feedback(
-                    &feedback_for_move(),
-                    FeedbackEvent::Drag {
-                        name: tool_name,
-                        value: format!("{value:.1}°"),
-                        delta: FeedbackDelta::Deg(delta),
-                    },
-                ));
-                popup_at_for_move.set(Some((point.x + 18.0 * px, point.y - 18.0 * px)));
+                let operation = EditOperation::SetPartRotation {
+                    part_id: active.part_id.clone(),
+                    rotation: value,
+                };
+                if active.pending.as_ref() != Some(&operation) {
+                    submit_part_preview(&runtime_for_move, &active, operation.clone());
+                    active.preview_submitted = true;
+                    feedback_for_move.set(advance_feedback(
+                        &feedback_for_move(),
+                        FeedbackEvent::Drag {
+                            name: tool_name,
+                            value: format!("{value:.1}°"),
+                            delta: FeedbackDelta::Deg(delta),
+                        },
+                    ));
+                    popup_at_for_move.set(Some((point.x + 18.0 * px, point.y - 18.0 * px)));
+                    active.pending = Some(operation);
+                    *drag_for_move.borrow_mut() = Some(active);
+                }
             }
         }
     });
@@ -3588,15 +3678,71 @@ pub fn LayoutPartToolOverlay(
                 }
             }
             PartRailDragKind::DetachedRotate => {
-                // No Core op writes a detached pose rotation: the sweep
-                // previews the popup and the drop retires without a commit.
-                feedback_for_end.set(advance_feedback(
-                    &feedback_for_end(),
-                    FeedbackEvent::Choose {
-                        name: tool_name,
-                        value: handle_value_for_end.clone(),
-                    },
-                ));
+                let sample = crate::presentation::coordinates(
+                    &svg_for_end,
+                    &pointer,
+                    view_x,
+                    view_y,
+                    width,
+                    height,
+                )
+                .map(|point| {
+                    let angle = (point.y - active.center.y).atan2(point.x - active.center.x)
+                        - active.start_angle;
+                    let swept = angle.sin().atan2(angle.cos()).to_degrees();
+                    let value = part_rotate_value(active.start_rotation, swept, alt);
+                    let delta = value - active.start_rotation;
+                    (
+                        EditOperation::SetPartRotation {
+                            part_id: active.part_id.clone(),
+                            rotation: value,
+                        },
+                        FeedbackDelta::Deg(delta),
+                        delta,
+                        format!("{value:.1}°"),
+                    )
+                })
+                .or_else(|| {
+                    active.pending.as_ref().and_then(|operation| {
+                        let EditOperation::SetPartRotation { rotation, .. } = operation else {
+                            return None;
+                        };
+                        let delta = rotation - active.start_rotation;
+                        Some((
+                            operation.clone(),
+                            FeedbackDelta::Deg(delta),
+                            delta,
+                            format!("{rotation:.1}°"),
+                        ))
+                    })
+                });
+                if let Some((operation, feedback, delta, value_text)) = sample {
+                    if active.pending.as_ref() != Some(&operation) {
+                        submit_part_preview(&runtime_for_end, &active, operation);
+                    }
+                    if feedback.is_zero() {
+                        clear_part_preview(&runtime_for_end, &active);
+                        feedback_for_end.set(advance_feedback(
+                            &feedback_for_end(),
+                            FeedbackEvent::Choose {
+                                name: tool_name,
+                                value: value_text,
+                            },
+                        ));
+                    } else {
+                        commit_part_detached_rotate(&runtime_for_end, &active, delta);
+                        landed(feedback, value_text);
+                    }
+                } else if active.preview_submitted {
+                    clear_part_preview(&runtime_for_end, &active);
+                    feedback_for_end.set(advance_feedback(
+                        &feedback_for_end(),
+                        FeedbackEvent::Choose {
+                            name: tool_name,
+                            value: handle_value_for_end.clone(),
+                        },
+                    ));
+                }
             }
         }
         popup_at_for_end.set(None);
@@ -10257,11 +10403,11 @@ mod tool_tests {
         root.remove();
     }
 
-    /// Ticket 07: a detached Rotate sweep previews the popup but retires on
-    /// drop: no Core op writes a detached pose rotation, so no revision and
-    /// no toast. This pins the gap until a rotation op exists.
+    /// Ticket 07: a detached Rotate sweep previews the popup and commits one
+    /// `SetPartRotation`: the exact rotation persists, one toast, one Undo
+    /// restores it. User approval keeps the token visible and working.
     #[wasm_bindgen_test]
-    async fn detached_rotate_drag_retires_without_a_commit() {
+    async fn detached_rotate_drag_commits_exact_rotation() {
         let runtime = fixture::open_detached_part_runtime().await;
         wait_until_editable(&runtime).await;
         let (root, handle, _) =
@@ -10281,19 +10427,84 @@ mod tool_tests {
         gloo_timers::future::TimeoutFuture::new(60).await;
         dispatch_pointer(&handle, "pointermove", false, true, 1, (140, 60));
         gloo_timers::future::TimeoutFuture::new(60).await;
+        let popup = root.query_selector(".m1-feedback-popup").unwrap().unwrap();
+        let popup_text = popup.text_content().unwrap_or_default();
+        assert!(
+            popup_text.contains("Rotate") && popup_text.contains('°'),
+            "the popup follows the sweep: {popup_text}"
+        );
+        let live: f64 = {
+            let end = popup_text.find('°').expect("the swept degrees");
+            let start = popup_text[..end]
+                .rfind(|cell: char| {
+                    !(cell.is_ascii_digit()
+                        || cell == '.'
+                        || cell == '-'
+                        || cell == '+'
+                        || cell == '−')
+                })
+                .map(|index| index + 1)
+                .unwrap_or(0);
+            popup_text[start..end]
+                .parse()
+                .expect("the popup names the swept degrees")
+        };
+        assert!(
+            live.abs() > 1.0,
+            "the sweep moved the rotation: {popup_text}"
+        );
         dispatch_pointer(&handle, "pointerup", false, true, 0, (140, 60));
-        for _ in 0..100 {
+        for _ in 0..200 {
             support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
         }
         assert_eq!(
             fixture_revision(&runtime),
-            revision,
-            "the sweep commits nothing"
+            revision + 1,
+            "one accepted edit"
         );
+        let rotation = runtime
+            .model()
+            .accepted
+            .as_ref()
+            .expect("an accepted document")
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == "mcu")
+            .expect("the mcu part")
+            .pose
+            .rotation;
         assert!(
-            root.query_selector(".m1-feedback-toast").unwrap().is_none(),
-            "no commit, no toast"
+            (rotation - live).abs() < 0.06,
+            "the commit matches the live popup value within its tenth-degree display: {rotation} vs {live}"
         );
+        let toast = root
+            .query_selector(".m1-feedback-toast")
+            .unwrap()
+            .expect("the commit raises a toast");
+        assert!(
+            toast.text_content().unwrap_or_default().contains("Rotate"),
+            "the toast names the rotation: {}",
+            toast.text_content().unwrap_or_default()
+        );
+        fixture::undo(&runtime).await;
+        let restored = runtime
+            .model()
+            .accepted
+            .as_ref()
+            .expect("an accepted document")
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == "mcu")
+            .expect("the mcu part")
+            .pose
+            .rotation;
+        assert_eq!(restored, 0.0, "one Undo restores the Rotation");
         root.remove();
     }
 

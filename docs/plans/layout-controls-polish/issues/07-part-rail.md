@@ -51,11 +51,11 @@ Independent parts get a canvas rail in part order `[Move, Rotate, Spread, Stagge
 centred on the part. Move/Rotate edit the local Offset/Rotation and Spread/Stagger
 edit the values carried from the anchor key, each drag committing one composed
 `SetPartAnchorValues` (one Undo entry). Detached Move drives the shipped
-`GestureBegin/Sample/End` path (Core `MoveParts`, one Undo); detached Rotate shows
-the token and the live popup but retires on drop — no existing Core op writes a
-detached pose rotation, so this needs a product call in 08 or a follow-up (hide the
-token until a rotation op exists, or add one against the map's "only 04 changes a
-public Core op"). Members and companions pass no facts: on canvas they hit-test to
+`GestureBegin/Sample/End` path (Core `MoveParts`, one Undo); detached Rotate
+commits one narrow `SetPartRotation` (one Undo entry, exact board rotation,
+mirror fan-out, locked/member/companion/driven guards; anchored parts keep
+using `SetPartAnchorValues::Rotation`). User approval keeps the token visible
+and working. Members and companions pass no facts: on canvas they hit-test to
 keys and keep the key tools, and a Component context for them draws no part rail.
 The strip is unchanged (Position only for parts); outlines were already
 accent/violet in CSS and are now pinned by a class test.
@@ -72,11 +72,13 @@ accent/violet in CSS and are now pinned by a class test.
   overlays with anchor-pitch snap.
 - DESIGN.md canvas paragraph records the part rail and the outline rule.
 
-Tests: 4 native list tests; mounted rail order + Spread hover value, anchored
-Stagger (+2 Alt, offset untouched, toast, Undo), Move (offset, toast, Undo),
-Rotate (commit matches live popup, Undo), detached tokens/member-guard, detached
-Move (gesture engaged, one revision, toast, Undo), detached Rotate retires (no
-revision, no toast), mirror pair fan-out + Undo on both halves, half-focus on
+Tests: 4 native list tests + 4 Core `SetPartRotation` route tests (exact
+commit + Undo/Redo/reload, guards, locked, mirror fan-out); mounted rail order
++ Spread hover value, anchored Stagger (+2 Alt, offset untouched, toast, Undo),
+Move (offset, toast, Undo), Rotate (commit matches live popup, Undo), detached
+tokens/member-guard, detached Move (gesture engaged, one revision, toast,
+Undo), detached Rotate (commit matches live popup, toast, Undo), mirror pair
+fan-out + Undo on both halves, half-focus on
 press, locked draws nothing, Part strip keeps Position, selected outline accent
 vs unselected violet. Full toolbar module 53/53 and the layout_canvas page-bin
 14/14 pass; the full layout lib run SIGKILLs mid-suite in this environment
