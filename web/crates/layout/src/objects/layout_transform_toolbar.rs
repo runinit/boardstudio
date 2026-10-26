@@ -47,6 +47,10 @@ pub enum LayoutTransformTool {
     Stagger,
     Spread,
     Offset,
+    /// Carries one row or key sideways through its running frame.
+    Shift,
+    /// Turns one row's or one key's running frame, in degrees.
+    Bend,
     Splay,
     Origin,
     /// Moves the selected matrix through its Origin.
@@ -56,10 +60,12 @@ pub enum LayoutTransformTool {
 }
 
 impl LayoutTransformTool {
-    const ALL: [(Self, &'static str); 7] = [
+    const ALL: [(Self, &'static str); 9] = [
         (Self::Stagger, "Stagger"),
         (Self::Spread, "Spread"),
         (Self::Offset, "Offset"),
+        (Self::Shift, "Shift"),
+        (Self::Bend, "Bend"),
         (Self::Splay, "Splay"),
         (Self::Origin, "Origin"),
         (Self::Move, "Move"),
@@ -77,7 +83,8 @@ pub struct ToolActivation {
 
 /// The activation rules for a menu tool. Choosing the active tool again turns it off and
 /// leaves the selection alone. Offset keeps a Row selection and turns every other matrix
-/// selection into its Column. Stagger is a column parameter: a Row selection becomes the
+/// selection into its Column. Shift and Bend keep a Row or Key selection and turn every
+/// other matrix selection into its Column. Stagger is a column parameter: a Row selection becomes the
 /// column of the retained key when there is one (the conversion reads the retained cell)
 /// and otherwise column 1, and every other selection becomes its Column. Splay and Origin
 /// turn the selection into its Column. Move and Rotate keep the Matrix selection: they
@@ -100,10 +107,12 @@ thread_local! {
 
 /// Canonical rail order: peers list in this order however the mounts
 /// interleave, matching the `transform_tools` listing order.
-const RAIL_ORDER: [LayoutTransformTool; 6] = [
+const RAIL_ORDER: [LayoutTransformTool; 8] = [
     LayoutTransformTool::Spread,
     LayoutTransformTool::Stagger,
     LayoutTransformTool::Offset,
+    LayoutTransformTool::Shift,
+    LayoutTransformTool::Bend,
     LayoutTransformTool::Splay,
     LayoutTransformTool::Move,
     LayoutTransformTool::Rotate,
@@ -165,6 +174,8 @@ const GLYPH_SPREAD: &str = "M-5 0h10M-3 -2l-2 2 2 2M3 -2l2 2-2 2";
 const GLYPH_STAGGER: &str = "M-5 0h10M-3 -2l-2 2 2 2M3 -2l2 2-2 2";
 const GLYPH_FOUR: &str = "M0 -3.2v6.4M-3.2 0h6.4M-1.4 -1.8 0 -3.2l1.4 1.4M-1.4 1.8 0 3.2l1.4 -1.4M-1.8 -1.4-3.2 0l1.4 1.4M1.8 -1.4 3.2 0l-1.4 1.4";
 const GLYPH_SPLAY: &str = "M-5 4A9 9 0 0 1 4 -5M1.5 -6.5 4 -5l-1.3 2.4M-5 4h2";
+/// Prototype variant D bend token: a curved arrow, shared by row and key.
+const GLYPH_BEND: &str = "M-4 5C-4 0-1-4 4-4M1.5-6 4-4 1.5-2";
 const GLYPH_ROTATE: &str = "M4.5 -2A5 5 0 1 1 -2 -4.6M4.6 -5v3h-3";
 
 /// The token glyph for one rail tool: the axis arrow along `glyph_degrees`
@@ -193,6 +204,16 @@ fn rail_token_glyph(
                 path { d: "{GLYPH_STAGGER}", style: "{style}" }
             }
         },
+        // A Shift token is always the four-way arrow: the drag is already a
+        // free 2-D move, so no Ctrl quick-offset state gates it.
+        (LayoutTransformTool::Shift, _) => rsx! {
+            g { transform: "scale(1.5)",
+                path { d: "{GLYPH_FOUR}", style: "{style}" }
+            }
+        },
+        (LayoutTransformTool::Bend, _) => rsx! {
+            path { d: "{GLYPH_BEND}", style: "{style}" }
+        },
         (LayoutTransformTool::Splay, _) => rsx! {
             path { d: "{GLYPH_SPLAY}", style: "{style}" }
         },
@@ -209,7 +230,9 @@ fn rail_token_glyph(
 }
 
 /// The Inspector field whose amber preview matches one rail token's movers,
-/// or `None` when the tool holds its keys still (Origin).
+/// or `None` when the tool holds its keys still (Origin). Row Shift and Bend
+/// carry downward like their Inspector fields; key Shift and Bend carry
+/// upward through their column.
 fn preview_field_for_tool(
     tool: LayoutTransformTool,
     context: &TreeContext,
@@ -224,9 +247,20 @@ fn preview_field_for_tool(
             Some(MatrixTransformField::RowOffsetX)
         }
         (LayoutTransformTool::Offset, _) => Some(MatrixTransformField::ColumnOffsetX),
+        (LayoutTransformTool::Shift, TreeContext::Row { .. }) => {
+            Some(MatrixTransformField::RowShiftX)
+        }
+        (LayoutTransformTool::Shift, TreeContext::Key { .. }) => {
+            Some(MatrixTransformField::KeyShiftX)
+        }
+        (LayoutTransformTool::Bend, TreeContext::Row { .. }) => Some(MatrixTransformField::RowBend),
+        (LayoutTransformTool::Bend, TreeContext::Key { .. }) => Some(MatrixTransformField::KeyBend),
         (LayoutTransformTool::Move, _) => Some(MatrixTransformField::OriginX),
         (LayoutTransformTool::Rotate, _) => Some(MatrixTransformField::MatrixRotation),
-        (LayoutTransformTool::Origin, _) | (LayoutTransformTool::Stagger, _) => None,
+        (LayoutTransformTool::Origin, _)
+        | (LayoutTransformTool::Stagger, _)
+        | (LayoutTransformTool::Shift, _)
+        | (LayoutTransformTool::Bend, _) => None,
     }
 }
 pub fn activate_transform_tool(
@@ -245,6 +279,18 @@ pub fn activate_transform_tool(
             active: Some(tool),
             selection_kind: Some(LayoutSelectionKind::Row),
         },
+        (LayoutTransformTool::Shift | LayoutTransformTool::Bend, TreeContext::Row { .. }) => {
+            ToolActivation {
+                active: Some(tool),
+                selection_kind: Some(LayoutSelectionKind::Row),
+            }
+        }
+        (LayoutTransformTool::Shift | LayoutTransformTool::Bend, TreeContext::Key { .. }) => {
+            ToolActivation {
+                active: Some(tool),
+                selection_kind: Some(LayoutSelectionKind::Key),
+            }
+        }
         (LayoutTransformTool::Move | LayoutTransformTool::Rotate, _) => ToolActivation {
             active: Some(tool),
             selection_kind: None,
@@ -300,6 +346,8 @@ enum TransformGesture {
     Spread { column: u32 },
     /// Edits one row's or one column's independent offset (`RowOffset` or `ColumnOffset`).
     Offset { parameter: PlacementParameter },
+    /// Turns one row's or one key's running frame, in degrees.
+    Bend { parameter: PlacementParameter },
     Splay {
         column: u32,
         start_angle: f64,
@@ -331,7 +379,7 @@ enum TransformGesture {
 }
 
 impl TransformGesture {
-    /// The placement parameter a Stagger, Spread or Offset gesture writes.
+    /// The placement parameter a Stagger, Spread, Offset or Bend gesture writes.
     fn parameter(&self) -> Option<PlacementParameter> {
         match *self {
             Self::Stagger {
@@ -340,6 +388,7 @@ impl TransformGesture {
             } => Some(stagger_parameter(column, quick_offset)),
             Self::Spread { column } => Some(PlacementParameter::ColumnSpread { column }),
             Self::Offset { parameter } => Some(parameter),
+            Self::Bend { parameter } => Some(parameter),
             Self::Splay { .. }
             | Self::Origin { .. }
             | Self::MatrixMove { .. }
@@ -700,6 +749,12 @@ pub fn LayoutTransformToolOverlay(
             .filter(|cell| cell.enabled && cell.row == *row)
             .map(|cell| cell.pose.at)
             .collect(),
+        TreeContext::Key { row, column, .. } => projection
+            .cells
+            .iter()
+            .filter(|cell| cell.enabled && cell.row == *row && cell.column == *column)
+            .map(|cell| cell.pose.at)
+            .collect(),
         TreeContext::Matrix { .. } => projection
             .cells
             .iter()
@@ -781,6 +836,22 @@ pub fn LayoutTransformToolOverlay(
         PlacementValue::Offset(offset) => offset,
         _ => Vec2::default(),
     };
+    // Ticket 05: a row or key selection carries its own shift and bend; any
+    // other context leaves them absent and the tokens stay hidden.
+    let shift_parameter = shift_parameter(&context);
+    let shift_now = shift_parameter
+        .and_then(|parameter| match placement_current(&matrix, parameter) {
+            PlacementValue::Shift(shift) => Some(shift),
+            _ => None,
+        })
+        .unwrap_or_default();
+    let bend_parameter = bend_parameter(&context);
+    let bend_now = bend_parameter
+        .and_then(|parameter| match placement_current(&matrix, parameter) {
+            PlacementValue::Bend(bend) => Some(bend),
+            _ => None,
+        })
+        .unwrap_or(0.0);
     let stagger_now = matrix
         .column_layout
         .get(selected_column as usize)
@@ -1319,6 +1390,47 @@ pub fn LayoutTransformToolOverlay(
                     big: key.shift_key(),
                 }
             }
+            // Ticket 05: Shift nudges step through the carried-shift frame
+            // like an offset; Bend nudges turn the running frame by degrees,
+            // mirroring the Splay angle nudge (Shift steps five).
+            Some("Drag to shift row") => {
+                let Some(row) = context_row(&context_for_key) else {
+                    return;
+                };
+                TransformNudge::Offset {
+                    parameter: PlacementParameter::RowShift { row },
+                    key: arrow,
+                    big: key.shift_key(),
+                }
+            }
+            Some("Drag to shift key") => {
+                let Some((row, column)) = context_key(&context_for_key) else {
+                    return;
+                };
+                TransformNudge::Offset {
+                    parameter: PlacementParameter::KeyShift { row, column },
+                    key: arrow,
+                    big: key.shift_key(),
+                }
+            }
+            Some(label @ ("Drag to bend row" | "Drag to bend key")) if delta.x != 0.0 => {
+                let parameter = match (label, &context_for_key) {
+                    ("Drag to bend row", TreeContext::Row { row, .. }) => {
+                        PlacementParameter::RowBend { row: *row }
+                    }
+                    ("Drag to bend key", TreeContext::Key { row, column, .. }) => {
+                        PlacementParameter::KeyBend {
+                            row: *row,
+                            column: *column,
+                        }
+                    }
+                    _ => return,
+                };
+                TransformNudge::Bend {
+                    parameter,
+                    degrees: delta.x.signum() * if key.shift_key() { 5.0 } else { 1.0 },
+                }
+            }
             Some("Move splay origin") => TransformNudge::SplayOrigin {
                 column: selected_column,
             },
@@ -1378,6 +1490,16 @@ pub fn LayoutTransformToolOverlay(
         LayoutTransformTool::Offset => TransformGesture::Offset {
             parameter: offset_parameter,
         },
+        // A Shift drag edits the row's or key's carried shift through the
+        // Offset gesture's shift axes; a Bend drag turns the running frame.
+        // Without a row or key the tokens stay hidden, so the offsets below
+        // never start a drag.
+        LayoutTransformTool::Shift => TransformGesture::Offset {
+            parameter: shift_parameter.unwrap_or(offset_parameter),
+        },
+        LayoutTransformTool::Bend => TransformGesture::Bend {
+            parameter: bend_parameter.unwrap_or(offset_parameter),
+        },
         LayoutTransformTool::Splay | LayoutTransformTool::Origin => TransformGesture::Origin {
             column: selected_column,
             swing: false,
@@ -1404,12 +1526,16 @@ pub fn LayoutTransformToolOverlay(
         PlacementValue::Spread(value) => value,
         _ => matrix_for_spread.pitch.x,
     };
-    let handle_label = match (tool, context_row(&context)) {
-        (LayoutTransformTool::Stagger, None) if control() || quick_glyph() => {
-            "Drag to offset column"
-        }
-        (LayoutTransformTool::Offset, Some(_)) => "Drag to offset row",
-        (LayoutTransformTool::Offset, None) => "Drag to offset column",
+    let handle_label = match (tool, &context) {
+        (LayoutTransformTool::Stagger, _) if control() || quick_glyph() => "Drag to offset column",
+        (LayoutTransformTool::Offset, TreeContext::Row { .. }) => "Drag to offset row",
+        (LayoutTransformTool::Offset, _) => "Drag to offset column",
+        (LayoutTransformTool::Shift, TreeContext::Row { .. }) => "Drag to shift row",
+        (LayoutTransformTool::Shift, TreeContext::Key { .. }) => "Drag to shift key",
+        (LayoutTransformTool::Shift, _) => "Drag to shift",
+        (LayoutTransformTool::Bend, TreeContext::Row { .. }) => "Drag to bend row",
+        (LayoutTransformTool::Bend, TreeContext::Key { .. }) => "Drag to bend key",
+        (LayoutTransformTool::Bend, _) => "Drag to bend",
         (LayoutTransformTool::Spread, _) => "Drag to spread",
         _ => "Drag to stagger",
     };
@@ -1417,6 +1543,10 @@ pub fn LayoutTransformToolOverlay(
         LayoutTransformTool::Offset => {
             format!("X {:.2} mm, Y {:.2} mm", offset_now.x, offset_now.y)
         }
+        LayoutTransformTool::Shift => {
+            format!("X {:.2} mm, Y {:.2} mm", shift_now.x, shift_now.y)
+        }
+        LayoutTransformTool::Bend => format!("{bend_now:.1}°"),
         LayoutTransformTool::Spread => format!("{spread_now:.2} mm"),
         _ if control() || quick_glyph() => {
             format!("X {:.2} mm, Y {:.2} mm", offset_now.x, offset_now.y)
@@ -1453,15 +1583,22 @@ pub fn LayoutTransformToolOverlay(
     let guide_opacity = if token_active { "0.8" } else { "0.35" };
     // Splay, Move and Rotate keep hardcoded labels: the gesture distinguishes
     // them, and the mounted drag tests query these strings.
-    let token_aria_label: String = match tool {
-        LayoutTransformTool::Splay => "Drag to splay".to_owned(),
-        LayoutTransformTool::Move => "Drag to move matrix".to_owned(),
-        LayoutTransformTool::Rotate => "Drag to rotate matrix".to_owned(),
-        LayoutTransformTool::Origin => "Move splay origin".to_owned(),
+    let token_aria_label: String = match (tool, &context) {
+        (LayoutTransformTool::Splay, _) => "Drag to splay".to_owned(),
+        (LayoutTransformTool::Move, _) => "Drag to move matrix".to_owned(),
+        (LayoutTransformTool::Rotate, _) => "Drag to rotate matrix".to_owned(),
+        (LayoutTransformTool::Origin, _) => "Move splay origin".to_owned(),
+        (LayoutTransformTool::Shift, TreeContext::Row { .. }) => "Drag to shift row".to_owned(),
+        (LayoutTransformTool::Shift, TreeContext::Key { .. }) => "Drag to shift key".to_owned(),
+        (LayoutTransformTool::Shift, _) => "Drag to shift".to_owned(),
+        (LayoutTransformTool::Bend, TreeContext::Row { .. }) => "Drag to bend row".to_owned(),
+        (LayoutTransformTool::Bend, TreeContext::Key { .. }) => "Drag to bend key".to_owned(),
+        (LayoutTransformTool::Bend, _) => "Drag to bend".to_owned(),
         _ => handle_label.to_owned(),
     };
     let token_description: String = match tool {
         LayoutTransformTool::Spread => handle_value.clone(),
+        LayoutTransformTool::Shift | LayoutTransformTool::Bend => handle_value.clone(),
         LayoutTransformTool::Stagger | LayoutTransformTool::Offset => {
             format!("{handle_value}. Hold Ctrl while dragging to offset the column.")
         }
@@ -1497,7 +1634,10 @@ pub fn LayoutTransformToolOverlay(
             Some("Rotate matrix (unavailable: Follow rotation is off)".to_owned())
         }
         LayoutTransformTool::Origin => Some("Move splay origin".to_owned()),
-        LayoutTransformTool::Stagger | LayoutTransformTool::Offset => None,
+        LayoutTransformTool::Stagger
+        | LayoutTransformTool::Offset
+        | LayoutTransformTool::Shift
+        | LayoutTransformTool::Bend => None,
     };
     // The token centre in world units, when this overlay draws a rail token.
     // Splay also needs its origin basis: without it the drag has no frame.
@@ -1506,8 +1646,12 @@ pub fn LayoutTransformToolOverlay(
             .as_ref()
             .and_then(|layout| layout.token_centers.get(index).copied())
     });
-    let token_shown =
-        token_center.is_some() && (tool != LayoutTransformTool::Splay || origin_point.is_some());
+    // Shift and Bend need their row or key parameter: on any other context
+    // the token stays hidden rather than editing the wrong field.
+    let token_shown = token_center.is_some()
+        && (tool != LayoutTransformTool::Splay || origin_point.is_some())
+        && (tool != LayoutTransformTool::Shift || shift_parameter.is_some())
+        && (tool != LayoutTransformTool::Bend || bend_parameter.is_some());
     // Axis guide endpoints for the one-dimensional tokens, in world units.
     let (axis_x, axis_y) = match tool {
         LayoutTransformTool::Spread => (1.0, 0.0),
@@ -1704,6 +1848,12 @@ enum TransformNudge {
         parameter: PlacementParameter,
         key: ArrowKey,
         big: bool,
+    },
+    /// One arrow step of a row or key bend, in degrees. Only the horizontal
+    /// pair is consumed, mirroring the Splay angle nudge.
+    Bend {
+        parameter: PlacementParameter,
+        degrees: f64,
     },
     SplayOrigin {
         column: u32,
@@ -1924,6 +2074,7 @@ enum PlacementDelta {
     Stagger(f64),
     Offset(Vec2),
     Shift(Vec2),
+    Bend(f64),
     Spread(f64),
     Padding(f64),
 }
@@ -1944,6 +2095,9 @@ fn placement_delta(start: PlacementValue, end: PlacementValue) -> Option<Placeme
                 x: end.x - start.x,
                 y: end.y - start.y,
             }))
+        }
+        (PlacementValue::Bend(start), PlacementValue::Bend(end)) => {
+            Some(PlacementDelta::Bend(end - start))
         }
         (PlacementValue::Spread(start), PlacementValue::Spread(end)) => {
             Some(PlacementDelta::Spread(end - start))
@@ -1971,6 +2125,9 @@ fn apply_placement_delta(current: PlacementValue, delta: PlacementDelta) -> Opti
                 x: value.x + delta.x,
                 y: value.y + delta.y,
             }))
+        }
+        (PlacementValue::Bend(value), PlacementDelta::Bend(delta)) => {
+            Some(PlacementValue::Bend(value + delta))
         }
         (PlacementValue::Spread(value), PlacementDelta::Spread(delta)) => {
             Some(PlacementValue::Spread(value + delta))
@@ -2114,6 +2271,22 @@ fn transform_nudge_resolver(matrix_id: String, nudge: TransformNudge, delta: Vec
                             }),
                         },
                     }
+                }
+                TransformNudge::Bend { parameter, degrees } => {
+                    if let Err(reason) = accepted_placement_basis(accepted, matrix, *parameter) {
+                        return Resolution::Retire(reason.into());
+                    }
+                    let PlacementValue::Bend(current) = placement_current(matrix, *parameter)
+                    else {
+                        return Resolution::Retire(
+                            "This transform no longer matches the selected matrix.".into(),
+                        );
+                    };
+                    placement_operation(
+                        &matrix_id,
+                        *parameter,
+                        PlacementValue::Bend(current + degrees),
+                    )
                 }
                 TransformNudge::SplayAngle {
                     column,
@@ -2490,6 +2663,41 @@ fn context_row(context: &TreeContext) -> Option<u32> {
     }
 }
 
+/// The selected key's (row, column), when the selection is a key.
+fn context_key(context: &TreeContext) -> Option<(u32, u32)> {
+    match context {
+        TreeContext::Key { row, column, .. } => Some((*row, *column)),
+        _ => None,
+    }
+}
+
+/// The carried-shift parameter for a row or key selection, or `None` when the
+/// context has no row or key (a hidden Shift token on a column or matrix
+/// selection draws nothing rather than editing the wrong field).
+fn shift_parameter(context: &TreeContext) -> Option<PlacementParameter> {
+    match context {
+        TreeContext::Row { row, .. } => Some(PlacementParameter::RowShift { row: *row }),
+        TreeContext::Key { row, column, .. } => Some(PlacementParameter::KeyShift {
+            row: *row,
+            column: *column,
+        }),
+        _ => None,
+    }
+}
+
+/// The carried-bend parameter for a row or key selection, or `None` when the
+/// context has no row or key.
+fn bend_parameter(context: &TreeContext) -> Option<PlacementParameter> {
+    match context {
+        TreeContext::Row { row, .. } => Some(PlacementParameter::RowBend { row: *row }),
+        TreeContext::Key { row, column, .. } => Some(PlacementParameter::KeyBend {
+            row: *row,
+            column: *column,
+        }),
+        _ => None,
+    }
+}
+
 fn transform_owner_is_current(
     runtime: &Runtime,
     workspace: Signal<&'static str>,
@@ -2640,8 +2848,10 @@ struct TransformSampleContext<'a> {
     guide: &'a mut Signal<Option<Vec2>>,
 }
 
-/// The preview of a Stagger or Offset gesture: an absolute placement value for the gesture's
-/// parameter, built by the placement module from the world delta since pointer-down.
+/// The preview of a Stagger, Offset, Shift or Bend gesture: an absolute placement value
+/// for the gesture's parameter, built by the placement module from the world delta since
+/// pointer-down. A Bend ignores the grid step's magnitude (it snaps to half degrees) and
+/// only reads whether snapping is on, so Alt still keeps the raw angle.
 ///
 /// A stagger snaps to the grid step of the stagger axis' dominant component: pitch.y for an
 /// upright axis, pitch.x when a splay has turned the axis nearer to horizontal. The gesture
@@ -2693,7 +2903,8 @@ fn sample_transform(
     match drag.gesture {
         TransformGesture::Stagger { .. }
         | TransformGesture::Spread { .. }
-        | TransformGesture::Offset { .. } => {
+        | TransformGesture::Offset { .. }
+        | TransformGesture::Bend { .. } => {
             let rect = svg.borrow().as_ref()?.get_bounding_client_rect();
             if rect.width() <= 0.0 || rect.height() <= 0.0 {
                 return None;
@@ -3270,6 +3481,10 @@ fn LayoutContextToolButton(
         LayoutTransformTool::Stagger => "M10 2v16M6 6l4-4 4 4M6 14l4 4 4-4",
         LayoutTransformTool::Spread => "M2 10h16M4 6l-2 4 2 4M16 6l2 4-2 4",
         LayoutTransformTool::Offset => "M2 10h16M6 6l-4 4 4 4M14 6l4 4-4 4",
+        // Ticket 05: Shift shares the four-way arrow; Bend is a curved arrow.
+        // The Row/Key context bars do not list them yet (rail-only ticket).
+        LayoutTransformTool::Shift => "M10 2v16M2 10h16M7 5l3-3 3 3M7 15l3 3 3-3",
+        LayoutTransformTool::Bend => "M4 16C4 9 8 5 15 5M12 2l3 3-3 3",
         LayoutTransformTool::Splay => "M4 16h13M4 16l8-12M7 16a7 7 0 0 0 3-6",
         LayoutTransformTool::Origin => "M10 1v18M1 10h18M5 5h10v10H5z",
         LayoutTransformTool::Move => "M10 2v16M2 10h16M7 5l3-3 3 3M7 15l3 3 3-3",
@@ -3507,6 +3722,8 @@ mod shortcut_tests {
             Some(LayoutTransformTool::Stagger) => "Stagger",
             Some(LayoutTransformTool::Spread) => "Spread",
             Some(LayoutTransformTool::Offset) => "Offset",
+            Some(LayoutTransformTool::Shift) => "Shift",
+            Some(LayoutTransformTool::Bend) => "Bend",
             Some(LayoutTransformTool::Splay) => "Splay",
             Some(LayoutTransformTool::Origin) => "Origin",
             Some(LayoutTransformTool::Move) => "Move",
@@ -4571,8 +4788,9 @@ mod nudge_tests {
         );
     }
 
-    #[wasm_bindgen_test]
-    async fn a_drag_on_the_right_half_of_a_linked_pair_updates_both_halves_equally() {
+    /// A linked left/right pair on the fixture board, for the mirror-sync
+    /// drag tests.
+    async fn open_mirrored_pair_runtime() -> Rc<Runtime> {
         let mut document = fixture::matrix_document();
         document.matrices.clear();
         document.parts.clear();
@@ -4605,7 +4823,12 @@ mod nudge_tests {
             }),
         );
         settle_edit(&runtime, &mut pair).await;
+        runtime
+    }
 
+    #[wasm_bindgen_test]
+    async fn a_drag_on_the_right_half_of_a_linked_pair_updates_both_halves_equally() {
+        let runtime = open_mirrored_pair_runtime().await;
         let mut drag = begin_drag(&runtime, "right-matrix", 1, false);
         let last = preview(&runtime, &mut drag, Vec2 { x: 0.0, y: 2.0 });
         support::run_pending(&runtime).await;
@@ -4641,6 +4864,156 @@ mod nudge_tests {
                 .collect::<Vec<_>>()
         );
     }
+
+    /// Ticket 05: a row Shift drag carries the row through the shift axes
+    /// and a row Bend drag turns its running frame; a Bend nudge adds degrees
+    /// like the Splay nudge. Only the dragged row changes.
+    #[wasm_bindgen_test]
+    async fn a_row_shift_drag_and_a_row_bend_drag_change_only_that_row() {
+        let mut document = fixture::matrix_document();
+        document.matrices[0].rows = 2;
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let shift = PlacementParameter::RowShift { row: 1 };
+        let mut drag = begin_gesture(
+            &runtime,
+            fixture::MATRIX_ID,
+            TransformGesture::Offset { parameter: shift },
+        );
+        // The resolver-level preview carries no grid step, so the raw world
+        // delta lands; the mounted pointer path covers snapping.
+        let last = preview(&runtime, &mut drag, Vec2 { x: 8.0, y: 4.0 });
+        support::run_pending(&runtime).await;
+        commit(&runtime, &drag, &last).await;
+        let matrix = fixture::accepted_matrix(&runtime);
+        assert_eq!(
+            matrix.row_layout.get(1).map(|record| &record.shift),
+            Some(&Vec2 { x: 8.0, y: 4.0 })
+        );
+        assert_eq!(
+            matrix
+                .row_layout
+                .first()
+                .map(|record| &record.shift)
+                .copied()
+                .unwrap_or_default(),
+            Vec2::default()
+        );
+
+        let mut drag = begin_gesture(
+            &runtime,
+            fixture::MATRIX_ID,
+            TransformGesture::Bend {
+                parameter: PlacementParameter::RowBend { row: 1 },
+            },
+        );
+        // Ten millimetres right turns the running frame five degrees.
+        let last = preview(&runtime, &mut drag, Vec2 { x: 10.0, y: 0.0 });
+        support::run_pending(&runtime).await;
+        commit(&runtime, &drag, &last).await;
+        let matrix = fixture::accepted_matrix(&runtime);
+        assert_eq!(
+            matrix.row_layout.get(1).map(|record| &record.bend),
+            Some(&-5.0)
+        );
+        assert_eq!(
+            matrix
+                .row_layout
+                .first()
+                .map(|record| &record.bend)
+                .copied()
+                .unwrap_or(0.0),
+            0.0
+        );
+
+        // A Bend nudge adds degrees without touching the shift.
+        let mut nudge = nudge_with(
+            &runtime,
+            TransformNudge::Bend {
+                parameter: PlacementParameter::RowBend { row: 1 },
+                degrees: 1.0,
+            },
+        );
+        settle_edit(&runtime, &mut nudge).await;
+        let matrix = fixture::accepted_matrix(&runtime);
+        assert_eq!(
+            matrix.row_layout.get(1).map(|record| &record.bend),
+            Some(&-4.0)
+        );
+        assert_eq!(
+            matrix.row_layout.get(1).map(|record| &record.shift),
+            Some(&Vec2 { x: 8.0, y: 4.0 })
+        );
+    }
+
+    /// Ticket 05: a row Shift drag on the right half mirrors Core's sync
+    /// rules onto the left half, like the stagger drag above.
+    #[wasm_bindgen_test]
+    async fn a_row_shift_drag_on_the_right_half_mirrors_the_left_half() {
+        let runtime = open_mirrored_pair_runtime().await;
+        let mut drag = begin_gesture(
+            &runtime,
+            "right-matrix",
+            TransformGesture::Offset {
+                parameter: PlacementParameter::RowShift { row: 0 },
+            },
+        );
+        let last = preview(&runtime, &mut drag, Vec2 { x: 4.7625, y: 0.0 });
+        support::run_pending(&runtime).await;
+        commit(&runtime, &drag, &last).await;
+        let (left, right) = (
+            matrix_named(&runtime, "left-matrix"),
+            matrix_named(&runtime, "right-matrix"),
+        );
+        assert_eq!(
+            right.row_layout.first().map(|record| &record.shift),
+            Some(&Vec2 { x: 4.7625, y: 0.0 })
+        );
+        assert_eq!(
+            left.row_layout
+                .iter()
+                .map(|record| &record.shift)
+                .collect::<Vec<_>>(),
+            right
+                .row_layout
+                .iter()
+                .map(|record| &record.shift)
+                .collect::<Vec<_>>(),
+            "Core mirrors the carried shift onto the linked half"
+        );
+    }
+
+    /// Ticket 05: a key Shift drag moves only that key's carried shift.
+    #[wasm_bindgen_test]
+    async fn a_key_shift_drag_moves_only_that_keys_shift() {
+        let runtime = fixture::open_matrix_runtime().await;
+        let parameter = PlacementParameter::KeyShift { row: 0, column: 1 };
+        let mut drag = begin_gesture(
+            &runtime,
+            fixture::MATRIX_ID,
+            TransformGesture::Offset { parameter },
+        );
+        let last = preview(&runtime, &mut drag, Vec2 { x: 8.0, y: 4.0 });
+        support::run_pending(&runtime).await;
+        commit(&runtime, &drag, &last).await;
+        let matrix = fixture::accepted_matrix(&runtime);
+        assert_eq!(
+            matrix
+                .cells
+                .iter()
+                .find(|cell| cell.row == 0 && cell.column == 1)
+                .and_then(|cell| cell.shift),
+            Some(Vec2 { x: 8.0, y: 4.0 })
+        );
+        assert!(
+            matrix
+                .cells
+                .iter()
+                .filter(|cell| !(cell.row == 0 && cell.column == 1))
+                .all(|cell| cell.shift.is_none()),
+            "only the dragged key carries a shift"
+        );
+    }
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
@@ -4672,14 +5045,24 @@ mod tool_tests {
 
     #[wasm_bindgen_test]
     fn activation_changes_the_selection_kind_per_tool() {
-        use LayoutSelectionKind::{Column, Row};
-        use LayoutTransformTool::{Move, Offset, Origin, Rotate, Splay, Stagger};
+        use LayoutSelectionKind::{Column, Key, Row};
+        use LayoutTransformTool::{Bend, Move, Offset, Origin, Rotate, Shift, Splay, Stagger};
         for (tool, selection, expected) in [
             // Offset keeps a Row and turns the rest into their Column.
             (Offset, "row", Row),
             (Offset, "column", Column),
             (Offset, "key", Column),
             (Offset, "matrix", Column),
+            // Ticket 05: Shift and Bend keep a Row or a Key and turn the
+            // rest into their Column.
+            (Shift, "row", Row),
+            (Shift, "key", Key),
+            (Shift, "column", Column),
+            (Shift, "matrix", Column),
+            (Bend, "row", Row),
+            (Bend, "key", Key),
+            (Bend, "column", Column),
+            (Bend, "matrix", Column),
             // Stagger is a column parameter, so a Row asks for a Column selection. Which
             // column it resolves to (the retained key's, or column 1) is the selection
             // conversion's rule (`context_for_selection_kind`), not covered here.
@@ -5086,6 +5469,20 @@ mod tool_tests {
         runtime: &Rc<Runtime>,
         tool: LayoutTransformTool,
     ) -> (web_sys::Element, web_sys::Element) {
+        let context = TreeContext::Column {
+            matrix_id: fixture::MATRIX_ID.into(),
+            column: 1,
+        };
+        mount_context_overlay(runtime, tool, context).await
+    }
+
+    /// Ticket 05: mount one tool overlay for an explicit selection context,
+    /// for the row and key rails.
+    async fn mount_context_overlay(
+        runtime: &Rc<Runtime>,
+        tool: LayoutTransformTool,
+        context: TreeContext,
+    ) -> (web_sys::Element, web_sys::Element) {
         let model = runtime.model();
         let accepted = model.accepted.as_ref().expect("an accepted document");
         let matrix = fixture::accepted_matrix(runtime);
@@ -5107,10 +5504,6 @@ mod tool_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        let context = TreeContext::Column {
-            matrix_id: matrix.id.clone(),
-            column: 1,
-        };
         let props = OverlayHostProps {
             runtime: LayoutTransformRuntime(runtime.clone()),
             svg: svg.clone(),
@@ -5389,6 +5782,20 @@ mod tool_tests {
         runtime: &Rc<Runtime>,
         tools: Vec<LayoutTransformTool>,
     ) -> (web_sys::Element, RailProbe) {
+        let context = TreeContext::Column {
+            matrix_id: fixture::MATRIX_ID.into(),
+            column: 1,
+        };
+        mount_context_rail_pair(runtime, tools, context).await
+    }
+
+    /// Ticket 05: mount a rail's peer overlays for an explicit selection
+    /// context, for the row and key hover-preview assertions.
+    async fn mount_context_rail_pair(
+        runtime: &Rc<Runtime>,
+        tools: Vec<LayoutTransformTool>,
+        context: TreeContext,
+    ) -> (web_sys::Element, RailProbe) {
         let model = runtime.model();
         let accepted = model.accepted.as_ref().expect("an accepted document");
         let matrix = fixture::accepted_matrix(runtime);
@@ -5410,10 +5817,6 @@ mod tool_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        let context = TreeContext::Column {
-            matrix_id: matrix.id.clone(),
-            column: 1,
-        };
         let probe = RailProbe {
             preview: Rc::new(RefCell::new(None)),
         };
@@ -5993,6 +6396,271 @@ mod tool_tests {
                 .is_none(),
             "one Undo restores the default step"
         );
+        root.remove();
+    }
+
+    /// Ticket 05: the row Bend token drags the running frame through the
+    /// real pointer path and commits one Undo entry. Forty pixels are ten
+    /// world millimetres, so the frame turns five degrees.
+    #[wasm_bindgen_test]
+    async fn row_bend_token_drag_turns_only_that_row_with_one_undo() {
+        let mut document = fixture::matrix_document();
+        document.matrices[0].rows = 2;
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        wait_until_editable(&runtime).await;
+        let context = TreeContext::Row {
+            matrix_id: fixture::MATRIX_ID.into(),
+            row: 1,
+        };
+        let (root, handle) =
+            mount_context_overlay(&runtime, LayoutTransformTool::Bend, context).await;
+        assert_eq!(
+            handle.get_attribute("aria-label").as_deref(),
+            Some("Drag to bend row"),
+            "the row Bend tool draws its own token"
+        );
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&handle, "pointermove", false, false, 1, (140, 100));
+        dispatch_pointer(&handle, "pointerup", false, false, 0, (140, 100));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let matrix = fixture::accepted_matrix(&runtime);
+        assert_eq!(
+            matrix.row_layout.get(1).map(|record| &record.bend),
+            Some(&-5.0),
+            "the drag turns the row's running frame"
+        );
+        assert_eq!(
+            matrix
+                .row_layout
+                .first()
+                .map(|record| &record.bend)
+                .copied()
+                .unwrap_or(0.0),
+            0.0,
+            "the other row holds still"
+        );
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision + 1,
+            "one accepted edit"
+        );
+        fixture::undo(&runtime).await;
+        assert_eq!(
+            fixture::accepted_matrix(&runtime)
+                .row_layout
+                .get(1)
+                .map(|record| &record.bend)
+                .copied()
+                .unwrap_or(0.0),
+            0.0,
+            "one Undo restores the running frame"
+        );
+        root.remove();
+    }
+
+    /// Ticket 05: the key Shift token drags the key's carried shift through
+    /// the real pointer path and commits one Undo entry.
+    #[wasm_bindgen_test]
+    async fn key_shift_token_drag_moves_only_that_key_with_one_undo() {
+        let runtime = fixture::open_matrix_runtime().await;
+        wait_until_editable(&runtime).await;
+        let context = TreeContext::Key {
+            matrix_id: fixture::MATRIX_ID.into(),
+            row: 0,
+            column: 1,
+        };
+        let (root, handle) =
+            mount_context_overlay(&runtime, LayoutTransformTool::Shift, context).await;
+        assert_eq!(
+            handle.get_attribute("aria-label").as_deref(),
+            Some("Drag to shift key"),
+            "the key Shift tool draws its own token"
+        );
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&handle, "pointermove", false, false, 1, (140, 100));
+        dispatch_pointer(&handle, "pointerup", false, false, 0, (140, 100));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let matrix = fixture::accepted_matrix(&runtime);
+        assert_eq!(
+            matrix
+                .cells
+                .iter()
+                .find(|cell| cell.row == 0 && cell.column == 1)
+                .and_then(|cell| cell.shift),
+            Some(Vec2 { x: 9.525, y: 0.0 }),
+            "forty pixels step the shift two grid steps"
+        );
+        assert!(
+            matrix
+                .cells
+                .iter()
+                .filter(|cell| !(cell.row == 0 && cell.column == 1))
+                .all(|cell| cell.shift.is_none()),
+            "only the dragged key carries a shift"
+        );
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision + 1,
+            "one accepted edit"
+        );
+        fixture::undo(&runtime).await;
+        assert_eq!(
+            fixture::accepted_matrix(&runtime)
+                .cells
+                .iter()
+                .find(|cell| cell.row == 0 && cell.column == 1)
+                .and_then(|cell| cell.shift)
+                .unwrap_or_default(),
+            Vec2::default(),
+            "one Undo restores the key's shift"
+        );
+        root.remove();
+    }
+
+    /// Ticket 05: hovering a row or key token previews, in amber, the same
+    /// key set the Inspector field preview carries for that field.
+    #[wasm_bindgen_test]
+    async fn row_and_key_tokens_preview_the_same_movers_as_the_inspector_fields() {
+        use crate::matrix_transform_operation::MatrixTransformField;
+        // The fixture's parts all sit in row 0, so the row rail previews row
+        // 0: a part-less row would give the Inspector field no movers either.
+        let runtime = fixture::open_matrix_runtime().await;
+        wait_until_editable(&runtime).await;
+        let context = TreeContext::Row {
+            matrix_id: fixture::MATRIX_ID.into(),
+            row: 0,
+        };
+        let (root, probe) = mount_context_rail_pair(
+            &runtime,
+            vec![
+                LayoutTransformTool::Offset,
+                LayoutTransformTool::Shift,
+                LayoutTransformTool::Bend,
+            ],
+            context.clone(),
+        )
+        .await;
+        for (label, field) in [
+            ("Drag to offset row", MatrixTransformField::RowOffsetX),
+            ("Drag to shift row", MatrixTransformField::RowShiftX),
+            ("Drag to bend row", MatrixTransformField::RowBend),
+        ] {
+            let token = root
+                .query_selector(&format!("[aria-label='{label}']"))
+                .unwrap()
+                .unwrap_or_else(|| panic!("the {label} token draws"));
+            dispatch_pointer(&token, "pointerenter", false, false, 0, (100, 100));
+            gloo_timers::future::TimeoutFuture::new(60).await;
+            let preview = probe
+                .preview
+                .borrow()
+                .as_ref()
+                .and_then(|signal| signal.read().clone());
+            let accepted = runtime.model().accepted.expect("an accepted document");
+            let expected = matrix_relations::field_preview(
+                &accepted.document,
+                &accepted.scene.matrix_scenes,
+                &context,
+                field,
+                MatrixSplayAffect::Column,
+            )
+            .expect("the Inspector field previews its movers");
+            assert_eq!(
+                preview.as_ref().map(|state| &state.parts),
+                Some(&expected.parts),
+                "{label} previews the {field:?} movers"
+            );
+            assert!(
+                !expected.parts.is_empty(),
+                "{label} previews a non-empty mover set"
+            );
+            dispatch_pointer(&token, "pointerleave", false, false, 0, (100, 100));
+            gloo_timers::future::TimeoutFuture::new(60).await;
+            assert!(
+                probe
+                    .preview
+                    .borrow()
+                    .as_ref()
+                    .is_none_or(|signal| signal.read().is_none()),
+                "{label} clears the preview on leave"
+            );
+        }
+        root.remove();
+
+        let runtime = fixture::open_matrix_runtime().await;
+        wait_until_editable(&runtime).await;
+        let context = TreeContext::Key {
+            matrix_id: fixture::MATRIX_ID.into(),
+            row: 0,
+            column: 1,
+        };
+        let (root, probe) = mount_context_rail_pair(
+            &runtime,
+            vec![LayoutTransformTool::Shift, LayoutTransformTool::Bend],
+            context.clone(),
+        )
+        .await;
+        for (label, field) in [
+            ("Drag to shift key", MatrixTransformField::KeyShiftX),
+            ("Drag to bend key", MatrixTransformField::KeyBend),
+        ] {
+            let token = root
+                .query_selector(&format!("[aria-label='{label}']"))
+                .unwrap()
+                .unwrap_or_else(|| panic!("the {label} token draws"));
+            dispatch_pointer(&token, "pointerenter", false, false, 0, (100, 100));
+            gloo_timers::future::TimeoutFuture::new(60).await;
+            let preview = probe
+                .preview
+                .borrow()
+                .as_ref()
+                .and_then(|signal| signal.read().clone());
+            let accepted = runtime.model().accepted.expect("an accepted document");
+            let expected = matrix_relations::field_preview(
+                &accepted.document,
+                &accepted.scene.matrix_scenes,
+                &context,
+                field,
+                MatrixSplayAffect::Column,
+            )
+            .expect("the Inspector field previews its movers");
+            assert_eq!(
+                preview.as_ref().map(|state| &state.parts),
+                Some(&expected.parts),
+                "{label} previews the {field:?} movers"
+            );
+            assert!(
+                !expected.parts.is_empty(),
+                "{label} previews a non-empty mover set"
+            );
+            dispatch_pointer(&token, "pointerleave", false, false, 0, (100, 100));
+            gloo_timers::future::TimeoutFuture::new(60).await;
+            assert!(
+                probe
+                    .preview
+                    .borrow()
+                    .as_ref()
+                    .is_none_or(|signal| signal.read().is_none()),
+                "{label} clears the preview on leave"
+            );
+        }
         root.remove();
     }
 

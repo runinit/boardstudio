@@ -691,10 +691,12 @@ canvas bounds or camera and retains keyboard focus behavior.
 Layer swatches distinguish
 Action blue keys, amber components, neutral keycaps, violet footprints, and
 teal boards using the existing theme tokens.
-Selection types have direct icon shortcuts. Stagger, Offset, Splay, and Origin activate
-explicit canvas tools; Ctrl held at pointer-down turns a Stagger drag into a quick
-Offset of its column; handles remain hidden outside those tools. Column, Row and
-Matrix tools draw as 18 px tokens in one 22 px rail 10 px above the selection,
+Selection types have direct icon shortcuts. Stagger, Offset, Shift, Bend, Splay, and
+Origin activate explicit canvas tools; Ctrl held at pointer-down turns a Stagger drag
+into a quick Offset of its column; handles remain hidden outside those tools. Column,
+Row, Key and Matrix tools draw as 18 px tokens in one 22 px rail 10 px above the
+selection, with a row offering Offset next to Shift and Bend and a key offering Shift
+and Bend,
 centred on it at screen size in every zoom; Origin stays a 6 px ringed point on
 the canvas. A token rests muted, previews its movers in amber on hover with a
 selection-surface fill, and turns accent while it drags as its peers dim to 35%. Origin snapping

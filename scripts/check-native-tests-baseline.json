@@ -1019,6 +1019,7 @@
   "matrix_transform_operation::tests::assembly_edits_stay_shared_on_the_canonical_half",
   "matrix_transform_operation::tests::attached_component_choices_keep_only_this_members_snapshot_and_preserve_order",
   "matrix_transform_operation::tests::attached_components_replace_and_remove_by_id",
+  "matrix_transform_operation::tests::bend_drag_turns_horizontal_travel_into_snapped_degrees",
   "matrix_transform_operation::tests::bend_spread_and_padding_map_to_named_placement_edits",
   "matrix_transform_operation::tests::cell_edit_preserves_order_and_untouched_cell_fields",
   "matrix_transform_operation::tests::column_splay_uses_existing_affect_and_origin_operations",
