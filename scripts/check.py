@@ -126,6 +126,9 @@ WEB_WASM_PACKAGES: tuple[str, ...] = (
 )
 
 # `--no-deps` keeps Clippy off the vendored cgmath fork; its lints are audited separately.
+# The browser harness lives outside the workspace with its own lockfile, so it
+# gets its own manifest-scoped format and lint commands.
+HARNESS_MANIFEST = "tools/browser-harness/Cargo.toml"
 LINT: list[list[str]] = [
     ["cargo", "fmt", "--all", "--check"],
     ["cargo", "clippy", "--workspace", "--locked", "--all-targets", "--no-deps", "--", "-D", "warnings"],
@@ -133,6 +136,10 @@ LINT: list[list[str]] = [
     # web workspace crates are also linted under an explicit WASM target.
     ["cargo", "clippy", *[arg for pkg in WEB_WASM_PACKAGES for arg in ("--package", pkg)],
      "--target", "wasm32-unknown-unknown", "--all-targets", "--locked", "--no-deps", "--", "-D", "warnings"],
+    # The browser harness lives outside the workspace with its own lockfile, so
+    # it gets its own manifest-scoped format and lint commands.
+    ["cargo", "fmt", "--manifest-path", HARNESS_MANIFEST, "--", "--check"],
+    ["cargo", "clippy", "--manifest-path", HARNESS_MANIFEST, "--all-targets", "--locked", "--", "-D", "warnings"],
 ]
 
 STEPS: dict[str, tuple[bool, list[Command]]] = {
@@ -548,8 +555,12 @@ def run(names: list[str], update_native_baseline: bool = False,
                      if step == "drag-smoke" or (step == "browser" and has_drag_smoke)]
     if smoke_indices:
         # Fail before the page build, which is minutes of work the smoke cannot use without these.
+        # The opt-in Rust driver needs only Chrome; the default Node runner also needs its client.
         try:
-            browser_tools.locate()
+            if os.environ.get("BOARDSTUDIO_DRAG_DRIVER", "node") == "rust":
+                browser_tools.locate_chrome()
+            else:
+                browser_tools.locate()
         except browser_tools.MissingBrowserTool as error:
             print(f"check: {error}", file=sys.stderr)
             return 1
