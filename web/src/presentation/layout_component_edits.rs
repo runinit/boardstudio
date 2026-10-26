@@ -129,11 +129,12 @@ pub fn position_resolver(
                 .iter()
                 .map(|selected_id| {
                     let selected = part_of(document, selected_id).expect("checked above");
+                    let board_at = boardstudio_core::evaluated_part_pose(document, selected).at;
                     Position {
                         id: selected.id.clone(),
                         at: Vec2 {
-                            x: selected.pose.at.x + delta.x,
-                            y: selected.pose.at.y + delta.y,
+                            x: board_at.x + delta.x,
+                            y: board_at.y + delta.y,
                         },
                     }
                 })
