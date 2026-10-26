@@ -4,6 +4,7 @@ use boardstudio_core::model::{
     Matrix, MatrixScene, Part, PartDefinition, PartKind, Pose2, ProjectDoc, SceneDelta, Side,
     Transform, Vec2,
 };
+use boardstudio_web_layout::anchor_badge;
 use boardstudio_web_ui_model::split_focus::{self, SplitHalf};
 use dioxus::prelude::*;
 use std::{
@@ -473,6 +474,21 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
             }
         }
     }
+    // Ticket 17: the anchor badge for the selection (prototype variant B):
+    // what the selection is placed from, with a violet dashed target and a
+    // dashed tie to the selection. It reads the selected half, dimmed or not,
+    // and clears with the selection; parts resolve in ticket 13.
+    let scene_refs: Vec<&MatrixScene> = input.matrix_scenes.values().copied().collect();
+    let badge = input.keys_visible.then(|| {
+        input.selected_context.and_then(|selected| {
+            anchor_badge::anchor_badge(input.document, &scene_refs, Some(&selected.context))
+        })
+    });
+    let badge = badge.flatten();
+    let badge_highlight: Vec<String> = badge
+        .as_ref()
+        .map(|badge| badge.highlight.clone())
+        .unwrap_or_default();
     // Ticket 18: the axis note sits above the displayed keys, so the refit
     // view (which pads the content by 12 mm on every side) always shows it.
     let spacing_note_anchor: Option<(f64, f64, String)> =
@@ -519,6 +535,13 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                                             if matrix_id == &matrix.id && *row == cell.row && *column == cell.column
                                     )
                                 });
+                            // Ticket 17: the badge target keeps the violet
+                            // dashed reference while the selection stands,
+                            // distinct from the transient hover highlight.
+                            let anchor_target = cell
+                                .member_id
+                                .as_ref()
+                                .is_some_and(|id| badge_highlight.contains(id));
                             let on_pointer_down = input.on_matrix_pointer_down;
                             let matrix_id = matrix.id.clone();
                             let row = cell.row;
@@ -532,6 +555,7 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                                     key: "{matrix.id}-{cell.row}-{cell.column}",
                                     part_id: cell.member_id.clone(),
                                     selected,
+                                    anchor_target,
                                     dimmed,
                                     x: -size.x / 2.0,
                                     y: -size.y / 2.0,
@@ -592,6 +616,61 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                 "{dimmed.dim_label()}"
             }
         }
+        if let Some(badge) = badge.as_ref() {
+            // Prototype variant B anchor badge: the authored icon sits at the
+            // anchor point with a short label, and a dashed tie runs to the
+            // selection base. Read-only chrome: it never takes pointer events,
+            // so canvas clicks (including dimmed-half focus) pass through.
+            // The canvas parent flips y, so the label counter-flips to read
+            // upright; the rect mirrors the prototype's measured label box.
+            {
+                // The label box mirrors the prototype's measured box: 2.9px
+                // mono at ~1.38 mm per character plus 3 mm padding.
+                let label_width = badge.label.chars().count() as f64 * 1.38 + 3.0;
+                let anchor_x = badge.anchor.x;
+                let anchor_y = badge.anchor.y;
+                let selection_x = badge.selection.x;
+                let selection_y = badge.selection.y;
+                rsx! {
+                    if badge.tied {
+                        line {
+                                                        class: "m1-anchor-tie",
+                            x1: "{anchor_x}", y1: "{anchor_y}",
+                            x2: "{selection_x}", y2: "{selection_y}",
+                        }
+                        circle {
+                                                        class: "m1-anchor-tie-dot",
+                            cx: "{selection_x}", cy: "{selection_y}", r: "0.9",
+                        }
+                    }
+                    g {
+                                                class: "m1-anchor-badge",
+                        transform: "translate({anchor_x} {anchor_y})",
+                        "aria-hidden": "true",
+                        circle { class: "m1-anchor-badge-dot", r: "3" }
+                        g {
+                            class: "m1-anchor-badge-icon",
+                            fill: "none", stroke_width: ".45", stroke_linecap: "round",
+                            circle { cy: "-1.55", r: ".5" }
+                            path { d: "M0-1v2.6M-1.1-.3h2.2M-1.6.7a1.6 1.6 0 0 0 3.2 0" }
+                        }
+                    }
+                    g {
+                                                transform: "translate({anchor_x + 4.0} {anchor_y + 4.5}) scale(1,-1)",
+                        "aria-hidden": "true",
+                        rect {
+                            class: "m1-anchor-badge-label-box",
+                            x: "0", y: "-4.6", width: "{label_width}", height: "4.6", rx: "1",
+                        }
+                        text {
+                            class: "m1-anchor-badge-label",
+                            x: "1.5", y: "-1.35",
+                            "{badge.label}"
+                        }
+                    }
+                }
+            }
+        }
         for (part_index, part) in input.visible_indices.iter().zip(input.visible) {
             {
                 let pose = projection
@@ -621,6 +700,9 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                 let dimmed = dimmed_half.is_some_and(|dimmed| {
                     split_focus::part_half(input.document, &part.id) == Some(dimmed)
                 });
+                // Ticket 17: badge targets keep the violet dashed reference on
+                // the part outline too, matching the key rect above.
+                let anchor_target = badge_highlight.contains(&part.id);
                 rsx! {
                     if layer_visible || show_keycap.is_some() {
                         g {
@@ -636,7 +718,7 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                                     document: input.document.clone(), part_index: *part_index,
                                     definition_index: input.definition_indices.get(part.definition_id.as_str()).copied(),
                                 },
-                                selected, dimmed, layer_visible, footprints_on, show_keycap,
+                                selected, dimmed, layer_visible, footprints_on, show_keycap, anchor_target,
                             }
                         }
                     }
@@ -669,6 +751,7 @@ fn PartContents(
     layer_visible: bool,
     footprints_on: bool,
     show_keycap: Option<Vec2>,
+    #[props(default)] anchor_target: bool,
 ) -> Element {
     #[cfg(test)]
     PART_CONTENT_RENDERS.with(|count| count.set(count.get() + 1));
@@ -682,7 +765,7 @@ fn PartContents(
     rsx! {
         if layer_visible {
             layout_matrix_relations::RelationPartOutline {
-                key: "{part.id}", part_id: part.id.clone(), selected, dimmed, points: courtyard
+                key: "{part.id}", part_id: part.id.clone(), selected, dimmed, anchor_target, points: courtyard
             }
         }
         if layer_visible && footprints_on {

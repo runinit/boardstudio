@@ -24,6 +24,8 @@ mod keycaps_workspace;
 pub(crate) use boardstudio_web_keymap::keymap;
 mod keymap_workspace;
 pub(crate) use boardstudio_web_ui_shared::layout_camera;
+#[cfg(test)]
+mod layout_anchor_badge_tests;
 mod layout_canvas;
 mod layout_component_edits;
 #[cfg(test)]
