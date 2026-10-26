@@ -208,6 +208,26 @@ const GLYPH_BEND: &str = "M-4 5C-4 0-1-4 4-4M1.5-6 4-4 1.5-2";
 /// Ticket 06: the commit toast lingers for 1.8 s, matching the prototype.
 const TOAST_TIMEOUT_MS: u32 = 1800;
 
+/// Arm one commit-toast expiry timer. The overlay remounts on every scope and
+/// selection change, so the timer can outlive its component: it only touches
+/// its signals while they are still alive and stays silent otherwise.
+fn arm_commit_toast_expiry(
+    mut feedback: Signal<FeedbackState>,
+    generation: Signal<u64>,
+    seen: u64,
+) {
+    spawn_local(async move {
+        gloo_timers::future::TimeoutFuture::new(TOAST_TIMEOUT_MS).await;
+        let live = generation
+            .try_peek()
+            .map(|current| *current == seen)
+            .unwrap_or(false);
+        if live && let Ok(mut state) = feedback.try_write() {
+            *state = advance_feedback(&state, FeedbackEvent::Expire);
+        }
+    });
+}
+
 /// Ticket 06: the canvas label for one transform tool in popup and toast text.
 fn feedback_tool_name(tool: LayoutTransformTool) -> &'static str {
     match tool {
@@ -1501,17 +1521,7 @@ pub fn LayoutTransformToolOverlay(
                         toast_gen_for_end.set(toast_gen_for_end() + 1);
                         toast_gen_for_end()
                     };
-                    let mut feedback_for_timer = feedback_for_end;
-                    let gen_for_timer = toast_gen_for_end;
-                    spawn_local(async move {
-                        gloo_timers::future::TimeoutFuture::new(TOAST_TIMEOUT_MS).await;
-                        if gen_for_timer() == seen {
-                            feedback_for_timer.set(advance_feedback(
-                                &feedback_for_timer(),
-                                FeedbackEvent::Expire,
-                            ));
-                        }
-                    });
+                    arm_commit_toast_expiry(feedback_for_end, toast_gen_for_end, seen);
                 }
             } else if active.preview_submitted {
                 clear_transform_preview(&runtime_for_end, &active);
@@ -3533,17 +3543,7 @@ pub fn LayoutPartToolOverlay(
                 toast_gen_for_end.set(toast_gen_for_end() + 1);
                 toast_gen_for_end()
             };
-            let mut feedback_for_timer = feedback_for_end;
-            let gen_for_timer = toast_gen_for_end;
-            spawn_local(async move {
-                gloo_timers::future::TimeoutFuture::new(TOAST_TIMEOUT_MS).await;
-                if gen_for_timer() == seen {
-                    feedback_for_timer.set(advance_feedback(
-                        &feedback_for_timer(),
-                        FeedbackEvent::Expire,
-                    ));
-                }
-            });
+            arm_commit_toast_expiry(feedback_for_end, toast_gen_for_end, seen);
             true
         };
         match active.kind {
@@ -8548,6 +8548,112 @@ mod tool_tests {
         (root, handle)
     }
 
+    #[derive(Props, Clone)]
+    struct ToggleHostProps {
+        overlay: OverlayHostProps,
+        show_slot: Rc<RefCell<Option<Signal<bool>>>>,
+    }
+
+    impl PartialEq for ToggleHostProps {
+        fn eq(&self, other: &Self) -> bool {
+            self.overlay == other.overlay && Rc::ptr_eq(&self.show_slot, &other.show_slot)
+        }
+    }
+
+    #[component]
+    fn toggle_host(props: ToggleHostProps) -> Element {
+        let show = use_signal(|| true);
+        *props.show_slot.borrow_mut() = Some(show);
+        let overlay = props.overlay.clone();
+        rsx! {
+            if show() {
+                overlay_host {
+                    runtime: overlay.runtime.clone(),
+                    svg: overlay.svg.clone(),
+                    matrix: overlay.matrix.clone(),
+                    projection: overlay.projection.clone(),
+                    owner: overlay.owner.clone(),
+                    scope: overlay.scope.clone(),
+                    tool: overlay.tool,
+                    context: overlay.context.clone(),
+                }
+            }
+        }
+    }
+
+    /// Mount the overlay behind a visibility toggle, so a test can unmount it
+    /// exactly like a production scope switch while a commit-toast timer is
+    /// still pending. Returns the root, the stagger handle and the toggle.
+    async fn mount_toggle_overlay(
+        runtime: &Rc<Runtime>,
+        tool: LayoutTransformTool,
+        context: TreeContext,
+    ) -> (web_sys::Element, web_sys::Element, Signal<bool>) {
+        let model = runtime.model();
+        let accepted = model.accepted.as_ref().expect("an accepted document");
+        let matrix = fixture::accepted_matrix(runtime);
+        let projection = accepted
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == matrix.id)
+            .cloned()
+            .expect("the matrix scene");
+        let owner = LayoutOwnerIdentity {
+            scope: runtime.scope(),
+            token: Some(accepted.token),
+            revision: Some(accepted.document.revision),
+            generation: 0,
+            workspace: "Layout",
+        };
+        let svg = LayoutTransformSvg(Rc::new(RefCell::new(None)));
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let show_slot: Rc<RefCell<Option<Signal<bool>>>> = Rc::new(RefCell::new(None));
+        let props = ToggleHostProps {
+            overlay: OverlayHostProps {
+                runtime: LayoutTransformRuntime(runtime.clone()),
+                svg: svg.clone(),
+                matrix,
+                projection,
+                scope: owner.scope.clone().expect("a scope"),
+                owner,
+                tool,
+                context,
+            },
+            show_slot: show_slot.clone(),
+        };
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new_with_props(toggle_host, props),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(60).await;
+        *svg.0.borrow_mut() = root
+            .query_selector("#overlay-host-svg")
+            .unwrap()
+            .and_then(|element| element.dyn_into::<SvgElement>().ok());
+        let handle = root
+            .query_selector(".m1-transform-handle")
+            .unwrap()
+            .expect("the tool draws a handle");
+        // A synthetic pointer id is not an active pointer, so the browser refuses real capture.
+        // The handle's capture methods are stubbed on this element; everything else is the
+        // production pointer path.
+        let stub = js_sys::Function::new_no_args("return true;");
+        for method in [
+            "setPointerCapture",
+            "hasPointerCapture",
+            "releasePointerCapture",
+        ] {
+            js_sys::Reflect::set(handle.as_ref(), &method.into(), stub.as_ref()).unwrap();
+        }
+        let show = show_slot
+            .borrow()
+            .expect("the toggle host shares its visibility signal");
+        (root, handle, show)
+    }
+
     /// Mount the overlay for a named matrix with a Matrix selection, for the
     /// matrix Move and Rotate tools.
     async fn mount_matrix_overlay(
@@ -9904,6 +10010,87 @@ mod tool_tests {
             root.query_selector(".m1-feedback-toast").unwrap().is_none(),
             "the toast is gone after its timeout"
         );
+        root.remove();
+    }
+
+    /// A commit-toast timer that fires after the overlay unmounts must stay
+    /// silent: scope switches remount the overlay constantly, and the 1.8 s
+    /// timer touching dropped signals panicked the page (WASM `unreachable`),
+    /// leaving the Dioxus panic toast over the toolbar.
+    #[wasm_bindgen_test]
+    async fn commit_toast_timer_survives_overlay_unmount() {
+        type PreviousHook =
+            Option<Box<dyn Fn(&std::panic::PanicHookInfo<'_>) + Sync + Send + 'static>>;
+        struct HookGuard {
+            previous: PreviousHook,
+        }
+        impl Drop for HookGuard {
+            fn drop(&mut self) {
+                if let Some(previous) = self.previous.take() {
+                    std::panic::set_hook(previous);
+                }
+            }
+        }
+        let _guard = HookGuard {
+            previous: Some(std::panic::take_hook()),
+        };
+        let panics = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        {
+            let recorded = panics.clone();
+            std::panic::set_hook(Box::new(move |info| {
+                recorded.lock().unwrap().push(info.to_string());
+            }));
+        }
+        let runtime = fixture::open_matrix_runtime().await;
+        wait_until_editable(&runtime).await;
+        let context = TreeContext::Column {
+            matrix_id: fixture::MATRIX_ID.into(),
+            column: 1,
+        };
+        let (root, handle, mut show) =
+            mount_toggle_overlay(&runtime, LayoutTransformTool::Stagger, context).await;
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(60).await;
+        dispatch_pointer(&handle, "pointermove", false, false, 1, (100, 40));
+        gloo_timers::future::TimeoutFuture::new(60).await;
+        dispatch_pointer(&handle, "pointerup", false, false, 0, (100, 40));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision + 1,
+            "one accepted edit"
+        );
+        assert!(
+            root.query_selector(".m1-feedback-toast").unwrap().is_some(),
+            "the commit arms its toast timer"
+        );
+        // A production scope switch unmounts the overlay while the timer is
+        // still pending; the timer must not touch the dropped signals.
+        show.set(false);
+        gloo_timers::future::TimeoutFuture::new(120).await;
+        assert!(
+            root.query_selector(".m1-transform-handle")
+                .unwrap()
+                .is_none(),
+            "the toggle unmounted the overlay"
+        );
+        gloo_timers::future::TimeoutFuture::new(2200).await;
+        // Restore the previous hook before asserting, so a failure here never
+        // masks its own message behind a re-entrant hook error.
+        drop(_guard);
+        let panics = panics.lock().unwrap();
+        assert!(
+            panics.is_empty(),
+            "no expired commit-toast timer panicked after unmount, got {panics:?}"
+        );
+        drop(panics);
         root.remove();
     }
 
