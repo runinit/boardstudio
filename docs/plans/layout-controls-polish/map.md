@@ -59,6 +59,11 @@ review), 05, 07, 08 (web only, existing Core ops).
   (Spread/Stagger/Splay/Offset/Rotation as applicable). This supersedes ticket 13's
   pose-preserving retarget and the prototype's "keeps its position" behaviour. Built in
   [04](issues/04-re-anchor-moves.md); matrices already move, so only part Pick changes.
+- **Re-anchor Undo and toast (2026-10-26):** YES — re-anchor is one Undo entry; the status
+  toast reads "<item> anchored to <new> (was <old>) · 1 Undo step". Toast rendering
+  itself stays in [06](issues/06-value-popup-and-commit-toast.md).
+- **Follow/Detach scope (2026-10-26):** NO — changing the Follow subset or Detaching does
+  NOT move the item; both still hold the pose. Only re-anchoring (Pick/new anchor) moves.
 - **Slicing (2026-10-26):** the polish was sliced into 02–08 above. Pure presentation (02, 03,
   06) is kept apart from behaviour (04, 05, 07, 08), and only 04 changes a public Core op (it
   gets the combined Spec + Standards review). [07](issues/07-part-rail.md) carries the parts
@@ -67,8 +72,6 @@ review), 05, 07, 08 (web only, existing Core ops).
 
 ## Not yet specified
 
-- The re-anchor Undo/status wording, and whether Follow changes or Detach should also move:
-  carried in [04](issues/04-re-anchor-moves.md#carried-points-not-decided).
 - Compact (≤980 px) token hit areas: carried in [03](issues/03-handle-rail.md#carried-point).
 - Whether the row rail keeps the shipped Offset token next to Shift/Bend: carried in
   [05](issues/05-row-and-key-shift-bend-handles.md#carried-point).

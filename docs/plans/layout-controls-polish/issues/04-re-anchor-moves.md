@@ -53,11 +53,10 @@ fails against the new rule: rename and rewrite it as a deliberate rename.
   `check.py test --update-native-baseline` for the deliberate rename only.
 - [ ] The combined Spec + Standards review has run, with findings adjudicated in the Answer.
 
-## Carried points (not decided)
+## Decided (2026-10-26)
 
-- **Undo and status wording.** The default to confirm: one Undo entry, and the status/toast
-  reads as in the prototype, "<item> anchored to <new anchor> (was <old anchor>) · 1 Undo
-  step". The toast itself is [06](06-value-popup-and-commit-toast.md).
-- **Scope of "re-anchor".** Whether a Follow-subset change or a Detach should also move (place
-  freshly from the half origin) instead of keeping the pose. The decision names re-anchoring
-  only, so this ticket leaves both as they are. Ask the user before widening it.
+- **Undo and status wording:** YES — one Undo entry, and the status/toast reads
+  "<item> anchored to <new anchor> (was <old anchor>) · 1 Undo step". The toast itself
+  is [06](06-value-popup-and-commit-toast.md).
+- **Scope of "re-anchor":** NO — a Follow-subset change or a Detach does NOT move the
+  item; both still hold the pose. Only re-anchoring (Pick/new anchor) moves.
