@@ -187,3 +187,22 @@ before Ticket 08. Follow-up focused receipts on the rebased worktree cover the
 detach test and Relations module; they do not establish full-suite acceptance.
 005's other gates are unchanged: joint library+browser pinning, protocol
 event-safety, and CI cutover. Playwright remains the default driver.
+
+### 2026-10-26: local-page protocol schema probe (cutover still blocked)
+
+On `6346fe98`, a temporary isolated Chromium `156.0.8078.47` probe enabled
+`surface_invalid_messages` and loaded the checked local page plus one fetch.
+It captured 16 invalid messages, all `Network.requestWillBeSentExtraInfo`.
+Direct deserialization of each captured `params` with the pinned
+`chromiumoxide_cdp 0.9.1` event type failed on missing
+`clientSecurityState.privateNetworkRequestPolicy`; replacing the received
+`localNetworkAccessRequestPolicy` key with the expected key made all 16
+payloads deserialize. The redacted capture and direct-deserialization results
+are in `.evidence/protocol-capture-6346fe98.log` and
+`.evidence/protocol-schema-6346fe98.log` respectively. The probe source was
+removed after execution.
+
+This identifies the mismatch for this local-page sample, not all messages during
+the drag smoke. It does not establish required-event safety, joint CI pinning,
+or parity on a passing full check. Those gates remain open; the failed default
+check and its browser failures remain failures.
