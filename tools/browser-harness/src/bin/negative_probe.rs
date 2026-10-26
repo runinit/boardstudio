@@ -333,6 +333,11 @@ async fn run() -> Result<()> {
     }.await;
     let (result, confirmed) =
         shutdown::finish_browser(browser, drain, &handler_errors, outcome.is_ok()).await;
+    let cleanup = if confirmed {
+        shutdown::remove_profile(&dirs)
+    } else {
+        Ok(())
+    };
     if !confirmed {
         eprintln!(
             "browser termination unconfirmed; preserving profile at {}",
@@ -351,7 +356,7 @@ async fn run() -> Result<()> {
                 && !message.contains("probe late rejection")
         })
         .collect();
-    let mut errors: Vec<String> = [outcome.err(), result.err()]
+    let mut errors: Vec<String> = [outcome.err(), result.err(), cleanup.err()]
         .into_iter()
         .flatten()
         .map(|error| error.to_string())

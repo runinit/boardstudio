@@ -69,9 +69,27 @@ pub async fn launch_chrome(chrome: &str, dirs: &IsolatedDirs) -> Result<(Browser
                 "drag browser smoke cannot build a browser config: {error}"
             ))
         })?;
-    Browser::launch(config)
-        .await
-        .map_err(|error| Error(format!("drag browser smoke cannot start Chrome: {error}")))
+    // The vendored launch path uses ChromeMessage when child cleanup is unconfirmed.
+    dirs.preserve.set(true);
+    match Browser::launch(config).await {
+        Ok(browser) => {
+            dirs.preserve.set(false);
+            Ok(browser)
+        }
+        Err(error) => {
+            if !matches!(error, CdpError::ChromeMessage(_)) {
+                dirs.preserve.set(false);
+            } else {
+                eprintln!(
+                    "browser termination unconfirmed; preserving profile at {}",
+                    dirs.profile_dir.display()
+                );
+            }
+            Err(Error(format!(
+                "drag browser smoke cannot start Chrome: {error}"
+            )))
+        }
+    }
 }
 
 /// Handler errors observed while the run is active.
@@ -1078,6 +1096,31 @@ pub async fn dispose_isolated_page(
 
 #[cfg(test)]
 mod redaction_tests {
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn failed_initialization_reaps_spawned_child() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = std::env::temp_dir().join(format!("bs-launch-control-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let script = root.join("browser");
+        std::fs::write(&script, "#!/bin/sh\necho $$ > \"$XDG_CONFIG_HOME/pid\"\necho 'DevTools listening on ws://127.0.0.1:1/devtools/browser/test' >&2\nexec /usr/bin/tail -f /dev/null\n").unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let dirs = crate::IsolatedDirs::create(&root).unwrap();
+        let result = super::launch_chrome(script.to_str().unwrap(), &dirs).await;
+        assert!(result.is_err());
+        let pid = std::fs::read_to_string(dirs.xdg_config_home().join("pid")).unwrap();
+        assert!(
+            !std::path::Path::new(&format!("/proc/{}", pid.trim())).exists(),
+            "child must be reaped"
+        );
+        let profile = dirs.profile_dir.clone();
+        drop(dirs);
+        assert!(
+            !profile.exists(),
+            "confirmed launch cleanup removes the profile"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
     #[tokio::test]
     async fn transport_loss_fails_consumer_verdict() {
         use futures::StreamExt;

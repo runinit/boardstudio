@@ -675,3 +675,27 @@ implementation tree based on `5aaefe715`; this is not a fresh-build parity
 receipt. The earlier failed probe and workspace test with shared profile-lock
 failures remain failures. Full supported check, fresh parity, CI cutover,
 launch-error cleanup and closure review remain open; ticket stays claimed.
+
+### 2026-10-26: launch and profile cleanup
+
+Starting from `3cc8782824eae667bf000e5fa071256ba19fd081`, bound the
+vendored launch failure's child kill and reap, retain the original launch
+error alongside cleanup failure, and preserve the owned profile whenever
+termination is unconfirmed. Both consumers explicitly remove the run directory
+after confirmed shutdown and treat removal failure as fatal before success.
+The private harness uses the existing `ChromeMessage` error variant as the
+conservative unconfirmed-cleanup signal; no public API was widened.
+
+Focused controls exercised a spawned child failing initialization and verified
+it was reaped, and forced a real directory-removal error and verified receipt
+creation failed. Harness tests passed (14 library, 2 drag tests), Clippy, build,
+and formatting passed (`.evidence/ticket005-launch-cleanup-final-tests.log`,
+`.evidence/ticket005-launch-cleanup-final-clippy.log`, and
+`.evidence/ticket005-launch-cleanup-final-build.log`). No pre-fix RED or
+forced OS-level kill failure was obtained. Pinned Chrome 145 negative probe
+passed (`.evidence/ticket005-launch-cleanup-final-probe.log`); the Rust drag
+runner passed 15 checks and verified receipt `20261026T231400Z-e735e2a01127`
+on the existing site build (`.evidence/ticket005-launch-cleanup-final-drag.log`).
+This is not a fresh-build parity receipt. Earlier failed full and probe gates
+remain failures; full supported check, fresh parity, CI cutover and independent
+closure review remain open. Ticket 005 remains claimed.

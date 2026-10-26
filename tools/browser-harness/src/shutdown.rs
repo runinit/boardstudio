@@ -61,3 +61,17 @@ pub(super) async fn finish_browser(
     };
     (result, confirmed)
 }
+
+// Both consumers must finish removing their owned profile before success.
+pub(super) fn remove_profile(dirs: &boardstudio_browser_harness::IsolatedDirs) -> Result<()> {
+    let run_dir = dirs
+        .profile_dir
+        .parent()
+        .ok_or_else(|| Error("profile has no run directory".into()))?;
+    std::fs::remove_dir_all(run_dir).map_err(|error| {
+        Error(format!(
+            "cannot remove browser profile {}: {error}",
+            run_dir.display()
+        ))
+    })
+}

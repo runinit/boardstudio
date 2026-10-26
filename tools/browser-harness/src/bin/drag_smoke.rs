@@ -2016,6 +2016,11 @@ async fn run() -> Result<usize> {
     .await;
     let (shutdown, confirmed) =
         shutdown::finish_browser(browser, drain, &handler_errors, outcome.is_ok()).await;
+    let cleanup = if confirmed {
+        shutdown::remove_profile(&dirs)
+    } else {
+        Ok(())
+    };
     if !confirmed {
         eprintln!(
             "browser termination unconfirmed; preserving profile at {}",
@@ -2028,6 +2033,7 @@ async fn run() -> Result<usize> {
         outcome.as_ref().err(),
         shutdown.as_ref().err(),
         page.as_ref().err(),
+        cleanup.as_ref().err(),
     ]
     .into_iter()
     .flatten()
@@ -2065,14 +2071,25 @@ async fn run() -> Result<usize> {
     // order stable in both the digest input and the file.
     let payload = receipt_json(&receipt);
     let digest = hex::encode(Sha256::digest(payload.as_bytes()));
-    write_receipt(std::path::Path::new(&receipt_path), &receipt, &digest)?;
+    write_receipt(
+        std::path::Path::new(&receipt_path),
+        &receipt,
+        &digest,
+        cleanup,
+    )?;
     Ok(receipt.checks.len())
 }
 
 /// Write the receipt create-new: never emit or overwrite a success receipt
 /// for a partial run.
-fn write_receipt(path: &std::path::Path, receipt: &Receipt, digest: &str) -> Result<()> {
+fn write_receipt(
+    path: &std::path::Path,
+    receipt: &Receipt,
+    digest: &str,
+    cleanup: Result<()>,
+) -> Result<()> {
     use std::io::Write;
+    cleanup?;
     let mut text = receipt_json(receipt);
     text.pop();
     text.push_str(&format!(",\"receipt_sha256\":\"{digest}\"}}"));
@@ -2109,5 +2126,41 @@ mod hex {
             text.push(DIGITS[(byte & 0xf) as usize] as char);
         }
         text
+    }
+}
+
+#[cfg(test)]
+mod cleanup_receipt_test {
+    #[test]
+    fn cleanup_failure_prevents_receipt() {
+        let root = std::env::temp_dir().join(format!("bs-cleanup-control-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let dirs = boardstudio_browser_harness::IsolatedDirs::create(&root).unwrap();
+        let run = dirs.profile_dir.parent().unwrap().to_owned();
+        std::fs::remove_dir_all(&run).unwrap();
+        std::fs::write(&run, "not a directory").unwrap();
+        let receipt_path = root.join("receipt.json");
+        let receipt = super::Receipt {
+            schema_version: 1,
+            run_id: String::new(),
+            started_at: String::new(),
+            completed_at: String::new(),
+            browser: String::new(),
+            viewport: super::Viewport {
+                width: 0,
+                height: 0,
+            },
+            source_head: String::new(),
+            source_sha256: String::new(),
+            build_sha256: String::new(),
+            checks: vec![],
+            passed: true,
+        };
+        let cleanup = super::shutdown::remove_profile(&dirs);
+        assert!(super::write_receipt(&receipt_path, &receipt, "", cleanup).is_err());
+        assert!(!receipt_path.exists());
+        drop(dirs);
+        std::fs::remove_file(run).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

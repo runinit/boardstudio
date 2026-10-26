@@ -178,13 +178,16 @@ impl Browser {
         let (debug_ws_url, conn) = match with_child(&config, &mut child).await {
             Ok(conn) => conn,
             Err(e) => {
-                // An initialization error occurred, clean up the process
-                if let Ok(Some(_)) = child.try_wait() {
-                    // already exited, do nothing, may happen if the browser crashed
-                } else {
-                    // the process is still alive, kill it and wait for exit (avoid zombie processes)
-                    child.kill().await.expect("`Browser::launch` failed but could not clean-up the child process (`kill`)");
-                    child.wait().await.expect("`Browser::launch` failed but could not clean-up the child process (`wait`)");
+                // A timed-out kill must not hide the original initialization failure.
+                if !matches!(child.try_wait(), Ok(Some(_))) {
+                    let cleanup =
+                        tokio::time::timeout(std::time::Duration::from_secs(10), child.kill())
+                            .await;
+                    if !matches!(cleanup, Ok(Ok(()))) {
+                        return Err(CdpError::msg(format!(
+                            "{e}; browser child cleanup failed or termination unconfirmed: {cleanup:?}"
+                        )));
+                    }
                 }
                 return Err(e);
             }

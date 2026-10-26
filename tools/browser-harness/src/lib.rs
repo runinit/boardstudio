@@ -80,13 +80,14 @@ pub fn discover_chrome(
 ///
 /// The profile lives under a shallow `TMPDIR` (deep paths exceed Unix socket
 /// limits); the child also gets a process-local `XDG_CONFIG_HOME` so a broken
-/// user config can never crash the launch. Dropping removes the profile; two
+/// user config can never crash the launch. Dropping removes the profile after confirmed termination; two
 /// runs never share IndexedDB state.
 pub struct IsolatedDirs {
     /// Directory passed as the browser `--user-data-dir`.
     pub profile_dir: std::path::PathBuf,
     config_dir: std::path::PathBuf,
     run_dir: std::path::PathBuf,
+    preserve: std::cell::Cell<bool>,
 }
 
 static NEXT_RUN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -112,6 +113,7 @@ impl IsolatedDirs {
             profile_dir,
             config_dir,
             run_dir,
+            preserve: std::cell::Cell::new(false),
         })
     }
 
@@ -125,7 +127,9 @@ impl Drop for IsolatedDirs {
     fn drop(&mut self) {
         // The whole run directory is process-owned: remove profile and child
         // config together so no run ever leaks state.
-        std::fs::remove_dir_all(&self.run_dir).ok();
+        if !self.preserve.get() {
+            std::fs::remove_dir_all(&self.run_dir).ok();
+        }
     }
 }
 
