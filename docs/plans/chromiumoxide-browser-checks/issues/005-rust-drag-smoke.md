@@ -553,17 +553,29 @@ stops sending once a client close frame is processed. A close handshake is not
 a barrier for messages still awaiting dispatch. Neither alternative proves
 the existing end-of-run error capture contract, and reset is still fatal.
 
-Reviewable alternative requiring a semantic decision: define the observation
-interval as events delivered to the browser-side session before an explicit
-target-detach marker, drain the ordered handler and join listeners through that
-marker, then perform separately reported browser cleanup. Events still in the
+The earlier assertion that this alternative requires a semantic decision is
+superseded by independent review: the existing Node consumer checks page errors
+before its receipt and `browser.close`, and this ticket does not require
+observation after the page target closes. An ordered target-close boundary is
+compatible with that contract. Define the observation interval as events
+delivered to the browser-side session before an explicit correlated
+target-close or session lifecycle marker, drain the ordered handler and join
+listeners through that marker, then perform separately reported browser cleanup. Events still in the
 renderer or produced after that marker would be outside the verdict, even if
 their underlying page activity began during the checked flow. Invalid events
 and exceptions received within the interval must still fail, and transport
-loss before the marker must fail. This changes the guarantee and is not
-implemented or claimed as equivalent; it also needs controls at the real
-consumer seam and an explicit decision on cleanup transport failures. No
-current evidence establishes a stronger renderer-to-consumer barrier.
+loss before the marker must fail. Disposal failures are fatal, and a post-boundary
+reset can be treated as expected only after all page boundaries are proved and
+separate bounded cleanup and process termination succeed. This is not yet
+implemented; it needs controls at the real consumer seam. No current evidence
+establishes a stronger renderer-to-consumer barrier.
+
+The independent disposal fix makes collision and qualification context disposal
+fail the scenario verdict, retaining the scenario error if both fail. Its focused
+regression check passed after failing on the ignored-disposal behavior. Formatting
+passed; Clippy was blocked by an existing vendored Chromium lint. The pinned
+Chrome 145 negative probe reached its controls but failed on the existing
+WebSocket reset at shutdown. The ordered event boundary remains open.
 
 The deterministic late-exception join control, successful Chrome probe,
 full supported gate, parity, launch-error cleanup and closure review remain

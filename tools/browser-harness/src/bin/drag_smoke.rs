@@ -25,6 +25,32 @@ fn fail(message: impl Into<String>) -> Error {
     Error::new(message)
 }
 
+fn scenario_verdict(outcome: Result<()>, disposal: Result<()>) -> Result<()> {
+    match (outcome, disposal) {
+        (Err(scenario), Err(disposal)) => Err(fail(format!("{scenario}; {disposal}"))),
+        (Err(error), _) | (_, Err(error)) => Err(error),
+        (Ok(()), Ok(())) => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod scenario_verdict_tests {
+    use super::*;
+
+    #[test]
+    fn disposal_failure_fails_and_preserves_scenario_failure() {
+        assert!(scenario_verdict(Ok(()), Err(fail("disposal"))).is_err());
+        let error = scenario_verdict(Err(fail("scenario")), Err(fail("disposal")))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("scenario") && error.contains("disposal"),
+            "{error}"
+        );
+        assert!(scenario_verdict(Ok(()), Ok(())).is_ok());
+    }
+}
+
 fn signature_of(value: &Value) -> String {
     // Serialization of a canonical `Value` cannot fail; a silent empty
     // default would let two empty scenes compare equal, so be loud instead.
@@ -992,8 +1018,8 @@ async fn collision_scenario(
     let scenario_started = Instant::now();
     let (context, page) = driver::new_isolated_page(browser, "about:blank", errors).await?;
     let outcome = collision_scenario_inner(&page, url, checks, scenario_started).await;
-    driver::dispose_isolated_page(browser, context).await.ok();
-    outcome
+    let disposal = driver::dispose_isolated_page(browser, context).await;
+    scenario_verdict(outcome, disposal)
 }
 
 async fn goto(page: &Page, url: &str, what: &str) -> Result<()> {
@@ -1197,7 +1223,7 @@ async fn qualification_scenario(
     unavailable_pcb: bool,
 ) -> Result<()> {
     let (context, page) = driver::new_isolated_page(browser, "about:blank", errors).await?;
-    let outcome =
+    let mut outcome =
         qualification_scenario_inner(&page, url, repo_root, checks, unavailable_pcb).await;
     if let Err(error) = &outcome {
         if let Ok(Value::String(body)) = driver::eval(
@@ -1207,12 +1233,11 @@ async fn qualification_scenario(
         .await
         {
             let mounted: String = body.chars().take(4000).collect();
-            driver::dispose_isolated_page(browser, context).await.ok();
-            return Err(fail(format!("{error}\nMounted page: {mounted}")));
+            outcome = Err(fail(format!("{error}\nMounted page: {mounted}")));
         }
     }
-    driver::dispose_isolated_page(browser, context).await.ok();
-    outcome
+    let disposal = driver::dispose_isolated_page(browser, context).await;
+    scenario_verdict(outcome, disposal)
 }
 
 async fn qualification_scenario_inner(
