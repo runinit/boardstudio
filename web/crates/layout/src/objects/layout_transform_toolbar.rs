@@ -4530,22 +4530,7 @@ pub fn LayoutAnchorPickOverlay(
                     toast_gen_for_commit.set(toast_gen_for_commit() + 1);
                     toast_gen_for_commit()
                 };
-                let mut feedback_for_timer = feedback_for_commit;
-                let gen_for_timer = toast_gen_for_commit;
-                spawn_local(async move {
-                    gloo_timers::future::TimeoutFuture::new(TOAST_TIMEOUT_MS).await;
-                    // The overlay may unmount before the toast expires; a
-                    // dropped owner has no toast left to retire.
-                    let Ok(current) = gen_for_timer.try_peek() else {
-                        return;
-                    };
-                    if *current == seen {
-                        feedback_for_timer.set(advance_feedback(
-                            &feedback_for_timer(),
-                            FeedbackEvent::Expire,
-                        ));
-                    }
-                });
+                arm_commit_toast_expiry(feedback_for_commit, toast_gen_for_commit, seen);
             });
         })
     };
@@ -11848,6 +11833,7 @@ mod tool_tests {
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
         panic!("the commit toast");
+
     }
 
     async fn arm_pick_via_token(root: &web_sys::Element) {
