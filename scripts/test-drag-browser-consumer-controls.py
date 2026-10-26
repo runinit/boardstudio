@@ -30,6 +30,8 @@ with tempfile.TemporaryDirectory(prefix="ticket005-controls-", dir="/tmp") as di
          "consumer exception control"),
         ("rejection", "<script>Promise.reject(new Error('consumer rejection control'))</script>",
          "consumer rejection control"),
+        ("close-exception", "<script>addEventListener('beforeunload', () => { throw new Error('consumer close exception control'); })</script>",
+         "consumer close exception control"),
     )
     for name, prefix, expected in controls:
         page = base / f"{name}.html"

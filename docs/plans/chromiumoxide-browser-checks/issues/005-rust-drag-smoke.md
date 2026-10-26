@@ -611,3 +611,37 @@ successful Chrome shutdown. The prior Chrome reset and full-check failures
 remain failures. The late-exception consumer control, successful Chrome probe,
 full supported gate, parity, launch-error cleanup and closure review remain
 open. Ticket 005 remains claimed.
+
+### 2026-10-26: consumer target-close boundary
+
+Starting from clean `b390a246287b81a0e016fa77ce1cdeb8fb6de794`, the drag
+consumer explicitly closes its observed main and scenario pages, waits for
+the matching target-destroyed event and that target's page-error listener to
+finish, and disposes scenario contexts. Missing markers, transport loss,
+listener failure, close and disposal failures remain fatal; scenario errors
+are retained alongside cleanup failures. The negative probe uses the same
+boundary. This observes events delivered before the marker, not events still
+in the renderer. No handler visibility or reset handling changed.
+
+The actual drag consumer control throws from `beforeunload` on page close.
+On the base it exited nonzero without a receipt but omitted the close-time
+exception (`.evidence/ticket005-boundary-red.log`); after the change it
+reported that exception and the original assertion failure, still nonzero
+without a receipt (`.evidence/ticket005-boundary-green.log`). This is a late
+page exception control, not a forced scheduling delay of the listener. The
+existing controlled handler test independently covers an unrelated target or
+session marker and delayed listener delivery; all three lifecycle tests passed
+(`.evidence/ticket005-boundary-lifecycle.log`). Harness tests passed 13 library
+and one scenario verdict test, and harness Clippy and formatting passed
+(`.evidence/ticket005-boundary-focused.log`, `.evidence/ticket005-boundary-fmt.log`).
+The first lifecycle filter matched zero tests; the correctly named filter
+produced the three-test result above.
+
+The pinned Chrome 145 negative probe reached both context disposals and
+collected its late rejection, but failed on the same WebSocket reset
+(`.evidence/ticket005-boundary-probe.log`); the reset remains fatal. An
+unnecessarily broad workspace test also failed two vendored Chrome integration
+tests because their parallel processes shared a profile lock
+(`.evidence/ticket005-boundary-checks.log`); this is not a passing workspace
+test. Full supported check, parity, CI cutover, launch-error cleanup and closure
+review remain open. Ticket 005 remains claimed.

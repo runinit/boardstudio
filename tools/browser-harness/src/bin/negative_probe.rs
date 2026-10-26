@@ -301,7 +301,7 @@ async fn run() -> Result<()> {
     })"#,
     )
     .await?;
-    driver::dispose_isolated_page(&browser, first.0).await?;
+    driver::dispose_isolated_page(&browser, Some(first.0), first.1, &page_errors).await?;
     let second = driver::new_isolated_page(&browser, &url, &page_errors).await?;
     let marker = driver::eval(
         &second.1,
@@ -318,7 +318,7 @@ async fn run() -> Result<()> {
     })"#,
     )
     .await?;
-    driver::dispose_isolated_page(&browser, second.0).await?;
+    driver::dispose_isolated_page(&browser, Some(second.0), second.1, &page_errors).await?;
     if marker != serde_json::Value::String("absent".to_owned()) {
         return Err(fail(format!(
             "negative probe isolation: second context saw {marker:?}, want absent"
@@ -328,6 +328,7 @@ async fn run() -> Result<()> {
 
     // Do not wait for the listener: the final verdict must join it.
     driver::eval(&page, "Promise.reject(new Error('probe late rejection')); 0;").await?;
+    driver::dispose_isolated_page(&browser, None, page, &page_errors).await?;
     Ok(())
     }.await;
     let (result, confirmed) = shutdown::finish_browser(browser, drain, &handler_errors).await;

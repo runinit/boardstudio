@@ -20,7 +20,7 @@ use chromiumoxide::cdp::browser_protocol::input::{
 };
 use chromiumoxide::cdp::browser_protocol::target::CreateTargetParams;
 use chromiumoxide::cdp::browser_protocol::target::{
-    CreateBrowserContextParams, DisposeBrowserContextParams,
+    CreateBrowserContextParams, DisposeBrowserContextParams, EventTargetDestroyed,
 };
 use chromiumoxide::cdp::js_protocol::runtime::{EvaluateParams, EventExceptionThrown};
 use chromiumoxide::error::CdpError;
@@ -235,6 +235,8 @@ fn scrub_json(value: &mut Value) {
 pub struct PageErrors {
     messages: std::sync::Mutex<Vec<String>>,
     listeners: std::sync::Mutex<(bool, tokio::task::JoinSet<()>)>,
+    completions:
+        std::sync::Mutex<std::collections::HashMap<String, tokio::sync::oneshot::Receiver<()>>>,
 }
 
 impl PageErrors {
@@ -285,6 +287,12 @@ pub async fn spawn_page_error_listener(page: &Page, errors: Arc<PageErrors>) -> 
         ));
     }
     let listener_errors = Arc::clone(&errors);
+    let (complete, completion) = tokio::sync::oneshot::channel();
+    errors
+        .completions
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .insert(page.target_id().inner().clone(), completion);
     listeners.1.spawn(async move {
         while let Some(event) = exceptions.next().await {
             let detail = &event.exception_details;
@@ -299,6 +307,7 @@ pub async fn spawn_page_error_listener(page: &Page, errors: Arc<PageErrors>) -> 
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             messages.push(text);
         }
+        let _ = complete.send(());
     });
     Ok(())
 }
@@ -993,13 +1002,73 @@ pub async fn new_isolated_page(
     Ok((context, page))
 }
 
-/// Dispose a scenario context created by [`new_isolated_page`].
-pub async fn dispose_isolated_page(browser: &Browser, context: BrowserContextId) -> Result<()> {
-    browser
-        .execute(DisposeBrowserContextParams::new(context))
+/// Close an observed page and dispose its context after its listener drains.
+pub async fn dispose_isolated_page(
+    browser: &Browser,
+    context: Option<BrowserContextId>,
+    page: Page,
+    errors: &PageErrors,
+) -> Result<()> {
+    let target = page.target_id().clone();
+    let boundary = async {
+        let mut markers = browser
+            .event_listener::<EventTargetDestroyed>()
+            .await
+            .map_err(|error| Error(format!("cannot listen for target destruction: {error}")))?;
+        page.close()
+            .await
+            .map_err(|error| Error(format!("cannot close target {target:?}: {error}")))?;
+        loop {
+            match markers.next().await {
+                Some(marker) if marker.target_id == target => break,
+                Some(_) => {}
+                None => {
+                    return Err(Error(format!(
+                        "transport ended before target {target:?} destruction"
+                    )))
+                }
+            }
+        }
+        let completion = errors
+            .completions
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .remove(target.inner())
+            .ok_or_else(|| Error(format!("missing listener for target {target:?}")))?;
+        completion.await.map_err(|error| {
+            Error(format!(
+                "page error listener for target {target:?} failed: {error}"
+            ))
+        })?;
+        Ok(())
+    };
+    let boundary = tokio::time::timeout(Duration::from_secs(60), boundary)
         .await
-        .map_err(|error| Error(format!("cannot dispose a browser context: {error}")))?;
-    Ok(())
+        .unwrap_or_else(|_| {
+            Err(Error(format!(
+                "target {target:?} boundary timed out after 60s"
+            )))
+        });
+    let disposal = if let Some(context) = context {
+        tokio::time::timeout(
+            Duration::from_secs(60),
+            browser.execute(DisposeBrowserContextParams::new(context)),
+        )
+        .await
+        .map_err(|_| Error("browser context disposal timed out after 60s".to_owned()))
+        .and_then(|result| {
+            result
+                .map(|_| ())
+                .map_err(|error| Error(format!("cannot dispose a browser context: {error}")))
+        })
+    } else {
+        Ok(())
+    };
+    match (boundary, disposal) {
+        (Err(boundary), Err(disposal)) => Err(Error(format!("{boundary}; {disposal}"))),
+        (Err(error), _) | (_, Err(error)) => Err(error),
+        _ => Ok(()),
+    }
 }
 
 #[cfg(test)]

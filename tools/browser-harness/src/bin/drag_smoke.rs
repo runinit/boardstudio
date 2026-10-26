@@ -1018,7 +1018,7 @@ async fn collision_scenario(
     let scenario_started = Instant::now();
     let (context, page) = driver::new_isolated_page(browser, "about:blank", errors).await?;
     let outcome = collision_scenario_inner(&page, url, checks, scenario_started).await;
-    let disposal = driver::dispose_isolated_page(browser, context).await;
+    let disposal = driver::dispose_isolated_page(browser, Some(context), page, errors).await;
     scenario_verdict(outcome, disposal)
 }
 
@@ -1236,7 +1236,7 @@ async fn qualification_scenario(
             outcome = Err(fail(format!("{error}\nMounted page: {mounted}")));
         }
     }
-    let disposal = driver::dispose_isolated_page(browser, context).await;
+    let disposal = driver::dispose_isolated_page(browser, Some(context), page, errors).await;
     scenario_verdict(outcome, disposal)
 }
 
@@ -1978,32 +1978,39 @@ async fn run() -> Result<usize> {
             checks: Vec::new(),
         };
 
-        drag_scenarios(&mut smoke).await?;
-        collision_scenario(&browser, &preview_url, &page_errors, &mut smoke.checks).await?;
-        qualification_scenario(
-            &browser,
-            &preview_url,
-            &repo_root,
-            &page_errors,
-            &mut smoke.checks,
-            false,
-        )
-        .await?;
-        qualification_scenario(
-            &browser,
-            &preview_url,
-            &repo_root,
-            &page_errors,
-            &mut smoke.checks,
-            true,
-        )
-        .await?;
-        if smoke.checks.len() < 11 {
-            return Err(fail(format!(
-                "smoke completed all drag, cancellation, Undo and collision checks: saw {}",
-                smoke.checks.len()
-            )));
+        let scenarios = async {
+            drag_scenarios(&mut smoke).await?;
+            collision_scenario(&browser, &preview_url, &page_errors, &mut smoke.checks).await?;
+            qualification_scenario(
+                &browser,
+                &preview_url,
+                &repo_root,
+                &page_errors,
+                &mut smoke.checks,
+                false,
+            )
+            .await?;
+            qualification_scenario(
+                &browser,
+                &preview_url,
+                &repo_root,
+                &page_errors,
+                &mut smoke.checks,
+                true,
+            )
+            .await?;
+            if smoke.checks.len() < 11 {
+                return Err(fail(format!(
+                    "smoke completed all drag, cancellation, Undo and collision checks: saw {}",
+                    smoke.checks.len()
+                )));
+            }
+            Ok::<_, Error>(())
         }
+        .await;
+        let disposal =
+            driver::dispose_isolated_page(&browser, None, smoke.page, &page_errors).await;
+        scenario_verdict(scenarios, disposal)?;
         Ok::<_, Error>((browser_version, smoke.checks))
     }
     .await;
