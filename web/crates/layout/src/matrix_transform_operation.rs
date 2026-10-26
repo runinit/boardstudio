@@ -1,4 +1,11 @@
 //! Private, pure mapping from accepted matrix transform fields to existing edit operations.
+
+//! Ticket 03: the handle-rail layout lives here (instead of beside its
+//! overlay) so the pure geometry stays natively tested without touching the
+//! shared crate root, which ticket 02 owns this round.
+#[path = "handle_rail.rs"]
+pub mod handle_rail;
+
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::model::{
     AggregateAnchor, AggregateMethod, AnchorPart, EditOperation, Follow, HalfExceptionState,

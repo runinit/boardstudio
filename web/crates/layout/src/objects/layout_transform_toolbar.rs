@@ -2,10 +2,12 @@
 use super::layout_toolbar::LayoutSelectionKind;
 use super::layout_toolbar::{LayoutCommandMenu, close_layout_command_menu};
 use super::{ScopedTreeContext, TreeContext};
+use crate::matrix_relations;
 use crate::matrix_transform_operation::{
-    ArrowKey, MatrixDragAnchor, PlacementParameter, PlacementValue, SceneBasis, column_angle,
-    gesture_value, matrix_drag_anchor_pose, matrix_drag_transport, nudge_value,
-    placement_operation, solve_matrix_origin, solve_matrix_rotation,
+    ArrowKey, MatrixDragAnchor, MatrixTransformField, PlacementParameter, PlacementValue,
+    SceneBasis, column_angle, gesture_value, handle_rail, matrix_drag_anchor_pose,
+    matrix_drag_transport, nudge_value, placement_operation, solve_matrix_origin,
+    solve_matrix_rotation,
 };
 use crate::presentation::{
     LayoutOwnerIdentity,
@@ -20,12 +22,13 @@ use boardstudio_core::model::{
     MatrixSplayChange, Mirror, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEdits;
+use boardstudio_web_ui_model::state::{FieldPreview, FieldPreviewSource, FieldPreviewState};
 use boardstudio_web_ui_shared::controls::{
     BoardButton, BoardButtonDensity, BoardPopover, BoardToolbar, BoardToolbarButton,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::SvgElement;
@@ -79,6 +82,153 @@ pub struct ToolActivation {
 /// and otherwise column 1, and every other selection becomes its Column. Splay and Origin
 /// turn the selection into its Column. Move and Rotate keep the Matrix selection: they
 /// edit the matrix itself, not one of its parameters.
+///
+/// Ticket 03: the rail peers mounted in one SVG canvas. Each overlay registers
+/// its tool on mount and unregisters on unmount, keyed by the shared svg
+/// handle, so every overlay of one selection computes the same peer list
+/// without new props on the shared mount site. The list holds the mounted
+/// tools; the rail below filters it into canonical order minus Origin.
+#[derive(Default)]
+struct RailMount {
+    tools: Vec<LayoutTransformTool>,
+    active: Option<LayoutTransformTool>,
+}
+
+thread_local! {
+    static RAIL_MOUNTS: RefCell<HashMap<usize, RailMount>> = RefCell::new(HashMap::new());
+}
+
+/// Canonical rail order: peers list in this order however the mounts
+/// interleave, matching the `transform_tools` listing order.
+const RAIL_ORDER: [LayoutTransformTool; 6] = [
+    LayoutTransformTool::Spread,
+    LayoutTransformTool::Stagger,
+    LayoutTransformTool::Offset,
+    LayoutTransformTool::Splay,
+    LayoutTransformTool::Move,
+    LayoutTransformTool::Rotate,
+];
+
+fn rail_mount_tool(svg_key: usize, tool: LayoutTransformTool) {
+    RAIL_MOUNTS.with(|mounts| {
+        let mut mounts = mounts.borrow_mut();
+        let mount = mounts.entry(svg_key).or_default();
+        if !mount.tools.contains(&tool) {
+            mount.tools.push(tool);
+        }
+    });
+}
+
+fn rail_unmount_tool(svg_key: usize, tool: LayoutTransformTool) {
+    RAIL_MOUNTS.with(|mounts| {
+        if let Some(mount) = mounts.borrow_mut().get_mut(&svg_key) {
+            mount.tools.retain(|peer| *peer != tool);
+            if mount.active == Some(tool) {
+                mount.active = None;
+            }
+        }
+    });
+}
+
+fn rail_set_active(svg_key: usize, tool: Option<LayoutTransformTool>) {
+    RAIL_MOUNTS.with(|mounts| {
+        if let Some(mount) = mounts.borrow_mut().get_mut(&svg_key) {
+            mount.active = tool;
+        }
+    });
+}
+
+/// The rail peers for one overlay: the mounted tools in canonical order.
+/// Origin stays a point on the canvas, so it never joins the rail.
+fn rail_peers(svg_key: usize) -> Vec<LayoutTransformTool> {
+    RAIL_MOUNTS.with(|mounts| {
+        mounts
+            .borrow()
+            .get(&svg_key)
+            .map_or_else(Vec::new, |mount| {
+                RAIL_ORDER
+                    .iter()
+                    .filter(|peer| mount.tools.contains(peer))
+                    .copied()
+                    .collect()
+            })
+    })
+}
+
+fn rail_active_tool(svg_key: usize) -> Option<LayoutTransformTool> {
+    RAIL_MOUNTS.with(|mounts| mounts.borrow().get(&svg_key).and_then(|mount| mount.active))
+}
+
+/// Prototype variant D token glyphs, in screen px. The rail draws them in a
+/// y-down px group, so these match the spec sheet verbatim.
+const GLYPH_SPREAD: &str = "M-5 0h10M-3 -2l-2 2 2 2M3 -2l2 2-2 2";
+const GLYPH_STAGGER: &str = "M-5 0h10M-3 -2l-2 2 2 2M3 -2l2 2-2 2";
+const GLYPH_FOUR: &str = "M0 -3.2v6.4M-3.2 0h6.4M-1.4 -1.8 0 -3.2l1.4 1.4M-1.4 1.8 0 3.2l1.4 -1.4M-1.8 -1.4-3.2 0l1.4 1.4M1.8 -1.4 3.2 0l-1.4 1.4";
+const GLYPH_SPLAY: &str = "M-5 4A9 9 0 0 1 4 -5M1.5 -6.5 4 -5l-1.3 2.4M-5 4h2";
+const GLYPH_ROTATE: &str = "M4.5 -2A5 5 0 1 1 -2 -4.6M4.6 -5v3h-3";
+
+/// The token glyph for one rail tool: the axis arrow along `glyph_degrees`
+/// for the one-dimensional tools, the spec glyphs for Splay and Rotate, and
+/// the four-way arrow for Move and the Ctrl quick offset.
+fn rail_token_glyph(
+    tool: LayoutTransformTool,
+    quick_offset: bool,
+    glyph_degrees: f64,
+    stroke: &str,
+) -> Element {
+    let style = format!(
+        "fill:none;stroke:{stroke};stroke-width:1.5px;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke"
+    );
+    match (tool, quick_offset) {
+        (LayoutTransformTool::Spread, _) => rsx! {
+            path { d: "{GLYPH_SPREAD}", style: "{style}" }
+        },
+        (LayoutTransformTool::Stagger | LayoutTransformTool::Offset, true) => rsx! {
+            g { transform: "scale(1.5)",
+                path { d: "{GLYPH_FOUR}", style: "{style}" }
+            }
+        },
+        (LayoutTransformTool::Stagger | LayoutTransformTool::Offset, false) => rsx! {
+            g { transform: "rotate({glyph_degrees})",
+                path { d: "{GLYPH_STAGGER}", style: "{style}" }
+            }
+        },
+        (LayoutTransformTool::Splay, _) => rsx! {
+            path { d: "{GLYPH_SPLAY}", style: "{style}" }
+        },
+        (LayoutTransformTool::Move, _) => rsx! {
+            g { transform: "scale(1.5)",
+                path { d: "{GLYPH_FOUR}", style: "{style}" }
+            }
+        },
+        (LayoutTransformTool::Rotate, _) => rsx! {
+            path { d: "{GLYPH_ROTATE}", style: "{style}" }
+        },
+        (LayoutTransformTool::Origin, _) => rsx! {},
+    }
+}
+
+/// The Inspector field whose amber preview matches one rail token's movers,
+/// or `None` when the tool holds its keys still (Origin).
+fn preview_field_for_tool(
+    tool: LayoutTransformTool,
+    context: &TreeContext,
+) -> Option<MatrixTransformField> {
+    match (tool, context) {
+        (LayoutTransformTool::Stagger, TreeContext::Column { .. }) => {
+            Some(MatrixTransformField::ColumnStagger)
+        }
+        (LayoutTransformTool::Spread, _) => Some(MatrixTransformField::ColumnSpread),
+        (LayoutTransformTool::Splay, _) => Some(MatrixTransformField::ColumnSplay),
+        (LayoutTransformTool::Offset, TreeContext::Row { .. }) => {
+            Some(MatrixTransformField::RowOffsetX)
+        }
+        (LayoutTransformTool::Offset, _) => Some(MatrixTransformField::ColumnOffsetX),
+        (LayoutTransformTool::Move, _) => Some(MatrixTransformField::OriginX),
+        (LayoutTransformTool::Rotate, _) => Some(MatrixTransformField::MatrixRotation),
+        (LayoutTransformTool::Origin, _) | (LayoutTransformTool::Stagger, _) => None,
+    }
+}
 pub fn activate_transform_tool(
     active: Option<LayoutTransformTool>,
     tool: LayoutTransformTool,
@@ -259,8 +409,79 @@ pub fn LayoutTransformToolOverlay(
         )
     });
     let _ = surface_size.map(|size| size());
+    // Ticket 03: the rail peers share one svg handle per canvas. The key is
+    // the shared handle's identity, so every overlay of one selection reads
+    // the same mount set however the mounts interleave.
+    let svg_key: usize = Rc::as_ptr(&svg.0) as usize;
+    use_hook(move || {
+        rail_mount_tool(svg_key, tool);
+    });
+    // Peers mount in one commit, so the first overlay paints before the rest
+    // register. This second pass re-reads the full mount set once every peer
+    // of the commit has registered, keeping every rail centred.
+    let mut mounted = use_signal(|| false);
+    let mounted_read = mounted;
+    use_effect(move || {
+        mounted.set(true);
+    });
+    let _ = mounted_read();
+    use_drop(move || {
+        rail_unmount_tool(svg_key, tool);
+    });
     let drag = use_hook(|| Rc::new(RefCell::new(None::<TransformDrag>)));
     let snap_guide = use_signal(|| None::<Vec2>);
+    // Ticket 03: hover (or keyboard focus) on a rail token previews, in
+    // amber, the keys its drag would move — the same transient view state
+    // the Inspector number fields show. It never writes.
+    let hovered = use_signal(|| false);
+    // Keyboard focus previews like hover, matching the Inspector fields.
+    let focused = use_signal(|| false);
+    let preview = try_use_context::<FieldPreview>();
+    let preview_source = try_use_context::<Option<FieldPreviewSource>>().flatten();
+    let shown = use_hook(|| Rc::new(RefCell::new(Vec::<String>::new())));
+    let show_preview = {
+        let shown = shown.clone();
+        let context = context.clone();
+        let affect = splay_affect;
+        move || {
+            let (Some(target), Some(source)) = (preview, preview_source.clone()) else {
+                return;
+            };
+            let Some(field) = preview_field_for_tool(tool, &context) else {
+                return;
+            };
+            let Some(facts) = matrix_relations::field_preview(
+                &source.document,
+                &source.scene.matrix_scenes,
+                &context,
+                field,
+                affect(),
+            ) else {
+                return;
+            };
+            *shown.borrow_mut() = facts.parts.clone();
+            target.show(FieldPreviewState {
+                parts: facts.parts,
+                hint: facts.hint,
+            });
+        }
+    };
+    let release_preview = {
+        let shown = shown.clone();
+        move || {
+            if let Some(target) = preview {
+                target.release(&shown.borrow());
+            }
+        }
+    };
+    use_drop({
+        let shown = shown.clone();
+        move || {
+            if let Some(target) = preview {
+                target.release(&shown.borrow());
+            }
+        }
+    });
     // True from a Ctrl pointer-down until release: the handle shows the offset glyph.
     let quick_glyph = use_signal(|| false);
     // True from a Ctrl pointer-down on a Splay or Origin handle until release.
@@ -277,6 +498,7 @@ pub fn LayoutTransformToolOverlay(
             &mut guide_for_drop,
             quick_glyph,
             swing_glyph,
+            svg_key,
         );
     });
     let escape_listener = use_hook(TransformEscapeListener::default);
@@ -322,6 +544,7 @@ pub fn LayoutTransformToolOverlay(
                     &mut guide,
                     quick_glyph,
                     swing_glyph,
+                    svg_key,
                 );
                 on_finish.call(());
             }) as Box<dyn FnMut(_)>);
@@ -364,6 +587,7 @@ pub fn LayoutTransformToolOverlay(
                         &mut guide_for_owner,
                         quick_glyph,
                         swing_glyph,
+                        svg_key,
                     );
                 }
             }
@@ -422,93 +646,100 @@ pub fn LayoutTransformToolOverlay(
         .as_ref()
         .map(|anchor| anchor.follow.rotation)
         .unwrap_or(true);
-    let (handle_point, handle_scale, selected_column) = {
-        let selected_column = context_column(&context).unwrap_or(0);
-        let selected_row = context_row(&context);
-        let point = match tool {
-            // Stagger is a column parameter. Activation turns a Row selection into a Column,
-            // so a Row here (selected while the tool was active) renders no Stagger handle.
-            LayoutTransformTool::Stagger if selected_row.is_some() => None,
-            // An Offset handle on a Row sits at the row's first key (column 0 when unselected).
-            LayoutTransformTool::Offset if let Some(row) = selected_row => {
-                let cell = projection
-                    .cells
-                    .iter()
-                    .find(|cell| cell.enabled && cell.row == row && cell.column == 0)
-                    .or_else(|| {
-                        projection
-                            .cells
-                            .iter()
-                            .find(|cell| cell.enabled && cell.row == row)
-                    });
-                selected_points
-                    .first()
-                    .copied()
-                    .or_else(|| cell.map(|cell| cell.pose.at))
-                    .map(|at| Vec2 {
-                        x: at.x,
-                        y: at.y + 12.0,
-                    })
-            }
-            // Spread is a column step: a Row selection renders no handle, and
-            // column 0 follows the pitch, so it has no step to drag.
-            LayoutTransformTool::Spread if selected_row.is_some() || selected_column == 0 => None,
-            LayoutTransformTool::Stagger
-            | LayoutTransformTool::Offset
-            | LayoutTransformTool::Spread => {
-                let cell = projection
-                    .cells
-                    .iter()
-                    .find(|cell| cell.enabled && cell.row == 0 && cell.column == selected_column);
-                selected_points
-                    .first()
-                    .copied()
-                    .or_else(|| cell.map(|cell| cell.pose.at))
-                    .map(|at| Vec2 {
-                        x: at.x,
-                        y: at.y + 12.0,
-                    })
-            }
-            LayoutTransformTool::Splay | LayoutTransformTool::Origin => projection
-                .columns
-                .iter()
-                .find(|basis| basis.column == selected_column)
-                .map(|basis| basis.splay_origin),
-            LayoutTransformTool::Move | LayoutTransformTool::Rotate => Some(matrix_handle_point),
-        };
-        let scale = svg.0.borrow().as_ref().map_or(3.0, |surface| {
-            let rect = surface.get_bounding_client_rect();
-            if rect.width() > 0.0 {
-                (width / rect.width()).max(height / rect.height().max(1.0)) * 3.0
-            } else {
-                3.0
-            }
-        });
-        let point = if matches!(
-            tool,
-            LayoutTransformTool::Stagger
-                | LayoutTransformTool::Offset
-                | LayoutTransformTool::Spread
-        ) && !selected_points.is_empty()
-        {
-            Some(Vec2 {
-                x: selected_points.iter().map(|p| p.x).sum::<f64>() / selected_points.len() as f64,
-                y: selected_points
-                    .iter()
-                    .map(|p| p.y)
-                    .fold(f64::INFINITY, f64::min)
-                    - matrix.pitch.y / 2.0
-                    - 6.0 * scale,
-            })
+    let selected_column = context_column(&context).unwrap_or(0);
+    let selected_row = context_row(&context);
+    let handle_scale = svg.0.borrow().as_ref().map_or(3.0, |surface| {
+        let rect = surface.get_bounding_client_rect();
+        if rect.width() > 0.0 {
+            (width / rect.width()).max(height / rect.height().max(1.0)) * 3.0
         } else {
-            point
-        };
-        (point, scale, selected_column)
+            3.0
+        }
+    });
+    // World units per screen px: the overlay draws screen-size chrome from
+    // px art scaled by this factor, so tokens stay 18 px at every zoom.
+    let world_per_screen = handle_scale / 3.0;
+    // Column 0 follows the pitch, so it has no Spread step to drag: a Spread
+    // token never joins its rail. Every overlay of the selection filters the
+    // same mount set, so the rail stays centred on the tokens that draw.
+    let rail_tools: Vec<LayoutTransformTool> = rail_peers(svg_key)
+        .into_iter()
+        .filter(|peer| {
+            !matches!(peer, LayoutTransformTool::Spread)
+                || selected_column != 0
+                || selected_row.is_some()
+        })
+        .collect();
+    let rail_index = rail_tools.iter().position(|peer| *peer == tool);
+    // The Origin point stays on the canvas at the splay origin; it never
+    // joins the rail.
+    let origin_point = if matches!(
+        tool,
+        LayoutTransformTool::Splay | LayoutTransformTool::Origin
+    ) {
+        projection
+            .columns
+            .iter()
+            .find(|basis| basis.column == selected_column)
+            .map(|basis| basis.splay_origin)
+    } else {
+        None
     };
-
-    let Some(handle_point) = handle_point else {
+    // The rail centres on the selection: the column or row cells for a
+    // Column/Row selection, every enabled cell for a Matrix.
+    let rail_points: Vec<Vec2> = match &context {
+        TreeContext::Column { column, .. } => projection
+            .cells
+            .iter()
+            .filter(|cell| cell.enabled && cell.column == *column)
+            .map(|cell| cell.pose.at)
+            .collect(),
+        TreeContext::Row { row, .. } => projection
+            .cells
+            .iter()
+            .filter(|cell| cell.enabled && cell.row == *row)
+            .map(|cell| cell.pose.at)
+            .collect(),
+        TreeContext::Matrix { .. } => projection
+            .cells
+            .iter()
+            .filter(|cell| cell.enabled)
+            .map(|cell| cell.pose.at)
+            .collect(),
+        _ => Vec::new(),
+    };
+    // A Matrix with no enabled cell still draws its rail at the shared
+    // handle point, so Move and Rotate never lose their tokens.
+    let rail_points = if rail_points.is_empty() && matches!(context, TreeContext::Matrix { .. }) {
+        vec![matrix_handle_point]
+    } else {
+        rail_points
+    };
+    let rail_layout = if rail_index.is_some() && !rail_points.is_empty() {
+        let min_x = rail_points
+            .iter()
+            .map(|point| point.x)
+            .fold(f64::INFINITY, f64::min);
+        let max_x = rail_points
+            .iter()
+            .map(|point| point.x)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let top = rail_points
+            .iter()
+            .map(|point| point.y)
+            .fold(f64::NEG_INFINITY, f64::max);
+        handle_rail::rail_world(
+            (min_x + max_x) / 2.0,
+            top,
+            rail_tools.len(),
+            world_per_screen,
+        )
+    } else {
+        None
+    };
+    if rail_layout.is_none() && origin_point.is_none() {
         return rsx! {};
-    };
+    }
     let fallback_angle_point = angle_handle_point(
         &projection,
         selected_column,
@@ -535,7 +766,7 @@ pub fn LayoutTransformToolOverlay(
         .map_or(0.0, |basis| {
             column_angle(basis.splay_angle, basis.rotation, &splay_affect())
         });
-    let arc = splay_arc(handle_point, angle_point, angle_degrees);
+    let arc = origin_point.map(|origin| splay_arc(origin, angle_point, angle_degrees));
     let current_owner = owner.clone();
     let current_context = context.clone();
     let matrix_for_key = matrix.clone();
@@ -570,6 +801,7 @@ pub fn LayoutTransformToolOverlay(
         let mut guide_for_start = guide_for_start;
         let mut quick_for_start = quick_glyph;
         let mut swing_for_start = swing_glyph;
+        let svg_key_for_start = svg_key;
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
@@ -738,6 +970,7 @@ pub fn LayoutTransformToolOverlay(
             preview_submitted: false,
         });
         guide_for_start.set(None);
+        rail_set_active(svg_key_for_start, Some(tool));
         quick_for_start.set(matches!(
             gesture,
             TransformGesture::Stagger {
@@ -789,6 +1022,7 @@ pub fn LayoutTransformToolOverlay(
                 &mut guide_for_move,
                 quick_glyph,
                 swing_glyph,
+                svg_key,
             );
             return;
         }
@@ -833,6 +1067,7 @@ pub fn LayoutTransformToolOverlay(
     let guide_for_end = snap_guide;
     let end_drag = Rc::new(move |event: PointerEvent| {
         let mut guide_for_end = guide_for_end;
+        let svg_key_for_end = svg_key;
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
@@ -861,6 +1096,7 @@ pub fn LayoutTransformToolOverlay(
                 &mut guide_for_end,
                 quick_glyph,
                 swing_glyph,
+                svg_key,
             );
             return;
         }
@@ -872,6 +1108,7 @@ pub fn LayoutTransformToolOverlay(
                 &mut guide_for_end,
                 quick_glyph,
                 swing_glyph,
+                svg_key,
             );
             return;
         }
@@ -909,6 +1146,7 @@ pub fn LayoutTransformToolOverlay(
             clear_transform_preview(&runtime_for_end, &active);
         }
         guide_for_end.set(None);
+        rail_set_active(svg_key_for_end, None);
         let mut quick_for_end = quick_glyph;
         quick_for_end.set(false);
         let mut swing_for_end = swing_glyph;
@@ -944,6 +1182,7 @@ pub fn LayoutTransformToolOverlay(
                 &mut guide_for_cancel,
                 quick_glyph,
                 swing_glyph,
+                svg_key,
             );
         }
     });
@@ -967,6 +1206,7 @@ pub fn LayoutTransformToolOverlay(
                 &mut guide_for_key,
                 quick_glyph,
                 swing_glyph,
+                svg_key,
             );
             on_finish.call(());
             return;
@@ -1155,7 +1395,6 @@ pub fn LayoutTransformToolOverlay(
         .iter()
         .find(|basis| basis.column == selected_column)
         .map_or(Vec2 { x: 0.0, y: 1.0 }, |basis| basis.stagger_axis);
-    let arrow_rotation = stagger_arrow_degrees(stagger_axis);
     let spread_now = match placement_current(
         &matrix_for_spread,
         PlacementParameter::ColumnSpread {
@@ -1174,17 +1413,6 @@ pub fn LayoutTransformToolOverlay(
         (LayoutTransformTool::Spread, _) => "Drag to spread",
         _ => "Drag to stagger",
     };
-    // The matrix Move/Rotate handles share one anchor point on the drawn
-    // matrix: the first enabled key's pose. The rotation center captured at
-    // pointer-down uses the same point from the live scene, so the two cannot
-    // drift apart.
-    let matrix_handle_point = projection
-        .cells
-        .iter()
-        .find(|cell| cell.enabled)
-        .or(projection.cells.first())
-        .map(|cell| cell.pose.at)
-        .unwrap_or(matrix.origin);
     let handle_value = match tool {
         LayoutTransformTool::Offset => {
             format!("X {:.2} mm, Y {:.2} mm", offset_now.x, offset_now.y)
@@ -1196,163 +1424,261 @@ pub fn LayoutTransformToolOverlay(
         _ => format!("{stagger_now:.2} mm"),
     };
     let quick_offset_shown = quick_glyph() || control() || tool == LayoutTransformTool::Offset;
+    let active_peer = rail_active_tool(svg_key);
+    let dragging_here = drag.borrow().is_some();
+    // A live drag on a peer dims this token to 35%; the active token keeps
+    // full opacity. Siblings re-read the shared mount set whenever the
+    // Editor re-renders, which every preview submit triggers.
+    let rail_dimmed = active_peer.is_some_and(|peer| peer != tool) && rail_index.is_some();
+    let token_active = dragging_here;
+    let token_lit = hovered() || focused() || token_active;
+    // Screen-frame glyph rotation for the column axis: the px groups below
+    // are y-down, so the world axis appears mirrored vertically.
+    let glyph_degrees = (-stagger_axis.y).atan2(stagger_axis.x).to_degrees();
+    let token_fill = if token_active {
+        "var(--wb-accent)"
+    } else if hovered() || focused() {
+        "var(--wb-selection-surface)"
+    } else {
+        "transparent"
+    };
+    let glyph_stroke = if token_active {
+        "var(--wb-on-accent)"
+    } else if hovered() || focused() {
+        "var(--wb-selection-ink)"
+    } else {
+        "var(--wb-muted)"
+    };
+    let token_opacity = if rail_dimmed { "0.35" } else { "1" };
+    let guide_opacity = if token_active { "0.8" } else { "0.35" };
+    // Splay, Move and Rotate keep hardcoded labels: the gesture distinguishes
+    // them, and the mounted drag tests query these strings.
+    let token_aria_label: String = match tool {
+        LayoutTransformTool::Splay => "Drag to splay".to_owned(),
+        LayoutTransformTool::Move => "Drag to move matrix".to_owned(),
+        LayoutTransformTool::Rotate => "Drag to rotate matrix".to_owned(),
+        LayoutTransformTool::Origin => "Move splay origin".to_owned(),
+        _ => handle_label.to_owned(),
+    };
+    let token_description: String = match tool {
+        LayoutTransformTool::Spread => handle_value.clone(),
+        LayoutTransformTool::Stagger | LayoutTransformTool::Offset => {
+            format!("{handle_value}. Hold Ctrl while dragging to offset the column.")
+        }
+        LayoutTransformTool::Splay => {
+            "Hold Ctrl while dragging to swing the origin instead.".to_owned()
+        }
+        LayoutTransformTool::Move => {
+            format!("X {:.2} mm, Y {:.2} mm", matrix.origin.x, matrix.origin.y)
+        }
+        LayoutTransformTool::Rotate => {
+            if matrix_rotation_followed {
+                format!("{:.2} degrees", matrix.rotation.unwrap_or(0.0))
+            } else {
+                "Follow rotation is off, so turning changes nothing.".to_owned()
+            }
+        }
+        LayoutTransformTool::Origin => {
+            "Hold Ctrl while dragging to swing the origin without moving the keys.".to_owned()
+        }
+    };
+    let token_title: Option<String> = match tool {
+        LayoutTransformTool::Spread => Some(format!("Drag to spread · {handle_value}")),
+        LayoutTransformTool::Splay => Some(format!("Drag to splay · {angle_degrees:.0}°")),
+        LayoutTransformTool::Move => Some(format!(
+            "Drag to move matrix · X {:.2} mm, Y {:.2} mm",
+            matrix.origin.x, matrix.origin.y
+        )),
+        LayoutTransformTool::Rotate if matrix_rotation_followed => Some(format!(
+            "Drag to rotate matrix · {:.2} degrees",
+            matrix.rotation.unwrap_or(0.0)
+        )),
+        LayoutTransformTool::Rotate => {
+            Some("Rotate matrix (unavailable: Follow rotation is off)".to_owned())
+        }
+        LayoutTransformTool::Origin => Some("Move splay origin".to_owned()),
+        LayoutTransformTool::Stagger | LayoutTransformTool::Offset => None,
+    };
+    // The token centre in world units, when this overlay draws a rail token.
+    // Splay also needs its origin basis: without it the drag has no frame.
+    let token_center: Option<(f64, f64)> = rail_index.and_then(|index| {
+        rail_layout
+            .as_ref()
+            .and_then(|layout| layout.token_centers.get(index).copied())
+    });
+    let token_shown =
+        token_center.is_some() && (tool != LayoutTransformTool::Splay || origin_point.is_some());
+    // Axis guide endpoints for the one-dimensional tokens, in world units.
+    let (axis_x, axis_y) = match tool {
+        LayoutTransformTool::Spread => (1.0, 0.0),
+        _ => (stagger_axis.x, stagger_axis.y),
+    };
+    let axis_len = axis_x.hypot(axis_y).max(1e-9);
+    let (guide_dx, guide_dy) = (
+        axis_x / axis_len * 17.0 * world_per_screen,
+        axis_y / axis_len * 17.0 * world_per_screen,
+    );
+    let px = world_per_screen;
+    // The token drags its own gesture: Splay needs the origin frame the
+    // shared `gesture` leaves to the Origin handle.
+    let token_gesture = if tool == LayoutTransformTool::Splay {
+        origin_point
+            .map(|origin| TransformGesture::Splay {
+                column: selected_column,
+                start_angle: 0.0,
+                origin,
+                swing: false,
+            })
+            .unwrap_or(gesture)
+    } else {
+        gesture
+    };
     rsx! {
         if let Some(guide) = snap_guide() {
             g { class: "m1-transform-snap-guide", "aria-hidden": "true",
                 circle { cx: "{guide.x}", cy: "{guide.y}", r: "{width / 170.0}" }
             }
         }
-        if matches!(context, TreeContext::Matrix { .. })
-            && matches!(tool, LayoutTransformTool::Move | LayoutTransformTool::Rotate)
-        {
-            g { class: "m1-transform-matrix-handles",
-                path {
-                    class: "m1-transform-rotate-guide",
-                    d: "M{matrix_handle_point.x} {matrix_handle_point.y + 12.0} L{matrix_handle_point.x + 28.0} {matrix_handle_point.y + 12.0}"
+        if token_shown {
+            {
+                let (tok_x, tok_y) = token_center.unwrap_or((0.0, 0.0));
+                let rail_w = handle_rail::rail_width(rail_tools.len());
+                let (rail_cx, rail_cy) = rail_layout.as_ref().map_or((tok_x, tok_y), |layout| {
+                    (layout.rail.x + layout.rail.w / 2.0, layout.rail.y + layout.rail.h / 2.0)
+                });
+                let token_style =
+                    format!("cursor:grab;opacity:{token_opacity};touch-action:none");
+                let tok_style = format!("fill:{token_fill};stroke:none");
+                let hit_style = "fill:transparent;stroke:none;pointer-events:all";
+                let glyph = rail_token_glyph(tool, quick_offset_shown, glyph_degrees, glyph_stroke);
+                let show_hover = show_preview.clone();
+                let hide_hover = release_preview.clone();
+                let show_focus = show_preview.clone();
+                let hide_focus = release_preview.clone();
+                rsx! {
+                    if rail_index == Some(0) {
+                        g { "aria-hidden": "true",
+                            transform: "translate({rail_cx} {rail_cy}) scale({px} {-px})",
+                            style: "pointer-events:none",
+                            rect {
+                                x: "{-rail_w / 2.0}",
+                                y: "-11",
+                                width: "{rail_w}",
+                                height: "22",
+                                rx: "6",
+                                style: "fill:var(--wb-panel);stroke:var(--wb-rule-strong);stroke-width:1px;vector-effect:non-scaling-stroke;filter:drop-shadow(0 2px 4px rgb(24 35 49 / 12%))",
+                            }
+                        }
+                    }
+                    if tool == LayoutTransformTool::Rotate && !matrix_rotation_followed {
+                        g {
+                            class: "m1-transform-handle",
+                            transform: "translate({tok_x} {tok_y}) scale({px} {-px})",
+                            role: "button", tabindex: "0", "aria-label": "{token_aria_label}",
+                            "aria-disabled": "true",
+                            "aria-description": "{token_description}",
+                            style: "{token_style}",
+                            rect { x: "-9", y: "-9", width: "18", height: "18", rx: "4", style: "{tok_style}" }
+                            rect { x: "-10", y: "-12", width: "20", height: "24", style: "{hit_style}" }
+                            {glyph}
+                            if let Some(title) = token_title.as_ref() {
+                                title { "{title}" }
+                            }
+                        }
+                    } else {
+                        g {
+                            class: "m1-transform-handle",
+                            transform: "translate({tok_x} {tok_y}) scale({px} {-px})",
+                            role: "button", tabindex: "0", "aria-label": "{token_aria_label}",
+                            "aria-description": "{token_description}",
+                            "data-quick-offset": "{quick_offset_shown}",
+                            "data-swing": "{swing_glyph()}",
+                            style: "{token_style}",
+                            onpointerdown: { let start = start_drag.clone(); move |event| start(event, token_gesture) },
+                            onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
+                            onpointerup: { let handler = end_drag.clone(); move |event| handler(event) },
+                            onpointercancel: { let handler = cancel_drag.clone(); move |event| handler(event) },
+                            onlostpointercapture: { let handler = cancel_drag.clone(); move |event| handler(event) },
+                            onkeydown: { let handler = on_key_down.clone(); move |event| handler(event) },
+                            onpointerenter: { let mut hovered = hovered; move |_| { hovered.set(true); show_hover(); } },
+                            onpointerleave: { let mut hovered = hovered; move |_| { hovered.set(false); hide_hover(); } },
+                            onfocus: { let mut focused = focused; move |_| { focused.set(true); show_focus(); } },
+                            onblur: { let mut focused = focused; move |_| { focused.set(false); hide_focus(); } },
+                            rect { x: "-9", y: "-9", width: "18", height: "18", rx: "4", style: "{tok_style}" }
+                            rect { x: "-10", y: "-12", width: "20", height: "24", style: "{hit_style}" }
+                            {glyph}
+                            if let Some(title) = token_title.as_ref() {
+                                title { "{title}" }
+                            }
+                        }
+                    }
+                    if token_lit
+                        && matches!(
+                            tool,
+                            LayoutTransformTool::Spread
+                                | LayoutTransformTool::Stagger
+                                | LayoutTransformTool::Offset
+                        )
+                    {
+                        line {
+                            x1: "{tok_x - guide_dx}",
+                            y1: "{tok_y - guide_dy}",
+                            x2: "{tok_x + guide_dx}",
+                            y2: "{tok_y + guide_dy}",
+                            class: "m1-rail-guide",
+                            style: "fill:none;stroke:var(--wb-accent);stroke-width:1px;stroke-dasharray:3 3;opacity:{guide_opacity};pointer-events:none;vector-effect:non-scaling-stroke",
+                        }
+                    }
                 }
-                if tool == LayoutTransformTool::Move {
+            }
+        }
+        if tool == LayoutTransformTool::Splay && token_lit {
+            if let Some(origin) = origin_point {
+                if let Some(arc_path) = arc.as_ref() {
+                    path {
+                        class: "m1-rail-guide",
+                        d: "M{origin.x} {origin.y} L{angle_point.x} {angle_point.y}",
+                        style: "fill:none;stroke:var(--wb-accent);stroke-width:1px;stroke-dasharray:3 3;opacity:{guide_opacity};pointer-events:none;vector-effect:non-scaling-stroke",
+                    }
+                    path {
+                        class: "m1-rail-guide",
+                        d: "{arc_path}",
+                        style: "fill:none;stroke:var(--wb-accent);stroke-width:1px;stroke-dasharray:3 3;opacity:{guide_opacity};pointer-events:none;vector-effect:non-scaling-stroke",
+                    }
+                }
+            }
+        }
+        if matches!(tool, LayoutTransformTool::Splay | LayoutTransformTool::Origin) {
+            if let Some(origin) = origin_point {
                 g {
-                    class: "m1-transform-handle m1-matrix-move-handle",
-                    transform: "translate({matrix_handle_point.x} {matrix_handle_point.y + 12.0}) scale({handle_scale})",
-                    role: "button", tabindex: "0", "aria-label": "Drag to move matrix",
-                    "aria-description": "X {matrix.origin.x:.2} mm, Y {matrix.origin.y:.2} mm",
+                    class: "m1-transform-handle",
+                    transform: "translate({origin.x} {origin.y}) scale({px} {-px})",
+                    role: "button", tabindex: "0", "aria-label": "Move splay origin",
+                    "aria-description": "Hold Ctrl while dragging to swing the origin without moving the keys.",
+                    "data-swing": "{swing_glyph()}",
+                    style: "cursor:grab;touch-action:none",
                     onpointerdown: { let start = start_drag.clone(); move |event| start(event, gesture) },
                     onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
                     onpointerup: { let handler = end_drag.clone(); move |event| handler(event) },
                     onpointercancel: { let handler = cancel_drag.clone(); move |event| handler(event) },
                     onlostpointercapture: { let handler = cancel_drag.clone(); move |event| handler(event) },
                     onkeydown: { let handler = on_key_down.clone(); move |event| handler(event) },
-                    rect { x: "-8", y: "-8", width: "16", height: "16" }
-                    path { d: "M0 -5v10M-5 0h10M-2.5 -2.5 0 -5l2.5 2.5M-2.5 2.5 0 5l2.5 -2.5" }
-                    title { "Drag to move matrix · X {matrix.origin.x:.2} mm, Y {matrix.origin.y:.2} mm" }
-                }
-                }
-                if tool == LayoutTransformTool::Rotate {
-                if matrix_rotation_followed {
-                    g {
-                        class: "m1-transform-handle m1-matrix-rotate-handle",
-                        transform: "translate({matrix_handle_point.x + 28.0} {matrix_handle_point.y + 12.0}) scale({handle_scale})",
-                        role: "button", tabindex: "0", "aria-label": "Drag to rotate matrix",
-                        "aria-description": "{matrix.rotation.unwrap_or(0.0):.2} degrees",
-                        onpointerdown: { let start = start_drag.clone(); move |event| start(event, gesture) },
-                        onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
-                        onpointerup: { let handler = end_drag.clone(); move |event| handler(event) },
-                        onpointercancel: { let handler = cancel_drag.clone(); move |event| handler(event) },
-                        onlostpointercapture: { let handler = cancel_drag.clone(); move |event| handler(event) },
-                        onkeydown: { let handler = on_key_down.clone(); move |event| handler(event) },
-                        circle { r: "8" }
-                        path { d: "M5.5 -2.5 A6 6 0 1 1 -2.5 -5.5M5.5 -5.5v3h-3" }
-                        title { "Drag to rotate matrix · {matrix.rotation.unwrap_or(0.0):.2} degrees" }
+                    rect {
+                        x: "-12",
+                        y: "-12",
+                        width: "24",
+                        height: "24",
+                        style: "fill:transparent;stroke:none;pointer-events:all",
                     }
-                } else {
-                    g {
-                        class: "m1-transform-handle m1-matrix-rotate-handle m1-handle-disabled",
-                        transform: "translate({matrix_handle_point.x + 28.0} {matrix_handle_point.y + 12.0}) scale({handle_scale})",
-                        role: "button", tabindex: "0", "aria-label": "Drag to rotate matrix",
-                        "aria-disabled": "true",
-                        "aria-description": "Follow rotation is off, so turning changes nothing.",
-                        circle { r: "8" }
-                        path { d: "M5.5 -2.5 A6 6 0 1 1 -2.5 -5.5M5.5 -5.5v3h-3" }
-                        title { "Rotate matrix (unavailable: Follow rotation is off)" }
+                    circle {
+                        r: "3",
+                        style: "fill:var(--wb-panel);stroke:var(--wb-accent);stroke-width:1.5px;vector-effect:non-scaling-stroke",
                     }
-                }
-                }
-            }
-        } else if tool == LayoutTransformTool::Spread {
-            g {
-                class: "m1-transform-handle m1-spread-handle",
-                transform: "translate({handle_point.x} {handle_point.y}) scale({handle_scale})",
-                role: "button", tabindex: "0", "aria-label": "{handle_label}",
-                "aria-description": "{handle_value}",
-                onpointerdown: { let start = start_drag.clone(); move |event| start(event, gesture) },
-                onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
-                onpointerup: { let handler = end_drag.clone(); move |event| handler(event) },
-                onpointercancel: { let handler = cancel_drag.clone(); move |event| handler(event) },
-                onlostpointercapture: { let handler = cancel_drag.clone(); move |event| handler(event) },
-                onkeydown: { let handler = on_key_down.clone(); move |event| handler(event) },
-                circle { r: "4" }
-                g { transform: "rotate(90)",
-                    path { d: "M0 -3v6M-1.5 -1.5 0 -3l1.5 1.5M-1.5 1.5 0 3l1.5 -1.5" }
-                }
-                title { "Drag to spread · {handle_value}" }
-            }
-        } else if matches!(tool, LayoutTransformTool::Stagger | LayoutTransformTool::Offset) {
-            g {
-                class: "m1-transform-handle m1-stagger-handle",
-                transform: "translate({handle_point.x} {handle_point.y}) scale({handle_scale})",
-                // The value is a description, not `aria-valuenow`: that belongs to range
-                // roles, and a handle that also edits a 2-D offset is a button.
-                role: "button", tabindex: "0", "aria-label": "{handle_label}",
-                "aria-description": "{handle_value}. Hold Ctrl while dragging to offset the column.",
-                "data-quick-offset": "{quick_offset_shown}",
-                onpointerdown: { let start = start_drag.clone(); move |event| start(event, gesture) },
-                onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
-                onpointerup: { let handler = end_drag.clone(); move |event| handler(event) },
-                onpointercancel: { let handler = cancel_drag.clone(); move |event| handler(event) },
-                onlostpointercapture: { let handler = cancel_drag.clone(); move |event| handler(event) },
-                onkeydown: { let handler = on_key_down.clone(); move |event| handler(event) },
-                circle { r: "4" }
-                if quick_offset_shown {
-                    path { d: "M0 -3.2v6.4M-3.2 0h6.4M-1.4 -1.8 0 -3.2l1.4 1.4M-1.4 1.8 0 3.2l1.4 -1.4M-1.8 -1.4-3.2 0l1.4 1.4M1.8 -1.4 3.2 0l-1.4 1.4" }
-                } else {
-                    // Drawn along `staggerAxis`, the direction the column's keys move per +1 mm.
-                    g { transform: "rotate({arrow_rotation})",
-                        path { d: "M0 -3v6M-1.5 -1.5 0 -3l1.5 1.5M-1.5 1.5 0 3l1.5 -1.5" }
+                    path {
+                        d: "M-6 0h12M0 -6v12",
+                        style: "fill:none;stroke:var(--wb-accent);stroke-width:1px;vector-effect:non-scaling-stroke",
                     }
-                }
-            }
-        } else {
-            g { class: "m1-transform-splay-handles",
-                if tool == LayoutTransformTool::Splay {
-                    path { class: "m1-transform-splay-guide", d: "M{handle_point.x} {handle_point.y} L{angle_point.x} {angle_point.y}" }
-                    path { class: "m1-transform-splay-guide", d: "{arc}" }
-
-                }
-                g {
-                    class: "m1-transform-handle m1-splay-origin-handle",
-                    transform: "translate({handle_point.x} {handle_point.y}) scale({handle_scale})",
-                    role: "button", tabindex: "0", "aria-label": "Move splay origin",
-                    "aria-description": "Hold Ctrl while dragging to swing the origin without moving the keys.",
-                    "data-swing": "{swing_glyph()}",
-                    onpointerdown: { let start = start_drag.clone(); move |event| start(event, TransformGesture::Origin { column: selected_column, swing: false }) },
-                    onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
-                    onpointerup: { let handler = end_drag.clone(); move |event| handler(event) },
-                    onpointercancel: { let handler = cancel_drag.clone(); move |event| handler(event) },
-                    onlostpointercapture: { let handler = cancel_drag.clone(); move |event| handler(event) },
-                    onkeydown: { let handler = on_key_down.clone(); move |event| handler(event) },
-                    circle { class: "m1-transform-handle-target", r: "4" }
-                    circle { r: "2" }
-                    path { d: "M-3.5 0h7M0 -3.5v7" }
                     title { "Move splay origin" }
-                }
-                if tool == LayoutTransformTool::Splay {
-                    {
-                        let origin = handle_point;
-                        let gesture = TransformGesture::Splay {
-                            column: selected_column,
-                            start_angle: 0.0,
-                            origin,
-                            swing: false,
-                        };
-                        rsx! {
-                            g {
-                                class: "m1-transform-handle m1-splay-angle-handle",
-                                transform: "translate({angle_point.x} {angle_point.y}) scale({handle_scale})",
-                                role: "button", tabindex: "0", "aria-label": "Drag to splay",
-                                "aria-description": "Hold Ctrl while dragging to swing the origin instead.",
-                                "data-swing": "{swing_glyph()}",
-                                onpointerdown: { let start = start_drag.clone(); move |event| start(event, gesture) },
-                                onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
-                                onpointerup: { let handler = end_drag.clone(); move |event| handler(event) },
-                                onpointercancel: { let handler = cancel_drag.clone(); move |event| handler(event) },
-                                onlostpointercapture: { let handler = cancel_drag.clone(); move |event| handler(event) },
-                                onkeydown: { let handler = on_key_down.clone(); move |event| handler(event) },
-                                rect { class: "m1-transform-handle-target", x: "-11", y: "-5", width: "22", height: "10" }
-                                path { d: "M-9 0Q0 6 9 0M-9 0l1 3M-9 0l3-.5M9 0l-1 3M9 0l-3-.5" }
-                                title { "Drag to splay · {angle_degrees:.0}°" }
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -1440,11 +1766,6 @@ fn accepted_basis<'a>(
         .columns
         .iter()
         .find(|basis| basis.column == column)
-}
-
-/// Rotation, in degrees, that turns the upright arrow glyph (drawn along +y) onto `axis`.
-fn stagger_arrow_degrees(axis: Vec2) -> f64 {
-    (-axis.x).atan2(axis.y).to_degrees()
 }
 
 fn stagger_parameter(column: u32, quick_offset: bool) -> PlacementParameter {
@@ -2641,12 +2962,14 @@ fn cancel_transform_drag(
     guide: &mut Signal<Option<Vec2>>,
     mut quick_glyph: Signal<bool>,
     mut swing_glyph: Signal<bool>,
+    svg_key: usize,
 ) {
     if abandon_transform_drag(runtime, drag, arbiter) {
         guide.set(None);
         quick_glyph.set(false);
         swing_glyph.set(false);
     }
+    rail_set_active(svg_key, None);
 }
 
 /// Cancel, Escape, lost capture or an owner change: clear the preview, release the pointer
@@ -4983,6 +5306,370 @@ mod tool_tests {
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
         panic!("the runtime did not become editable");
+    }
+
+    /// Ticket 03: two overlays sharing one svg, so the rail registry sees the
+    /// whole peer set. The host also provides the transient amber preview
+    /// contexts the Editor owns in production.
+    #[derive(Clone, PartialEq)]
+    struct RailProbe {
+        preview: Rc<RefCell<Option<Signal<Option<FieldPreviewState>>>>>,
+    }
+
+    #[derive(Props, Clone, PartialEq)]
+    struct RailPairProps {
+        runtime: LayoutTransformRuntime,
+        svg: LayoutTransformSvg,
+        matrix: Matrix,
+        projection: MatrixScene,
+        owner: LayoutOwnerIdentity,
+        scope: Scope,
+        context: TreeContext,
+        tools: Vec<LayoutTransformTool>,
+        probe: RailProbe,
+    }
+
+    #[component]
+    fn rail_pair_host(props: RailPairProps) -> Element {
+        let preview_state = use_signal(|| None::<FieldPreviewState>);
+        *props.probe.preview.borrow_mut() = Some(preview_state);
+        use_context_provider(|| FieldPreview(preview_state));
+        let model = props.runtime.0.model();
+        let accepted = model.accepted.clone().expect("an accepted document");
+        use_context_provider(|| {
+            Some(FieldPreviewSource {
+                document: accepted.document.clone(),
+                scene: accepted.scene.clone(),
+            })
+        });
+        let splay_affect = use_signal(|| MatrixSplayAffect::Column);
+        let arbiter = use_hook(CanvasInteractionArbiter::default);
+        let selected_context = use_signal(|| {
+            Some(ScopedTreeContext {
+                scope: props.scope.clone(),
+                context: props.context.clone(),
+            })
+        });
+        let scope_generation = use_signal(|| props.owner.generation);
+        let workspace = use_signal(|| "Layout");
+        rsx! {
+            svg { id: "rail-pair-svg", view_box: "0 0 100 100", width: "400", height: "400",
+                for tool in props.tools.clone() {
+                    LayoutTransformToolOverlay {
+                        key: "{tool:?}",
+                        runtime: props.runtime.clone(),
+                        svg: props.svg.clone(),
+                        arbiter: arbiter.clone(),
+                        owner: props.owner.clone(),
+                        selected_context,
+                        scope_generation,
+                        workspace,
+                        matrix: props.matrix.clone(),
+                        projection: props.projection.clone(),
+                        context: props.context.clone(),
+                        tool,
+                        snap_settings: super::super::layout_toolbar::LayoutSnapSettings::default(),
+                        snap_origins: Vec::new(),
+                        splay_affect,
+                        view_x: 0.0,
+                        view_y: 0.0,
+                        width: 100.0,
+                        height: 100.0,
+                        on_finish: EventHandler::new(|_| {}),
+                    }
+                }
+            }
+        }
+    }
+
+    /// Mount the rail's peer overlays in one svg, sharing one svg handle so
+    /// the registry lays out the real peer set. Returns the root and the
+    /// preview probe for the amber assertions.
+    async fn mount_rail_pair(
+        runtime: &Rc<Runtime>,
+        tools: Vec<LayoutTransformTool>,
+    ) -> (web_sys::Element, RailProbe) {
+        let model = runtime.model();
+        let accepted = model.accepted.as_ref().expect("an accepted document");
+        let matrix = fixture::accepted_matrix(runtime);
+        let projection = accepted
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == matrix.id)
+            .cloned()
+            .expect("the matrix scene");
+        let owner = LayoutOwnerIdentity {
+            scope: runtime.scope(),
+            token: Some(accepted.token),
+            revision: Some(accepted.document.revision),
+            generation: 0,
+            workspace: "Layout",
+        };
+        let svg = LayoutTransformSvg(Rc::new(RefCell::new(None)));
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let context = TreeContext::Column {
+            matrix_id: matrix.id.clone(),
+            column: 1,
+        };
+        let probe = RailProbe {
+            preview: Rc::new(RefCell::new(None)),
+        };
+        let props = RailPairProps {
+            runtime: LayoutTransformRuntime(runtime.clone()),
+            svg: svg.clone(),
+            matrix,
+            projection,
+            scope: owner.scope.clone().expect("a scope"),
+            owner,
+            context,
+            tools,
+            probe: probe.clone(),
+        };
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new_with_props(rail_pair_host, props),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(60).await;
+        *svg.0.borrow_mut() = root
+            .query_selector("#rail-pair-svg")
+            .unwrap()
+            .and_then(|element| element.dyn_into::<SvgElement>().ok());
+        // Every token needs the capture stubs: synthetic pointer events are
+        // never real active pointers, so the unstubbed capture throws and the
+        // drag refuses to start.
+        let handles = root.query_selector_all(".m1-transform-handle").unwrap();
+        let stub = js_sys::Function::new_no_args("return true;");
+        for index in 0..handles.length() {
+            let handle = handles.item(index).expect("the stubbed handle");
+            for method in [
+                "setPointerCapture",
+                "hasPointerCapture",
+                "releasePointerCapture",
+            ] {
+                js_sys::Reflect::set(handle.as_ref(), &method.into(), stub.as_ref()).unwrap();
+            }
+        }
+        (root, probe)
+    }
+
+    fn token_rect_style(root: &web_sys::Element, label: &str) -> String {
+        let token = root
+            .query_selector(&format!("[aria-label='{label}']"))
+            .unwrap()
+            .unwrap_or_else(|| panic!("the {label} token draws"));
+        let rect = token
+            .query_selector("rect")
+            .unwrap()
+            .expect("the token draws its box");
+        rect.get_attribute("style").unwrap_or_default()
+    }
+
+    fn token_opacity(root: &web_sys::Element, label: &str) -> String {
+        let token = root
+            .query_selector(&format!("[aria-label='{label}']"))
+            .unwrap()
+            .unwrap_or_else(|| panic!("the {label} token draws"));
+        token
+            .get_attribute("style")
+            .unwrap_or_default()
+            .split(';')
+            .find_map(|part| {
+                let (name, value) = part.split_once(':')?;
+                (name.trim() == "opacity").then(|| value.trim().to_owned())
+            })
+            .unwrap_or_else(|| "1".to_owned())
+    }
+
+    /// Ticket 03: the rail lays its tokens out side by side above the
+    /// selection at screen size; hover previews the movers in amber with a
+    /// selection-surface token and leaves nothing behind; while one token
+    /// drags, the token stays accent and its peers dim to 35%.
+    #[wasm_bindgen_test]
+    async fn rail_tokens_share_one_screen_size_row_with_hover_and_dimming() {
+        let runtime = fixture::open_matrix_runtime().await;
+        wait_until_editable(&runtime).await;
+        let before = fixture_revision(&runtime);
+        let (root, probe) = mount_rail_pair(
+            &runtime,
+            vec![LayoutTransformTool::Stagger, LayoutTransformTool::Splay],
+        )
+        .await;
+        // The rail draws one backdrop for two 18 px tokens: 2·18 + 2 + 2·2.
+        // Peers converge on the post-mount pass, so poll briefly.
+        let mut backdrop_width = None;
+        for _ in 0..40 {
+            backdrop_width = root
+                .query_selector("g[aria-hidden] rect")
+                .unwrap()
+                .and_then(|backdrop| backdrop.get_attribute("width"));
+            if backdrop_width.as_deref() == Some("42") {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(50).await;
+        }
+        assert_eq!(
+            backdrop_width.as_deref(),
+            Some("42"),
+            "two tokens share one 42 px rail"
+        );
+        // Both tokens sit on one row through the rail centre, symmetric about
+        // it, in the peers' canonical order. World offsets scale with the
+        // harness fallback until the first hover re-render, so these assert
+        // the scale-free invariants; absolute px geometry lives in the
+        // native `handle_rail` tests.
+        let stagger = root
+            .query_selector("[aria-label='Drag to stagger']")
+            .unwrap()
+            .expect("the stagger token draws");
+        let splay = root
+            .query_selector("[aria-label='Drag to splay']")
+            .unwrap()
+            .expect("the splay token draws");
+        let offset = |element: &web_sys::Element| {
+            let transform = element.get_attribute("transform").unwrap_or_default();
+            let inner = transform
+                .strip_prefix("translate(")
+                .unwrap_or_default()
+                .split([' ', ')'])
+                .collect::<Vec<_>>();
+            (
+                inner
+                    .first()
+                    .and_then(|x| x.parse::<f64>().ok())
+                    .unwrap_or(f64::NAN),
+                inner
+                    .get(1)
+                    .and_then(|y| y.parse::<f64>().ok())
+                    .unwrap_or(f64::NAN),
+            )
+        };
+        let (stagger_x, stagger_y) = offset(&stagger);
+        let (splay_x, splay_y) = offset(&splay);
+        let backdrop_group = root
+            .query_selector("g[aria-hidden]")
+            .unwrap()
+            .expect("the rail backdrop group draws");
+        let (rail_cx, rail_cy) = offset(&backdrop_group);
+        assert!(
+            (stagger_y - rail_cy).abs() < 1e-9 && (splay_y - rail_cy).abs() < 1e-9,
+            "the tokens share the rail row, got {stagger_y}, {splay_y} and {rail_cy}"
+        );
+        assert!(
+            ((stagger_x + splay_x) / 2.0 - rail_cx).abs() < 1e-9,
+            "the tokens centre on the rail, got {stagger_x}, {splay_x} and {rail_cx}"
+        );
+        assert!(
+            splay_x > stagger_x,
+            "the splay token follows the stagger token in canonical order"
+        );
+        // Token chrome is px art: an 18 px box plus a 20 by 24 hit area.
+        for label in ["Drag to stagger", "Drag to splay"] {
+            let token = root
+                .query_selector(&format!("[aria-label='{label}']"))
+                .unwrap()
+                .unwrap_or_else(|| panic!("the {label} token draws"));
+            let boxes = token.query_selector_all("rect").unwrap();
+            assert_eq!(
+                boxes.length(),
+                2,
+                "the {label} token draws box and hit area"
+            );
+        }
+        // Hover previews the movers in amber on a selection-surface token
+        // and leaves with no document revision.
+        dispatch_pointer(&stagger, "pointerenter", false, false, 0, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(60).await;
+        assert!(
+            token_rect_style(&root, "Drag to stagger").contains("var(--wb-selection-surface)"),
+            "hover fills the token with the selection surface"
+        );
+        let preview = probe
+            .preview
+            .borrow()
+            .as_ref()
+            .and_then(|signal| signal.read().clone());
+        assert!(
+            preview
+                .as_ref()
+                .is_some_and(|state| !state.parts.is_empty()),
+            "hover previews the keys the drag would move, got {preview:?}"
+        );
+        dispatch_pointer(&stagger, "pointerleave", false, false, 0, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(60).await;
+        assert!(
+            probe
+                .preview
+                .borrow()
+                .as_ref()
+                .is_none_or(|signal| signal.read().is_none()),
+            "leave clears the amber preview"
+        );
+        assert!(
+            !token_rect_style(&root, "Drag to stagger").contains("var(--wb-selection-surface)"),
+            "leave restores the muted token"
+        );
+        assert_eq!(
+            fixture_revision(&runtime),
+            before,
+            "hover and leave write nothing"
+        );
+        // While the stagger token drags, it stays accent and the splay peer
+        // dims to 35%: the drag re-render marks the token, and the peer's
+        // own hover pass reads the shared mount set.
+        dispatch_pointer(&stagger, "pointerdown", false, false, 1, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&stagger, "pointermove", false, false, 1, (140, 100));
+        for _ in 0..100 {
+            support::run_pending(&runtime).await;
+            if runtime.model().display_preview.is_some() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            runtime.model().display_preview.is_some(),
+            "the token drag previews before commit"
+        );
+        assert!(
+            token_rect_style(&root, "Drag to stagger").contains("var(--wb-accent)"),
+            "the active token keeps the accent fill"
+        );
+        dispatch_pointer(&splay, "pointerenter", false, false, 0, (140, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&splay, "pointerleave", false, false, 0, (140, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            token_opacity(&root, "Drag to splay"),
+            "0.35",
+            "the peer dims while the stagger token drags"
+        );
+        assert_eq!(
+            token_opacity(&root, "Drag to stagger"),
+            "1",
+            "the active token keeps full opacity"
+        );
+        dispatch_pointer(&stagger, "pointerup", false, false, 0, (140, 100));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > before {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        // The peer undims once the drag lands.
+        dispatch_pointer(&splay, "pointerenter", false, false, 0, (140, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&splay, "pointerleave", false, false, 0, (140, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            token_opacity(&root, "Drag to splay"),
+            "1",
+            "the peer undims after the drag lands"
+        );
+        root.remove();
     }
 
     /// One synthetic pointer drag on the handle: down, move, up. The dispatched
