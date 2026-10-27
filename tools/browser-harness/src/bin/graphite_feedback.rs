@@ -255,9 +255,11 @@ async fn run(p: &Page, shots: Option<&str>) -> Result<()> {
         wait(p, &format!("{expression} === 10")).await?;
     }
     click(p, "Create matrix").await?;
-    wait(
+    driver::wait_for(
         p,
         "!!document.querySelector('.m1-scene-part[data-part-id^=\"matrix/\"]')",
+        "initial matrix geometry",
+        Duration::from_secs(60),
     )
     .await?;
     click(p, "Hide guide").await?;
