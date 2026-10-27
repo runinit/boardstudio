@@ -36,6 +36,25 @@ async fn css(p: &Page, selector: &str) -> Result<()> {
 async fn eval(p: &Page, expr: &str) -> Result<Value> {
     driver::eval(p, expr).await
 }
+async fn visible(p: &Page, selector: &str) -> Result<bool> {
+    let selector_json = serde_json::to_string(selector).map_err(err)?;
+    if eval(p, &format!("!!document.querySelector({selector_json})")).await? != Value::Bool(true) {
+        return Ok(false);
+    }
+    driver::is_visible(p, driver::backend_of(p, selector).await?).await
+}
+async fn wait_visible(p: &Page, selector: &str, timeout: Duration) -> Result<()> {
+    tokio::time::timeout(timeout, async {
+        loop {
+            if visible(p, selector).await? {
+                return Ok(());
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .map_err(|_| err(format!("timed out waiting for visible {selector}")))?
+}
 async fn check(p: &Page, failures: &mut Vec<String>, label: &str, expr: &str) -> Result<()> {
     let passed = eval(p, expr).await? == Value::Bool(true);
     println!("{} {label}", if passed { "PASS" } else { "FAIL" });
@@ -238,12 +257,13 @@ async fn run(p: &Page, shots: Option<&str>) -> Result<()> {
         ".m1-scene-part[data-part-id^=\"matrix/\"][data-part-id$=\"r0c2\"] .m1-part-hit-area",
     )
     .await?;
+    let key_size_visible = visible(p, ".m1-key-size-preview svg").await?.to_string();
     for (label, expr) in [
         ("canvas numeric card removed", "document.querySelectorAll('.m1-canvas-measurements').length === 0"),
         ("board picker removed", "document.querySelectorAll('#m1-objects-panel select[aria-label=Board]').length === 0"),
         ("footer grid status removed", "document.querySelectorAll('.m1-canvas-footer-grid').length === 0"),
         ("key size starts expanded at top", "document.querySelectorAll('.m1-layout-key-size-section[open]').length === 1"),
-        ("key size SVG preview present", "!!document.querySelector('.m1-key-size-preview svg')?.getBoundingClientRect().width"),
+        ("key size SVG preview present", key_size_visible.as_str()),
         ("width/height sliders removed", "document.querySelectorAll('input[aria-label=\"Key width\"],input[aria-label=\"Key height\"]').length === 0")
     ] { check(p,&mut f,label,expr).await?; }
     set(p, "Key size", "2").await?;
@@ -323,10 +343,13 @@ async fn run(p: &Page, shots: Option<&str>) -> Result<()> {
         f.push("Ctrl offset is one undo step (blocked: edit did not land)".into());
     }
     driver::control(p, DispatchKeyEventType::KeyUp).await?;
+    let delete_visible = (visible(p, ".m1-inspector-body .m1-selection-delete button").await?
+        && visible(p, ".m1-canvas-delete button").await?)
+        .to_string();
     for (label, expr) in [
       ("stagger returns after Ctrl release", "document.querySelectorAll('[aria-label=\"Drag to stagger\"]').length === 1"),
       ("stagger and splay form a centered accessible rail", r#"(() => { const keys = [...document.querySelectorAll('.m1-keycap-overlay.is-selected')].map(e => e.getBoundingClientRect()); const handles = ['Drag to stagger', 'Drag to splay'].map(label => document.querySelector(`[aria-label="${label}"]`)); if (!keys.length || handles.some(e => !e || e.getAttribute('role') !== 'button' || e.getAttribute('tabindex') !== '0')) return false; const [a, b] = handles.map(e => e.getBoundingClientRect()); const center = (Math.min(...keys.map(r => r.left)) + Math.max(...keys.map(r => r.right))) / 2; return a.width > 0 && b.width > 0 && Math.abs(a.right - b.left) <= 2 && Math.abs(a.top - b.top) <= 2 && Math.abs((a.left + b.right) / 2 - center) <= 3 && a.top < Math.min(...keys.map(r => r.top)); })()"#),
-      ("delete is outside Advanced and available on canvas", "['.m1-inspector-body .m1-selection-delete button','.m1-canvas-delete button'].every(s=>{const e=document.querySelector(s);return !!e && !!e.getBoundingClientRect().width})"),
+      ("delete is outside Advanced and available on canvas", delete_visible.as_str()),
       ("Splay affects is beside Splay, outside origin disclosure", "!document.querySelector('.m1-inspector-body [aria-label=\"Splay affects\"]').closest('details[aria-label=\"Splay and origin\"]')"),
       ("Layers collapsed by default", "document.querySelector('#m1-layers-trigger').getAttribute('aria-expanded') === 'false'"),
       ("Layers stays at bottom independent of tree length", "(() => {const d=document.querySelector('#m1-layers-trigger').getBoundingClientRect(),p=document.querySelector('#m1-objects-panel').getBoundingClientRect();return d.y>p.y+p.height-110})()")
@@ -350,8 +373,8 @@ async fn run(p: &Page, shots: Option<&str>) -> Result<()> {
     wait(p, "document.querySelector('#m1-layout-snap-trigger')?.getAttribute('aria-expanded') === 'true' && !!document.querySelector('select[aria-label=\"Snap increment\"]')").await?;
     let increment =
         driver::backend_of_wait(p, "select[aria-label=\"Snap increment\"]", WAIT).await?;
-    let visible = driver::is_visible(p, increment).await?;
-    check(p, &mut f, "Snap accordion opens with Space and keeps focus", &format!("document.activeElement?.id === 'm1-layout-snap-trigger' && document.querySelector('#m1-layout-snap-trigger').getAttribute('aria-expanded') === 'true' && {visible}")).await?;
+    let increment_visible = driver::is_visible(p, increment).await?;
+    check(p, &mut f, "Snap accordion opens with Space and keeps focus", &format!("document.activeElement?.id === 'm1-layout-snap-trigger' && document.querySelector('#m1-layout-snap-trigger').getAttribute('aria-expanded') === 'true' && {increment_visible}")).await?;
     set(p, "Snap increment", "0.5").await?;
     press_enter(p).await?;
     wait(p, "document.querySelector('#m1-layout-snap-trigger')?.getAttribute('aria-expanded') === 'false'").await?;
@@ -397,11 +420,12 @@ async fn run(p: &Page, shots: Option<&str>) -> Result<()> {
         "document.querySelector('.m1-pcb-wiring-header h2')?.textContent === 'Routing & nets'",
     )
     .await?;
+    let nets_visible = visible(p, ".m1-pcb-net-overview").await?;
     check(
         p,
         &mut f,
         "Nets overview visible",
-        "!!document.querySelector('.m1-pcb-net-overview')?.getBoundingClientRect().width",
+        &nets_visible.to_string(),
     )
     .await?;
     set(p, "Group objects by", "part").await?;
@@ -461,12 +485,17 @@ async fn run(p: &Page, shots: Option<&str>) -> Result<()> {
         if workspace == "Parts" {
             let root = driver::backend_of(p, "#m1-objects-panel").await?;
             driver::click_role(p, Some(root), "button", "New assembly").await?;
-            wait(p, "!!document.querySelector('.m1-parts-assembly-editor')").await?;
+            wait_visible(p, ".m1-parts-assembly-editor", WAIT).await?;
             passed("left + opens existing assembly editor");
             check(p,&mut f,"New assembly action removed from Inspector","document.querySelectorAll('.m1-inspector-body > .m1-parts-inspector > .m1-parts-assemblies > .m1-parts-create-component').length===0").await?;
             driver::click_role(p, None, "option", "MX Hotswap").await?;
             click(p, "3D model").await?;
-            driver::wait_for(p,"!!document.querySelector('.m1-case-view-toolbar [aria-label=\"Part preview view\"]')","Part preview view",Duration::from_secs(60)).await?;
+            wait_visible(
+                p,
+                ".m1-case-view-toolbar [aria-label=\"Part preview view\"]",
+                Duration::from_secs(60),
+            )
+            .await?;
             passed("Parts 3D view mode and camera controls share one pill");
             click(p, "2D footprint").await?;
         }
