@@ -680,15 +680,12 @@ def main():
             if not args.admission_note or not args.admission_note.is_file():
                 parser.error("runtime needs root's --admission-note for this frozen source/artifacts/quiet window")
             (out / "admission.log").write_text(args.admission_note.read_text())
-            if not args.build_run or not (args.build_run / "binding-after.log").is_file():
+            if not args.build_run:
                 parser.error("runtime requires --build-run from a successful source-bound full build capture")
-            build_binding = (args.build_run / "binding-after.log").read_text()
-            if "\nexit=0\n" not in (args.build_run / "command.log").read_text():
-                parser.error("the referenced full build failed")
-            bound_fields = ("head=", "source_sha256=", "profile=", "official_provider_inputs=", "provider_stamp=", "artifact_")
-            selected = lambda lines: [line for line in lines if line.startswith(bound_fields)]
-            if selected(build_binding.splitlines()) != selected(before):
-                parser.error("full build binding does not match these served source/profile/artifacts")
+            try:
+                validate_page_build_receipt(None, args.build_run, "\n".join(before) + "\n")
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                parser.error(f"build receipt rejected: {error}; supply a successful matching --build-run")
         package = root / "cad/wasm/pkg"
         staged = root / "web/target/site/site-subpath/boardstudio/assets/cad"
         for file in package.glob("*.js"):

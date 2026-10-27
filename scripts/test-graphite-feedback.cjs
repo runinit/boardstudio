@@ -1,11 +1,11 @@
 // Current Graphite feedback acceptance. Requires Playwright on NODE_PATH.
-const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-if (process.env.BOARDSTUDIO_GRAPHITE_IDENTITY) {
+if (process.env.BOARDSTUDIO_GRAPHITE_IDENTITY || process.env.BOARDSTUDIO_GRAPHITE_BUILD_RUN) {
   const result = require('node:child_process').spawnSync('python3', [require('node:path').join(__dirname, 'graphite-identity.py')], { stdio: 'inherit' });
   if (result.status !== 0) throw Error('Graphite identity collection failed');
 }
+const { chromium } = require('playwright');
 (async () => {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_BIN || '/usr/bin/chromium', args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const context = await browser.newContext({ colorScheme: 'dark', viewport: { width: 1513, height: 1043 } });

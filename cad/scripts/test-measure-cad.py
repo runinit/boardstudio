@@ -41,6 +41,29 @@ class CaptureSelectionTests(unittest.TestCase):
                                 with self.assertRaisesRegex(RuntimeError, "binding reached"):
                                     PERF.main()
 
+    def test_runtime_rejects_invalid_build_receipt_before_browser(self):
+        evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as directory:
+            root = Path(directory)
+            note = root / "note"
+            note.touch()
+            build = root / "build"
+            build.mkdir()
+            (build / "binding-after.log").write_text("")
+            (build / "command.log").write_text("\nexit=0\n")
+            (build / "build.csv").write_text("status\nbinding-rejected\n")
+            args = ["measure-cad.py", "runtime", "--checkout", str(root), "--source-head", "head",
+                    "--workload", "C1plate:preview", "--admission-note", str(note),
+                    "--build-run", str(build), "--output", str(root / "out")]
+            with patch.object(sys, "argv", args), patch.object(PERF, "git", return_value="head"), \
+                 patch.object(PERF, "binding", return_value=([], True)), \
+                 patch.object(PERF.browser_tools, "locate", side_effect=AssertionError("browser reached")), \
+                 patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                with self.assertRaises(SystemExit):
+                    PERF.main()
+                self.assertIn("build receipt", stderr.getvalue())
+
     def test_rust_selection_accepts_worker_workloads_only(self):
         self.assertEqual(PERF.capture_driver("node", "C1plate:preview"), "node")
         for workload in (*PERF.PAIRED, *PERF.UNPAIRED):
