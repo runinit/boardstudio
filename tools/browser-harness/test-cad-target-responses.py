@@ -3,8 +3,11 @@
 import http.server
 import json
 import os
+import signal
 import subprocess
+import tempfile
 import threading
+import time
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -31,6 +34,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pass
 
 
+def run_probe(command, timeout):
+    def terminate(signum, _frame):
+        raise SystemExit(128 + signum)
+
+    previous = signal.signal(signal.SIGTERM, terminate)
+    # Keep the exited leader unreaped until its group is killed, preventing PID reuse.
+    try:
+        with tempfile.TemporaryFile(mode="w+t") as stdout, tempfile.TemporaryFile(mode="w+t") as stderr:
+            process = subprocess.Popen(command, stdout=stdout, stderr=stderr, start_new_session=True)
+            deadline = time.monotonic() + timeout
+            try:
+                while not os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT):
+                    if time.monotonic() >= deadline:
+                        raise subprocess.TimeoutExpired(command, timeout)
+                    time.sleep(min(0.05, max(0, deadline - time.monotonic())))
+            finally:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.wait()
+            stdout.seek(0)
+            stderr.seek(0)
+            return subprocess.CompletedProcess(command, process.returncode, stdout.read(), stderr.read())
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
 def main():
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -40,7 +71,7 @@ def main():
     try:
         for mode in ("responses", "page-error", "missing-worker"):
             Handler.mode = mode
-            result = subprocess.run([binary, origin + "/host"], capture_output=True, text=True, timeout=180)
+            result = run_probe([binary, origin + "/host"], timeout=180)
             if mode == "responses":
                 assert result.returncode == 0, result.stderr
                 output = json.loads(result.stdout)
