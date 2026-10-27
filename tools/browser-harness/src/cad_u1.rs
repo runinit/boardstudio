@@ -32,15 +32,6 @@ fn upload_archive() -> Result<std::path::PathBuf> {
     Ok(canonical)
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn upload_archive_is_canonical() {
-        let path = super::upload_archive().unwrap();
-        assert_eq!(path, std::fs::canonicalize(&path).unwrap());
-    }
-}
-
 async fn wait(page: &Page, expression: &str, label: &str) -> Result<()> {
     driver::wait_for(page, expression, label, WAIT).await
 }
@@ -277,4 +268,13 @@ pub(super) async fn run(
         .map_err(|e| Error(e.to_string()))?;
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn upload_archive_is_canonical() {
+        let path = super::upload_archive().unwrap();
+        assert_eq!(path, std::fs::canonicalize(&path).unwrap());
+    }
 }
