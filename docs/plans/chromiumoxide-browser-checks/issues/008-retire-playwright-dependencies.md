@@ -304,3 +304,40 @@ comparison and supported-gate integration of the new controls remain before remo
 The final controls and 36 scheduler tests passed
 (`.evidence/ticket008-cad-close-verified.log`); temporary Chromium-owned files were
 left at the path reported by that run rather than removed speculatively.
+
+## 2026-10-27: CAD controls integrated; historical backend blocker
+
+The supported browser gate now runs the controlled Rust consumer checks and the
+real-provider cold-response/failure control, with logs retained under
+`web/target/test-results/`. Their harness builds inherit the shared lock. Quick
+checks omit the packaged-site cold control and explicitly name the browser gate
+when either control script changes. The controlled worker now also tests six
+vendor-import operations and the incomplete-vendor failure, replacing the remaining
+worker-sequence/census cases of the Node self-check on the Rust consumer path.
+
+The manual `tools/browser-harness/compare-cad-responses.py` now runs Rust capture
+and Rust response probe on the same packaged site. Each must observe the five CAD
+resources; triangle, buffer and STEP sizes must match. Other response-count
+differences are reported, not treated as failures, consistent with the same-run
+decision. The old command failed without Playwright
+(`.evidence/ticket008-cad-compare-red.log`); the Rust-only command passed without
+`NODE_PATH` on Chrome 145 (`.evidence/ticket008-cad-compare-green.log`). This is
+two diagnostic captures on an existing site, not source-bound or timing evidence.
+
+The current Monstertruck checkout rejects `--driver node` before creating output;
+the new launcher test went red before this restriction and green after. The
+historical Cadrum reproduction remains a live documented path in `measure-cad.py`:
+it selects backend `cadrum`, whereas the actual Rust `cad-capture` executable
+rejects that backend (`.evidence/ticket008-cadrum-rust-rejection.log`). The Node
+driver, selector for historical checkouts, and its self-check therefore remain;
+deleting them would remove that manual workflow without a verified replacement.
+Port and verify the historical backend or explicitly retire that workflow before
+removing them. This is not complete Playwright retirement.
+
+The integrated scheduler commands passed on Chrome 145 with `NODE_PATH` unset;
+the CAD launcher, scheduler and quick suites passed 28, 37 and 18 tests, and both
+Node tooling protocol suites passed (`.evidence/ticket008-cad-integrated-final.log`).
+The real current-checkout Node selection exited 2 before build or output creation
+(`.evidence/ticket008-retired-current-node.log`). The browser controls use a
+simulated worker and an existing local site respectively; the full browser gate,
+full verification and hosted CI were not run in this slice.

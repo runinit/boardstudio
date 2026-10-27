@@ -607,6 +607,8 @@ def main():
         if args.workload == "U1:page":
             parser.error("U1:page provides validation only, with no runtime samples; use validate for diagnostics")
     root, out = args.checkout.resolve(), args.output.resolve()
+    if args.driver == "node" and args.action in ("build", "runtime", "validate") and not (root / "cad/scripts/cadrum_build.py").is_file():
+        parser.error("--driver node is retained only for historical Cadrum checkouts; use --driver rust")
     if not out.is_relative_to(ROOT / ".evidence"):
         parser.error("capture outputs must be under this lane's .evidence")
     if out.exists():

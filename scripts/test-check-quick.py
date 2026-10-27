@@ -125,7 +125,8 @@ class QuickPlanTests(unittest.TestCase):
                     plan = dict(check.quick_plan(selection, PACKAGES))
                     self.assertEqual(plan["test"], check.CARGO_TESTS)
                     self.assertEqual(plan["browser"], [command for command in check.browser()
-                                                     if "run-drag-browser.py" not in " ".join(command)])
+                                                     if not any(name in command for name in
+                                                                ("scripts/run-drag-browser.py", "cad/scripts/test-cold-responses.py"))])
                     runner = [command for command in plan["browser"]
                               if "scripts/run-wasm-tests.py" in command]
                     self.assertEqual(len(runner), 1)
@@ -137,12 +138,19 @@ class QuickPlanTests(unittest.TestCase):
         plan = self.plan(["Cargo.lock"])
         self.assertEqual(plan["test"], check.CARGO_TESTS)
         self.assertEqual(plan["browser"], [command for command in check.browser()
-                                             if "run-drag-browser.py" not in " ".join(command)])
+                                             if not any(name in command for name in
+                                                        ("scripts/run-drag-browser.py", "cad/scripts/test-cold-responses.py"))])
 
     def test_quick_full_rust_plan_skips_page_drag_smoke_without_building(self):
         plan = self.plan(["Cargo.lock"])
         self.assertNotIn("build", plan)
         self.assertFalse(any("run-drag-browser.py" in " ".join(command) for command in plan["browser"]))
+        self.assertNotIn([check.PY, "cad/scripts/test-cold-responses.py"], plan["browser"])
+
+    def test_quick_names_skipped_cad_browser_controls(self):
+        for path in ("cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py"):
+            selection = quick.select([path], PACKAGES)
+            self.assertTrue(any(path in note and "browser" in note for note in selection.notes))
 
     def test_changed_files_come_from_git_and_include_untracked_files(self):
         def fake(args, **kwargs):

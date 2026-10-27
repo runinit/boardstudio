@@ -27,9 +27,18 @@ self.onmessage = async ({data}) => {
   await record({event:'request', requestId:frame.requestId, operation:frame.operation});
   const mesh = id => ({id, positions:new Float32Array([0,0,0,1,0,0,0,1,0]),
     normals:new Float32Array([0,0,1,0,0,1,0,0,1])});
-  const result = frame.operation === 'export-step' ? {revision:frame.identity.revision, step:new Uint8Array([1,2,3])} :
-    {revision:frame.identity.revision, bodies:frame.prepared.bodies.map(body => mesh(body.body.id))};
-  if (BAD && result.bodies) result.bodies[0].positions[0] = NaN;
+  let result;
+  if (frame.operation === 'export-step') result = {revision:frame.identity.revision, step:new Uint8Array([1,2,3])};
+  else if (frame.operation === 'read-step') {
+    const count = FAULT === 'vendor' ? 154 : 155;
+    result = {mesh:mesh('vendor'), bounds:{}, vendorStep:{sourceSha256:frame.sourceSha256,
+      sourceFaces:Array.from({length:count}, (_, i) => ({faceId:i})),
+      faceOccurrences:Array.from({length:count}, (_, i) => ({sourceFaceIndex:i})),
+      triangleFaceOccurrenceIndices:Uint32Array.from({length:count}, (_, i) => i),
+      surfacePositionsMmF64:new Float64Array(count*9), lineSegmentsMmF64:new Float64Array(),
+      segmentLineOccurrenceIndices:new Uint32Array(), lineOccurrences:[]}};
+  } else result = {revision:frame.identity.revision, bodies:frame.prepared.bodies.map(body => mesh(body.body.id))};
+  if (FAULT === true && result.bodies) result.bodies[0].positions[0] = NaN;
   self.postMessage({kind:'reply', frame:JSON.stringify({...frame, outcome:'completed'}), result});
 };
 self.postMessage({kind:'ready'});
@@ -38,10 +47,16 @@ self.postMessage({kind:'ready'});
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("output", type=Path, help="new output directory for capture logs and controlled observations")
+    parser.add_argument("output", type=Path, nargs="?", help="new output directory for capture logs and controlled observations")
     args = parser.parse_args()
-    output = args.output.resolve()
-    output.mkdir(parents=True, exist_ok=False)
+    if args.output:
+        output = args.output.resolve()
+        output.mkdir(parents=True, exist_ok=False)
+    else:
+        parent = ROOT / "web/target/test-results/cad-capture-controls"
+        parent.mkdir(parents=True, exist_ok=True)
+        output = Path(tempfile.mkdtemp(prefix="run-", dir=parent))
+    print(f"CAD capture control output: {output}", flush=True)
     chrome = browser_tools.locate_chrome()
     binary = browser_tools._build_harness("cad-capture")
     records = []
@@ -65,8 +80,14 @@ def main():
             elif self.path == "/__perf/cad/test/fixtures/performance/C1plate.json":
                 data = (ROOT / "cad/test/fixtures/performance/C1plate.json").read_bytes()
                 content_type = "application/json"
+            elif self.path == "/__perf/cad/test/fixtures/followup-manifest.json":
+                data = (ROOT / "cad/test/fixtures/followup-manifest.json").read_bytes()
+                content_type = "application/json"
+            elif self.path == "/__source/ergogen/library/vendor/kicad/3d_models/Panasonic_EVQPUL_EVQPUC.step":
+                data = (ROOT / self.path.removeprefix("/__source/")).read_bytes()
+                content_type = "application/octet-stream"
             elif self.path == "/boardstudio/assets/cad-worker/entry.js":
-                data, content_type = WORKER.replace("BAD", "true" if bad else "false").encode(), "text/javascript"
+                data, content_type = WORKER.replace("FAULT", json.dumps(bad)).encode(), "text/javascript"
             else:
                 self.send_error(404)
                 return
@@ -81,16 +102,18 @@ def main():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        for name, operation, sequence, bad in (
-                ("preview-validation", "preview", "validation", False),
-                ("preview-latency", "preview", "latency", False),
-                ("step-latency", "step", "latency", False),
-                ("invalid-mesh", "preview", "validation", True)):
+        for name, fixture, operation, sequence, bad in (
+                ("preview-validation", "C1plate", "preview", "validation", False),
+                ("preview-latency", "C1plate", "preview", "latency", False),
+                ("step-latency", "C1plate", "step", "latency", False),
+                ("vendor-latency", "V1switch", "import", "latency", False),
+                ("invalid-vendor", "V1switch", "import", "validation", "vendor"),
+                ("invalid-mesh", "C1plate", "preview", "validation", True)):
             records.clear()
             directory = output / name
             directory.mkdir()
             command = [str(binary), f"http://127.0.0.1:{server.server_port}", "monstertruck", "checked",
-                       f"C1plate:{operation}", str(directory), "1", sequence]
+                       f"{fixture}:{operation}", str(directory), "1", sequence]
             result = subprocess.run(command, cwd=ROOT, env=dict(os.environ, CHROME_BIN=chrome),
                                     capture_output=True, text=True, timeout=240)
             (directory / "process.log").write_text(f"exit={result.returncode}\n{result.stdout}\n{result.stderr}")
@@ -99,7 +122,8 @@ def main():
             final = next(event for event in events if event["name"] == "result")
             if bad:
                 assert result.returncode != 0 and final["failed"], name
-                assert any(event["name"] == "failure" and "Error: invalid mesh" in event["error"] for event in events), name
+                expected = "Error: incomplete vendor source/occurrence coverage" if bad == "vendor" else "Error: invalid mesh"
+                assert any(event["name"] == "failure" and expected in event["error"] for event in events), name
                 assert not any(event["name"] == "reply-retained" for event in events), name
                 assert not any(message in result.stderr for message in
                                ("browser shutdown failed", "browser termination unconfirmed", "cannot remove browser profile")), result.stderr
@@ -110,7 +134,8 @@ def main():
             requests = [record for record in records if record["event"] == "request"]
             ready = [record for record in records if record["event"] == "ready"]
             assert len(requests) == count and len({r["requestId"] for r in requests}) == count, (name, records)
-            assert all(r["operation"] == ("export-step" if operation == "step" else "preview") for r in requests), records
+            expected_op = "export-step" if operation == "step" else "read-step" if operation == "import" else "preview"
+            assert all(r["operation"] == expected_op for r in requests), records
             assert len(ready) == (count if operation == "step" else 1), (name, records)
             assert len({r["id"] for r in requests}) == (count if operation == "step" else 1), (name, records)
             assert [r["id"] for r in requests] == ([r["id"] for r in ready] if operation == "step"

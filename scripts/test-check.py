@@ -43,8 +43,6 @@ class CheckTests(unittest.TestCase):
         registered = {argument for _, commands in check.STEPS.values()
                       for command in commands for argument in command if argument in scripts}
         opt_in = {
-            "cad/scripts/test-cold-responses.py": "diagnostic requiring a packaged site, capture binary and Chrome",
-            "cad/scripts/test-cad-capture-controls.py": "controlled Rust CAD capture requiring Chrome and Cargo",
             "cad/scripts/test-startup-readiness.py": "Rust diagnostic requiring a packaged site and Chrome",
             "scripts/test-drag-browser-consumer-controls.py": "Linux CI consumer fault controls",
             "scripts/test-graphite-feedback.cjs": "interactive Graphite acceptance against a running dev server",
@@ -106,6 +104,17 @@ class CheckTests(unittest.TestCase):
 
     def test_browser_runs_packaged_provider_regressions(self):
         self.assertIn([check.PY, "cad/scripts/test-cad-provider.py"], check.STEPS["browser"][1])
+
+    def test_browser_gate_runs_cad_capture_controls_with_the_shared_lock(self):
+        for script in ("cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py"):
+            command = [check.PY, script]
+            self.assertIn(command, check.STEPS["browser"][1])
+            with mock.patch.object(check.browser_tools, "_inherited_build_lock", return_value=9), \
+                    mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0)) as run, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                check.run_serial(command, {"BOARDSTUDIO_BUILD_LOCK_FD": "9"})
+            self.assertEqual(run.call_args.kwargs["env"]["BOARDSTUDIO_BUILD_LOCK_FD"], "9")
+            self.assertEqual(run.call_args.kwargs["pass_fds"], (9,))
 
     def test_full_check_runs_the_documented_steps_in_order(self):
         self.assertEqual(check.DEFAULT, ("repo", "tooling", "lint", "build", "test", "browser"))

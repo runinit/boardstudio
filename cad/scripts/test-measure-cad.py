@@ -21,6 +21,20 @@ SPEC.loader.exec_module(PERF)
 
 
 class CaptureSelectionTests(unittest.TestCase):
+    def test_node_driver_rejected_for_current_checkout_before_output_or_browser(self):
+        evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as directory:
+            output = Path(directory) / "out"
+            args = ["measure-cad.py", "validate", "--driver", "node", "--checkout", str(Path(directory)),
+                    "--output", str(output)]
+            with patch.object(sys, "argv", args), patch.object(PERF, "binding", side_effect=AssertionError("binding reached")), \
+                    patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                with self.assertRaises(SystemExit):
+                    PERF.main()
+            self.assertIn("historical Cadrum", stderr.getvalue())
+            self.assertFalse(output.exists())
+
     def test_default_build_uses_rust_chrome_prerequisites(self):
         evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
         evidence.mkdir(parents=True, exist_ok=True)
@@ -41,7 +55,7 @@ class CaptureSelectionTests(unittest.TestCase):
         evidence.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=evidence) as directory:
             for workload, reason in (("U1:page", "samples"),):
-                for action, driver in (("runtime", "rust"), ("validate", "rust"), ("runtime", "node")):
+                for action, driver in (("runtime", "rust"), ("validate", "rust")):
                     with self.subTest(workload=workload, action=action, driver=driver):
                         args = ["measure-cad.py", action, "--driver", driver, "--workload", workload,
                                 "--output", str(Path(directory) / f"{workload.replace(':', '-')}-{action}-{driver}")]
@@ -113,27 +127,47 @@ class CaptureSelectionTests(unittest.TestCase):
             receipt = Path(directory) / "receipt"
             receipt.touch()
             for action in ("build", "validate"):
-                for driver in ("rust", "node"):
-                    with self.subTest(action=action, driver=driver):
-                        out = Path(directory) / f"{action}-{driver}"
-                        args = ["measure-cad.py", action, "--checkout", str(root), "--source-head", "head",
-                                "--driver", driver, "--output", str(out)]
-                        args += (["--state", "noop"] if action == "build" else
-                                 ["--workload", "C1plate:preview", "--artifact-receipt", str(receipt)])
-                        with patch.object(sys, "argv", args), patch.object(PERF, "git", return_value="head"), \
-                             patch.object(PERF, "binding", return_value=([], True)), \
-                             patch.object(PERF, "existing_artifacts", return_value="fixture"), \
-                             patch.object(PERF.browser_tools, "locate", side_effect=PERF.browser_tools.MissingBrowserTool("playwright-core unavailable")), \
-                             patch.object(PERF.browser_tools, "locate_chrome", return_value="/chrome"), \
-                             patch.object(PERF.browser_tools, "_build_harness", return_value=Path("/capture")), \
-                             patch.object(PERF, "capture", return_value=(1, 0)), \
-                             patch.object(PERF, "sizes"), patch.object(PERF.subprocess, "Popen") as process:
-                            process.return_value.wait.return_value = 0
-                            if driver == "node":
-                                with self.assertRaisesRegex(PERF.browser_tools.MissingBrowserTool, "playwright-core"):
-                                    PERF.main()
-                            else:
-                                self.assertEqual(PERF.main(), 1 if action == "build" else 0)
+                with self.subTest(action=action):
+                    out = Path(directory) / f"{action}-rust"
+                    args = ["measure-cad.py", action, "--checkout", str(root), "--source-head", "head",
+                            "--driver", "rust", "--output", str(out)]
+                    args += (["--state", "noop"] if action == "build" else
+                             ["--workload", "C1plate:preview", "--artifact-receipt", str(receipt)])
+                    with patch.object(sys, "argv", args), patch.object(PERF, "git", return_value="head"), \
+                         patch.object(PERF, "binding", return_value=([], True)), \
+                         patch.object(PERF, "existing_artifacts", return_value="fixture"), \
+                         patch.object(PERF.browser_tools, "locate", side_effect=PERF.browser_tools.MissingBrowserTool("playwright-core unavailable")), \
+                         patch.object(PERF.browser_tools, "locate_chrome", return_value="/chrome"), \
+                         patch.object(PERF.browser_tools, "_build_harness", return_value=Path("/capture")), \
+                         patch.object(PERF, "capture", return_value=(1, 0)), \
+                         patch.object(PERF, "sizes"), patch.object(PERF.subprocess, "Popen") as process:
+                        process.return_value.wait.return_value = 0
+                        self.assertEqual(PERF.main(), 1 if action == "build" else 0)
+
+    def test_historical_cadrum_node_validation_still_probes_its_prerequisites(self):
+        evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as directory:
+            root = Path(directory) / "checkout"
+            marker = root / "cad/scripts/cadrum_build.py"
+            marker.parent.mkdir(parents=True)
+            marker.touch()
+            worker = root / "web/target/site/site-subpath/boardstudio/assets/cad-worker/entry.js"
+            worker.parent.mkdir(parents=True)
+            worker.touch()
+            receipt = Path(directory) / "receipt"
+            receipt.touch()
+            args = ["measure-cad.py", "validate", "--checkout", str(root), "--source-head", "head",
+                    "--driver", "node", "--output", str(Path(directory) / "out"),
+                    "--workload", "C1plate:preview", "--artifact-receipt", str(receipt)]
+            with patch.object(sys, "argv", args), patch.object(PERF, "git", return_value="head"), \
+                    patch.object(PERF, "binding", return_value=([], True)), \
+                    patch.object(PERF, "existing_artifacts", return_value="fixture"), \
+                    patch.object(PERF.browser_tools, "locate", side_effect=PERF.browser_tools.MissingBrowserTool("playwright-core unavailable")), \
+                    patch.object(PERF.browser_tools, "locate_chrome") as chrome:
+                with self.assertRaisesRegex(PERF.browser_tools.MissingBrowserTool, "playwright-core"):
+                    PERF.main()
+                chrome.assert_not_called()
 
 
 class CaptureLockTests(unittest.TestCase):
@@ -395,7 +429,7 @@ class BuildBindingTests(unittest.TestCase):
                         "--state", state, "--output", str(output)]
                 with patch.object(sys, "argv", argv), patch.object(PERF, "git", return_value=self.HEAD), \
                      patch.object(PERF, "binding", side_effect=[(before.splitlines(), False), (after.splitlines(), True)]), \
-                     patch.object(PERF.browser_tools, "locate"), patch.object(PERF, "sizes"), \
+                     patch.object(PERF.browser_tools, "locate_chrome"), patch.object(PERF, "sizes"), \
                      patch.object(PERF, "environment", return_value="controlled environment; diagnostic only\n"), \
                      patch.object(PERF, "capture", side_effect=controlled_capture):
                     result = PERF.main()

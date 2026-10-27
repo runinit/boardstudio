@@ -93,6 +93,8 @@ def browser() -> list[Command]:
     wasm_pack = ["wasm-pack", "test", "--headless", "--chrome", "web", "--locked", *WASM_PAGE]
     return [
         DRAG_SMOKE,
+        [PY, "cad/scripts/test-cad-capture-controls.py"],
+        [PY, "cad/scripts/test-cold-responses.py"],
         [PY, "scripts/check-wasm-tests.py"],
         [PY, "cad/scripts/test-cad-provider.py"],
         [PY, "cad/scripts/test-cad-browser.py"],
@@ -415,7 +417,7 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                outputs: list[tuple[Command, str]] | None = None) -> tuple[float, int, str, str]:
     print("$ " + shlex.join(command), flush=True)
     lock_fd = browser_tools._inherited_build_lock()
-    if not any(part in command for part in ("scripts/run-drag-browser.py", "scripts/build-web.py",
+    if not any(part in command for part in ("scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py", "scripts/build-web.py",
                "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py")):
         environment = environment.copy()
         environment.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
@@ -702,8 +704,9 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
         crates = {Path(package.directory).name for name, package in packages.items()
                   if name in selection.packages and package.directory.startswith("web/crates/")}
         if selection.full_rust:
-            # The real-page drag smoke uses the packaged site; quick checks deliberately skip builds.
-            commands = [command for command in browser() if "run-drag-browser.py" not in " ".join(command)]
+            # Quick deliberately skips checks requiring a packaged site.
+            commands = [command for command in browser() if not any(name in command for name in
+                        ("scripts/run-drag-browser.py", "cad/scripts/test-cold-responses.py"))]
         else:
             commands = select_browser_crate_launches(crates, browser())
             if selection.page_files:

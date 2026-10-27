@@ -146,6 +146,9 @@ diagnostic results rather than benchmark or source-bound acceptance evidence.
 For controlled Rust CAD capture sequencing and failure checks, run
 `CHROME_BIN=/path/to/chrome python3 cad/scripts/test-cad-capture-controls.py /path/to/new-output-directory`.
 This Linux-only check uses a simulated worker, retains the capture logs and is not provider or benchmark evidence.
+The browser gate also runs this control and a real-provider cold-response control; their logs are under
+`web/target/test-results/`. For current CAD checkouts, `measure-cad.py` rejects `--driver node`;
+that option remains available only for historical Cadrum checkout reproduction.
 
 **Verification receipts.** Add `--receipt PATH` to any check invocation to write a JSON receipt at
 `PATH` and a reviewer summary at `PATH.md`, both derived only from the output that invocation
