@@ -116,3 +116,16 @@ response-coverage gap, not that worker CDP capture is impossible. The supported
 launcher, U1, full source-bound capture, parity, cache/service-worker controls,
 negative controls, full check, and closure review remain open; Node remains the
 default. No acceptance checkbox has been cleared.
+
+The supported checked `measure-cad.py build --state noop` completed at source
+`e666646ad901af371d523b2300adf1a800390217` under the shared build lock
+(`.evidence/ticket006/source-build/command.log`, exit 0). On that same packaged
+site, sequential direct Rust probe and Node validation-driver C1 preview runs
+both exited 0 and reported 492 triangles, 35424 buffer bytes, and zero STEP
+bytes (`.evidence/ticket006/source-diagnostic.log` and
+`source-diagnostic-node/events.log`). A post-run `measure-cad.py bind` exactly
+matched the build's `binding-after.log`. The Node driver observed the five CAD
+worker/provider responses; the Rust probe observed none of those, only host,
+favicon, and fixture responses. These direct diagnostic runs are not launcher
+captures or full parity: their response schemas and cache setup differ, and U1,
+the rest of the operation matrix, and failure controls have not been compared.
