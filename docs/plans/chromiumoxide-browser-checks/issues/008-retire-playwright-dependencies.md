@@ -132,4 +132,19 @@ coverage and diagnostics are replaced or their retirement is explicitly approved
    Keep the existing Ergogen-specific module path separate.
 3. Before deleting the remaining old runners, replace their live diagnostic and
    protocol coverage, run the no-Playwright clean-environment checks and full
-   supported verification, and complete the required closure review.
+    supported verification, and complete the required closure review.
+
+## 2026-10-27: remaining runtime consumers at dd6c8a6c
+
+The Node drag fallback remains selectable by `BOARDSTUDIO_DRAG_DRIVER=node`;
+ticket 005 records local same-build parity, but its source is also cited by
+historical evidence. CAD's Node capture remains used by the response comparison,
+startup readiness diagnostic and protocol self-check. The Graphite Node manual
+entry points and Parts inspector scroll check remain separate live consumers.
+Neither the shared Playwright probe nor these live checks can be removed as a
+complete retirement until those consumers and their diagnostics have equivalent
+coverage or explicit retirement approval. Mounted WASM and Ergogen remain out of scope.
+
+The shared Node prerequisite error no longer claims the CI web-tools action installs
+Playwright; it directs users to install it separately and set `NODE_PATH`. This is
+an interim correction, not removal of a runner or a retirement acceptance verdict.

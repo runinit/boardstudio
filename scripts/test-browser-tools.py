@@ -243,6 +243,14 @@ class BrowserToolsTests(unittest.TestCase):
                 self.locate(*available, playwright=playwright)
             self.assertIn(expected, str(raised.exception))
 
+    def test_missing_playwright_names_the_manual_prerequisite_not_ci(self):
+        with self.assertRaises(browser_tools.MissingBrowserTool) as raised:
+            self.locate("node", "chromium", playwright=1)
+        message = str(raised.exception)
+        self.assertIn("NODE_PATH", message)
+        self.assertIn("install", message.lower())
+        self.assertNotIn("CI web-tools action installs it", message)
+
     def locate_chrome(self, *available, env=None):
         with mock.patch.object(browser_tools.shutil, "which", side_effect=which(*available)), \
                 mock.patch.dict(browser_tools.os.environ, env or {}, clear=True):
