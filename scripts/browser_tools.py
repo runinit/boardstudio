@@ -5,7 +5,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+from pathlib import Path
 import shutil
 import subprocess
 
@@ -39,3 +41,13 @@ def locate() -> tuple[str, str]:
         raise MissingBrowserTool("drag browser smoke needs playwright-core (the CI web-tools action installs it); "
                                  "set NODE_PATH to its node_modules directory")
     return node, locate_chrome()
+
+
+def _drag_harness_binary() -> Path:
+    root = Path(__file__).resolve().parents[1]
+    metadata = subprocess.run(
+        ["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1",
+         "--manifest-path", str(root / "tools/browser-harness/Cargo.toml")],
+        cwd=root, check=True, capture_output=True, text=True,
+    )
+    return Path(json.loads(metadata.stdout)["target_directory"]) / "debug/drag-smoke"

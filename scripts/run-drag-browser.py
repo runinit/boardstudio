@@ -89,7 +89,6 @@ def verify_receipt(path: Path, run_id: str, head: str, source_hash: str, build_h
 
 
 HARNESS_MANIFEST = ROOT / "tools/browser-harness/Cargo.toml"
-HARNESS_BIN = ROOT / "tools/browser-harness/target/debug/drag-smoke"
 
 
 def drag_driver() -> str:
@@ -104,6 +103,7 @@ def drag_driver() -> str:
 def build_harness() -> None:
     """Build the Rust drag smoke with the committed lockfile, under the build lock."""
     lock = Path.home() / ".cache/tmp/boardstudio-build.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
     command = ["flock", str(lock), "cargo", "build", "--locked",
                "--manifest-path", str(HARNESS_MANIFEST), "--bin", "drag-smoke"]
     built = subprocess.run(command, cwd=ROOT)
@@ -158,7 +158,7 @@ def main() -> int:
             if response.status != 200:
                 raise RuntimeError(f"preview returned HTTP {response.status}")
         if drag_driver() == "rust":
-            command = [str(HARNESS_BIN)]
+            command = [str(browser_tools._drag_harness_binary())]
         else:
             assert node is not None
             command = [node, str(SCRIPT)]

@@ -12,8 +12,10 @@ import subprocess
 import tempfile
 import threading
 
+import browser_tools
+
 ROOT = Path(__file__).resolve().parents[1]
-BINARY = ROOT / "tools/browser-harness/target/debug/drag-smoke"
+BINARY = browser_tools._drag_harness_binary()
 BUTTONS = "".join(
     f"<button>{name}</button>"
     for name in ("Create new keyboard", "Split keyboard", "Continue to layout")

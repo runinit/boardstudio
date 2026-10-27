@@ -996,3 +996,28 @@ This is scoped local evidence, not hosted CI or a new full supported check.
 Earlier full failures remain failures; the instrumented Node-default full pass
 does not establish the cause or resolution of prior Keycaps startup failures.
 Ticket remains claimed pending the remaining closure gates and review.
+
+### 2026-10-26: CI wiring review follow-up
+
+The Rust launcher creates the build-lock parent before invoking `flock`. Cargo
+metadata, run from the same repository directory and environment as the locked
+build, supplies the target directory for both the launcher and the separate
+consumer controls. This honors Cargo's target-directory configuration and
+relative environment overrides without changing CI's Rust pin or other drivers.
+
+Before the fix, a fresh `HOME` failed at `flock` because the lock parent did
+not exist; Cargo metadata also showed a relative `CARGO_TARGET_DIR` resolved
+away from the hard-coded binary. After the fix, a real locked harness build
+from a fresh home succeeded using a relative target override, and all six
+consumer controls passed on pinned Chrome 145
+(`.evidence/ticket005-wiring-check.log`). The override pointed through a
+symlink to the existing harness target, so this was not a clean rebuild. A
+separate relative Cargo config target resolved correctly; a marker wrapper at
+that configured location confirmed all six controls executed that binary
+(`.evidence/ticket005-wiring-config-controls.log`). The supported Rust launcher
+also passed 15 checks and verified its receipt with a relative target override
+pointing to the existing target (`.evidence/ticket005-wiring-launcher.log`).
+`python3 scripts/test-check.py` passed 31 tests, Python compilation and
+`git diff --check` passed. No fresh full check or hosted CI was run. Earlier
+full failures remain failures, and the instrumented full pass does not establish
+their cause or resolution; remaining closure gates and review stay open.
