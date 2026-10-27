@@ -518,6 +518,9 @@ class NativeLaunchReconciliationTests(unittest.TestCase):
 
 class CheckCliTests(unittest.TestCase):
     def setUp(self):
+        driver = mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": "node"})
+        driver.start()
+        self.addCleanup(driver.stop)
         locate = mock.patch.object(check.browser_tools, "locate", return_value=("node", "chrome"))
         self.locate = locate.start()
         self.addCleanup(locate.stop)
