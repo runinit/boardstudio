@@ -39,3 +39,49 @@ source/build identity and any blocked gates honestly. No weakened assertions, ma
 errors, baseline deletions or retry-until-green. Preserve the archived prototypes and unrelated
 work. Builds follow repository concurrency/lock rules; evidence uses supported receipts and
 logs, not custom hash manifests. All checks must be runnable by humans and CI without agent tools.
+
+## 2026-10-27: cutover inventory preparation
+
+Inventory taken at HEAD `76402f6f6bc3b49d7ec429b015137fcb3a546091` with
+concurrent uncommitted 006/007 drafts present. Refresh it against the final source
+before deletion; this is preparation, not a parity or acceptance verdict.
+
+- Drag: `scripts/run-drag-browser.py` defaults to Node and launches
+  `scripts/test-drag-interactions.cjs` (`playwright-core`); `scripts/check.py`
+  preflights its selected driver. CI selects Rust explicitly. Ticket 005 records
+  local closure, with hosted CI still unverified.
+- CAD: `cad/scripts/measure-cad.py` defaults to Node and launches
+  `cad/scripts/measure-cad-runtime.cjs` (`playwright-core`). The diagnostic
+  `tools/browser-harness/compare-cad-responses.py` also invokes the Node runner;
+  account for its purpose and owner before retirement. Ticket 006 remains open.
+- Graphite: manual `scripts/test-graphite-feedback.cjs` imports full `playwright`;
+  `scripts/test-graphite-usability.cjs` forwards to it. The Rust launchers are
+  experimental and ticket 007 remains open. CI's `playwright-core` install does
+  not provide the full `playwright` package used by the manual Node entry point.
+- Shared setup: `scripts/browser_tools.py` probes Node and `playwright-core`;
+  `scripts/test-browser-tools.py` tests that contract. The web-tools action installs
+  `playwright-core@1.62.1` and exports `NODE_PATH` in both web and release-build
+  jobs; README describes the prerequisite. Preserve the action's other web tools.
+- `cad/scripts/test-measure-cad-runtime.cjs` mocks the Node runner and is in the
+  tooling checks; reassess it with that runner rather than dropping Node tooling
+  generally. `scripts/test-check.py` inventories the manual and delegated scripts.
+  Ergogen fixture generation uses a separate `NODE_PATH`; it is not a Playwright
+  prerequisite and must remain intact. Mounted WASM tests and ChromeDriver are
+  outside this ticket. Historical research, archived prototypes and dated design
+  evidence retain their references.
+
+No runner or dependency was removed. CAD worker response parity and Graphite
+same-build parity, failure controls and closure are still prerequisites; final
+clean-environment checks, full verification, review and hosted CI remain open.
+
+## 2026-10-27: CAD prerequisite selection
+
+Build preflight and runtime/validation now select Chrome-only discovery for the
+Rust driver and Node, `playwright-core`, and Chrome discovery for the Node driver.
+The Rust capture executable receives `CHROME_BIN`; the Node runner imports
+`playwright-core`. With `NODE_PATH` unset and the module unavailable, a controlled
+build-preflight exercise passed Rust's real Chrome discovery and rejected Node for
+missing `playwright-core`; compilation was stubbed. The launcher regression covers
+build and validation selection, and the CAD and shared browser-tools Python suites
+passed (19 and 12 tests respectively). This is prerequisite evidence, not real-page
+capture or parity evidence; ticket 006 and the remaining gates above stay open.
