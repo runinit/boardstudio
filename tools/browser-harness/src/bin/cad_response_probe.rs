@@ -62,15 +62,10 @@ async fn run() -> Result<()> {
                         if !supported {
                             return Err(Error("unsupported diagnostic worker workload".into()));
                         }
-                        // shortcut: diagnostic depends on Node source markers, extract a shared module for launcher integration.
-                        let source = include_str!("../../../../cad/scripts/measure-cad-runtime.cjs");
-                        let (_, rest) = source.split_once("const result = await page.evaluate(")
-                            .ok_or_else(|| Error("worker capture preparation marker missing".into()))?;
-                        let (function, _) = rest.split_once(", { backend, fixture, operation, sequence, isStartup: fixture === 'startup' });")
-                            .ok_or_else(|| Error("worker capture preparation end marker missing".into()))?;
+                        let source = include_str!("../../../../cad/scripts/measure-cad-worker.cjs");
                         let arguments = serde_json::json!({"backend":"monstertruck", "fixture":fixture,
                             "operation":operation, "sequence":"validation", "isStartup":false});
-                        let expression = format!("({function})({arguments})");
+                        let expression = format!("(() => {{ const module = {{exports: null}}; {source} return module.exports({arguments}); }})()");
                         let prepared = tokio::time::timeout(Duration::from_secs(180), driver::eval(&page, &expression))
                             .await.map_err(|_| Error("worker preparation timed out after 180 seconds".into()))??;
                         let sample = tokio::time::timeout(Duration::from_secs(180), driver::eval(&page, "window.__measure.run()"))
