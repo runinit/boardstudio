@@ -44,6 +44,7 @@ class CheckTests(unittest.TestCase):
                       for command in commands for argument in command if argument in scripts}
         opt_in = {
             "cad/scripts/test-cold-responses.py": "diagnostic requiring a packaged site, capture binary and Chrome",
+            "cad/scripts/test-cad-capture-controls.py": "controlled Rust CAD capture requiring Chrome and Cargo",
             "cad/scripts/test-startup-readiness.py": "Rust diagnostic requiring a packaged site and Chrome",
             "scripts/test-drag-browser-consumer-controls.py": "Linux CI consumer fault controls",
             "scripts/test-graphite-feedback.cjs": "interactive Graphite acceptance against a running dev server",
@@ -78,6 +79,12 @@ class CheckTests(unittest.TestCase):
                                 env=env, capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("BOARDSTUDIO_PREVIEW_URL", result.stderr)
+
+    def test_cad_capture_controls_have_a_human_runnable_entry_point(self):
+        result = subprocess.run([sys.executable, "cad/scripts/test-cad-capture-controls.py", "--help"],
+                                cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("output", result.stdout.lower())
 
     def test_retired_drag_driver_is_rejected_before_build_or_launch(self):
         spec = importlib.util.spec_from_file_location("drag_browser", ROOT / "scripts/run-drag-browser.py")

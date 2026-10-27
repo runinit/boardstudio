@@ -265,3 +265,23 @@ one/six-operation and fresh-STEP-worker sequencing, metric status and browser-cl
 failure controls in a supported gate; replace the live Node/Rust response comparison
 with equivalent retained same-run observation and failure checks; then update the
 launcher and prerequisite tests. The Node self-check and comparison remain intact.
+
+## 2026-10-27: Rust CAD consumer sequencing controls
+
+The opt-in `cad/scripts/test-cad-capture-controls.py OUTPUT` builds and runs the
+actual Rust capture executable against a controlled HTTP host and browser worker.
+It checks one validation operation, six latency preview operations on one worker,
+six STEP operations on six distinct fresh workers, unique request IDs, retained
+reply and replacement event ordinals, cold/warm timing rows and validation versus
+observed status. An invalid-mesh reply must produce a failed result and no retained
+reply. The output directory retains worker observations, capture events, metrics and
+process logs; it is a simulated provider, not performance or source-bound evidence.
+
+The public launcher test first failed because the command did not exist and then
+passed. Controlled Chrome 145 capture passed all four scenarios under the shared
+lock and `boardstudio-tests.slice`. `scripts/mutation-check.py` killed all three
+deliberate changes to six-operation count, STEP worker replacement and validation
+status, with zero survivors or compile failures
+(`.evidence/ticket008-cad-capture-mutations/`). The old Node self-check remains:
+Rust browser-close failure controls and the Node response-comparison replacement
+are not established by these sequencing checks. Full CAD retirement remains open.

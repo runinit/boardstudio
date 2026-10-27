@@ -143,6 +143,9 @@ For the controlled CAD startup-readiness diagnostic, first build the web site, t
 `CHROME_BIN=/path/to/chrome python3 cad/scripts/test-startup-readiness.py /path/to/new-output-directory`.
 It builds the Rust capture harness, checks delayed and transient landing pages, and records
 diagnostic results rather than benchmark or source-bound acceptance evidence.
+For controlled Rust CAD capture sequencing and failure checks, run
+`CHROME_BIN=/path/to/chrome python3 cad/scripts/test-cad-capture-controls.py /path/to/new-output-directory`.
+This uses a simulated worker, retains the capture logs and is not provider or benchmark evidence.
 
 **Verification receipts.** Add `--receipt PATH` to any check invocation to write a JSON receipt at
 `PATH` and a reviewer summary at `PATH.md`, both derived only from the output that invocation
