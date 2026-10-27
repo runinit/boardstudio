@@ -6,9 +6,12 @@ import json
 import math
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
+import tempfile
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -98,6 +101,8 @@ def main():
                 assert result.returncode != 0 and final["failed"], name
                 assert any(event["name"] == "failure" and "Error: invalid mesh" in event["error"] for event in events), name
                 assert not any(event["name"] == "reply-retained" for event in events), name
+                assert not any(message in result.stderr for message in
+                               ("browser shutdown failed", "browser termination unconfirmed", "cannot remove browser profile")), result.stderr
                 print(f"PASS {name}: invalid worker result fails capture", flush=True)
                 continue
             assert result.returncode == 0 and not final["failed"], (name, result.stderr)
@@ -120,6 +125,58 @@ def main():
             assert all(row["status"] == ("diagnostic-not-benchmark" if sequence == "validation" else "observed")
                        and math.isfinite(float(row["value"])) and float(row["value"]) >= 0 for row in metrics), metrics
             print(f"PASS {name}: {count} operations and {len(ready)} worker(s)", flush=True)
+
+        # Interrupt only this capture's verified Chrome after a successful reply, before shutdown.
+        bad = False
+        records.clear()
+        directory = output / "browser-close-failure"
+        directory.mkdir()
+        profiles = Path(tempfile.mkdtemp(prefix="cad-close-", dir=os.environ.get("TMPDIR")))
+        command = [str(binary), f"http://127.0.0.1:{server.server_port}", "monstertruck", "checked",
+                   "C1plate:preview", str(directory), "1", "validation"]
+        with (directory / "process.log").open("w") as log:
+            process = subprocess.Popen(command, cwd=ROOT, env=dict(os.environ, CHROME_BIN=chrome, TMPDIR=str(profiles)),
+                                       stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            try:
+                deadline = time.monotonic() + 60
+                events_file = directory / "events.log"
+                while time.monotonic() < deadline:
+                    if process.poll() is not None:
+                        raise RuntimeError("capture exited before the browser close control")
+                    if events_file.exists() and '"name":"reply-retained"' in events_file.read_text():
+                        break
+                    time.sleep(.01)
+                else:
+                    raise RuntimeError("capture did not retain a reply before the browser close control")
+                runs = list(profiles.glob("bs-drag-*"))
+                assert len(runs) == 1, runs
+                profile = f"--user-data-dir={runs[0] / 'profile'}".encode()
+                tasks = Path(f"/proc/{process.pid}/task")
+                children = {pid for task in tasks.iterdir() for pid in (task / "children").read_text().split()}
+                matches = [int(pid) for pid in children
+                           if profile in Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").split()]
+                assert len(matches) == 1, matches
+                fd = os.pidfd_open(matches[0])
+                try:
+                    assert profile in Path(f"/proc/{matches[0]}/cmdline").read_bytes().replace(b"\0", b" ").split()
+                    signal.pidfd_send_signal(fd, signal.SIGKILL)
+                finally:
+                    os.close(fd)
+                process.wait(timeout=90)
+            finally:
+                if process.poll() is None:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait()
+        events = [json.loads(line) for line in events_file.read_text().splitlines()]
+        assert process.returncode != 0, "browser close failure must fail the capture"
+        assert any(event["name"] == "reply-retained" for event in events), events
+        assert next(event for event in events if event["name"] == "result")["failed"], events
+        assert any(event["name"] == "failure" and "browser shutdown failed" in event["error"] for event in events), events
+        if not any(profiles.iterdir()):
+            profiles.rmdir()
+        else:
+            print(f"browser profile retained at {profiles}", flush=True)
+        print("PASS browser-close-failure: retained reply cannot hide browser shutdown failure", flush=True)
     finally:
         server.shutdown()
         server.server_close()

@@ -285,3 +285,22 @@ status, with zero survivors or compile failures
 (`.evidence/ticket008-cad-capture-mutations/`). The old Node self-check remains:
 Rust browser-close failure controls and the Node response-comparison replacement
 are not established by these sequencing checks. Full CAD retirement remains open.
+
+## 2026-10-27: Rust CAD browser shutdown control
+
+The controlled Rust capture now also kills only its verified Chrome child after a
+worker reply is retained, using the owned profile path and a pidfd. The capture must
+exit nonzero, report `browser shutdown failed` and write a failed result despite the
+retained reply. This is a transport-loss control that causes `browser.close` to fail;
+it is not an isolated injected error in a healthy close handshake. If temporary
+browser-owned files remain, their directory is reported and preserved.
+
+With Chrome 145 under the shared lock and `boardstudio-tests.slice`, the controlled
+run passed (`.evidence/ticket008-cad-close-draft/`). A mutation that discarded the
+shutdown error from the Rust consumer failed the new assertion; the unmodified
+baseline passed (`.evidence/ticket008-cad-close-mutation/`). The old Node self-check,
+Node response comparison and fallback are still present: replacement of the response
+comparison and supported-gate integration of the new controls remain before removal.
+The final controls and 36 scheduler tests passed
+(`.evidence/ticket008-cad-close-verified.log`); temporary Chromium-owned files were
+left at the path reported by that run rather than removed speculatively.
