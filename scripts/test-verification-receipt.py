@@ -518,10 +518,10 @@ class NativeLaunchReconciliationTests(unittest.TestCase):
 
 class CheckCliTests(unittest.TestCase):
     def setUp(self):
-        driver = mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": "node"})
+        driver = mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": "rust"})
         driver.start()
         self.addCleanup(driver.stop)
-        locate = mock.patch.object(check.browser_tools, "locate", return_value=("node", "chrome"))
+        locate = mock.patch.object(check.browser_tools, "locate_chrome", return_value="chrome")
         self.locate = locate.start()
         self.addCleanup(locate.stop)
         for patcher in (
@@ -659,7 +659,7 @@ class CheckCliTests(unittest.TestCase):
 
     def test_browser_preflight_failure_still_writes_unrun_plan(self):
         path = Path(self.temporary.name) / "preflight.json"
-        with mock.patch.object(check.browser_tools, "locate",
+        with mock.patch.object(check.browser_tools, "locate_chrome",
                                side_effect=check.browser_tools.MissingBrowserTool("missing browser")), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(check.main(["browser", "--receipt", str(path)]), 1)

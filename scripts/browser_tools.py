@@ -17,6 +17,11 @@ class MissingBrowserTool(Exception):
     """A prerequisite of the real-page smoke is absent; the message says how to supply it."""
 
 
+def validate_drag_driver() -> None:
+    if os.environ.get("BOARDSTUDIO_DRAG_DRIVER", "rust") != "rust":
+        raise MissingBrowserTool("BOARDSTUDIO_DRAG_DRIVER only supports rust; unset it or set it to rust")
+
+
 def locate_chrome() -> str:
     """Returns the Chrome executable for the Rust harness, or raises `MissingBrowserTool`.
 

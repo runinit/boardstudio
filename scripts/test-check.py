@@ -19,7 +19,7 @@ SPEC.loader.exec_module(check)
 
 class CheckTests(unittest.TestCase):
     def setUp(self):
-        driver = mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": "node"})
+        driver = mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": "rust"})
         driver.start()
         self.addCleanup(driver.stop)
         locate = mock.patch.object(check.browser_tools, "locate", return_value=("node", "chrome"))
@@ -42,19 +42,16 @@ class CheckTests(unittest.TestCase):
                    for path in (ROOT / directory).glob(pattern)}
         registered = {argument for _, commands in check.STEPS.values()
                       for command in commands for argument in command if argument in scripts}
-        delegated = {"scripts/test-drag-interactions.cjs": "scripts/run-drag-browser.py"}
         opt_in = {
             "cad/scripts/test-cold-responses.py": "diagnostic requiring a packaged site, capture binary and Chrome",
             "cad/scripts/test-startup-readiness.py": "diagnostic requiring a packaged site, capture binary and Chrome",
             "scripts/test-drag-browser-consumer-controls.py": "Linux CI consumer fault controls",
             "scripts/test-graphite-feedback.cjs": "interactive Graphite acceptance against a running dev server",
             "scripts/test-graphite-usability.cjs": "compatibility entry point for Graphite acceptance",
+            "scripts/test-drag-interactions.cjs": "historical source retained for linked migration evidence",
         }
-        self.assertEqual(scripts, registered | delegated.keys() | opt_in.keys())
+        self.assertEqual(scripts, registered | opt_in.keys())
         self.assertTrue(all(opt_in.values()))
-        for runner in delegated.values():
-            self.assertTrue(any(runner in command for _, commands in check.STEPS.values()
-                                for command in commands))
 
     def test_measurement_protocols_run_in_tooling_with_node_prerequisite(self):
         commands = check.STEPS["tooling"][1]
@@ -78,6 +75,24 @@ class CheckTests(unittest.TestCase):
                                 env=env, capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("BOARDSTUDIO_PREVIEW_URL", result.stderr)
+
+    def test_retired_drag_driver_is_rejected_before_build_or_launch(self):
+        spec = importlib.util.spec_from_file_location("drag_browser", ROOT / "scripts/run-drag-browser.py")
+        drag = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(drag)
+        for value in ("node", "other", ""):
+            with self.subTest(value=value), mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": value}), \
+                    mock.patch.object(check, "run_plan") as run_plan, \
+                    mock.patch.object(drag.browser_tools, "build_drag_harness") as build:
+                for steps in (["drag-smoke"], ["browser"], list(check.DEFAULT), ["build", "browser"]):
+                    with contextlib.redirect_stderr(io.StringIO()) as error:
+                        self.assertEqual(check.run(steps), 1)
+                    self.assertIn("BOARDSTUDIO_DRAG_DRIVER", error.getvalue())
+                with self.assertRaises(SystemExit) as raised:
+                    drag.main()
+                self.assertIn("BOARDSTUDIO_DRAG_DRIVER", str(raised.exception))
+                run_plan.assert_not_called()
+                build.assert_not_called()
 
     def test_browser_runs_packaged_provider_regressions(self):
         self.assertIn([check.PY, "cad/scripts/test-cad-provider.py"], check.STEPS["browser"][1])
@@ -195,59 +210,45 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(captured["plan"][-1][1], [check.DRAG_SMOKE])
 
     def test_missing_browser_tools_fail_before_any_command_or_build_is_launched(self):
-        for driver, probe in (("node", self.locate), ("rust", self.chrome)):
-            probe.side_effect = check.browser_tools.MissingBrowserTool("missing browser tool")
-            for names in (["browser"], ["drag-smoke"], list(check.DEFAULT), ["build", "browser"]):
-                error = io.StringIO()
-                with self.subTest(driver=driver, names=names), \
-                        mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": driver}), \
-                        mock.patch.object(check, "run_plan") as run_plan, \
-                        mock.patch.object(check.subprocess, "run") as launch, \
-                        contextlib.redirect_stderr(error):
-                    self.assertEqual(check.run(names), 1)
-                run_plan.assert_not_called()
-                launch.assert_not_called()
-                self.assertIn("check: missing browser tool", error.getvalue())
-            probe.side_effect = None
+        self.chrome.side_effect = check.browser_tools.MissingBrowserTool("missing browser tool")
+        for names in (["browser"], ["drag-smoke"], list(check.DEFAULT), ["build", "browser"]):
+            error = io.StringIO()
+            with self.subTest(names=names), mock.patch.object(check, "run_plan") as run_plan, \
+                    mock.patch.object(check.subprocess, "run") as launch, \
+                    contextlib.redirect_stderr(error):
+                self.assertEqual(check.run(names), 1)
+            run_plan.assert_not_called()
+            launch.assert_not_called()
+            self.assertIn("check: missing browser tool", error.getvalue())
 
     def test_default_drag_driver_uses_rust_and_chrome_only(self):
-        spec = importlib.util.spec_from_file_location("drag_browser", ROOT / "scripts/run-drag-browser.py")
-        drag = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(drag)
         with mock.patch.dict(os.environ):
             os.environ.pop("BOARDSTUDIO_DRAG_DRIVER", None)
-            self.assertEqual(drag.drag_driver(), "rust")
             with mock.patch.object(check, "run_plan", return_value=0):
                 self.assertEqual(check.run(["drag-smoke"]), 0)
             self.chrome.assert_called_once_with()
             self.locate.assert_not_called()
 
     def test_browser_tools_are_probed_once_before_the_unchanged_command_order(self):
-        for driver, probe, other in (("node", self.locate, self.chrome), ("rust", self.chrome, self.locate)):
-            calls = []
-            probe.reset_mock()
-            other.reset_mock()
-            probe.side_effect = lambda: calls.append("probe") or "chrome"
+        calls = []
+        self.chrome.side_effect = lambda: calls.append("probe") or "chrome"
 
-            def record(plan, update_native_baseline=False):
-                calls.append([name for name, _ in plan])
-                return 0
+        def record(plan, update_native_baseline=False):
+            calls.append([name for name, _ in plan])
+            return 0
 
-            with self.subTest(driver=driver), \
-                    mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": driver}), \
-                    mock.patch.object(check, "run_plan", side_effect=record):
-                self.assertEqual(check.run(list(check.DEFAULT)), 0)
-            self.assertEqual(calls, ["probe", list(check.DEFAULT)])
-            probe.assert_called_once_with()
-            other.assert_not_called()
-            probe.side_effect = None
+        with mock.patch.object(check, "run_plan", side_effect=record):
+            self.assertEqual(check.run(list(check.DEFAULT)), 0)
+        self.assertEqual(calls, ["probe", list(check.DEFAULT)])
+        self.chrome.assert_called_once_with()
+        self.locate.assert_not_called()
 
     def test_scoped_browser_only_does_not_acquire_the_drag_smoke_prerequisites(self):
-        self.locate.side_effect = check.browser_tools.MissingBrowserTool("absent")
+        self.chrome.side_effect = check.browser_tools.MissingBrowserTool("absent")
         with mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="")), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(check.main(["browser", "--only", "case"]), 0)
-        self.locate.assert_not_called()
+        self.chrome.assert_not_called()
 
     def test_host_browser_gate_includes_cad_worker_tests_alongside_storage(self):
         launches = check.select_browser_crate_launches(["host"])

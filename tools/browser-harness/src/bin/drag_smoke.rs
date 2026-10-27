@@ -1,6 +1,6 @@
 //! Real-page drag smoke driven by the Rust browser harness.
 //!
-//! A faithful port of `scripts/test-drag-interactions.cjs`: trusted pointer
+//! A faithful port of the historical `scripts/test-drag-interactions.cjs`: trusted pointer
 //! drags over Part, Column, Stagger and Ctrl+Offset handles, live preview,
 //! pointer capture, durable saves, exact Undo/reload, collision observations
 //! and receipt/provenance validation. The old runner stays available for

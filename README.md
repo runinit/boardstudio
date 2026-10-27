@@ -118,8 +118,8 @@ presentation code. Browser setup installs the locked wasm-bindgen runner before 
 The browser step opens the packaged page and runs a trusted mouse-drag smoke over
 Part, Column, Stagger and Ctrl+Offset. It checks live preview, pointer capture, saved document state
 and exact Undo. Its success receipt and failure log are kept under `web/target/test-results/drag-browser/`.
-The default Rust driver needs Chrome or Chromium available as `CHROME_BIN`. The legacy Node
-driver remains available with `BOARDSTUDIO_DRAG_DRIVER=node` and needs `playwright-core` on `NODE_PATH`.
+The Rust driver needs Chrome or Chromium available as `CHROME_BIN`. The retired drag Node
+driver is no longer supported; unset `BOARDSTUDIO_DRAG_DRIVER` or set it to `rust`.
 CI does not install Playwright; optional legacy and comparison scripts require a separately
 installed Playwright package. Node remains required for the tooling checks.
 

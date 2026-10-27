@@ -169,3 +169,18 @@ Graphite and drag legacy consumers remain, and full retirement remains open.
 As a browser failure control, a separate server injected `overflow-y:hidden` into
 the page response; the Rust check failed at 390x844 with zero scroll and a missed
 hit (`.evidence/ticket008-parts-control.log`). The unmodified site was not changed.
+
+## 2026-10-27: drag Node fallback retired
+
+The supported drag launcher and scheduler preflight now use only the Rust harness.
+An unset `BOARDSTUDIO_DRAG_DRIVER` or `rust` is accepted; any other value fails
+before building or launching rather than falling back or skipping the smoke.
+`scripts/test-drag-interactions.cjs` remains at its historical path solely so the
+existing source-linked migration and collision evidence stays readable; it is not
+a supported runner. CAD and Graphite Node consumers and their prerequisites are
+unchanged. This slice does not close the overall Playwright retirement.
+The selector regression was red for `node`, an unknown value and an empty value
+before the change and green afterward. The six existing real-consumer assertion,
+exception, rejection, close-exception, cleanup and transport-loss controls each
+failed without a success receipt on Chrome 145 under the shared build lock and
+`boardstudio-tests.slice` (`.evidence/ticket008-drag-consumer-controls.log`).

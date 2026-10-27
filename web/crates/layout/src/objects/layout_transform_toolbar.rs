@@ -9065,7 +9065,7 @@ mod tool_tests {
     /// Ticket 23: the mounted drag harness dispatches script-created pointer
     /// events, which the platform never trusts. This pins the coverage split:
     /// mounted tests prove drag wiring and math, and the packaged-page mouse
-    /// smoke (`scripts/test-drag-interactions.cjs`) proves the same gestures
+    /// smoke (`scripts/run-drag-browser.py`) proves the same gestures
     /// with real trusted pointer events.
     #[wasm_bindgen_test]
     async fn mounted_pointer_dispatch_is_synthetic_never_trusted() {
@@ -9478,7 +9478,7 @@ mod tool_tests {
     /// One synthetic pointer drag on the handle: down, move, up. The dispatched
     /// events are script-created, so `isTrusted` is always false here; real
     /// trusted-pointer proof for the drags lives in the packaged-page mouse
-    /// smoke (`scripts/test-drag-interactions.cjs`, `check.py drag-smoke`).
+    /// smoke (`scripts/run-drag-browser.py`, `check.py drag-smoke`).
     /// Returns the handle's `data-quick-offset` after the down and after the
     /// move.
     async fn drag_handle(

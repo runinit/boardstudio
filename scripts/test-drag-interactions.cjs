@@ -1,4 +1,4 @@
-// Small real-page regression for trusted pointer drags and durable undo.
+// Historical drag runner retained for source-linked evidence; the supported smoke is scripts/run-drag-browser.py.
 const { chromium } = require('playwright-core');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
