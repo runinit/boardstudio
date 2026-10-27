@@ -6,14 +6,26 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 path = pathlib.Path('tools/browser-harness/test-cad-target-responses.py')
 spec = importlib.util.spec_from_file_location('probe', path)
 probe = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(probe)
 
+def process_gone(pid):
+    try:
+        return pathlib.Path(f'/proc/{pid}/stat').read_text().split(') ')[1].startswith('Z')
+    except (FileNotFoundError, ProcessLookupError):
+        return True
+
 @unittest.skipUnless(pathlib.Path('/proc/self/stat').exists(), 'requires Linux /proc')
 class Cleanup(unittest.TestCase):
+    def test_disappearing_proc_entry_counts_as_gone(self):
+        for error in (FileNotFoundError(), ProcessLookupError()):
+            with self.subTest(error=error), mock.patch.object(pathlib.Path, 'read_text', side_effect=error):
+                self.assertTrue(process_gone(123))
+
     def test_owned_descendant_after_exit_and_timeout(self):
         for mode in ('exit', 'failure', 'timeout'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
@@ -31,8 +43,7 @@ if sys.argv[2] == 'failure': sys.exit(7)
                     self.assertEqual(probe.run_probe([sys.executable, '-c', code, str(pidfile), mode], 5).returncode, 7 if mode == 'failure' else 0)
                 pid = int(pidfile.read_text())
                 for _ in range(100):
-                    stat = pathlib.Path(f'/proc/{pid}/stat')
-                    if not stat.exists() or stat.read_text().split(') ')[1].startswith('Z'):
+                    if process_gone(pid):
                         break
                     time.sleep(.01)
                 else: self.fail(f'child {pid} still running')
@@ -56,8 +67,7 @@ m.run_probe([sys.executable,'-c','import os,sys,time; open(sys.argv[1],\"w\").wr
                 parent.send_signal(signal.SIGTERM)
                 self.assertEqual(parent.wait(timeout=5), 128 + signal.SIGTERM)
                 for _ in range(100):
-                    stat = pathlib.Path(f'/proc/{pid}/stat')
-                    if not stat.exists() or stat.read_text().split(') ')[1].startswith('Z'):
+                    if process_gone(pid):
                         break
                     time.sleep(.01)
                 else:
