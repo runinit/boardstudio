@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -43,11 +44,40 @@ def locate() -> tuple[str, str]:
     return node, locate_chrome()
 
 
-def _drag_harness_binary() -> Path:
+def build_drag_harness() -> Path:
+    """Build under the shared lock and return Cargo's executable for this build."""
     root = Path(__file__).resolve().parents[1]
-    metadata = subprocess.run(
-        ["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1",
-         "--manifest-path", str(root / "tools/browser-harness/Cargo.toml")],
-        cwd=root, check=True, capture_output=True, text=True,
+    lock = Path.home() / ".cache/tmp/boardstudio-build.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(
+        ["flock", str(lock), "cargo", "build", "--locked", "--message-format=json",
+         "--manifest-path", str(root / "tools/browser-harness/Cargo.toml"), "--bin", "drag-smoke"],
+        cwd=root, capture_output=True, text=True,
     )
-    return Path(json.loads(metadata.stdout)["target_directory"]) / "debug/drag-smoke"
+    if result.returncode:
+        diagnostic = result.stderr
+        for line in result.stdout.splitlines():
+            try:
+                message = json.loads(line)
+                if message.get("reason") == "compiler-message":
+                    diagnostic += message.get("message", {}).get("rendered") or ""
+            except (ValueError, AttributeError):
+                pass
+        for name, value in os.environ.items():
+            if value and re.search(r"TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_KEY", name, re.I):
+                diagnostic = diagnostic.replace(value, "<REDACTED>")
+        diagnostic = re.sub(r"(https?://)[^\s/@]+@", r"\1<REDACTED>@", diagnostic)
+        diagnostic = re.sub(r"(https?://[^\s?]+)\?[^\s]+", r"\1?<REDACTED>", diagnostic)
+        diagnostic = re.sub(r"(?i)(token|secret|password|passwd|credential|api[_-]?key)(\s*[=:]\s*)[^\s,;]+",
+                            r"\1\2<REDACTED>", diagnostic)
+        raise SystemExit(f"drag browser smoke cannot build the Rust harness:\n{diagnostic}")
+    try:
+        artifacts = [message["executable"] for line in result.stdout.splitlines()
+                     if (message := json.loads(line)).get("reason") == "compiler-artifact"
+                     and message.get("target", {}).get("name") == "drag-smoke"
+                     and "bin" in message["target"].get("kind", []) and message.get("executable")]
+    except (ValueError, KeyError, TypeError) as error:
+        raise SystemExit(f"drag browser smoke cannot read Cargo build output: {error}") from error
+    if len(artifacts) != 1:
+        raise SystemExit("drag browser smoke cannot identify its executable in Cargo build output")
+    return Path(artifacts[0])

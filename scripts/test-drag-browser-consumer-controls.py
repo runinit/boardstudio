@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify real drag-consumer failures cannot produce a success receipt.
 
-Build the drag-smoke binary first and supply the pinned browser via CHROME_BIN.
+Build the drag-smoke binary and supply the pinned browser via CHROME_BIN.
 """
 
 import os
@@ -15,7 +15,7 @@ import threading
 import browser_tools
 
 ROOT = Path(__file__).resolve().parents[1]
-BINARY = browser_tools._drag_harness_binary()
+BINARY = browser_tools.build_drag_harness()
 BUTTONS = "".join(
     f"<button>{name}</button>"
     for name in ("Create new keyboard", "Split keyboard", "Continue to layout")

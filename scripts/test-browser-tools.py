@@ -16,6 +16,19 @@ def which(*available):
 
 
 class BrowserToolsTests(unittest.TestCase):
+    def test_harness_build_uses_cargo_artifact_and_reports_redacted_error(self):
+        artifact = '{"reason":"compiler-artifact","target":{"name":"drag-smoke","kind":["bin"]},"executable":"/target/triple/debug/drag-smoke.exe"}\n'
+        with mock.patch.object(browser_tools.subprocess, "run", return_value=mock.Mock(
+                returncode=0, stdout=artifact, stderr="")):
+            self.assertEqual(str(browser_tools.build_drag_harness()), "/target/triple/debug/drag-smoke.exe")
+        with mock.patch.dict(browser_tools.os.environ, {"CARGO_REGISTRY_TOKEN": "secret-value"}), \
+                mock.patch.object(browser_tools.subprocess, "run", return_value=mock.Mock(
+                    returncode=101, stdout="", stderr="error: failed to compile; token secret-value")):
+            with self.assertRaises(SystemExit) as error:
+                browser_tools.build_drag_harness()
+            self.assertIn("failed to compile", str(error.exception))
+            self.assertNotIn("secret-value", str(error.exception))
+
     def locate(self, *available, playwright=0, env=None):
         with mock.patch.object(browser_tools.shutil, "which", side_effect=which(*available)), \
                 mock.patch.object(browser_tools.subprocess, "run",

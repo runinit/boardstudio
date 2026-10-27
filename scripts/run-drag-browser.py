@@ -88,9 +88,6 @@ def verify_receipt(path: Path, run_id: str, head: str, source_hash: str, build_h
             raise ValueError(f"drag browser receipt has invalid timings: {check.get('name')}")
 
 
-HARNESS_MANIFEST = ROOT / "tools/browser-harness/Cargo.toml"
-
-
 def drag_driver() -> str:
     """Which runner drives the smoke: the legacy Node script or the Rust harness.
 
@@ -98,17 +95,6 @@ def drag_driver() -> str:
     the default so other consumers and same-build comparisons keep working.
     """
     return os.environ.get("BOARDSTUDIO_DRAG_DRIVER", "node")
-
-
-def build_harness() -> None:
-    """Build the Rust drag smoke with the committed lockfile, under the build lock."""
-    lock = Path.home() / ".cache/tmp/boardstudio-build.lock"
-    lock.parent.mkdir(parents=True, exist_ok=True)
-    command = ["flock", str(lock), "cargo", "build", "--locked",
-               "--manifest-path", str(HARNESS_MANIFEST), "--bin", "drag-smoke"]
-    built = subprocess.run(command, cwd=ROOT)
-    if built.returncode:
-        raise SystemExit(f"drag browser smoke cannot build the Rust harness ({' '.join(command)})")
 
 
 def main() -> int:
@@ -119,7 +105,7 @@ def main() -> int:
         if drag_driver() == "rust":
             chrome = browser_tools.locate_chrome()
             node = None
-            build_harness()
+            binary = browser_tools.build_drag_harness()
         else:
             node, chrome = browser_tools.locate()
     except browser_tools.MissingBrowserTool as error:
@@ -158,7 +144,7 @@ def main() -> int:
             if response.status != 200:
                 raise RuntimeError(f"preview returned HTTP {response.status}")
         if drag_driver() == "rust":
-            command = [str(browser_tools._drag_harness_binary())]
+            command = [str(binary)]
         else:
             assert node is not None
             command = [node, str(SCRIPT)]

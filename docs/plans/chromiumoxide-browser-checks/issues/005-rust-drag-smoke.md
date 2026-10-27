@@ -1021,3 +1021,25 @@ pointing to the existing target (`.evidence/ticket005-wiring-launcher.log`).
 `git diff --check` passed. No fresh full check or hosted CI was run. Earlier
 full failures remain failures, and the instrumented full pass does not establish
 their cause or resolution; remaining closure gates and review stay open.
+
+### 2026-10-26: launcher build-target recheck
+
+Cargo metadata reports the target directory but not the executable's target
+triple or platform suffix. With `CARGO_BUILD_TARGET=x86_64-unknown-linux-gnu`,
+a real locked build reported `target/x86_64-unknown-linux-gnu/debug/drag-smoke`
+while the original resolver returned `target/debug/drag-smoke` (RED). The
+launcher and standalone consumer controls now each build under the existing
+lock and use the executable from that build's Cargo artifact message. This
+also removes the metadata call. Captured build errors include Cargo stderr and
+rendered compiler diagnostics with credential redaction.
+
+The same custom-target build returned the actual existing executable (GREEN).
+All six standalone controls passed their expected failure/no-receipt checks on
+local Chromium 156 (`.evidence/launcher-target-controls.log`). An invalid target
+surfaced Cargo's target-specification error (`.evidence/launcher-target-error.log`);
+the focused browser-tools tests passed 8/8, `test-check.py` passed 31/31, and
+Python compilation and `git diff --check` passed. The custom-target launcher
+ran against the existing site but failed with Chromium 156 protocol-message
+errors (`.evidence/launcher-target-smoke.log`); it is not a passing smoke.
+No full check, pinned-browser run, hosted CI, or closure review was performed;
+the ticket remains claimed and earlier failures remain failures.
