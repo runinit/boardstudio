@@ -69,8 +69,8 @@ def build_drag_harness() -> Path:
         for name, value in os.environ.items():
             if value and re.search(r"TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_KEY", name, re.I):
                 diagnostic = diagnostic.replace(value, "<REDACTED>")
-        diagnostic = re.sub(r"(https?://)[^\s/@]+@", r"\1<REDACTED>@", diagnostic)
-        diagnostic = re.sub(r"(https?://[^\s?]+)\?[^\s]+", r"\1?<REDACTED>", diagnostic)
+        # URLs can contain credentials in userinfo, queries or fragments; do not guess their end.
+        diagnostic = re.sub(r"(?i)\b[a-z][a-z0-9+.-]*://[^\r\n]*", "<URL diagnostic withheld>", diagnostic)
         # A sensitive field can contain nested or multiline data; do not guess its end.
         sensitive = re.search(r"(?i)(?:token|secret|password|passwd|credential|api[_-]?key|authorization)"
                               r"[\w-]*[\"']?\s*[=:]|\bBearer\s+", diagnostic)

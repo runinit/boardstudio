@@ -39,6 +39,12 @@ class BrowserToolsTests(unittest.TestCase):
     def test_build_diagnostics_hide_non_environment_secrets(self):
         import json
         cases = (
+            ('ssh://alice:synthetic-ssh-credential@example.invalid/path?session=synthetic-query#synthetic-fragment',
+             ("alice", "synthetic-ssh-credential", "synthetic-query", "synthetic-fragment")),
+            ('HTTPS://bob:synthetic-upper-credential@example.invalid/path#synthetic-anchor',
+             ("bob", "synthetic-upper-credential", "synthetic-anchor")),
+            ('git+ssh://carol:synthetic-git-credential@example.invalid/repo',
+             ("carol", "synthetic-git-credential")),
             ('{"outer": {"token": "quoted-secret", "nested": {"password": "nested-secret"}}}',
              ("quoted-secret", "nested-secret")),
             ('Authorization: Bearer bearer-secret', ("bearer-secret",)),
