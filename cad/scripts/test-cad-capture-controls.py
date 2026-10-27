@@ -11,7 +11,6 @@ import subprocess
 import sys
 import tempfile
 import threading
-import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -61,6 +60,9 @@ def main():
     binary = browser_tools._build_harness("cad-capture")
     records = []
     bad = False
+    close_control = False
+    barrier_entered = threading.Event()
+    barrier_release = threading.Event()
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -75,12 +77,28 @@ def main():
             self.end_headers()
 
         def do_GET(self):
+            if self.path == "/shutdown-barrier":
+                barrier_entered.set()
+                if not barrier_release.wait(90):
+                    self.send_error(504)
+                    return
+                try:
+                    self.send_response(204)
+                    self.end_headers()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                return
             if self.path == "/boardstudio/":
                 data = (b"<!doctype html><script>fetch('/boardstudio/assets/core-worker/missing.wasm')"
                         b".then(() => document.body.innerHTML='<button>Create new keyboard</button>')</script><body></body>")
                 content_type = "text/html"
             elif self.path == "/__perf/cad/scripts/performance-host.html":
-                data, content_type = b"<!doctype html><title>Controlled CAD capture</title>", "text/html"
+                data = b"<!doctype html><title>Controlled CAD capture</title>"
+                if close_control:
+                    data += (b"<script>Object.defineProperty(window,'__measure',{configurable:true,set(value){"
+                             b"const drop=value.drop; value.drop=async()=>{await fetch('/shutdown-barrier');return drop();};"
+                             b"Object.defineProperty(window,'__measure',{value,writable:true,configurable:true});}})</script>")
+                content_type = "text/html"
             elif self.path == "/__perf/cad/test/fixtures/performance/C1plate.json":
                 data = (ROOT / "cad/test/fixtures/performance/C1plate.json").read_bytes()
                 content_type = "application/json"
@@ -172,6 +190,7 @@ def main():
 
         # Interrupt only this capture's verified Chrome after a successful reply, before shutdown.
         bad = False
+        close_control = True
         records.clear()
         directory = output / "browser-close-failure"
         directory.mkdir()
@@ -182,23 +201,33 @@ def main():
             process = subprocess.Popen(command, cwd=ROOT, env=dict(os.environ, CHROME_BIN=chrome, TMPDIR=str(profiles)),
                                        stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             try:
-                deadline = time.monotonic() + 60
                 events_file = directory / "events.log"
-                while time.monotonic() < deadline:
-                    if process.poll() is not None:
-                        raise RuntimeError("capture exited before the browser close control")
-                    if events_file.exists() and '"name":"reply-retained"' in events_file.read_text():
+                for _ in range(600):
+                    if barrier_entered.wait(.1):
                         break
-                    time.sleep(.01)
+                    if process.poll() is not None:
+                        raise RuntimeError("capture exited before the shutdown barrier")
                 else:
-                    raise RuntimeError("capture did not retain a reply before the browser close control")
+                    raise RuntimeError("capture did not reach the shutdown barrier")
+                assert '"name":"reply-retained"' in events_file.read_text(), "barrier preceded retained reply"
+                print("shutdown barrier reached after retained reply", flush=True)
                 runs = list(profiles.glob("bs-drag-*"))
                 assert len(runs) == 1, runs
                 profile = f"--user-data-dir={runs[0] / 'profile'}".encode()
                 tasks = Path(f"/proc/{process.pid}/task")
-                children = {pid for task in tasks.iterdir() for pid in (task / "children").read_text().split()}
-                matches = [int(pid) for pid in children
-                           if profile in Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").split()]
+                children = set()
+                for task in tasks.iterdir():
+                    try:
+                        children.update((task / "children").read_text().split())
+                    except FileNotFoundError:
+                        continue
+                matches = []
+                for pid in children:
+                    try:
+                        if profile in Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").split():
+                            matches.append(int(pid))
+                    except FileNotFoundError:
+                        continue
                 assert len(matches) == 1, matches
                 fd = os.pidfd_open(matches[0])
                 try:
@@ -208,6 +237,7 @@ def main():
                     os.close(fd)
                 process.wait(timeout=90)
             finally:
+                barrier_release.set()
                 if process.poll() is None:
                     os.killpg(process.pid, signal.SIGKILL)
                     process.wait()
@@ -222,6 +252,7 @@ def main():
             print(f"browser profile retained at {profiles}", flush=True)
         print("PASS browser-close-failure: retained reply cannot hide browser shutdown failure", flush=True)
     finally:
+        barrier_release.set()
         server.shutdown()
         server.server_close()
         thread.join()
