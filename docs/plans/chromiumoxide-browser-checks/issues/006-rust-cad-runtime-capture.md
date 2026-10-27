@@ -910,3 +910,18 @@ source-bound acceptance or benchmark evidence. The requested controlled failure
 inside U1 CDP setup was not exercised; its page-failure receipt, failed result,
 absence of U1 success, and cleanup remain an open gate. Source-bound parity,
 benchmark and other ticket acceptance gates also remain open.
+
+## 2026-10-27: user decision on response parity
+
+The Rust runtime must preserve Node's existing navigation sequence and record the
+responses actually observed in that same run. Observation setup, protocol or
+premature detach failures must fail the capture; a fixed landing-asset inventory
+and a wait that changes the workload are not requirements. The current landing
+boundary and runtime admission guard remain in place until a replacement is proven.
+The retained handler and separate-session experiments above do not establish that
+replacement: the direct handler attempt awaited the worker Network reply before
+resume and failed with a missing session. The candidate matching the observed
+Playwright ordering sends worker Network enable and resume in that order without
+awaiting either reply, while tracking both outcomes and routing responses and
+redirects from the same run. Same-site Chrome 145 comparison and failure controls
+remain required; individual timing samples do not establish timing parity.
