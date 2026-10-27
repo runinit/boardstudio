@@ -350,3 +350,37 @@ recorded in [ticket 007](007-rust-graphite-acceptance.md#2026-10-27-source-bound
 The former Node source is preserved under `docs/archive/graphite/`, not as live
 entry points. Historical Cadrum remains a separate blocker to full Playwright
 retirement; full verification and hosted CI are still outstanding.
+
+## 2026-10-27: review follow-up on observed core failures
+
+The ticket 006 decision requires recording responses actually observed, not a
+fixed landing-asset inventory or a wait for missing responses. Earlier evidence
+also shows unrelated 404s are legitimate observations. The review correctly exposed
+a narrower problem: an actually observed failing core-worker HTTP response was
+recorded but could still produce a successful capture. The Rust capture and probe
+now fail when an observed `/assets/core-worker/` response has status 400 or higher.
+The capture retains the observed resources in its failure event log. An absent
+response remains inconclusive, not an invented failure; unrelated 404s and redirects
+remain observations. This narrows and supersedes the prior conclusion that the old
+fatal control was wholly obsolete.
+
+The Rust regression was red before the observed-failure check and green afterward;
+the focused unit test covers empty inventory, unrelated 404, redirect and core 404.
+A real Chrome 145 controlled page fetched a missing core resource before revealing
+the landing button; capture recorded the 404 and failed. Disabling the check was
+killed by the public consumer control (`.evidence/ticket008-core-observed-mutation/`).
+The existing real-site cold diagnostic also observed the injected 404 and recorded
+a failed result (`.evidence/ticket008-core-observed-control.log`). The diagnostic
+does not require that response when the browser did not observe it.
+
+The old source commit `6c9c4867755bd2316f751783729a3ff9778fc04a` exists in Git;
+the documented `t3-2088b1aa` checkout no longer exists. Its preserved directory
+contains the no-opt Cadrum provider and a correctly pinned OCCT archive, and the
+pinned container image is locally available. It does not contain a packaged old
+page/Host worker. The retained runbook explicitly says no old page/worker pass was
+established. Current `cad-capture` rejects `cadrum`, and the historical Host worker
+differs substantially from the current one. Accepting the backend string or testing
+only a simulated worker would not establish reproducibility. A separate historical
+measurement checkout and source-bound old page/worker package, followed by real
+Rust/Node protocol and failure comparisons, are required before removing that last
+driver. It has not been deleted or relabeled as complete.

@@ -275,7 +275,8 @@ async fn capture_browser(args: &[String], capture: &mut Capture) -> Result<()> {
         let (work, mut listener) = result?;
         let responses = match tokio::time::timeout(Duration::from_secs(60), &mut listener).await { Ok(Ok(r)) => r, Ok(Err(e)) => Err(Error(e.to_string())), Err(_) => { listener.abort(); Err(Error("response listener did not finish".into())) } };
         if let Ok(ref resources) = responses { capture.resources = Some(json!(resources)); }
-        let errors: Vec<_> = [work.as_ref().err(), disposal.as_ref().err(), responses.as_ref().err()].into_iter().flatten().map(ToString::to_string).collect();
+        let core = responses.as_ref().ok().and_then(|r| cad_responses::check_observed_core_failures(r).err());
+        let errors: Vec<_> = [work.as_ref().err(), disposal.as_ref().err(), responses.as_ref().err(), core.as_ref()].into_iter().flatten().map(ToString::to_string).collect();
         if errors.is_empty() { Ok(()) } else { Err(Error(errors.join("; "))) }
     }.await;
     let (closed, confirmed) =

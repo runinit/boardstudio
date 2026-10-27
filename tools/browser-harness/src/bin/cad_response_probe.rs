@@ -114,6 +114,7 @@ async fn run() -> Result<()> {
         if !errors.is_empty() { return Err(Error(errors.join("; "))); }
         let startup = startup?;
         let responses = responses?;
+        cad_responses::check_observed_core_failures(&responses)?;
         if workload.is_none() && !startup.as_f64().is_some_and(|value| value.is_finite() && value >= 0.0) {
             return Err(Error("invalid worker startup duration".into()));
         }

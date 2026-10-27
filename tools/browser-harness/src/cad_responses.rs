@@ -18,8 +18,48 @@ pub fn resource(url: String, status: i64, service_worker: Option<bool>) -> Resou
     }
 }
 
+pub fn check_observed_core_failures(
+    resources: &[Resource],
+) -> boardstudio_browser_harness::Result<()> {
+    for response in resources {
+        let path = response
+            .url
+            .split(['?', '#'])
+            .next()
+            .unwrap_or(&response.url);
+        if path.contains("/assets/core-worker/") && response.status >= 400 {
+            return Err(boardstudio_browser_harness::Error(format!(
+                "observed core worker response failed: {} status {}",
+                response.url, response.status
+            )));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn observed_core_worker_failure_is_fatal_without_requiring_an_inventory() {
+        let core = super::resource(
+            "http://example/boardstudio/assets/core-worker/a.wasm".into(),
+            404,
+            Some(false),
+        );
+        let unrelated = super::resource("http://example/favicon.ico".into(), 404, Some(false));
+        let redirect = super::resource(
+            "http://example/boardstudio/assets/core-worker/a.wasm".into(),
+            302,
+            Some(false),
+        );
+        assert!(super::check_observed_core_failures(&[]).is_ok());
+        assert!(super::check_observed_core_failures(&[unrelated, redirect]).is_ok());
+        assert!(super::check_observed_core_failures(&[core])
+            .unwrap_err()
+            .to_string()
+            .contains("core worker"));
+    }
+
     #[test]
     fn response_preserves_status_and_worker_origin() {
         let ordinary = super::resource("http://example/".into(), 404, None);

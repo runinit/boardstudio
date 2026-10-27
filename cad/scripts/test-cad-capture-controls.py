@@ -75,7 +75,11 @@ def main():
             self.end_headers()
 
         def do_GET(self):
-            if self.path == "/__perf/cad/scripts/performance-host.html":
+            if self.path == "/boardstudio/":
+                data = (b"<!doctype html><script>fetch('/boardstudio/assets/core-worker/missing.wasm')"
+                        b".then(() => document.body.innerHTML='<button>Create new keyboard</button>')</script><body></body>")
+                content_type = "text/html"
+            elif self.path == "/__perf/cad/scripts/performance-host.html":
                 data, content_type = b"<!doctype html><title>Controlled CAD capture</title>", "text/html"
             elif self.path == "/__perf/cad/test/fixtures/performance/C1plate.json":
                 data = (ROOT / "cad/test/fixtures/performance/C1plate.json").read_bytes()
@@ -150,6 +154,21 @@ def main():
             assert all(row["status"] == ("diagnostic-not-benchmark" if sequence == "validation" else "observed")
                        and math.isfinite(float(row["value"])) and float(row["value"]) >= 0 for row in metrics), metrics
             print(f"PASS {name}: {count} operations and {len(ready)} worker(s)", flush=True)
+
+        bad = False
+        directory = output / "observed-core-failure"
+        directory.mkdir()
+        command = [str(binary), f"http://127.0.0.1:{server.server_port}", "monstertruck", "checked",
+                   "startup:cold", str(directory), "1", "validation"]
+        result = subprocess.run(command, cwd=ROOT, env=dict(os.environ, CHROME_BIN=chrome),
+                                capture_output=True, text=True, timeout=240)
+        (directory / "process.log").write_text(f"exit={result.returncode}\n{result.stdout}\n{result.stderr}")
+        events = [json.loads(line) for line in (directory / "events.log").read_text().splitlines()]
+        resources = next(event["responses"] for event in events if event["name"] == "resources")
+        assert any(r["url"].endswith("/core-worker/missing.wasm") and r["status"] == 404 for r in resources), resources
+        assert result.returncode != 0 and next(event for event in events if event["name"] == "result")["failed"], events
+        assert any(event["name"] == "failure" and "observed core worker response failed" in event["error"] for event in events), events
+        print("PASS observed-core-failure: recorded 404 fails capture", flush=True)
 
         # Interrupt only this capture's verified Chrome after a successful reply, before shutdown.
         bad = False

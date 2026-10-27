@@ -53,16 +53,21 @@ def run(missing, binary, output, chrome):
                        and r["status"] == 404 and not r["serviceWorker"] for r in responses), responses
             assert not any(event["name"] == "reply-retained" for event in events), events
             return
-        assert result.returncode == 0, result.stderr
         responses = next(event["responses"] for event in events if event["name"] == "resources")
         if missing == "core":
             core = [r for r in responses if r["url"].endswith("/core-worker/m1_core_worker_bg.wasm")]
             assert all(r["status"] == 404 and not r["serviceWorker"] for r in core), core
-            if not core:
+            if core:
+                assert result.returncode != 0, result.stderr
+                assert next(event for event in events if event["name"] == "result")["failed"]
+                assert any(event["name"] == "failure" and "observed core worker response failed" in event["error"]
+                           for event in events), events
+            else:
                 print("core worker 404 not observed in this run; response check inconclusive", flush=True)
-            assert not next(event for event in events if event["name"] == "result")["failed"]
-            assert any(event["name"] == "reply-retained" for event in events)
+                assert result.returncode == 0, result.stderr
+                assert not next(event for event in events if event["name"] == "result")["failed"]
             return
+        assert result.returncode == 0, result.stderr
         core = [r for r in responses if "/core-worker/" in r["url"]]
         assert all(r["status"] == 200 and not r["serviceWorker"] for r in core), core
         for asset in ("cad-worker/entry.js", "cad-worker/m1_cad_worker.js", "cad-worker/m1_cad_worker_bg.wasm",
