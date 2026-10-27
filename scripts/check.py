@@ -12,6 +12,10 @@
                           names as the new baseline (use when tests were removed or renamed on purpose)
   check.py --list         print every step and its commands
 
+For a shared local build lock, open and flock ~/.cache/tmp/boardstudio-build.lock
+on a shell file descriptor, then export BOARDSTUDIO_BUILD_LOCK_FD with that descriptor
+number before starting check.py. The scheduler validates and holds it for the whole run.
+
 Steps:
   repo*       documentation link check and its tests
   tooling*    tests for the Python build, content and CAD tooling
@@ -407,6 +411,9 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                captured: list[tuple[Command, str]] | None = None,
                outputs: list[tuple[Command, str]] | None = None) -> tuple[float, int]:
     print("$ " + shlex.join(command), flush=True)
+    if command[1:] != DRAG_SMOKE[1:] and "BOARDSTUDIO_BUILD_LOCK_FD" in environment:
+        environment = environment.copy()
+        environment.pop("BOARDSTUDIO_BUILD_LOCK_FD")
     started = time.monotonic()
     if captured is not None and is_cargo_test(command):
         # The native test-name guard reads this output; it is printed whole once the command ends.
@@ -426,7 +433,9 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
         outputs.append((command, text))
         code = done.returncode
     else:
-        code = subprocess.run(command, cwd=cwd, env=environment).returncode
+        lock_fd = browser_tools._inherited_build_lock() if command[1:] == DRAG_SMOKE[1:] else None
+        code = subprocess.run(command, cwd=cwd, env=environment,
+                              **({"pass_fds": (lock_fd,)} if lock_fd is not None else {})).returncode
     elapsed = time.monotonic() - started
     print(f"  ({elapsed:.1f}s)", flush=True)
     return elapsed, code
@@ -438,6 +447,8 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                  receipt: verification_receipt.Collector | None = None,
                  step: str = "") -> tuple[float, list[Command]]:
     """Runs independent launches together, printing each one's output whole and in order."""
+    environment = {key: value for key, value in environment.items() if key != "BOARDSTUDIO_BUILD_LOCK_FD"}
+
     def launch(command: Command) -> tuple[int, str, float]:
         started = time.monotonic()
         done = subprocess.run(command, cwd=ROOT, env=environment, stdout=subprocess.PIPE,
@@ -752,6 +763,8 @@ def _main(argv: list[str] | None = None) -> int:
     unknown = [name for name in args.steps if name not in STEPS]
     if args.steps != ["quick"] and unknown:
         parser.error(f"unknown step(s): {', '.join(unknown)}; choose from {', '.join(STEPS)}")
+    if not args.list:
+        browser_tools._inherited_build_lock()
     receipt = None
     if args.receipt:
         receipt = verification_receipt.Collector(

@@ -44,15 +44,36 @@ def locate() -> tuple[str, str]:
     return node, locate_chrome()
 
 
+def _inherited_build_lock() -> int | None:
+    """Validate and hold the explicitly inherited shared build lock, if supplied."""
+    value = os.environ.get("BOARDSTUDIO_BUILD_LOCK_FD")
+    if value is None:
+        return None
+    import fcntl
+
+    lock = Path.home() / ".cache/tmp/boardstudio-build.lock"
+    try:
+        fd = int(value)
+        stat = os.fstat(fd)
+        path_stat = lock.stat()
+        if fd < 3 or (stat.st_dev, stat.st_ino) != (path_stat.st_dev, path_stat.st_ino):
+            raise ValueError("descriptor does not refer to the shared lock")
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (ValueError, OSError) as error:
+        raise SystemExit(f"invalid BOARDSTUDIO_BUILD_LOCK_FD: {error}") from error
+    return fd
+
+
 def build_drag_harness() -> Path:
     """Build under the shared lock and return Cargo's executable for this build."""
     root = Path(__file__).resolve().parents[1]
     lock = Path.home() / ".cache/tmp/boardstudio-build.lock"
     lock.parent.mkdir(parents=True, exist_ok=True)
-    if not shutil.which("flock"):
+    inherited = _inherited_build_lock()
+    if inherited is None and not shutil.which("flock"):
         raise MissingBrowserTool("drag browser smoke needs flock for the shared build lock; install flock (util-linux)")
     result = subprocess.run(
-        ["flock", str(lock), "cargo", "build", "--locked", "--message-format=json",
+        [*(["flock", str(lock)] if inherited is None else []), "cargo", "build", "--locked", "--message-format=json",
          "--manifest-path", str(root / "tools/browser-harness/Cargo.toml"),
          "--package", "boardstudio-browser-harness", "--bin", "drag-smoke"],
         cwd=root, capture_output=True, text=True,

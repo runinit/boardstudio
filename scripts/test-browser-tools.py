@@ -68,6 +68,67 @@ class BrowserToolsTests(unittest.TestCase):
                     for secret in secrets:
                         self.assertFalse(secret in output, "sensitive value reached build diagnostics")
 
+    def test_build_lock_across_scheduler_and_standalone(self):
+        import fcntl
+        import os
+        import subprocess
+        import sys
+        import tempfile
+
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp)
+            lock = home / ".cache/tmp/boardstudio-build.lock"
+            lock.parent.mkdir(parents=True)
+            cargo = home / "cargo"
+            cargo.write_text("#!/usr/bin/python3\n" +
+                "import json, os, subprocess\n" +
+                "assert subprocess.run(['flock', '-n', os.environ['LOCK'], 'true']).returncode != 0\n" +
+                "print(json.dumps(" + repr({"reason": "compiler-artifact",
+                    "package_id": f"path+{(root / 'tools/browser-harness').as_uri()}#boardstudio-browser-harness@0.1.0",
+                    "target": {"name": "drag-smoke", "kind": ["bin"]}, "executable": "/fake/drag-smoke"}) + "))\n")
+            cargo.chmod(0o755)
+            env = dict(os.environ, HOME=temp, LOCK=str(lock), PATH=f"{temp}:{os.environ['PATH']}", PYTHONPATH=str(root / "scripts"))
+            direct = "import browser_tools; print(browser_tools.build_drag_harness())"
+            standalone = subprocess.run([sys.executable, "-c", direct], cwd=root / "scripts", env=env,
+                                        capture_output=True, text=True, timeout=5)
+            self.assertEqual(standalone.returncode, 0, standalone.stderr)
+            with lock.open("w") as held:
+                fcntl.flock(held, fcntl.LOCK_EX)
+                env["BOARDSTUDIO_BUILD_LOCK_FD"] = str(held.fileno())
+                # Use the scheduler's actual drag command path and descriptor handling.
+                (home / "scripts").mkdir()
+                (home / "scripts/run-drag-browser.py").write_text(direct)
+                nested = "import check, os, sys; from pathlib import Path; sys.exit(check.run_serial([sys.executable, 'scripts/run-drag-browser.py'], dict(os.environ), cwd=Path(os.environ['HOME']))[1])"
+                result = subprocess.run([sys.executable, "-c", nested], cwd=root / "scripts", env=env,
+                                        pass_fds=(held.fileno(),), capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("/fake/drag-smoke", result.stdout)
+                with (home / "wrong").open("w") as wrong, lock.open("w") as unowned:
+                    for fd in (wrong.fileno(), unowned.fileno()):
+                        invalid_env = dict(env, BOARDSTUDIO_BUILD_LOCK_FD=str(fd))
+                        invalid = subprocess.run([sys.executable, "-c", direct], cwd=root / "scripts",
+                                                 env=invalid_env, pass_fds=(fd,), capture_output=True, text=True,
+                                                 timeout=5)
+                        self.assertNotEqual(invalid.returncode, 0)
+                        self.assertIn("invalid BOARDSTUDIO_BUILD_LOCK_FD", invalid.stderr)
+                standalone_env = dict(env)
+                standalone_env.pop("BOARDSTUDIO_BUILD_LOCK_FD")
+                blocked = subprocess.Popen([sys.executable, "-c", direct], cwd=root / "scripts",
+                                           env=standalone_env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                           text=True)
+                try:
+                    with self.assertRaises(subprocess.TimeoutExpired):
+                        blocked.communicate(timeout=0.5)
+                    fcntl.flock(held, fcntl.LOCK_UN)
+                    stdout, stderr = blocked.communicate(timeout=5)
+                    self.assertEqual(blocked.returncode, 0, stderr)
+                    self.assertIn("/fake/drag-smoke", stdout)
+                finally:
+                    if blocked.poll() is None:
+                        blocked.kill()
+                        blocked.communicate()
+
     def test_missing_flock_is_actionable(self):
         import subprocess
         import sys
