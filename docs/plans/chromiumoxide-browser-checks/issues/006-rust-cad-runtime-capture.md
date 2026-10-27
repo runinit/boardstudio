@@ -1256,3 +1256,32 @@ A real Chrome 145 delayed-activation control passed with a 35-second delay.
 The runtime timing guard remains in place. This checkpoint does not close the
 source-bound comparison, cache and service-worker controls, full watchdog failure
 control, or benchmark parity; ticket 006 remains incomplete.
+
+## 2026-10-27: HTTP cache control isolation (diagnostic)
+
+At clean source HEAD `efaae2a9`, the existing Node control failed with server
+counts 1 and 1. Its cache context blocked service workers; the failure was not
+caused by the warm context's worker. A separate Chrome for Testing 145.0.7622.0
+probe used `Cache-Control: public, max-age=3600` and a fresh blocked-worker
+context. Two fetches produced one server hit. On a fresh page CDP session,
+`Network.setCacheDisabled` alone left the count at 1; enabling Network on that
+session first made the next fetch reach the server (count 2). CDP response
+metadata showed network, disk cache, network, respectively. In a two-session
+control, enabling Network on one session and disabling cache on the other left
+the count at 1; disabling it on the enabled session increased the count to 2.
+Blocked registration yielded zero registrations.
+
+A separate controlled worker served two responses from CacheStorage with
+`fromServiceWorker=true` and zero server hits even with HTTP cache disabled.
+Thus a server-hit increase is not a valid unconditional assertion for a
+worker-intercepted request. The failed control omitted `Network.enable` in its
+own CDP session; Node's capture sends it before disabling cache. Rust source
+initializes Network on its page session before capture sends the cache command,
+but this probe did not drive the Rust capture and is not Rust runtime proof.
+Evidence: `.evidence/ticket006-cache-probe/probe.cjs`, `probe.log`, and
+`cleanup.json`; the final probe observed 17 descendants and left none. No
+product or capture fix is justified by these observations. The source-bound
+warm captures supplied for this investigation remain observations at
+`efaae2a9`, not cache-control proof or full ticket acceptance. A real Rust
+cache/block control, full failure controls and the remaining qualification gates
+remain open.
