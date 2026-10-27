@@ -927,3 +927,13 @@ protocol errors in other controls; these are not a successful browser smoke.
 The script-registration test passed 31/31
 (`.evidence/ticket005-registration-check.log`). The earlier failed full check
 and intermediate control failure remain failures.
+
+The single default full check on committed `b8779283`, with `NODE_PATH`, the
+build lock, `TMPDIR=/home/chris/.cache/tmp` and `boardstudio-tests.slice`, exited
+1 (`.evidence/ticket005-full-b8779283.log`). Repo, tooling, lint, build and
+native test phases passed. The default Node drag smoke passed 15 checks, the
+CAD browser smoke passed 364 checks, Parts passed 68/68 and Library passed
+18/18. Keycaps failed before identifying a test: the runner timed out loading
+scripts and ChromeDriver reported a renderer timeout. This is not a passing
+full gate or an identified cause of the earlier Keycaps failure. CI cutover and
+independent closure review remain open; ticket 005 remains claimed.
