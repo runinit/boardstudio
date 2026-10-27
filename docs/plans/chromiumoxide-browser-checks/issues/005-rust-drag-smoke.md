@@ -1090,3 +1090,29 @@ descriptors); standalone locking additionally requires the `flock` utility. The
 lock is inode-based: removing or replacing the lock file while a build is active
 would let a new contender lock a different inode, so the shared lock file must not
 be removed or replaced during builds.
+
+### 2026-10-26: Rust-driver tooling isolation
+
+On clean `b1ef4b704589295f5d988e5542aa6c453ff053f6`, the full Rust-driver
+check failed in `scripts/test-check.py`: 31 tests ran and two Node-specific
+probe tests produced three failures. The original log and receipt are
+`.evidence/ticket005-final-b1ef4b/default.log` and `default.json`. The tests
+inherited the Rust driver but mocked the Node probe; the scheduler correctly
+selects the Chrome-only probe for the Rust drag smoke. The tests now isolate
+their default driver and check fail-fast and probe ordering for both drivers.
+`BOARDSTUDIO_DRAG_DRIVER=rust python3 -B scripts/test-check.py` and the same
+command with `node` each passed 31 tests; `git diff --check` passed.
+
+A single full run with the fix uncommitted, the shared inherited lock, the
+8-CPU `boardstudio-tests.slice`, normal scheduler concurrency, and drag Chrome
+for Testing 145 passed `test-check.py` but hung in tooling. Its preserved log
+is `.evidence/ticket005-tooling-fix-full.log`; no final receipt was written.
+`test_browser_preflight_failure_still_writes_unrun_plan` in
+`scripts/test-verification-receipt.py` mocks only the Node probe. Under the
+Rust driver it instead started the real page build and drag launcher, whose
+standalone `flock` waited on the outer gate's lock. Process wait states showed
+the receipt test waiting on the launcher and `flock` waiting on the lock. The
+run was stopped, its processes exited, and a nonblocking lock acquisition
+succeeded afterward. The apparent web build in that log belongs to the receipt
+test, not the gate's build phase. The new blocker remains unresolved; no full
+gate, browser acceptance, or hosted CI pass is claimed.

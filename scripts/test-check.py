@@ -18,10 +18,15 @@ SPEC.loader.exec_module(check)
 
 class CheckTests(unittest.TestCase):
     def setUp(self):
-        # Plans that include the drag smoke probe Node, playwright-core and Chrome before they build.
+        driver = mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": "node"})
+        driver.start()
+        self.addCleanup(driver.stop)
         locate = mock.patch.object(check.browser_tools, "locate", return_value=("node", "chrome"))
         self.locate = locate.start()
         self.addCleanup(locate.stop)
+        chrome = mock.patch.object(check.browser_tools, "locate_chrome", return_value="chrome")
+        self.chrome = chrome.start()
+        self.addCleanup(chrome.stop)
 
     def test_every_referenced_script_and_manifest_exists(self):
         for name, (_, commands) in check.STEPS.items():
@@ -171,29 +176,40 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(captured["plan"][-1][1], [check.DRAG_SMOKE])
 
     def test_missing_browser_tools_fail_before_any_command_or_build_is_launched(self):
-        self.locate.side_effect = check.browser_tools.MissingBrowserTool("drag browser smoke needs Node.js")
-        for names in (["browser"], ["drag-smoke"], list(check.DEFAULT), ["build", "browser"]):
-            error = io.StringIO()
-            with self.subTest(names=names), \
-                    mock.patch.object(check, "run_plan") as run_plan, \
-                    mock.patch.object(check.subprocess, "run") as launch, \
-                    contextlib.redirect_stderr(error):
-                self.assertEqual(check.run(names), 1)
-            run_plan.assert_not_called()
-            launch.assert_not_called()
-            self.assertIn("check: drag browser smoke needs Node.js", error.getvalue())
+        for driver, probe in (("node", self.locate), ("rust", self.chrome)):
+            probe.side_effect = check.browser_tools.MissingBrowserTool("missing browser tool")
+            for names in (["browser"], ["drag-smoke"], list(check.DEFAULT), ["build", "browser"]):
+                error = io.StringIO()
+                with self.subTest(driver=driver, names=names), \
+                        mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": driver}), \
+                        mock.patch.object(check, "run_plan") as run_plan, \
+                        mock.patch.object(check.subprocess, "run") as launch, \
+                        contextlib.redirect_stderr(error):
+                    self.assertEqual(check.run(names), 1)
+                run_plan.assert_not_called()
+                launch.assert_not_called()
+                self.assertIn("check: missing browser tool", error.getvalue())
+            probe.side_effect = None
 
     def test_browser_tools_are_probed_once_before_the_unchanged_command_order(self):
-        calls = []
-        self.locate.side_effect = lambda: calls.append("probe") or ("node", "chrome")
+        for driver, probe, other in (("node", self.locate, self.chrome), ("rust", self.chrome, self.locate)):
+            calls = []
+            probe.reset_mock()
+            other.reset_mock()
+            probe.side_effect = lambda: calls.append("probe") or "chrome"
 
-        def record(plan, update_native_baseline=False):
-            calls.append([name for name, _ in plan])
-            return 0
+            def record(plan, update_native_baseline=False):
+                calls.append([name for name, _ in plan])
+                return 0
 
-        with mock.patch.object(check, "run_plan", side_effect=record):
-            self.assertEqual(check.run(list(check.DEFAULT)), 0)
-        self.assertEqual(calls, ["probe", list(check.DEFAULT)])
+            with self.subTest(driver=driver), \
+                    mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": driver}), \
+                    mock.patch.object(check, "run_plan", side_effect=record):
+                self.assertEqual(check.run(list(check.DEFAULT)), 0)
+            self.assertEqual(calls, ["probe", list(check.DEFAULT)])
+            probe.assert_called_once_with()
+            other.assert_not_called()
+            probe.side_effect = None
 
     def test_scoped_browser_only_does_not_acquire_the_drag_smoke_prerequisites(self):
         self.locate.side_effect = check.browser_tools.MissingBrowserTool("absent")
