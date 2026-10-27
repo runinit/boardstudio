@@ -1,4 +1,4 @@
-//! C1 preview consumer for the existing CAD measurement launcher.
+//! Worker workload consumer for the existing CAD measurement launcher.
 #[path = "../cad_responses.rs"]
 mod cad_responses;
 #[path = "../cad_target_responses.rs"]
@@ -96,10 +96,27 @@ async fn run() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     if args.len() != 7
         || args[1] != "monstertruck"
-        || args[3] != "C1plate:preview"
+        || !matches!(
+            args[3].as_str(),
+            "C1plate:preview"
+                | "C1plate:step"
+                | "C2trayboss:preview"
+                | "C2trayboss:step"
+                | "C3gasket:preview"
+                | "C3gasket:step"
+                | "P1analyticPCB:preview"
+                | "P1analyticPCB:step"
+                | "V1switch:import"
+                | "V2vendor:import"
+                | "V2vendor:refine"
+                | "K1keycap:preview"
+                | "K1keycap:print"
+                | "Qvendor:default"
+                | "Qvendor:tight"
+        )
         || !matches!(args[6].as_str(), "validation" | "latency" | "growth20")
     {
-        return Err(Error("usage: cad-capture ORIGIN monstertruck PROFILE C1plate:preview OUTPUT PAIR validation|latency|growth20".into()));
+        return Err(Error("usage: cad-capture ORIGIN monstertruck PROFILE WORKLOAD OUTPUT PAIR validation|latency|growth20 (supported worker workloads only)".into()));
     }
     let validation = args[6] == "validation";
     let output = std::path::Path::new(&args[4]);
@@ -159,7 +176,8 @@ async fn capture_browser(args: &[String], capture: &mut Capture) -> Result<()> {
             let work = async {
                 bounded(async { page.goto(format!("{}/__perf/cad/scripts/performance-host.html", args[0])).await.map(|_| ()).map_err(|e| Error(e.to_string())) }, "navigation").await?;
                 let source = include_str!("../../../../cad/scripts/measure-cad-worker.cjs");
-                let arguments = json!({"backend":args[1], "fixture":"C1plate", "operation":"preview", "sequence":args[6], "isStartup":false});
+                let (fixture, operation) = args[3].split_once(':').ok_or_else(|| Error("invalid workload".into()))?;
+                let arguments = json!({"backend":args[1], "fixture":fixture, "operation":operation, "sequence":args[6], "isStartup":false});
                 let expression = format!("(() => {{ const module = {{exports: null}}; {source} return module.exports({arguments}); }})()");
                 let prepared = bounded(driver::eval(&page, &expression), "worker preparation").await?;
                 capture.event("prepared", prepared.clone())?;
@@ -169,6 +187,10 @@ async fn capture_browser(args: &[String], capture: &mut Capture) -> Result<()> {
                 let count = if capture.validation {1} else if args[6] == "growth20" {20} else {6};
                 for i in 0..count {
                     let state = if args[6] == "growth20" {"growth"} else if i == 0 {"cold"} else {"warm"};
+                    if operation == "step" && i > 0 {
+                        bounded(driver::eval(&page, "window.__measure.startWorker()"), "fresh export worker").await?;
+                        capture.event("fresh-export-worker-ready", json!({"ordinal":i}))?;
+                    }
                     capture.event("operation-start", json!({"state":state,"ordinal":i}))?;
                     let sample = bounded(driver::eval(&page, "window.__measure.run()"), "worker operation").await?;
                     let mut data = sample.as_object().ok_or_else(|| Error("invalid sample".into()))?.clone();

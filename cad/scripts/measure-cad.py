@@ -458,8 +458,8 @@ def sample_tree(pid):
 
 
 def capture_driver(driver, workload):
-    if driver == "rust" and workload != "C1plate:preview":
-        raise ValueError("Rust capture supports only C1plate:preview")
+    if driver == "rust" and workload not in (*PAIRED, *UNPAIRED):
+        raise ValueError("Rust capture supports only worker workloads")
     return driver
 
 

@@ -20,10 +20,11 @@ SPEC.loader.exec_module(PERF)
 
 
 class CaptureSelectionTests(unittest.TestCase):
-    def test_rust_selection_is_explicit_and_limited_to_c1(self):
+    def test_rust_selection_accepts_worker_workloads_only(self):
         self.assertEqual(PERF.capture_driver("node", "C1plate:preview"), "node")
-        self.assertEqual(PERF.capture_driver("rust", "C1plate:preview"), "rust")
-        with self.assertRaisesRegex(ValueError, "C1plate:preview"):
+        for workload in (*PERF.PAIRED, *PERF.UNPAIRED):
+            self.assertEqual(PERF.capture_driver("rust", workload), "rust")
+        with self.assertRaisesRegex(ValueError, "worker workloads"):
             PERF.capture_driver("rust", "U1:page")
 
 
