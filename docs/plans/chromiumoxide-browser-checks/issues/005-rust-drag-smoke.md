@@ -937,3 +937,30 @@ CAD browser smoke passed 364 checks, Parts passed 68/68 and Library passed
 scripts and ChromeDriver reported a renderer timeout. This is not a passing
 full gate or an identified cause of the earlier Keycaps failure. CI cutover and
 independent closure review remain open; ticket 005 remains claimed.
+
+### 2026-10-26: supported Rust launcher with integrated controls
+
+On clean `835d41c04396daaa7be7f1ffbbeec6269683caa8`, the checked
+`python3 scripts/check.py build` passed in 59.6 seconds under the project build
+lock and `boardstudio-tests.slice` with CPUQuota 800%. Its partial build receipt
+is `.evidence/ticket005-rust-e2e-835d-build.json` and log is
+`.evidence/ticket005-rust-e2e-835d-build-corrected.log`. An initial service
+invocation used the wrong working directory and failed before starting the build;
+its original log is `.evidence/ticket005-rust-e2e-835d-build.log`.
+
+The supported Rust launcher ran once in the same CPU envelope, building its
+locked harness under the project lock and using Chrome for Testing
+`145.0.7622.0` and chromiumoxide `0.9.1`. All six integrated negative controls
+(assertion, exception, rejection, close-exception, cleanup, and transport-loss)
+exited 1 without a receipt and met their expected error checks. The actual smoke
+passed all 15 checks and the launcher verified its receipt. The receipt records
+clean source digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`,
+site digest `783c8373704b2bef50fe6e48b8fe86fa64408982f7af9454a22fcbde7ddc0029`,
+and viewport 1513 x 1043. It is at
+`web/target/test-results/drag-browser/20261027T003552Z-a5170fe79339/receipt.json`;
+the launcher log is `.evidence/ticket005-rust-e2e-835d-launcher.log`. The run
+reported the expected post-boundary WebSocket reset after clean child exit.
+
+This is scoped Rust launcher evidence, not fresh Node/Rust parity, full default
+acceptance, or CI cutover. The prior Keycaps startup failures remain unexplained;
+the instrumented full pass does not establish their cause or resolution.
