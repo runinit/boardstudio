@@ -85,3 +85,22 @@ missing `playwright-core`; compilation was stubbed. The launcher regression cove
 build and validation selection, and the CAD and shared browser-tools Python suites
 passed (19 and 12 tests respectively). This is prerequisite evidence, not real-page
 capture or parity evidence; ticket 006 and the remaining gates above stay open.
+
+## Final removal sequence
+
+1. Complete the outstanding drag, CAD and Graphite parity and failure-control gates;
+   qualify CAD startup timing before changing its runtime default. Keep the old
+   drivers available until their individual gates pass.
+2. Refresh the browser-consumer inventory against the final source. Switch eligible
+   defaults to Rust, then remove only obsolete Playwright runners and their setup,
+   updating CI, documentation and diagnostic entry points together. Preserve Node
+   tooling and the separate Ergogen and mounted WASM prerequisites.
+3. In a clean environment without Playwright or its `NODE_PATH`, exercise the
+   supported real-page workflows and missing-prerequisite errors. Run the full
+   supported check on the final committed source, complete the required review and
+   record hosted CI separately before declaring retirement complete.
+
+On `fix/drag-save-undo` at `f4d6587c`, the scheduler inventory suite passed 31
+tests under `boardstudio-tests.slice`. The final full check and timing qualification
+were not run in this session: observed disk I/O pressure was approximately 45–56%
+full stalls. This is not cutover or acceptance evidence.
