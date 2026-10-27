@@ -437,7 +437,26 @@ async fn run(p: &Page, shots: Option<&str>) -> Result<()> {
         }
         if workspace == "Case" {
             wait(p, "!!document.querySelector('.m1-case-view')").await?;
-            for (label,expr) in [("Case stackup visible without configuration click","!!document.querySelector('.m1-stackup-preview')?.getBoundingClientRect().width"),("Case generation controls are in footer","!!document.querySelector('footer.m1-case-footer')?.getBoundingClientRect().width"),("camera controls joined Case toolbar","document.querySelectorAll('.m1-case-view-toolbar .m1-case-camera-controls').length===1")] { check(p,&mut f,label,expr).await?; }
+            for (label, selector) in [
+                (
+                    "Case stackup visible without configuration click",
+                    ".m1-stackup-preview",
+                ),
+                (
+                    "Case generation controls are in footer",
+                    "footer.m1-case-footer",
+                ),
+            ] {
+                let exists = eval(p, &format!("!!document.querySelector('{selector}')")).await?
+                    == Value::Bool(true);
+                let visible = if exists {
+                    driver::is_visible(p, driver::backend_of(p, selector).await?).await?
+                } else {
+                    false
+                };
+                check(p, &mut f, label, &visible.to_string()).await?;
+            }
+            check(p, &mut f, "camera controls joined Case toolbar", "document.querySelectorAll('.m1-case-view-toolbar .m1-case-camera-controls').length===1").await?;
         }
         if workspace == "Parts" {
             let root = driver::backend_of(p, "#m1-objects-panel").await?;

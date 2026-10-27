@@ -627,3 +627,22 @@ blank line at EOF in concurrently edited ticket 006. Full supported check,
 detailed screenshot review, source-bound parity,
 visibility-specific end-to-end negative control, hosted CI and combined closure
 review remain open. No acceptance box was cleared and no push was made.
+
+## 2026-10-27: Snap design authorization
+
+The user explicitly authorized the current inline Snap accordion as the Graphite
+acceptance design, replacing the old upward-popover requirement. Retain the
+keyboard, focus, visibility, and increment behavior checks.
+
+## 2026-10-27: Case visibility parity (focused, open)
+
+The Rust Case stackup and footer assertions now use the shared driver's visible
+box check. A Chrome 145 probe confirmed the previous width-only expressions
+accepted both `visibility:hidden` controls while Node `isVisible` rejected them.
+On the existing `ticket007-visibility-site` package, Rust feedback exited 0 with
+87 PASS (`.evidence/ticket007-case-visibility-rust.log`). Against that same
+package with both Case controls hidden by injected CSS, Node and Rust each
+reported both Case labels FAIL and exited 1 (`.evidence/ticket007-case-hidden-
+{node,rust}.log`). The Rust negative run also reported a browser-handler reset.
+These are focused checks against an existing package, not source-bound acceptance;
+the outstanding ticket gates remain open.
