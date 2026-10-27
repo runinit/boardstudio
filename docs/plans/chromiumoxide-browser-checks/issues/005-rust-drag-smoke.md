@@ -1,6 +1,6 @@
 # 005: Rust drag smoke end to end
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: none
 Parent: [Chromiumoxide browser checks](../map.md)
@@ -1155,3 +1155,14 @@ browser's own requests. The monitor and its two requests add observation overhea
 and five-second sampling may miss short-lived runners. Keycaps did not stall, so
 this passing run cannot diagnose or resolve the earlier three Keycaps startup
 stalls. No repeat was run; hosted CI and other acceptance gates remain separate.
+
+### 2026-10-26: local closure
+
+The user reported the independent combined review verdict: Spec passed and Standards
+passed. Ticket 005 is resolved for local scope only. The full local receipt on
+`deb75a9072ccb1456b82984fb8345fa3b26b4a04` records 57/57 commands, 2,396 native
+tests, 31 Keycaps tests and 112 page tests; the Rust drag consumer verified 15
+checks. The prior clean same-build Node/Rust parity evidence is at `dda082fd`.
+The full run used a passive external monitor. The three earlier Keycaps startup
+stalls remain unexplained; historical failures remain failures. Hosted CI has
+not run, and this local closure is not hosted CI or release approval.
