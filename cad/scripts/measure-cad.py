@@ -466,8 +466,10 @@ def capture(command, root, out, timeout, env=None):
         log.flush()
         writer = csv.writer(memory)
         writer.writerow(("monotonic_s", "unix_s", "pid", "scope", "pss_kib", "rss_kib", "status"))
+        lock_fd = browser_tools._inherited_build_lock()
         process = subprocess.Popen(command, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                   env=env, start_new_session=True, text=True, bufsize=1)
+                                   env=env, start_new_session=True, text=True, bufsize=1,
+                                   pass_fds=(lock_fd,) if lock_fd is not None else ())
         done = threading.Event()
         timed_lines = csv.writer(timing)
         timed_lines.writerow(("monotonic_s", "unix_s", "line"))

@@ -19,6 +19,15 @@ PERF = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(PERF)
 
 
+class CaptureLockTests(unittest.TestCase):
+    def test_capture_inherits_build_lock_descriptor(self):
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryFile() as lock:
+            with patch.object(PERF.browser_tools, "_inherited_build_lock", return_value=lock.fileno()):
+                code, _ = PERF.capture([sys.executable, "-c", f"import os; os.fstat({lock.fileno()})"],
+                                       PERF.ROOT, Path(directory), 10)
+            self.assertEqual(code, 0, Path(directory, "command.log").read_text())
+
+
 class BuildBindingTests(unittest.TestCase):
     HEAD = "2ea2ca48d1b0a55e99429fe06c7bdec0611a428b"
     COMMENT = "// BoardStudio CAD performance incremental rebuild probe.\n"
