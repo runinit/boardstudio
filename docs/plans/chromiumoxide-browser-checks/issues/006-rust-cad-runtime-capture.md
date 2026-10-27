@@ -204,3 +204,49 @@ Node remains the launcher default. The Rust consumer and launcher selection,
 startup and U1 workflows, complete output and failure parity, controlled cache and
 service-worker behavior, full workload parity, full check, hosted CI and independent
 closure review remain open. No acceptance checkbox is cleared by this slice.
+
+## 2026-10-26: opt-in C1 Rust launcher capture
+
+`measure-cad.py runtime --driver rust --workload C1plate:preview` now builds and
+runs the Rust consumer through the existing launcher and binding checks. Node is
+still the default; Rust explicitly rejects other workloads. The consumer uses the
+shared worker validation and dedicated-worker response capture, emits the existing
+C1 event/CSV fields, and applies the cold cache setting and the same pre-navigation
+service-worker registration block used by the installed Playwright runner. This is
+an opt-in C1 slice, not ticket closure.
+
+The first attempted source-bound build at `3ab19470` failed before compilation due
+to a Python syntax error in the shared build helper
+(`.evidence/ticket006-consumer-build-terminal.log`). The error was corrected and
+recorded separately. The final checked noop build at clean source
+`51ccacaebe18555e67eac709368543d5c45020e9` passed under the shared lock and
+`boardstudio-tests.slice`, 82.81 seconds
+(`.evidence/ticket006-consumer-final-build/`). Sequential supported runtime
+captures on that build both exited 0, with identical before/after bindings
+(`.evidence/ticket006-consumer-final-node/` and `ticket006-consumer-final-rust/`).
+The comparison (`.evidence/ticket006-consumer-final-comparison.log`) checked 25
+event names and fields, non-timing values, and 25 CSV rows. All six samples in each
+runner contained 492 triangles, 35424 buffer bytes and zero STEP bytes. Each of
+Node's seven URL/status/service-worker records occurred once in Rust; Rust also
+captured a favicon 404. Node/Rust worker-create-to-ready samples were 124.59 ms and
+110.00 ms respectively; Rust pauses its worker for additional response attachment,
+so the samples are not equivalent timing or a speed claim. These observations have
+no benchmark or quiet-window admission.
+
+On the prior `b23a8805` checkpoint, real Chrome controlled fixtures rejected a
+missing input, identity drift, missing bodies, a failed worker reply, a malformed
+mesh and a page exception with nonzero exits and `result.failed=true`
+(`.evidence/ticket006-consumer-controls.log` and `ticket006-consumer-malformed.log`).
+The last code change moved the failure event before resources; on final source a
+malformed-mesh control again exited 1 with event order failure, resources, result
+(`.evidence/ticket006-consumer-final-failure-order.log`). These controls are not a
+complete old/new failure comparison; the temporary control harness is not a CI test.
+
+The launcher selection regression was RED before implementation
+(`.evidence/ticket006-consumer-red.log`); 18 Python measurement tests, 12 browser
+helper tests, the five Node protocol checks plus STL controls, two Rust response
+unit tests and final Rust Clippy passed. U1, other workloads, controlled cold/warm
+cache and service-worker-origin parity, complete failure/output parity, the full
+supported check, hosted CI and independent closure review remain open. The favicon
+extra and worker instrumentation timing prevent claiming exact response/timing
+parity. No acceptance checkbox is cleared.
