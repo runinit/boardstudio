@@ -148,3 +148,24 @@ coverage or explicit retirement approval. Mounted WASM and Ergogen remain out of
 The shared Node prerequisite error no longer claims the CI web-tools action installs
 Playwright; it directs users to install it separately and set `NODE_PATH`. This is
 an interim correction, not removal of a runner or a retirement acceptance verdict.
+
+## 2026-10-27: Parts inspector Rust cutover
+
+`python3 scripts/run-parts-inspector-scroll.py` replaces the opt-in Node Parts
+inspector check. It requires `BOARDSTUDIO_PREVIEW_URL` and uses `CHROME_BIN` when
+provided. It exercises the same wheel, viewport, hit, horizontal-overflow and
+pointer/keyboard board-side checks at 390x844 and 1513x1043; the wheel must also be
+observed as trusted. Each viewport has an isolated browser context.
+
+The old and new checks passed on the same freshly built local site under the shared
+build lock, `boardstudio-tests.slice`, and Chrome for Testing 145.0.7622.0. The
+existing identity helper reported the same dirty source and site digest before and
+after, and its served-file verifier matched every local site file at both boundaries.
+The site was freshly built in this checkout, but no official source-bound build
+receipt was collected; this comparison is not that stronger binding. Logs are in
+`.evidence/ticket008-parts-bound-{before,after,node,rust}.log` and the build log is
+`.evidence/ticket008-parts-site-build.log`. The Node script has been removed; CAD,
+Graphite and drag legacy consumers remain, and full retirement remains open.
+As a browser failure control, a separate server injected `overflow-y:hidden` into
+the page response; the Rust check failed at 390x844 with zero scroll and a missed
+hit (`.evidence/ticket008-parts-control.log`). The unmodified site was not changed.

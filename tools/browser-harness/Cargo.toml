@@ -41,3 +41,7 @@ path = "src/bin/cad_capture.rs"
 [[bin]]
 name = "graphite-feedback"
 path = "src/bin/graphite_feedback.rs"
+
+[[bin]]
+name = "parts-inspector-scroll"
+path = "src/bin/parts_inspector_scroll.rs"

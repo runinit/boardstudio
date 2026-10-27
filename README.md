@@ -134,6 +134,11 @@ to print the checkout, HEAD, dirty source digest and preview URL before either r
 observations: an arbitrary server is not bound to that build or source, so its served identity
 remains unverified unless established separately.
 
+The manual Parts inspector scroll regression runs against a running site with
+`BOARDSTUDIO_PREVIEW_URL=http://127.0.0.1:4173/boardstudio/ python3 scripts/run-parts-inspector-scroll.py`.
+Set `CHROME_BIN` when Chrome is not at `/usr/bin/chromium`. The check uses the Rust harness;
+it needs no Playwright or `NODE_PATH`.
+
 **Verification receipts.** Add `--receipt PATH` to any check invocation to write a JSON receipt at
 `PATH` and a reviewer summary at `PATH.md`, both derived only from the output that invocation
 already captured. The receipt keeps native `cargo test` binaries, direct `wasm-pack test` crate

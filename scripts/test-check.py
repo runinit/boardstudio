@@ -6,6 +6,7 @@ import importlib.util
 import io
 import os
 from pathlib import Path
+import subprocess
 import sys
 import unittest
 from unittest import mock
@@ -48,7 +49,6 @@ class CheckTests(unittest.TestCase):
             "scripts/test-drag-browser-consumer-controls.py": "Linux CI consumer fault controls",
             "scripts/test-graphite-feedback.cjs": "interactive Graphite acceptance against a running dev server",
             "scripts/test-graphite-usability.cjs": "compatibility entry point for Graphite acceptance",
-            "scripts/test-parts-inspector-scroll.cjs": "Parts inspector check against a running site and Chrome",
         }
         self.assertEqual(scripts, registered | delegated.keys() | opt_in.keys())
         self.assertTrue(all(opt_in.values()))
@@ -70,6 +70,14 @@ class CheckTests(unittest.TestCase):
         self.assertNotIn("NODE_PATH", action)
         self.assertIn("env -u NODE_PATH python3 scripts/check.py build browser", workflow)
         self.assertIn("Verify Rust browser checks need no Playwright", workflow)
+
+    def test_parts_inspector_launcher_requires_running_site_url(self):
+        env = os.environ.copy()
+        env.pop("BOARDSTUDIO_PREVIEW_URL", None)
+        result = subprocess.run([sys.executable, "scripts/run-parts-inspector-scroll.py"], cwd=ROOT,
+                                env=env, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("BOARDSTUDIO_PREVIEW_URL", result.stderr)
 
     def test_browser_runs_packaged_provider_regressions(self):
         self.assertIn([check.PY, "cad/scripts/test-cad-provider.py"], check.STEPS["browser"][1])
