@@ -126,13 +126,14 @@ installed Playwright package. Node remains required for the tooling checks.
 The manual Graphite feedback check has a Rust entry point,
 `python3 scripts/run-graphite-feedback.py`, against `BOARDSTUDIO_PREVIEW_URL`
 (default `http://127.0.0.1:8182/`). It accepts `CHROME_BIN` and optional
-`BOARDSTUDIO_SCREENSHOTS`. The Node feedback and usability commands remain available.
-`python3 scripts/run-graphite-usability.py` runs the same Rust
-workflow, matching the Node usability entry point. Set `BOARDSTUDIO_GRAPHITE_IDENTITY=1`
+`BOARDSTUDIO_SCREENSHOTS`. `python3 scripts/run-graphite-usability.py` runs the same Rust
+workflow. The former Node runners are archived, not supported. Set `BOARDSTUDIO_GRAPHITE_IDENTITY=1`
 to print the checkout, HEAD, dirty source digest and preview URL before either runner. Set
 `BOARDSTUDIO_GRAPHITE_BUILD_DIR` to also digest a local build directory. These are launch-time
 observations: an arbitrary server is not bound to that build or source, so its served identity
 remains unverified unless established separately.
+To check assertion and page-error failure handling against a built site, run
+`CHROME_BIN=/path/to/chrome python3 scripts/test-graphite-controls.py /path/to/new-output-directory`.
 
 The manual Parts inspector scroll regression runs against a running site with
 `BOARDSTUDIO_PREVIEW_URL=http://127.0.0.1:4173/boardstudio/ python3 scripts/run-parts-inspector-scroll.py`.

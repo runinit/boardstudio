@@ -35,7 +35,7 @@ The default Case construction values are a read-only preview until explicitly co
 - WASM frontend typechecks passed. Scoped Impeccable layout detector: **zero findings**. This is a scoped result, not a claim that the entire legacy stylesheet is clean.
 - PCB's old hidden-DOM assertion was updated to the shared popover's unmount lifecycle while retaining scene visibility and focus-restoration assertions. The Case override test now locates its disclosure by accessible name rather than positional CSS.
 
-Regression entry point: `scripts/test-graphite-feedback.cjs`; the previous usability script forwards to it. Scratch logs live in `.scratch/graphite-feedback/`.
+The historical regression entry point was `scripts/test-graphite-feedback.cjs`; its source is now archived under `docs/archive/graphite/`. The current manual command is `python3 scripts/run-graphite-feedback.py`. Scratch logs live in `.scratch/graphite-feedback/`.
 
 ## Captures
 

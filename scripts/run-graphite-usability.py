@@ -9,6 +9,6 @@ if os.environ.get("BOARDSTUDIO_GRAPHITE_IDENTITY") or os.environ.get("BOARDSTUDI
     subprocess.run([sys.executable, str(Path(__file__).with_name("graphite-identity.py"))], check=True)
 from browser_tools import _build_harness
 
-# The Node usability entry point also runs the feedback workflow.
+# Usability and feedback share the same acceptance workflow.
 binary = _build_harness("graphite-feedback")
 os.execv(str(binary), [str(binary)])

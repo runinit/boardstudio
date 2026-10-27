@@ -721,3 +721,36 @@ passed. The earlier focused mounted in-flight regression receipt remains 1/1
 The package is not freshly source-bound, and another agent's vendor change was
 present during the Rust build. Full source-bound parity, supported checks,
 negative controls, visual review and closure review remain open.
+
+## 2026-10-27: source-bound manual cutover
+
+On clean `3e69d0f8`, the checked build receipt in
+`.evidence/ticket008-graphite-build-3e69d0f8/` passed. For each of the Node and
+Rust feedback and usability commands, the existing preflight validated the source,
+build receipt and all served files against the same locally served package. Chrome
+145 ran under the shared lock and `boardstudio-tests.slice`. Each run exited 0,
+reported the same 88 ordered PASS labels (excluding the dynamic pointer observation),
+and wrote 18 screenshots with matching names and dimensions. Logs and screenshots
+are `.evidence/ticket008-graphite-{feedback,usability}-{node,rust}*`. The narrow
+Parts feedback screenshots were inspected side by side and showed matching layout;
+all screenshots were not individually reviewed and are not pixel-identical.
+
+The current Rust feedback launcher rejected an injected canvas assertion and the
+usability launcher rejected an injected uncaught page error, each with nonzero exit
+and the expected failure text (`.evidence/ticket008-graphite-negative-*.log`).
+These injected pages intentionally do not match the bound package. The reusable
+`scripts/test-graphite-controls.py OUTPUT` performs those two controls without
+Playwright (`.evidence/ticket008-graphite-controls-green/`). Its launcher test was
+red before the command existed and green afterward.
+
+The Node scripts have been moved to `docs/archive/graphite/` as historical source;
+the supported feedback and usability commands remain the Rust Python launchers.
+After the move, the reusable negative controls passed again with `NODE_PATH` unset
+(`.evidence/ticket008-graphite-controls-final/`); 38 scheduler tests, three preflight
+tests, 21 documentation-link tests and the 609-file link check passed
+(`.evidence/ticket008-graphite-retirement-tests.log`). The bound comparison above
+was performed before this documentation and launcher-inventory change; the Rust
+Graphite binary was not changed by the retirement diff.
+This is consumer cutover evidence, not a full supported-check, hosted-CI, visual
+approval or combined closure-review verdict. Ticket 007 remains open for those
+outstanding gates.

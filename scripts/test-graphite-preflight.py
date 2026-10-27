@@ -14,6 +14,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class GraphitePreflightTests(unittest.TestCase):
+    def test_negative_controls_are_human_runnable(self):
+        result = subprocess.run([sys.executable, "scripts/test-graphite-controls.py", "--help"],
+                                cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("output", result.stdout.lower())
+
     def test_served_files_must_match_package(self):
         spec = importlib.util.spec_from_file_location("graphite_identity", ROOT / "scripts/graphite-identity.py")
         identity = importlib.util.module_from_spec(spec)

@@ -14,7 +14,7 @@ No project schema, domain operations, palette or Case height/thickness handles w
 
 ## Verification
 
-The new isolated-profile browser regression is `scripts/test-graphite-usability.cjs`. It first failed against the old UI for the expected navigation, layers, missing controls/handles, toolbar centering and Keymap visibility defects.
+The original isolated-profile browser regression was `scripts/test-graphite-usability.cjs` (now archived under `docs/archive/graphite/`). It first failed against the old UI for the expected navigation, layers, missing controls/handles, toolbar centering and Keymap visibility defects. The current manual command is `python3 scripts/run-graphite-usability.py`.
 
 The completed checks cover typed edits through the Inspector owner; each drag's commit, Escape cancellation and single-step undo with all handles mounted; visibility independence; all six workbenches at 1586, 1024 and 390 pixels; toolbar centers within two pixels of viewer centers; and Layout toolbar alignment with collapsed/resized docks.
 

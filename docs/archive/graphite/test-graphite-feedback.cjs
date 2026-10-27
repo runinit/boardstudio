@@ -1,4 +1,4 @@
-// Current Graphite feedback acceptance. Requires Playwright on NODE_PATH.
+// Historical Graphite feedback runner; retained as evidence, not a supported entry point.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 if (process.env.BOARDSTUDIO_GRAPHITE_IDENTITY || process.env.BOARDSTUDIO_GRAPHITE_BUILD_RUN) {

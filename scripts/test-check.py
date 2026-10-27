@@ -45,8 +45,7 @@ class CheckTests(unittest.TestCase):
         opt_in = {
             "cad/scripts/test-startup-readiness.py": "Rust diagnostic requiring a packaged site and Chrome",
             "scripts/test-drag-browser-consumer-controls.py": "Linux CI consumer fault controls",
-            "scripts/test-graphite-feedback.cjs": "interactive Graphite acceptance against a running dev server",
-            "scripts/test-graphite-usability.cjs": "compatibility entry point for Graphite acceptance",
+            "scripts/test-graphite-controls.py": "manual Graphite browser failure controls against a built site",
             "scripts/test-drag-interactions.cjs": "historical source retained for linked migration evidence",
         }
         self.assertEqual(scripts, registered | opt_in.keys())
@@ -83,6 +82,12 @@ class CheckTests(unittest.TestCase):
                                 cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("output", result.stdout.lower())
+
+    def test_graphite_manual_runners_are_rust_with_historical_source_archived(self):
+        for name in ("feedback", "usability"):
+            self.assertTrue((ROOT / f"scripts/run-graphite-{name}.py").is_file())
+            self.assertFalse((ROOT / f"scripts/test-graphite-{name}.cjs").exists())
+            self.assertTrue((ROOT / f"docs/archive/graphite/test-graphite-{name}.cjs").is_file())
 
     def test_retired_drag_driver_is_rejected_before_build_or_launch(self):
         spec = importlib.util.spec_from_file_location("drag_browser", ROOT / "scripts/run-drag-browser.py")

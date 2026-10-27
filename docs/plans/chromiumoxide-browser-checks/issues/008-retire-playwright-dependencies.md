@@ -341,3 +341,12 @@ The real current-checkout Node selection exited 2 before build or output creatio
 (`.evidence/ticket008-retired-current-node.log`). The browser controls use a
 simulated worker and an existing local site respectively; the full browser gate,
 full verification and hosted CI were not run in this slice.
+
+## 2026-10-27: Graphite Node runners archived
+
+The manual feedback and usability workflows now use only their existing Rust
+launchers. Source-bound, same-served-package comparisons and negative controls are
+recorded in [ticket 007](007-rust-graphite-acceptance.md#2026-10-27-source-bound-manual-cutover).
+The former Node source is preserved under `docs/archive/graphite/`, not as live
+entry points. Historical Cadrum remains a separate blocker to full Playwright
+retirement; full verification and hosted CI are still outstanding.
