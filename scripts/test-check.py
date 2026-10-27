@@ -57,6 +57,9 @@ class CheckTests(unittest.TestCase):
         commands = check.STEPS["tooling"][1]
         self.assertIn([check.PY, "-B", "cad/scripts/test-measure-cad.py"], commands)
         self.assertIn(["node", "cad/scripts/test-measure-cad-runtime.cjs"], commands)
+        self.assertIn(["node", "cad/scripts/test-measure-cad-worker.cjs"], commands)
+        self.assertLess(commands.index(["node", "--version"]),
+                        commands.index(["node", "cad/scripts/test-measure-cad-worker.cjs"]))
         self.assertLess(commands.index(["node", "--version"]),
                         commands.index(["node", "cad/scripts/test-measure-cad-runtime.cjs"]))
 

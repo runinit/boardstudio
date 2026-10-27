@@ -48,7 +48,16 @@ module.exports = async ({ backend, fixture, operation, sequence, isStartup }) =>
             if (message.kind === 'ready') { clearTimeout(timer); resolve(); }
             if (message.kind === 'init-failed') { clearTimeout(timer); reject(Error(JSON.stringify(message))); }
             if (message.kind === 'reply') {
-              const frame = JSON.parse(message.frame), pending = waiting.get(frame.requestId);
+              let frame;
+              try {
+                frame = JSON.parse(message.frame);
+                if (!frame || typeof frame !== 'object' || Array.isArray(frame) || typeof frame.requestId !== 'string') throw Error();
+              } catch (_) {
+                for (const pending of waiting.values()) { clearTimeout(pending.timer); pending.reject(Error('malformed worker reply')); }
+                waiting.clear();
+                return;
+              }
+              const pending = waiting.get(frame.requestId);
               if (pending) { waiting.delete(frame.requestId); clearTimeout(pending.timer); pending.resolve({ frame, result: message.result }); }
             }
           };
@@ -59,7 +68,7 @@ module.exports = async ({ backend, fixture, operation, sequence, isStartup }) =>
         const requestId = `performance-${++sequenceId}`;
         return new Promise((resolve, reject) => {
           const timer = setTimeout(() => { waiting.delete(requestId); reject(Error(`${op} watchdog: 180 seconds`)); }, 180000);
-          waiting.set(requestId, { resolve, timer });
+          waiting.set(requestId, { resolve, reject, timer });
           worker.postMessage({ kind: 'request', frame: JSON.stringify({ requestId, jobId: requestId, identity, operation: op, ...fields }),
             ...payload }, Object.values(payload).filter(v => v instanceof ArrayBuffer));
         });

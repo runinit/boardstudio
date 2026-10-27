@@ -203,3 +203,33 @@ the shared build lock (`.evidence/ticket008-cad-readiness-green/`). This control
 page uses the existing local package, not a source-bound build receipt. The Node
 CAD protocol self-check, response comparison, and optional capture fallback still
 need their individual coverage replaced before removing their runner.
+
+## 2026-10-27: shared CAD worker protocol coverage
+
+The tooling gate now also runs `cad/scripts/test-measure-cad-worker.cjs` directly
+against `measure-cad-worker.cjs`, the source embedded by Rust `cad-capture`. It
+checks successful preview, STEP and vendor sequences, one validation observation,
+correlation IDs and worker replacement, retained/drop behavior, malformed reply
+frames, failed or mismatched replies, identity epoch/token/revision, result
+revision, mesh/body/STEP/vendor census validation and the STL decoder/oracle
+controls. It needs Node but neither Playwright nor the old browser driver. The
+shared worker now rejects malformed JSON or frames without a string request ID
+promptly instead of leaving requests to the watchdog. Unknown well-formed request
+IDs remain ignored and eventually time out as before.
+
+The existing Node-driver self-check is intentionally still registered: its actual
+driver sequencing, CSV status/timing metric and browser-close assertions have not
+yet been replaced with equivalent Rust-consumer controls. The Node response
+comparison and fallback also remain. This slice is not complete CAD retirement.
+
+The malformed JSON and null-frame direct tests failed with watchdog errors before
+the fix and passed after; direct worker, old self-check, scheduler, quick and CAD
+launcher tests passed under the shared lock and `boardstudio-tests.slice`
+(`.evidence/ticket008-cad-worker-tests.log`). Chrome 145 passed the real Rust
+readiness diagnostic on the existing local package
+(`.evidence/ticket008-cad-worker-browser.log`), without a source-bound receipt.
+The separate cold-response diagnostic failed its missing-core-worker control: the
+capture did not report the expected failure
+(`.evidence/ticket008-cad-worker-cold.log`). Its temporary output was cleaned by
+that diagnostic, so the underlying response cause remains undetermined. No full
+suite or timing qualification was run.
