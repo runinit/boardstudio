@@ -1205,14 +1205,14 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-case-panel > .m1-case-live-status { order: 9; flex: none; font-size: 12px; padding: 4px 12px; margin: 0; }
 .m1-workspace-content .m1-case-view { position: relative; display: flex; flex-direction: column; min-height: 0; }
 .m1-workspace-content .m1-case-collision-checks { flex: none; max-height: 30%; overflow: auto; }
-.m1-workspace-content .m1-case-view-toolbar { position: relative; flex: none; align-self: flex-start; z-index: 5; inset: auto; transform: none; width: max-content; max-width: calc(100% - 24px); margin: 12px; justify-content: flex-start; overflow: visible; }
+.m1-workspace-content .m1-case-view-toolbar { position: relative; flex: none; align-self: center; z-index: 5; inset: auto; transform: none; width: max-content; max-width: calc(100% - 24px); margin: 12px; justify-content: center; overflow: visible; }
 .m1-case-view-toolbar .m1-case-camera-controls { position: static; padding: 0; border: 0; background: transparent; }
 .m1-case-view-toolbar > [role='group'] { border: 0; background: transparent; padding: 0; }
 .m1-case-view-toolbar .m1-case-view-settings { position: static; }
-.m1-case-view-toolbar .m1-case-view-settings-body { position: absolute; top: calc(100% + 8px); bottom: auto; left: 0; right: auto; max-height: 60vh; overflow: auto; width: min(320px,calc(100vw - 32px)); padding: var(--wb-space-3); background: var(--wb-panel); border: 0; border-radius: var(--wb-radius-pill); box-shadow: 0 8px 22px rgb(0 0 0 / 20%); }
+.m1-case-view-toolbar .m1-case-view-settings-body { position: absolute; top: calc(100% + 8px); bottom: auto; left: 50%; right: auto; translate: -50% 0; max-height: 60vh; overflow: auto; width: min(320px,calc(100vw - 32px)); padding: var(--wb-space-3); background: var(--wb-panel); border: 0; border-radius: var(--wb-radius-pill); box-shadow: 0 8px 22px rgb(0 0 0 / 20%); }
 .m1-parts-preview { position: relative; }
-.m1-parts-preview > .m1-design-view-group { position: absolute; z-index: 5; top: 12px; bottom: auto; right: 12px; left: auto; transform: none; margin: 0; }
-.m1-parts-preview > .m1-library-workspace-title { flex: none; min-height: 72px; margin: 0; padding: 20px 120px 20px 16px; font-size: 18px; }
+.m1-parts-preview > .m1-design-view-group { position: static; align-self: center; margin: 0 12px 12px; }
+.m1-parts-preview > .m1-library-workspace-title { flex: none; min-height: 72px; margin: 0; padding: 20px 16px; font-size: 18px; }
 .m1-case-view-toolbar .m1-design-view-group { position: static; transform: none; margin: 0; padding: 0; border: 0; background: transparent; }
 .m1-case-view-toolbar.board-tool-pill { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 5px; border: 0; border-radius: var(--wb-radius-pill); background: var(--wb-toolbar); box-shadow: 0 6px 18px rgb(0 0 0 / 16%); }
 .m1-case-view-toolbar.board-tool-pill [role='group'] { flex: none; gap: 2px; margin: 0; padding: 0; }

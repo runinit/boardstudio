@@ -6,7 +6,7 @@ use std::{cell::Cell, rc::Rc};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::{JsCast, closure::Closure};
 #[cfg(target_arch = "wasm32")]
-use web_sys::{HtmlElement, KeyboardEvent, Window};
+use web_sys::{Element, KeyboardEvent, Window};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CanvasInteractionOwner {
@@ -86,13 +86,18 @@ impl LayoutSpacePanWindowListener {
         let window = web_sys::window()?;
         let keydown_space = space_down.clone();
         let keydown = Closure::wrap(Box::new(move |event: KeyboardEvent| {
-            let typing_target = event
+            let interactive_target = event
                 .target()
-                .and_then(|target| target.dyn_into::<HtmlElement>().ok())
+                .and_then(|target| target.dyn_into::<Element>().ok())
                 .is_some_and(|target| {
-                    matches!(target.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
+                    target.closest("button, input, textarea, select, a[href], summary, [contenteditable]:not([contenteditable='false']), [role='button'], [role='checkbox'], [role='switch'], [role='slider']")
+                        .ok()
+                        .flatten()
+                        .is_some()
                 });
-            if is_layout() && layout_space_pan_keydown(&event.key(), &event.code(), typing_target) {
+            if is_layout()
+                && layout_space_pan_keydown(&event.key(), &event.code(), interactive_target)
+            {
                 keydown_space.set(true);
                 event.prevent_default();
             }

@@ -309,6 +309,7 @@ pub struct Runtime {
     persistence: RefCell<Rc<dyn DocumentPersistence>>,
     storage_session: RefCell<Option<StorageSession>>,
     storage_initializing: Cell<bool>,
+    storage_error: RefCell<Option<String>>,
     saved_tokens: RefCell<BTreeMap<String, StorageToken>>,
     pending_document: RefCell<Option<Arc<ProjectDoc>>>,
     save_conflict: Cell<bool>,
@@ -416,6 +417,7 @@ impl Runtime {
             store,
             storage_session: RefCell::default(),
             storage_initializing: Cell::new(restore_active_project),
+            storage_error: RefCell::new(None),
             saved_tokens: RefCell::default(),
             pending_document: RefCell::default(),
             save_conflict: Cell::new(false),
@@ -485,7 +487,9 @@ impl Runtime {
                             }
                             runtime.changed();
                         }
-                        Err(error) => runtime.report(format!("Storage could not be initialized safely. Reload this page to retry. {error}")),
+                        Err(error) => {
+                            runtime.storage_initialization_failed(&error.to_string());
+                        }
                     }
                 }
             });
@@ -756,6 +760,20 @@ impl Runtime {
                 Err("Core returned a stale matrix preview reply.".into())
             }
             _ => Err("Core returned an unexpected matrix preview reply.".into()),
+        }
+    }
+    fn storage_initialization_failed(&self, error: &str) {
+        let message =
+            format!("Storage could not be initialized safely. Reload this page to retry. {error}");
+        *self.storage_error.borrow_mut() = Some(message.clone());
+        self.apply_report(RuntimeReport::alert(message));
+    }
+
+    /// Whether storage is ready for project imports, or why initialization failed.
+    pub fn storage_readiness(&self) -> Result<bool, String> {
+        match self.storage_error.borrow().as_ref() {
+            Some(error) => Err(error.clone()),
+            None => Ok(!self.storage_initializing.get()),
         }
     }
     pub fn status(&self) -> String {
@@ -8024,6 +8042,16 @@ pub mod project_name_test_support {
 
     pub fn new_runtime() -> Rc<Runtime> {
         Runtime::new_with_restoration(false).expect("browser runtime fixture initializes")
+    }
+
+    pub fn set_storage_initializing(runtime: &Runtime, initializing: bool) {
+        runtime.storage_initializing.set(initializing);
+        runtime.changed();
+    }
+
+    pub fn fail_storage_initialization(runtime: &Runtime, error: &str) {
+        runtime.storage_initializing.set(true);
+        runtime.storage_initialization_failed(error);
     }
 
     /// Replace the runtime's session and route Core execution through an in-process
