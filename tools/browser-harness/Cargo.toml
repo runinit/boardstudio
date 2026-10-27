@@ -33,3 +33,7 @@ chromiumoxide = { path = "vendor/chromiumoxide" }
 [[bin]]
 name = "cad-response-probe"
 path = "src/bin/cad_response_probe.rs"
+
+[[bin]]
+name = "cad-capture"
+path = "src/bin/cad_capture.rs"

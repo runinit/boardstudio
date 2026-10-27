@@ -19,6 +19,14 @@ PERF = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(PERF)
 
 
+class CaptureSelectionTests(unittest.TestCase):
+    def test_rust_selection_is_explicit_and_limited_to_c1(self):
+        self.assertEqual(PERF.capture_driver("node", "C1plate:preview"), "node")
+        self.assertEqual(PERF.capture_driver("rust", "C1plate:preview"), "rust")
+        with self.assertRaisesRegex(ValueError, "C1plate:preview"):
+            PERF.capture_driver("rust", "U1:page")
+
+
 class CaptureLockTests(unittest.TestCase):
     def test_capture_inherits_build_lock_descriptor(self):
         with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryFile() as lock:

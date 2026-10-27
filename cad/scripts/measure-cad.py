@@ -457,6 +457,12 @@ def sample_tree(pid):
     return rows
 
 
+def capture_driver(driver, workload):
+    if driver == "rust" and workload != "C1plate:preview":
+        raise ValueError("Rust capture supports only C1plate:preview")
+    return driver
+
+
 def capture(command, root, out, timeout, env=None):
     (out / "environment-before.log").write_text(environment())
     started = time.monotonic()
@@ -533,6 +539,7 @@ def main():
     parser.add_argument("--source-head", help="root's frozen full source commit; required for execution")
     parser.add_argument("--profile", choices=PROFILES, default="checked")
     parser.add_argument("--output", type=Path, required=True, help="new directory under this lane's .evidence")
+    parser.add_argument("--driver", choices=("node", "rust"), default="node")
     parser.add_argument("--workload", choices=(*PAIRED, *UNPAIRED, "startup:cold", "startup:warm", "U1:freeze", "U1:page"))
     parser.add_argument("--pair", type=int, choices=range(0, 6), default=1)
     parser.add_argument("--growth", action="store_true")
@@ -600,6 +607,10 @@ def main():
             parser.error("runtime requires --workload and the selected profile's current official CAD stamp")
         if old and args.workload in UNPAIRED:
             parser.error("historical Cadrum has no admitted refinement/owned-query counterpart")
+        try:
+            capture_driver(args.driver, args.workload)
+        except ValueError as error:
+            parser.error(str(error))
         validation = args.action == "validate"
         if args.workload == "U1:freeze" and not validation:
             parser.error("U1:freeze is validation-only; use the committed frozen archive")
@@ -650,10 +661,12 @@ def main():
             def log_message(self, *args):
                 pass
 
+        executable = ([node, str(ROOT / "cad/scripts/measure-cad-runtime.cjs")]
+                      if args.driver == "node" else [str(browser_tools._build_harness("cad-capture"))])
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        command = [node, str(ROOT / "cad/scripts/measure-cad-runtime.cjs"),
+        command = [*executable,
                    f"http://127.0.0.1:{server.server_port}", backend, args.profile,
                    args.workload, str(out), str(args.pair), "validation" if validation else "growth20" if args.growth else "latency"]
         try:

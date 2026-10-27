@@ -65,7 +65,11 @@ def _inherited_build_lock() -> int | None:
 
 
 def build_drag_harness() -> Path:
-    """Build under the shared lock and return Cargo's executable for this build."""
+    return _build_harness("drag-smoke")
+
+
+def _build_harness(binary: str) -> Path:
+    """Build the requested harness under the shared lock."""
     root = Path(__file__).resolve().parents[1]
     lock = Path.home() / ".cache/tmp/boardstudio-build.lock"
     lock.parent.mkdir(parents=True, exist_ok=True)
@@ -75,7 +79,7 @@ def build_drag_harness() -> Path:
     result = subprocess.run(
         [*(["flock", str(lock)] if inherited is None else []), "cargo", "build", "--locked", "--message-format=json",
          "--manifest-path", str(root / "tools/browser-harness/Cargo.toml"),
-         "--package", "boardstudio-browser-harness", "--bin", "drag-smoke"],
+         "--package", "boardstudio-browser-harness", "--bin", binary],
         cwd=root, capture_output=True, text=True, **({"pass_fds": (inherited,)} if inherited is not None else {}),
     )
     if result.returncode:
@@ -97,16 +101,16 @@ def build_drag_harness() -> Path:
                               r"[\w-]*[\"']?\s*[=:]|\bBearer\s+", diagnostic)
         if sensitive:
             diagnostic = diagnostic[:sensitive.start()] + "<sensitive diagnostic withheld>\n"
-        raise SystemExit(f"drag browser smoke cannot build the Rust harness:\n{diagnostic}")
+        raise SystemExit(f"{binary} cannot build the Rust harness:\n{diagnostic}")
     try:
         artifacts = [message["executable"] for line in result.stdout.splitlines()
                      if (message := json.loads(line)).get("reason") == "compiler-artifact"
                      and message.get("package_id", "").startswith(
                          f"path+{(root / 'tools/browser-harness').as_uri()}#")
-                     and message.get("target", {}).get("name") == "drag-smoke"
+                     and message.get("target", {}).get("name") == binary
                      and "bin" in message["target"].get("kind", []) and message.get("executable")]
     except (ValueError, KeyError, TypeError) as error:
-        raise SystemExit(f"drag browser smoke cannot read Cargo build output: {error}") from error
+        raise SystemExit(ff"{binary} cannot read Cargo build output: {error}") from error
     if len(artifacts) != 1:
-        raise SystemExit("drag browser smoke cannot identify its executable in Cargo build output")
+        raise SystemExit(f"{binary} cannot identify its executable in Cargo build output")
     return Path(artifacts[0])
