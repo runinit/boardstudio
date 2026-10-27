@@ -120,6 +120,8 @@ Part, Column, Stagger and Ctrl+Offset. It checks live preview, pointer capture, 
 and exact Undo. Its success receipt and failure log are kept under `web/target/test-results/drag-browser/`.
 The default Rust driver needs Chrome or Chromium available as `CHROME_BIN`. The legacy Node
 driver remains available with `BOARDSTUDIO_DRAG_DRIVER=node` and needs `playwright-core` on `NODE_PATH`.
+CI does not install Playwright; optional legacy and comparison scripts require a separately
+installed Playwright package. Node remains required for the tooling checks.
 
 The manual Graphite feedback check has a Rust entry point,
 `python3 scripts/run-graphite-feedback.py`, against `BOARDSTUDIO_PREVIEW_URL`

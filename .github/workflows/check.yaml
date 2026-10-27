@@ -57,6 +57,9 @@ jobs:
         run: |
           google-chrome --version
           chromedriver --version
+      - name: Verify Rust browser checks need no Playwright
+        run: |
+          env -u NODE_PATH node -e "for (const name of ['playwright', 'playwright-core']) { try { require.resolve(name); throw Error(name + ' unexpectedly installed'); } catch (e) { if (e.code !== 'MODULE_NOT_FOUND') throw e; } }"
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: |
@@ -65,7 +68,7 @@ jobs:
           shared-key: web
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
       - name: Build and check web
-        run: python3 scripts/check.py build browser
+        run: env -u NODE_PATH python3 scripts/check.py build browser
         env:
           BOARDSTUDIO_DRAG_DRIVER: rust
           BOARDSTUDIO_DRAG_CHROME_BIN: ${{ runner.temp }}/drag-chrome/chrome-linux64/chrome

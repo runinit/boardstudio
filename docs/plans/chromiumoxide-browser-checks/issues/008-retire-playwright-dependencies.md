@@ -104,3 +104,32 @@ On `fix/drag-save-undo` at `f4d6587c`, the scheduler inventory suite passed 31
 tests under `boardstudio-tests.slice`. The final full check and timing qualification
 were not run in this session: observed disk I/O pressure was approximately 45–56%
 full stalls. This is not cutover or acceptance evidence.
+
+## 2026-10-27: CI dependency retirement and remaining consumers
+
+The supported drag and CAD launchers now default to Rust; manual Rust Graphite
+feedback and usability entry points are available. The complete supported check
+passed at `0b1ed972` with `NODE_PATH` unset. The web-tools action no longer
+installs Playwright or exports its module path. The web job checks that neither
+Playwright package resolves and invokes its browser gate without `NODE_PATH`.
+The pinned Chrome for Testing and chromiumoxide pairing, mounted WASM runner and
+Node tooling remain unchanged.
+
+Playwright retirement is not complete: optional Node fallbacks, Graphite scripts,
+the Parts inspector scroll regression, CAD response comparison and startup
+readiness diagnostic still use the old runners. The Node CAD protocol self-check
+also exercises the old runner. Preserve those entry points and checks until their
+coverage and diagnostics are replaced or their retirement is explicitly approved.
+
+### CI verification plan
+
+1. Run the web job on a hosted pull request or workflow dispatch, verifying the
+   no-Playwright preflight, pinned Chrome provisioning, Rust drag receipt, mounted
+   browser checks and failure-artifact upload behavior. Record the actual run URL
+   and verdict; a local check is not hosted CI evidence.
+2. Verify the native job retains Node for its protocol and other tooling tests,
+   and the release-build job still provisions wasm-pack and Dioxus without npm.
+   Keep the existing Ergogen-specific module path separate.
+3. Before deleting the remaining old runners, replace their live diagnostic and
+   protocol coverage, run the no-Playwright clean-environment checks and full
+   supported verification, and complete the required closure review.

@@ -63,6 +63,14 @@ class CheckTests(unittest.TestCase):
         self.assertLess(commands.index(["node", "--version"]),
                         commands.index(["node", "cad/scripts/test-measure-cad-runtime.cjs"]))
 
+    def test_ci_web_tools_do_not_install_playwright(self):
+        action = (ROOT / ".github/actions/web-tools/action.yml").read_text()
+        workflow = (ROOT / ".github/workflows/check.yaml").read_text()
+        self.assertNotIn("playwright", action.lower())
+        self.assertNotIn("NODE_PATH", action)
+        self.assertIn("env -u NODE_PATH python3 scripts/check.py build browser", workflow)
+        self.assertIn("Verify Rust browser checks need no Playwright", workflow)
+
     def test_browser_runs_packaged_provider_regressions(self):
         self.assertIn([check.PY, "cad/scripts/test-cad-provider.py"], check.STEPS["browser"][1])
 
