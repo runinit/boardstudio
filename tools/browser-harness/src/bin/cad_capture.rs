@@ -25,6 +25,7 @@ struct Capture {
     workload: String,
     pair: String,
     validation: bool,
+    resources: Option<Value>,
 }
 impl Capture {
     fn event(&mut self, name: &str, data: Value) -> Result<()> {
@@ -119,6 +120,7 @@ async fn run() -> Result<()> {
         workload: args[3].clone(),
         pair: args[5].clone(),
         validation,
+        resources: None,
     };
     capture.row(
         &[
@@ -131,6 +133,9 @@ async fn run() -> Result<()> {
     let outcome = capture_browser(&args, &mut capture).await;
     if let Err(error) = &outcome {
         capture.event("failure", json!({"error":error.to_string()}))?;
+    }
+    if let Some(resources) = capture.resources.take() {
+        capture.event("resources", json!({"responses":resources}))?;
     }
     capture.event("result", json!({"failed":outcome.is_err()}))?;
     outcome
@@ -183,7 +188,7 @@ async fn capture_browser(args: &[String], capture: &mut Capture) -> Result<()> {
         let disposal = driver::dispose_isolated_page(&browser, Some(context), page, &page_errors).await;
         let (work, mut listener) = result?;
         let responses = match tokio::time::timeout(Duration::from_secs(60), &mut listener).await { Ok(Ok(r)) => r, Ok(Err(e)) => Err(Error(e.to_string())), Err(_) => { listener.abort(); Err(Error("response listener did not finish".into())) } };
-        if let Ok(ref resources) = responses { capture.event("resources", json!({"responses":resources}))?; }
+        if let Ok(ref resources) = responses { capture.resources = Some(json!(resources)); }
         let errors: Vec<_> = [work.as_ref().err(), disposal.as_ref().err(), responses.as_ref().err()].into_iter().flatten().map(ToString::to_string).collect();
         if errors.is_empty() { Ok(()) } else { Err(Error(errors.join("; "))) }
     }.await;
