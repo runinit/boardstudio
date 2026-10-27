@@ -102,6 +102,98 @@ fn click(root: &web_sys::Element, selector: &str) {
 }
 
 #[wasm_bindgen_test]
+async fn guide_case_settings_returns_to_guide_without_opening_inspector() {
+    let runtime = support::new_runtime();
+    let mut fixture = document();
+    fixture.id = "guide-case-drawer-test".into();
+    support::open_document(&runtime, fixture).await;
+    let window = web_sys::window().unwrap();
+    assert!(
+        window
+            .match_media("(min-width: 981px)")
+            .unwrap()
+            .unwrap()
+            .matches()
+    );
+    let storage = window.local_storage().unwrap().unwrap();
+    let inspector_key = "boardstudio:v2:panel:right";
+    let guide_key = "boardstudio:v2:setup-guide:guide-case-drawer-test";
+    let previous = storage.get_item(inspector_key).unwrap();
+    let previous_guide = storage.get_item(guide_key).unwrap();
+    storage
+        .set_item(inspector_key, r#"{"mode":"collapsed","width":null}"#)
+        .unwrap();
+    setup_guide::write_preferences(&setup_guide::SetupGuidePreferences {
+        project_id: "guide-case-drawer-test".into(),
+        open: true,
+        current_stage: SetupGuideStage::Project,
+    });
+    let root = window.document().unwrap().create_element("div").unwrap();
+    window
+        .document()
+        .unwrap()
+        .body()
+        .unwrap()
+        .append_child(&root)
+        .unwrap();
+    let dom = VirtualDom::new(host);
+    dom.provide_root_context(runtime);
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("setup guide is open", || {
+        count(&root, ".m1-setup-guide") == 1
+    })
+    .await;
+    click(
+        &root,
+        ".m1-setup-stage-accordion > div:nth-child(4) > button",
+    );
+    wait_until("Case guide is selected", || {
+        count(
+            &root,
+            ".m1-setup-stage-accordion > div:nth-child(4) .m1-setup-guide__step.is-current",
+        ) == 1
+    })
+    .await;
+    assert_eq!(count(&root, "#m1-inspector-panel"), 0);
+    click(&root, "#m1-setup-panel-3 .m1-setup-guide__secondary");
+    wait_until("full case settings open in the setup drawer", || {
+        count(&root, ".m1-setup-drawer .m1-setup-case-settings") == 1
+    })
+    .await;
+    assert_eq!(count(&root, ".m1-setup-guide"), 0);
+    assert_eq!(count(&root, "#m1-inspector-panel"), 0);
+    click(&root, "button[aria-label='Back to setup guide']");
+    wait_until("Case guide returns", || {
+        count(
+            &root,
+            ".m1-setup-stage-accordion > div:nth-child(4) .m1-setup-guide__step.is-current",
+        ) == 1
+    })
+    .await;
+    assert_eq!(count(&root, ".m1-setup-case-settings"), 0);
+    assert_eq!(count(&root, "#m1-inspector-panel"), 0);
+    click(&root, ".m1-setup-guide__dismiss");
+    wait_until("collapsed Inspector returns", || {
+        count(&root, "#m1-inspector-panel[data-mode='collapsed']") == 1
+    })
+    .await;
+    root.remove();
+    if let Some(previous) = previous_guide {
+        storage.set_item(guide_key, &previous).unwrap();
+    } else {
+        storage.remove_item(guide_key).unwrap();
+    }
+    if let Some(previous) = previous {
+        storage.set_item(inspector_key, &previous).unwrap();
+    } else {
+        storage.remove_item(inspector_key).unwrap();
+    }
+}
+
+#[wasm_bindgen_test]
 async fn switch_visibility_keeps_keycaps_independent() {
     let runtime = support::new_runtime();
     support::open_document(&runtime, document()).await;

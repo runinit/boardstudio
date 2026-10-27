@@ -7,6 +7,7 @@ wasm_bindgen_test_configure!(run_in_browser);
 fn panel_composition() -> Element {
     let mut workspace = use_signal(|| "Layout");
     let mut stage = use_signal(|| SetupGuideStage::Project);
+    let mut settings_target = use_signal(|| "");
     let objects_open = use_signal(|| true);
     let inspector_open = use_signal(|| false);
     let objects_settings = use_signal(|| PanelSettings {
@@ -23,6 +24,8 @@ fn panel_composition() -> Element {
             button { id: "test-layout-route", onclick: move |_| workspace.set("Layout"), "Test ordinary Layout navigation" }
             button { id: "test-case-route", onclick: move |_| workspace.set("Case"), "Test ordinary Case navigation" }
             button { id: "test-reopen-guide", onclick: move |_| activate_stage(SetupGuideStage::Case, workspace, requested, objects_open, inspector_open, objects_settings, inspector_settings), "Test same-workspace guide reveal" }
+            button { id: "test-reveal-settings", onclick: move |_| reveal_panels(crate::setup_guide_state::GuideReveal::Settings, objects_open, inspector_open, objects_settings, inspector_settings), "Test settings reveal policy" }
+            output { id: "test-settings-target", "{settings_target}" }
             div { class: "m1-editor-body",
                 ObjectsPanel { compact_open: objects_open, settings: objects_settings,
                     ProjectSetupGuide {
@@ -32,7 +35,7 @@ fn panel_composition() -> Element {
                             stage.set(next);
                             activate_stage(next, workspace, requested, objects_open, inspector_open, objects_settings, inspector_settings);
                         },
-                        on_open_workspace: move |_| reveal_panels(crate::setup_guide_state::GuideReveal::Settings, objects_open, inspector_open, objects_settings, inspector_settings),
+                        on_open_workspace: move |target| settings_target.set(target),
                         on_open_matrix_setup: None, on_choose_controller: None, on_dismiss: |_| {}, on_finish: |_| {}, project_controls: None,
                     }
                 }
@@ -79,7 +82,7 @@ fn assert_panels(objects_visible: bool, inspector_visible: bool) {
 }
 
 #[wasm_bindgen_test]
-async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
+async fn desktop_case_stage_and_panel_reveal_policy() {
     let window = web_sys::window().unwrap();
     assert!(
         window
@@ -107,6 +110,27 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
     );
     click(".m1-setup-stage-accordion > div:nth-child(4) > button");
     rendered().await;
+    let project_trigger = element(".m1-setup-stage-accordion > div:nth-child(1) > button");
+    let stale_clicks = Rc::new(Cell::new(0));
+    let count_clicks = stale_clicks.clone();
+    let listener = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::Event)>::new(move |_| {
+        count_clicks.set(count_clicks.get() + 1);
+    });
+    project_trigger
+        .add_event_listener_with_callback("click", listener.as_ref().unchecked_ref())
+        .unwrap();
+    let generation = Rc::new(Cell::new(0));
+    sync_stage_trigger(SetupGuideStage::Project, generation.clone());
+    sync_stage_trigger(SetupGuideStage::Case, generation);
+    rendered().await;
+    assert_eq!(
+        stale_clicks.get(),
+        0,
+        "a superseded stage must not be clicked"
+    );
+    project_trigger
+        .remove_event_listener_with_callback("click", listener.as_ref().unchecked_ref())
+        .unwrap();
     assert_panels(true, true);
     assert_eq!(
         element(".m1-workspace-content").text_content().as_deref(),
@@ -127,6 +151,18 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
         "Case readiness detail must appear once"
     );
     click(".m1-setup-guide__secondary");
+    rendered().await;
+    assert_eq!(
+        element("#test-settings-target").text_content().as_deref(),
+        Some("Case")
+    );
+    assert_eq!(
+        element("#m1-inspector-panel")
+            .get_attribute("data-mode")
+            .as_deref(),
+        Some("collapsed")
+    );
+    click("#test-reveal-settings");
     rendered().await;
     assert_panels(true, true);
     assert_eq!(

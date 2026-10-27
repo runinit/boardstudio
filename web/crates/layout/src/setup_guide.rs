@@ -7,6 +7,7 @@ use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonVariant};
 use dioxus::prelude::*;
 use dioxus_primitives::accordion::{Accordion, AccordionItem, AccordionTrigger};
 use dioxus_web::WebEventExt;
+use std::{cell::Cell, rc::Rc};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
 
@@ -63,7 +64,9 @@ fn step_class(current: bool, ready: bool) -> &'static str {
     }
 }
 
-fn sync_stage_trigger(stage: SetupGuideStage) {
+fn sync_stage_trigger(stage: SetupGuideStage, generation: Rc<Cell<u64>>) {
+    let current = generation.get() + 1;
+    generation.set(current);
     let index = match stage {
         SetupGuideStage::Project => 0,
         SetupGuideStage::Layout => 1,
@@ -74,6 +77,9 @@ fn sync_stage_trigger(stage: SetupGuideStage) {
     // Accordion exposes default_open only, so sync after Dioxus commits the new stage.
     wasm_bindgen_futures::spawn_local(async move {
         gloo_timers::future::TimeoutFuture::new(0).await;
+        if generation.get() != current {
+            return;
+        }
         if let Some(trigger) = web_sys::window()
             .and_then(|window| window.document())
             .and_then(|document| {
@@ -302,10 +308,11 @@ pub fn ProjectSetupGuide(
     on_finish: EventHandler<()>,
     project_controls: Option<Element>,
 ) -> Element {
+    let sync_generation = use_hook(|| Rc::new(Cell::new(0)));
     let mut expanded = use_signal(|| Some(stage));
     use_effect(use_reactive((&stage,), move |(stage,)| {
         expanded.set(Some(stage));
-        sync_stage_trigger(stage);
+        sync_stage_trigger(stage, sync_generation.clone());
     }));
     let stage_change = on_stage_change;
     let footer = match stage {
