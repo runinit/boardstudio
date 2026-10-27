@@ -21,11 +21,26 @@ SPEC.loader.exec_module(PERF)
 
 
 class CaptureSelectionTests(unittest.TestCase):
+    def test_default_build_uses_rust_chrome_prerequisites(self):
+        evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as directory:
+            args = ["measure-cad.py", "build", "--state", "noop", "--source-head", "head",
+                    "--output", str(Path(directory) / "out")]
+            with patch.object(sys, "argv", args), patch.object(PERF, "git", return_value="head"), \
+                 patch.object(PERF, "binding", return_value=([], True)), \
+                 patch.object(PERF.browser_tools, "locate") as node, \
+                 patch.object(PERF.browser_tools, "locate_chrome", return_value="/chrome") as chrome, \
+                 patch.object(PERF, "capture", return_value=(1, 0)), patch.object(PERF, "sizes"):
+                self.assertEqual(PERF.main(), 1)
+                chrome.assert_called_once_with()
+                node.assert_not_called()
+
     def test_rust_runtime_rejects_diagnostic_only_workloads_at_launcher(self):
         evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
         evidence.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=evidence) as directory:
-            for workload, reason in (("startup:cold", "timing"), ("startup:warm", "timing"), ("U1:page", "samples")):
+            for workload, reason in (("U1:page", "samples"),):
                 for action, driver in (("runtime", "rust"), ("validate", "rust"), ("runtime", "node")):
                     with self.subTest(workload=workload, action=action, driver=driver):
                         args = ["measure-cad.py", action, "--driver", driver, "--workload", workload,
@@ -36,15 +51,24 @@ class CaptureSelectionTests(unittest.TestCase):
                                 with self.assertRaises(SystemExit):
                                     PERF.main()
                                 self.assertIn(reason, stderr.getvalue())
-                                if workload.startswith("startup:"):
-                                    self.assertIn("unqualified", stderr.getvalue())
-                                    self.assertNotIn("perturbed", stderr.getvalue())
                                 self.assertIn("validate", stderr.getvalue())
                                 if workload == "U1:page":
                                     self.assertNotIn("--driver node for runtime", stderr.getvalue())
                             else:
                                 with self.assertRaisesRegex(RuntimeError, "binding reached"):
                                     PERF.main()
+
+    def test_rust_runtime_accepts_startup_workloads_at_launcher(self):
+        evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as directory:
+            for workload in ("startup:cold", "startup:warm"):
+                with self.subTest(workload=workload), \
+                     patch.object(sys, "argv", ["measure-cad.py", "runtime", "--driver", "rust",
+                                               "--workload", workload, "--output", str(Path(directory) / workload)]), \
+                     patch.object(PERF, "binding", side_effect=RuntimeError("binding reached")):
+                    with self.assertRaisesRegex(RuntimeError, "binding reached"):
+                        PERF.main()
 
     def test_runtime_rejects_invalid_build_receipt_before_browser(self):
         evidence = PERF.ROOT / ".evidence/011-prerequisite-test"

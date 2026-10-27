@@ -128,11 +128,6 @@ async fn run() -> Result<()> {
         return Err(Error("usage: cad-capture ORIGIN monstertruck PROFILE WORKLOAD OUTPUT PAIR validation|latency|growth20 (supported workloads only)".into()));
     }
     let validation = args[6] == "validation";
-    if args[3].starts_with("startup:") && !validation {
-        return Err(Error(
-            "startup capture is validation-only; runtime timing is unqualified".into(),
-        ));
-    }
     if args[3] == "U1:freeze" && !validation {
         return Err(Error("U1:freeze is validation-only".into()));
     }

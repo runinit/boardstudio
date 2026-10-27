@@ -91,10 +91,9 @@ def verify_receipt(path: Path, run_id: str, head: str, source_hash: str, build_h
 def drag_driver() -> str:
     """Which runner drives the smoke: the legacy Node script or the Rust harness.
 
-    The Rust path is opt-in until its parity gate passes; the old runner stays
-    the default so other consumers and same-build comparisons keep working.
+    The legacy Node runner remains available for comparisons.
     """
-    return os.environ.get("BOARDSTUDIO_DRAG_DRIVER", "node")
+    return os.environ.get("BOARDSTUDIO_DRAG_DRIVER", "rust")
 
 
 def main() -> int:

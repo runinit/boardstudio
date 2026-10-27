@@ -118,15 +118,14 @@ presentation code. Browser setup installs the locked wasm-bindgen runner before 
 The browser step opens the packaged page and runs a trusted mouse-drag smoke over
 Part, Column, Stagger and Ctrl+Offset. It checks live preview, pointer capture, saved document state
 and exact Undo. Its success receipt and failure log are kept under `web/target/test-results/drag-browser/`.
-CI installs the pinned `playwright-core` runner; local browser checks need it on `NODE_PATH` and a
-Chrome or Chromium executable available as `CHROME_BIN`.
+The default Rust driver needs Chrome or Chromium available as `CHROME_BIN`. The legacy Node
+driver remains available with `BOARDSTUDIO_DRAG_DRIVER=node` and needs `playwright-core` on `NODE_PATH`.
 
-The manual Graphite feedback check has an experimental Rust entry point,
+The manual Graphite feedback check has a Rust entry point,
 `python3 scripts/run-graphite-feedback.py`, against `BOARDSTUDIO_PREVIEW_URL`
 (default `http://127.0.0.1:8182/`). It accepts `CHROME_BIN` and optional
-`BOARDSTUDIO_SCREENSHOTS`. The Node feedback and usability commands remain
-the established entry points while Rust parity and failure controls are open.
-`python3 scripts/run-graphite-usability.py` runs the same experimental Rust
+`BOARDSTUDIO_SCREENSHOTS`. The Node feedback and usability commands remain available.
+`python3 scripts/run-graphite-usability.py` runs the same Rust
 workflow, matching the Node usability entry point. Set `BOARDSTUDIO_GRAPHITE_IDENTITY=1`
 to print the checkout, HEAD, dirty source digest and preview URL before either runner. Set
 `BOARDSTUDIO_GRAPHITE_BUILD_DIR` to also digest a local build directory. These are launch-time

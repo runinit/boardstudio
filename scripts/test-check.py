@@ -194,6 +194,18 @@ class CheckTests(unittest.TestCase):
                 self.assertIn("check: missing browser tool", error.getvalue())
             probe.side_effect = None
 
+    def test_default_drag_driver_uses_rust_and_chrome_only(self):
+        spec = importlib.util.spec_from_file_location("drag_browser", ROOT / "scripts/run-drag-browser.py")
+        drag = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(drag)
+        with mock.patch.dict(os.environ):
+            os.environ.pop("BOARDSTUDIO_DRAG_DRIVER", None)
+            self.assertEqual(drag.drag_driver(), "rust")
+            with mock.patch.object(check, "run_plan", return_value=0):
+                self.assertEqual(check.run(["drag-smoke"]), 0)
+            self.chrome.assert_called_once_with()
+            self.locate.assert_not_called()
+
     def test_browser_tools_are_probed_once_before_the_unchanged_command_order(self):
         for driver, probe, other in (("node", self.locate, self.chrome), ("rust", self.chrome, self.locate)):
             calls = []

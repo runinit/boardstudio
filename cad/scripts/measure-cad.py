@@ -589,7 +589,7 @@ def main():
     parser.add_argument("--source-head", help="root's frozen full source commit; required for execution")
     parser.add_argument("--profile", choices=PROFILES, default="checked")
     parser.add_argument("--output", type=Path, required=True, help="new directory under this lane's .evidence")
-    parser.add_argument("--driver", choices=("node", "rust"), default="node")
+    parser.add_argument("--driver", choices=("node", "rust"), default="rust")
     parser.add_argument("--workload", choices=(*PAIRED, *UNPAIRED, "startup:cold", "startup:warm", "U1:freeze", "U1:page"))
     parser.add_argument("--pair", type=int, choices=range(0, 6), default=1)
     parser.add_argument("--growth", action="store_true")
@@ -604,8 +604,6 @@ def main():
                         help="one matched initial build cycle; three is the retained upper proposal, only after root requests it")
     args = parser.parse_args()
     if args.action == "runtime" and args.driver == "rust":
-        if args.workload in ("startup:cold", "startup:warm"):
-            parser.error(f"Rust {args.workload} runtime timing is unqualified; use --driver node for runtime or validate for diagnostics")
         if args.workload == "U1:page":
             parser.error("U1:page provides validation only, with no runtime samples; use validate for diagnostics")
     root, out = args.checkout.resolve(), args.output.resolve()

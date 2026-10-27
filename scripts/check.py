@@ -592,9 +592,9 @@ def run(names: list[str], update_native_baseline: bool = False,
                      if step == "drag-smoke" or (step == "browser" and has_drag_smoke)]
     if smoke_indices:
         # Fail before the page build, which is minutes of work the smoke cannot use without these.
-        # The opt-in Rust driver needs only Chrome; the default Node runner also needs its client.
+        # The default Rust driver needs only Chrome; the optional Node runner also needs its client.
         try:
-            if os.environ.get("BOARDSTUDIO_DRAG_DRIVER", "node") == "rust":
+            if os.environ.get("BOARDSTUDIO_DRAG_DRIVER", "rust") == "rust":
                 browser_tools.locate_chrome()
             else:
                 browser_tools.locate()

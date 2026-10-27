@@ -1324,3 +1324,19 @@ The CAD package and official provider input digests match that receipt, but the
 site as a whole is not bound to it. A current source-bound build and control,
 remaining failure and full qualification gates, and Playwright removal remain
 open.
+
+## 2026-10-27: timing decision and Rust default
+
+The user approved a one-sided timing criterion: for each cold/warm worker-startup
+and validated-reply metric, the upper end of the 90% paired bootstrap interval
+must be at most 1.15. On source `f0b6904`, 12 counterbalanced pairs per mode
+gave upper bounds of 0.862 and 0.947 for cold, and 0.950 and 0.963 for warm.
+All 48 captures succeeded under low observed CPU and I/O pressure; evidence is
+in `.evidence/ticket006-timing-quiet-f0-*`. The earlier two-sided rule fails on
+the lower cold worker bound; this decision accepts faster readings without
+claiming identical measurement overhead.
+
+The user requested cutover to Rust. The CAD launcher defaults to Rust and admits
+startup runtime; U1:page remains validation-only because it has no runtime
+samples. Node remains explicitly selectable while final dependency retirement,
+full verification and review are outstanding.
