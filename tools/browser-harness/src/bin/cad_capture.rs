@@ -106,6 +106,7 @@ async fn run() -> Result<()> {
             "U1:freeze"
                 | "U1:page"
                 | "startup:cold"
+                | "startup:warm"
                 | "C1plate:preview"
                 | "C1plate:step"
                 | "C2trayboss:preview"
@@ -127,6 +128,11 @@ async fn run() -> Result<()> {
         return Err(Error("usage: cad-capture ORIGIN monstertruck PROFILE WORKLOAD OUTPUT PAIR validation|latency|growth20 (supported workloads only)".into()));
     }
     let validation = args[6] == "validation";
+    if args[3].starts_with("startup:") && !validation {
+        return Err(Error(
+            "startup capture is validation-only; runtime timing is unqualified".into(),
+        ));
+    }
     if args[3] == "U1:freeze" && !validation {
         return Err(Error("U1:freeze is validation-only".into()));
     }
@@ -185,11 +191,14 @@ async fn capture_browser(args: &[String], capture: &mut Capture) -> Result<()> {
     let drain = driver::spawn_handler_drain(handler, handler_errors.clone(), page_errors.clone());
     let outcome = async {
         let version = browser.version().await.map_err(|e| Error(e.to_string()))?.product;
-        capture.event("browser", json!({"version":version.strip_prefix("Chrome/").unwrap_or(&version),"executable":chrome,"flags": ([vec!["--no-sandbox","--use-angle=swiftshader","--enable-unsafe-swiftshader"], extra_args].concat()),"viewport":[1513,1043],"gc":"natural","httpCache":false,"serviceWorkers":"block"}))?;
+        let warm = args[3] == "startup:warm";
+        capture.event("browser", json!({"version":version.strip_prefix("Chrome/").unwrap_or(&version),"executable":chrome,"flags": ([vec!["--no-sandbox","--use-angle=swiftshader","--enable-unsafe-swiftshader"], extra_args].concat()),"viewport":[1513,1043],"gc":"natural","httpCache":warm,"serviceWorkers":if warm {"allow"} else {"block"}}))?;
         let (context, page) = driver::new_isolated_page(&browser, "about:blank", &page_errors).await?;
         let result = async {
-            page.execute(AddScriptToEvaluateOnNewDocumentParams::new("if (navigator.serviceWorker) navigator.serviceWorker.register = async () => { console.warn('Service Worker registration blocked by Playwright'); };")) .await.map_err(|e| Error(e.to_string()))?;
-            page.execute(SetCacheDisabledParams::new(true)).await.map_err(|e| Error(e.to_string()))?;
+            if !warm {
+                page.execute(AddScriptToEvaluateOnNewDocumentParams::new("if (navigator.serviceWorker) navigator.serviceWorker.register = async () => { console.warn('Service Worker registration blocked by Playwright'); };")) .await.map_err(|e| Error(e.to_string()))?;
+            }
+            page.execute(SetCacheDisabledParams::new(!warm)).await.map_err(|e| Error(e.to_string()))?;
             let listener = cad_handler_responses::start(&page).await?;
             let work = async {
                 if let Some(operation) = args[3].strip_prefix("U1:") {
@@ -197,9 +206,11 @@ async fn capture_browser(args: &[String], capture: &mut Capture) -> Result<()> {
                     capture.event("U1", receipt)?;
                     return page_errors.fail_if_any();
                 }
-                let is_startup = args[3] == "startup:cold";
+                let is_startup = args[3].starts_with("startup:");
                 if is_startup {
-                    capture.event("navigation-start", json!({}))?;
+                    for prime in [true, false] {
+                    if prime && !warm { continue; }
+                    if !prime { capture.event("navigation-start", json!({}))?; }
                     let start = std::time::Instant::now();
                     bounded(async { page.goto(format!("{}/boardstudio/", args[0])).await.map(|_| ()).map_err(|e| Error(e.to_string())) }, "navigation").await?;
                     tokio::time::timeout(Duration::from_secs(180), async {
@@ -216,8 +227,21 @@ async fn capture_browser(args: &[String], capture: &mut Capture) -> Result<()> {
                             tokio::time::sleep(Duration::from_millis(100)).await;
                         }
                     }).await.map_err(|_| Error("timed out waiting for usable landing".into()))??;
-                    capture.metric("cold", 0, "navigation-to-usable-landing", &json!(start.elapsed().as_secs_f64() * 1000.0), "ms")?;
-                    capture.event("landing-ready", json!({}))?;
+                    if prime {
+                        capture.event("prime-navigation", json!({}))?;
+                        // Keep each CDP request short while the page awaits the full activation watchdog.
+                        driver::eval(&page, "(() => { window.__cadServiceWorkerState = { pending: true }; (async () => { const registrations = await navigator.serviceWorker.getRegistrations(); if (registrations.length) await Promise.race([navigator.serviceWorker.ready, new Promise((_, reject) => setTimeout(() => reject(Error('service-worker activation watchdog: 180 seconds')), 180000))]); return { registrations: registrations.map(r => ({ scope: r.scope, active: r.active?.state, installing: r.installing?.state, waiting: r.waiting?.state })), controller: !!navigator.serviceWorker.controller }; })().then(value => { window.__cadServiceWorkerState = { value }; }, error => { window.__cadServiceWorkerState = { error: String(error) }; }); return true; })()").await?;
+                        driver::wait_for(&page, "window.__cadServiceWorkerState?.pending === undefined", "service-worker activation", Duration::from_secs(180)).await?;
+                        let state_result = driver::eval(&page, "window.__cadServiceWorkerState").await?;
+                        if let Some(error) = state_result["error"].as_str() { return Err(Error(format!("service-worker state failed: {error}"))); }
+                        let state = state_result["value"].clone();
+                        if !state["registrations"].is_array() || !state["controller"].is_boolean() { return Err(Error("missing service-worker observation".into())); }
+                        capture.event("service-worker-state", state)?;
+                    } else {
+                        capture.metric(if warm {"warm"} else {"cold"}, 0, "navigation-to-usable-landing", &json!(start.elapsed().as_secs_f64() * 1000.0), "ms")?;
+                        capture.event("landing-ready", json!({}))?;
+                    }
+                    }
                 }
                 bounded(async { page.goto(format!("{}/__perf/cad/scripts/performance-host.html", args[0])).await.map(|_| ()).map_err(|e| Error(e.to_string())) }, "navigation").await?;
                 let source = include_str!("../../../../cad/scripts/measure-cad-worker.cjs");

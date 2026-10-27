@@ -1128,3 +1128,131 @@ a dirty candidate and an unbound retained site, so it is not source-bound
 acceptance. Cleanup tracked 68 owned process identities and recorded no survivors
 or remaining temporary profile. The runtime admission guard remains in place.
 Full source-bound, cache, service-worker and timing parity remain open.
+
+## 2026-10-27: warm startup validation candidate (incomplete)
+
+A local uncommitted candidate adds the Rust warm selection, same-page prime and
+measured landing navigations, Node-shaped service-worker state event, warm cache
+and registration settings, and a validation-only runtime guard. The response
+collector rejects an empty response observation. The launcher regression first
+failed because warm selection was unsupported and the runtime guard was absent;
+after the candidate, the two focused launcher checks passed. The existing Rust
+capture unit checks passed 5/5 under the shared build lock and
+`boardstudio-tests.slice` (`.evidence/ticket006-warm-rust-final.log`).
+
+These checks do not establish browser behavior or service-worker origin parity.
+No source-bound Chrome comparison, HTTP-cache control, service-worker-origin
+true/blocked control, or full benchmark qualification has been performed for this
+candidate. The retained site receipt predates this candidate, and the official
+build-binding contract rejects a dirty noop build. Node remains the runtime
+reference; this candidate must not be treated as ticket closure.
+
+## 2026-10-27: warm service-worker diagnosis (still blocked)
+
+On the retained, unbound site, a focused Chrome 145 Rust rerun reproduced the
+approximately 60-second evaluation timeout. Before awaiting `ready`, the page
+URL was the expected landing URL and `getRegistrations()` returned one scoped
+registration with no active, installing, or waiting worker and no controller.
+Temporary CDP instrumentation observed a service-worker target attach paused,
+followed by submission of `Runtime.runIfWaitingForDebugger` and
+`Target.detachFromTarget`. Detach returned success, but no response was observed
+for that service-worker resume; a later dedicated-worker resume returned success.
+The trace is consistent with a resume/detach race but does not prove the cause.
+See `.evidence/ticket006-warm-debug3/`; cleanup recorded no adopted children.
+Instrumentation was removed. No fix, post-fix comparison, error control, or
+source-bound acceptance is claimed.
+
+## 2026-10-27: warm service-worker resume sequencing (diagnostic)
+
+The CAD-enabled handler now waits for a successful paused service-worker resume
+response before requesting detach, and reports resume, detach, timeout and
+premature session/owner closure failures. Other handler consumers retain the
+existing policy. The ordering regression failed before the change because detach
+was already queued; the final vendored handler library suite passed 15/15,
+including resume-error and premature-detach controls.
+
+Sequential Node and Rust warm validation captures with Chrome 145 against the
+same retained, unbound site both exited 0 and observed respectively 20 and 22
+responses marked service-worker-origin. Total response counts were 186 and 45,
+so full response parity is not established. The capture preceded the final
+additional owner-destruction and transport-closure guards; the final handler
+suite passed after those guards. The subreaper recorded 10 reaped descendants and
+no remaining children. See `.evidence/ticket006-warm-sequenced/` and
+`.evidence/ticket006-service-final-tests.log`. Source-bound acceptance, full
+response parity, failure controls in a real browser and timing qualification
+remain open.
+
+## 2026-10-27: retained service-worker network session (partial)
+
+For CAD capture, paused service workers now queue Network enable before resume,
+retain their flattened session until teardown, and use the existing worker session
+ownership, ordered event routing, and setup failure accounting. Other consumers
+retain the original service-worker detach behavior. The focused ordering regression
+failed before this change (resume only), then passed; the vendored handler library
+suite passed 13/13, and the focused default-off control passed.
+
+A sequential Chrome for Testing 145 warm validation against the same retained,
+unbound site completed for both drivers. Node recorded 186 responses (20 marked
+service-worker-origin); Rust recorded 188 (22 marked service-worker-origin). Their
+URL/status/origin multisets agree except for two additional Rust 200 responses,
+for the core worker JS and WASM, both marked service-worker-origin. The source of
+this difference remains unresolved; no responses were filtered to force parity.
+The subreaper recorded 10 reaped descendants and no remaining children. Evidence:
+`.evidence/ticket006-service-network-warm/`, `.evidence/ticket006-service-network-red.log`,
+`.evidence/ticket006-service-network-green.log`, and
+`.evidence/ticket006-service-network-default-green.log`. This is not source-bound
+acceptance or timing qualification; exact warm response parity remains open.
+
+## 2026-10-27: warm response timing trace (unresolved)
+
+A fresh sequential same-site Chrome 145 run reproduced Node 186 and Rust 188
+responses, with 20 and 22 service-worker-origin responses respectively. The
+multisets differed only by Rust's additional 200 service-worker-origin core-worker
+JS and WASM responses. Both runs exited 0; the retained site and dirty candidate
+are not source-bound. Evidence is `.evidence/ticket006-trace-investigation/`.
+
+Node's actual Playwright protocol trace shows the measured landing's second core
+worker attaching just before Playwright sends navigation to the performance host.
+Chrome emits the worker JS request, then detaches that worker after navigation,
+without a response for that request or a WASM request in that worker session.
+The installed Playwright network manager ignores responses without an associated
+request and has specific handling for service-worker responses, but this trace
+does not show it suppressing either of these two responses. It does not establish
+the Rust event ordering or prove the cause of the differing observations. No
+filter was added: discarding valid responses would conceal a timing difference.
+The subreaper recorded ten reaped descendants and no remaining children. Exact
+warm parity, controlled browser failure/absence checks for this investigation,
+source binding, cache and timing qualification remain open.
+
+## 2026-10-27: measured landing worker ordering (diagnostic)
+
+One sequential Chrome for Testing 145 warm comparison on the same retained site
+completed for Node and Rust (both exit 0), under the shared build lock. Node
+recorded 186 responses, 20 service-worker-origin; Rust recorded 188, 22. The
+only multiset differences were Rust's additional 200 service-worker-origin
+core-worker JS and WASM responses. Evidence is
+`.evidence/ticket006-narrow-trace-20261027/`; the cleanup receipt records ten
+reaped adopted children and no remaining children.
+
+Node's measured landing worker attached at 14:19:13.498 UTC, performance-host
+navigation was sent in the same millisecond, and the worker detached at
+14:19:13.501 without the two responses in that session. Rust's measured landing
+worker attached at 14:19:16.643, queued Network enable and resume, and both
+commands returned successfully. Its JS and WASM responses arrived at 16.648
+and 16.651, while its visible-button check was still completing; performance-host
+navigation began at 16.652 and the worker detached at 16.662. Both drivers use
+visible landing readiness before navigating. This observed ordering supports a
+scheduling/readiness-check timing difference; it does not prove a semantic
+boundary divergence or establish that scheduling alone explains every run. No
+filter or behavior fix was justified. Temporary logging was removed. Logging and
+paused worker setup can perturb scheduling, and the retained site and dirty
+candidate are not source-bound. This run is diagnostic, not timing or ticket
+acceptance; source-bound comparison, cache controls, failure controls and the
+remaining qualification gates stay open.
+
+## 2026-10-27: delayed activation validation checkpoint
+
+A real Chrome 145 delayed-activation control passed with a 35-second delay.
+The runtime timing guard remains in place. This checkpoint does not close the
+source-bound comparison, cache and service-worker controls, full watchdog failure
+control, or benchmark parity; ticket 006 remains incomplete.

@@ -25,7 +25,7 @@ class CaptureSelectionTests(unittest.TestCase):
         evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
         evidence.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=evidence) as directory:
-            for workload, reason in (("startup:cold", "timing"), ("U1:page", "samples")):
+            for workload, reason in (("startup:cold", "timing"), ("startup:warm", "timing"), ("U1:page", "samples")):
                 for action, driver in (("runtime", "rust"), ("validate", "rust"), ("runtime", "node")):
                     with self.subTest(workload=workload, action=action, driver=driver):
                         args = ["measure-cad.py", action, "--driver", driver, "--workload", workload,
@@ -48,8 +48,7 @@ class CaptureSelectionTests(unittest.TestCase):
         self.assertEqual(PERF.capture_driver("rust", "startup:cold"), "rust")
         for workload in ("U1:freeze", "U1:page"):
             self.assertEqual(PERF.capture_driver("rust", workload), "rust")
-        with self.assertRaisesRegex(ValueError, "does not support"):
-            PERF.capture_driver("rust", "startup:warm")
+        self.assertEqual(PERF.capture_driver("rust", "startup:warm"), "rust")
 
     def test_selected_driver_controls_build_and_validation_prerequisites(self):
         evidence = PERF.ROOT / ".evidence/011-prerequisite-test"

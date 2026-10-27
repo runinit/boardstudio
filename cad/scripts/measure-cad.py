@@ -508,7 +508,7 @@ def sample_tree(pid):
 
 
 def capture_driver(driver, workload):
-    if driver == "rust" and workload not in (*PAIRED, *UNPAIRED, "startup:cold", "U1:freeze", "U1:page"):
+    if driver == "rust" and workload not in (*PAIRED, *UNPAIRED, "startup:cold", "startup:warm", "U1:freeze", "U1:page"):
         raise ValueError("Rust capture does not support this workload")
     return driver
 
@@ -604,8 +604,8 @@ def main():
                         help="one matched initial build cycle; three is the retained upper proposal, only after root requests it")
     args = parser.parse_args()
     if args.action == "runtime" and args.driver == "rust":
-        if args.workload == "startup:cold":
-            parser.error("Rust startup:cold runtime timing is perturbed by the worker observer; use --driver node for runtime or validate for diagnostics")
+        if args.workload in ("startup:cold", "startup:warm"):
+            parser.error(f"Rust {args.workload} runtime timing is perturbed by the worker observer; use --driver node for runtime or validate for diagnostics")
         if args.workload == "U1:page":
             parser.error("Rust U1:page provides validation only, with no runtime samples; use --driver node for runtime or validate for diagnostics")
     root, out = args.checkout.resolve(), args.output.resolve()

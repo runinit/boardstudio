@@ -52,7 +52,7 @@ pub async fn start(page: &Page) -> Result<tokio::task::JoinHandle<Result<Vec<Res
                 {
                     return Err(Error("duplicate worker session".into()));
                 }
-                saw_worker = true;
+                saw_worker |= event.params["targetInfo"]["type"].as_str() == Some("worker");
                 continue;
             }
             let params = &event.params;
@@ -143,6 +143,9 @@ pub async fn start(page: &Page) -> Result<tokio::task::JoinHandle<Result<Vec<Res
         }
         if !saw_worker {
             return Err(Error("no dedicated worker target observed".into()));
+        }
+        if resources.is_empty() {
+            return Err(Error("no network responses observed".into()));
         }
         Ok(resources)
     }))

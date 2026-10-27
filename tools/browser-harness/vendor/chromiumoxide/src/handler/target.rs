@@ -8,6 +8,7 @@ use futures::channel::oneshot::Sender;
 use futures::stream::Stream;
 use futures::task::{Context, Poll};
 
+use chromiumoxide_cdp::cdp::CdpEventMessage;
 use chromiumoxide_cdp::cdp::browser_protocol::page::{FrameId, GetFrameTreeParams};
 use chromiumoxide_cdp::cdp::browser_protocol::{
     browser::BrowserContextId,
@@ -15,7 +16,6 @@ use chromiumoxide_cdp::cdp::browser_protocol::{
     target::{AttachToTargetParams, SessionId, SetAutoAttachParams, TargetId, TargetInfo},
 };
 use chromiumoxide_cdp::cdp::events::CdpEvent;
-use chromiumoxide_cdp::cdp::CdpEventMessage;
 use chromiumoxide_types::{Command, Method, Request, Response};
 
 use crate::auth::Credentials;
@@ -35,7 +35,7 @@ use crate::handler::page::PageHandle;
 use crate::handler::viewport::Viewport;
 use crate::handler::{PageInner, REQUEST_TIMEOUT};
 use crate::listeners::{EventListenerRequest, EventListeners};
-use crate::{page::Page, ArcHttpRequest};
+use crate::{ArcHttpRequest, page::Page};
 use chromiumoxide_cdp::cdp::js_protocol::runtime::{
     ExecutionContextId, RunIfWaitingForDebuggerParams,
 };
@@ -44,6 +44,34 @@ use std::time::Duration;
 #[cfg(test)]
 mod worker_order_tests {
     use super::*;
+
+    #[test]
+    fn paused_service_worker_does_not_detach_before_resume() {
+        let info: TargetInfo = serde_json::from_str(r#"{"targetId":"page","type":"page","title":"","url":"about:blank","attached":true,"canAccessOpener":false}"#).unwrap();
+        let mut target = Target::new(info, TargetConfig::default(), BrowserContext::default());
+        let event: CdpEventMessage = serde_json::from_str(r#"{"method":"Target.attachedToTarget","params":{"sessionId":"sw","targetInfo":{"targetId":"sw-target","type":"service_worker","title":"","url":"sw.js","attached":true,"canAccessOpener":false},"waitingForDebugger":true},"sessionId":"page-session"}"#).unwrap();
+        let mut default_target = Target::new(
+            target.info.clone(),
+            TargetConfig::default(),
+            BrowserContext::default(),
+        );
+        default_target.on_event(event.clone());
+        assert!(default_target.queued_events.iter().any(|event| matches!(event, TargetEvent::Request(request) if request.method.as_ref() == "Target.detachFromTarget")));
+        assert!(!default_target.queued_events.iter().any(|event| matches!(event, TargetEvent::Request(request) if request.method.as_ref() == "Network.enable")));
+        target.on_event_with_worker_network(event, true);
+        let methods: Vec<_> = target
+            .queued_events
+            .iter()
+            .filter_map(|event| match event {
+                TargetEvent::Request(request) => Some(request.method.as_ref()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            methods,
+            vec!["Network.enable", "Runtime.runIfWaitingForDebugger"]
+        );
+    }
 
     #[test]
     fn paused_worker_network_precedes_resume() {
@@ -321,7 +349,10 @@ impl Target {
             // `Target` events
             CdpEvent::TargetAttachedToTarget(ev) => {
                 if ev.waiting_for_debugger {
-                    if worker_network_capture && ev.target_info.r#type == "worker" {
+                    if worker_network_capture
+                        && (ev.target_info.r#type == "worker"
+                            || ev.target_info.r#type == "service_worker")
+                    {
                         let network_cmd = chromiumoxide_cdp::cdp::browser_protocol::network::EnableParams::default();
                         self.queued_events.push_back(TargetEvent::Request(Request {
                             method: network_cmd.identifier(),
@@ -338,7 +369,9 @@ impl Target {
                     }));
                 }
 
-                if "service_worker" == &ev.target_info.r#type {
+                if "service_worker" == &ev.target_info.r#type
+                    && !(worker_network_capture && ev.waiting_for_debugger)
+                {
                     let detach_command = DetachFromTargetParams::builder()
                         .session_id(ev.session_id.clone())
                         .build();
