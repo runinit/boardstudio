@@ -37,6 +37,8 @@ class CaptureSelectionTests(unittest.TestCase):
                                     PERF.main()
                                 self.assertIn(reason, stderr.getvalue())
                                 self.assertIn("validate", stderr.getvalue())
+                                if workload == "U1:page":
+                                    self.assertNotIn("--driver node for runtime", stderr.getvalue())
                             else:
                                 with self.assertRaisesRegex(RuntimeError, "binding reached"):
                                     PERF.main()

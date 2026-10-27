@@ -607,7 +607,7 @@ def main():
         if args.workload in ("startup:cold", "startup:warm"):
             parser.error(f"Rust {args.workload} runtime timing is perturbed by the worker observer; use --driver node for runtime or validate for diagnostics")
         if args.workload == "U1:page":
-            parser.error("Rust U1:page provides validation only, with no runtime samples; use --driver node for runtime or validate for diagnostics")
+            parser.error("U1:page provides validation only, with no runtime samples; use validate for diagnostics")
     root, out = args.checkout.resolve(), args.output.resolve()
     if not out.is_relative_to(ROOT / ".evidence"):
         parser.error("capture outputs must be under this lane's .evidence")
