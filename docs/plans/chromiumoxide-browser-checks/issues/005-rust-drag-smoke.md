@@ -1116,3 +1116,19 @@ run was stopped, its processes exited, and a nonblocking lock acquisition
 succeeded afterward. The apparent web build in that log belongs to the receipt
 test, not the gate's build phase. The new blocker remains unresolved; no full
 gate, browser acceptance, or hosted CI pass is claimed.
+
+### 2026-10-26: receipt-test driver isolation
+
+The receipt CLI fixture now pins the Node driver matching its mocked Node probe,
+so its preflight-failure case records an unrun plan without launching a real
+build when the parent selects Rust. A bounded Rust-driver reproduction intercepted
+the unexpected external launch before the fix (`.evidence/ticket005-receipt-isolation-red.log`).
+On the fix, the receipt suite passed 37 tests and the scheduler suite passed 31
+tests under each of the Node and Rust parent settings. Source commit:
+`eb8e918b`. The earlier interrupted full log remains unchanged.
+
+The requested full-gate service exited 2 before the check started: systemd used
+`/home/chris` as its working directory and Python could not open
+`/home/chris/scripts/check.py` (`.evidence/ticket005-receipt-isolation-full.log`).
+No receipt or artifact matrix was produced. No retry was run. Ticket 005 remains
+open; the full gate, browser acceptance, and hosted CI remain unverified.
