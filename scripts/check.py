@@ -411,14 +411,17 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                captured: list[tuple[Command, str]] | None = None,
                outputs: list[tuple[Command, str]] | None = None) -> tuple[float, int]:
     print("$ " + shlex.join(command), flush=True)
-    if command[1:] != DRAG_SMOKE[1:] and "BOARDSTUDIO_BUILD_LOCK_FD" in environment:
+    lock_fd = browser_tools._inherited_build_lock()
+    if not any(part in command for part in ("scripts/run-drag-browser.py", "scripts/build-web.py",
+               "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py")):
         environment = environment.copy()
-        environment.pop("BOARDSTUDIO_BUILD_LOCK_FD")
+        environment.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
+    lock_args = {"pass_fds": (lock_fd,)} if lock_fd is not None else {}
     started = time.monotonic()
     if captured is not None and is_cargo_test(command):
         # The native test-name guard reads this output; it is printed whole once the command ends.
         done = subprocess.run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, text=True)
+                              stderr=subprocess.STDOUT, text=True, **lock_args)
         text = output_text(done.stdout)
         print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
         captured.append((command, text))
@@ -427,15 +430,13 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
         code = done.returncode
     elif outputs is not None and is_wasm_pack_test(command):
         done = subprocess.run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, text=True)
+                              stderr=subprocess.STDOUT, text=True, **lock_args)
         text = output_text(done.stdout)
         print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
         outputs.append((command, text))
         code = done.returncode
     else:
-        lock_fd = browser_tools._inherited_build_lock() if command[1:] == DRAG_SMOKE[1:] else None
-        code = subprocess.run(command, cwd=cwd, env=environment,
-                              **({"pass_fds": (lock_fd,)} if lock_fd is not None else {})).returncode
+        code = subprocess.run(command, cwd=cwd, env=environment, **lock_args).returncode
     elapsed = time.monotonic() - started
     print(f"  ({elapsed:.1f}s)", flush=True)
     return elapsed, code
@@ -447,12 +448,16 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                  receipt: verification_receipt.Collector | None = None,
                  step: str = "") -> tuple[float, list[Command]]:
     """Runs independent launches together, printing each one's output whole and in order."""
-    environment = {key: value for key, value in environment.items() if key != "BOARDSTUDIO_BUILD_LOCK_FD"}
+    lock_fd = browser_tools._inherited_build_lock()
 
     def launch(command: Command) -> tuple[int, str, float]:
         started = time.monotonic()
-        done = subprocess.run(command, cwd=ROOT, env=environment, stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, text=True)
+        child_env = environment.copy()
+        if "cad/scripts/test-cad.py" not in command:
+            child_env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
+        done = subprocess.run(command, cwd=ROOT, env=child_env, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True,
+                              **({"pass_fds": (lock_fd,)} if lock_fd is not None else {}))
         return done.returncode, done.stdout, time.monotonic() - started
 
     ordered = sorted(batch, key=launch_order)

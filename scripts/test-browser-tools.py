@@ -16,6 +16,83 @@ def which(*available):
 
 
 class BrowserToolsTests(unittest.TestCase):
+    def test_cancelled_launcher_keeps_build_lock_until_child_exits(self):
+        import os
+        import select
+        import subprocess
+        import sys
+        import tempfile
+
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp)
+            lock = home / ".cache/tmp/boardstudio-build.lock"
+            lock.parent.mkdir(parents=True)
+            ready, release = home / "ready", home / "release"
+            os.mkfifo(ready)
+            os.mkfifo(release)
+            cargo = home / "cargo"
+            cargo.write_text("#!/usr/bin/python3\nimport os\n"
+                             "if os.environ.pop('GRANDCHILD', ''):\n"
+                             "    pid = os.fork()\n"
+                             "    if pid: os.waitpid(pid, 0); os._exit(0)\n"
+                             "    os.execv(__file__, [__file__])\n"
+                             "with open(os.environ['READY'], 'w') as f: f.write(str(os.getppid()) + '\\n')\n"
+                             "with open(os.environ['RELEASE']) as f: f.read(1)\n")
+            cargo.chmod(0o755)
+            (home / "wasm-pack").symlink_to(cargo)
+            env = dict(os.environ, HOME=temp, READY=str(ready), RELEASE=str(release),
+                       PATH=f"{temp}:{os.environ['PATH']}", PYTHONPATH=str(root / "scripts"))
+            env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
+            (home / "scripts").mkdir()
+            (home / "scripts/run-drag-browser.py").write_text("import browser_tools; browser_tools.build_drag_harness()\n")
+            ready_fd = os.open(ready, os.O_RDWR | os.O_NONBLOCK)
+            release_fd = os.open(release, os.O_RDWR | os.O_NONBLOCK)
+            try:
+                for mode in ("harness", "standalone", "nested", "serial", "parallel", "web", "cad", "wasm", "grandchild"):
+                    with self.subTest(mode=mode):
+                        setup = ("import fcntl, os, sys\n"
+                                 "f = open(os.path.expanduser('~/.cache/tmp/boardstudio-build.lock'), 'w')\n"
+                                 "fcntl.flock(f, fcntl.LOCK_EX)\n"
+                                 "os.environ['BOARDSTUDIO_BUILD_LOCK_FD'] = str(f.fileno())\n")
+                        calls = {
+                            "harness": "import browser_tools; browser_tools.build_drag_harness()",
+                            "standalone": "import browser_tools; browser_tools.build_drag_harness()",
+                            "nested": "import check; from pathlib import Path; check.run_serial([sys.executable, 'scripts/run-drag-browser.py'], dict(os.environ), cwd=Path(os.environ['HOME']))",
+                            "serial": "import check; check.run_serial(['cargo'], dict(os.environ), captured=[])",
+                            "parallel": "import check; check.run_parallel([['cargo']], dict(os.environ))",
+                            "grandchild": "import check; check.run_serial(['cargo'], dict(os.environ))",
+                            "web": "import importlib; m=importlib.import_module('build-web'); m.run(['cargo'])",
+                            "cad": "sys.path.insert(0, os.environ['CAD']); import cad_build; cad_build.run(['cargo'])",
+                            "wasm": "import importlib; m=importlib.import_module('run-wasm-tests'); m.run_filter(None, dict(os.environ))",
+                        }
+                        # Standalone uses flock's own process; the others inherit a validated descriptor.
+                        source = ("import os, sys\n" if mode == "standalone" else setup) + calls[mode]
+                        process = subprocess.Popen([sys.executable, "-c", source],
+                                                   env=dict(env, CAD=str(root / "cad/scripts"),
+                                                            GRANDCHILD="1" if mode == "grandchild" else ""),
+                                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        try:
+                            self.assertTrue(select.select([ready_fd], [], [], 5)[0], "build child did not start")
+                            build_parent = int(os.read(ready_fd, 32).strip())
+                            process.kill()
+                            process.wait(timeout=5)
+                            if mode in ("standalone", "nested", "grandchild"):
+                                os.kill(build_parent, 9)
+                            contender = ["flock", "-n", str(lock), "true"]
+                            self.assertNotEqual(subprocess.run(contender).returncode, 0,
+                                                "lock released while child is running")
+                        finally:
+                            os.write(release_fd, b"X")
+                            if process.poll() is None:
+                                process.kill()
+                                process.wait(timeout=5)
+                            subprocess.run(["flock", str(lock), "true"], check=True, timeout=5)
+                        self.assertEqual(subprocess.run(contender).returncode, 0)
+            finally:
+                os.close(ready_fd)
+                os.close(release_fd)
+
     def test_harness_build_uses_cargo_artifact_and_reports_redacted_error(self):
         import json
         package = (Path(__file__).resolve().parents[1] / "tools/browser-harness").as_uri()

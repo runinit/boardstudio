@@ -1064,3 +1064,29 @@ build phases unprotected. The full receipt, artifact matrix and browser/site
 acceptance are therefore not available for this source. Hosted CI remains
 unrun; previous full failures and the unexplained Keycaps failures remain
 unchanged. Ticket 005 stays open pending a supported lock-safe full gate.
+
+### 2026-10-26: build-lock cancellation repair
+
+The validated inherited lock descriptor now reaches serial and parallel scheduler
+children and the Python web, CAD, WASM and Rust harness build subprocesses. The
+standalone harness retains its `flock` path; an environment value without a valid
+descriptor still fails validation. Build tools inherit the descriptor across exec.
+
+The process-level regression uses FIFOs to hold a representative Cargo/wasm-pack
+child, kills its launcher, and checks an unrelated nonblocking contender before and
+after releasing the child. It covers serial and parallel scheduler launches, web,
+CAD and WASM helpers, the harness, standalone `flock`, and the nested scheduler to
+harness path, plus a fork-and-exec build grandchild; the standalone, nested and
+grandchild cases also kill the intermediate lock holder. Before the fix,
+the harness case allowed the contender through while Cargo was alive (RED,
+`.evidence/lock-cancellation-red.log`); all nine cases passed after the fix
+(`.evidence/lock-cancellation-green.log`). Focused browser-tools, scheduler,
+web-build, WASM-runner and CAD-build tests passed; Python compilation and
+`git diff --check` passed. No Cargo build, full check, browser acceptance or hosted
+CI was run for this repair. Ticket closure and earlier failures remain unchanged.
+
+This shared-lock protocol is Unix-specific (`fcntl.flock` and inherited file
+descriptors); standalone locking additionally requires the `flock` utility. The
+lock is inode-based: removing or replacing the lock file while a build is active
+would let a new contender lock a different inode, so the shared lock file must not
+be removed or replaced during builds.

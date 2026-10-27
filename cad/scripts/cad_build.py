@@ -6,6 +6,10 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+import browser_tools
 
 CAD_ROOT = Path(__file__).resolve().parents[1]
 OUT_NAME = "boardstudio_cad_wasm"
@@ -53,7 +57,9 @@ PROVIDER_TESTS = (
 
 
 def run(command, **kwargs):
-    return subprocess.run(command, cwd=CAD_ROOT, check=True, **kwargs)
+    fd = browser_tools._inherited_build_lock()
+    return subprocess.run(command, cwd=CAD_ROOT, check=True,
+                          **({"pass_fds": (fd,)} if fd is not None else {}), **kwargs)
 
 
 def _iter_source_files(base: Path, names: tuple[str, ...]):

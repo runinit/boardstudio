@@ -76,7 +76,7 @@ def build_drag_harness() -> Path:
         [*(["flock", str(lock)] if inherited is None else []), "cargo", "build", "--locked", "--message-format=json",
          "--manifest-path", str(root / "tools/browser-harness/Cargo.toml"),
          "--package", "boardstudio-browser-harness", "--bin", "drag-smoke"],
-        cwd=root, capture_output=True, text=True,
+        cwd=root, capture_output=True, text=True, **({"pass_fds": (inherited,)} if inherited is not None else {}),
     )
     if result.returncode:
         diagnostic = result.stderr
