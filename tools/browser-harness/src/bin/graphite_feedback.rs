@@ -112,9 +112,17 @@ async fn press_key(p: &Page, key: &str, code: &str, virtual_key: i64, text: &str
 async fn press_enter(p: &Page) -> Result<()> {
     press_key(p, "Enter", "Enter", 13, "\r").await
 }
-async fn drag_offset(p: &Page, dy: f64, cancel: bool, observe_preview: bool) -> Result<()> {
+async fn drag_offset(
+    p: &Page,
+    dy: f64,
+    cancel: bool,
+    observe_preview: bool,
+) -> Result<Option<Value>> {
     let id = driver::backend_of_wait(p, "[aria-label=\"Drag to offset column\"]", WAIT).await?;
     let (x, y) = driver::center(p, id).await?;
+    if !cancel {
+        eval(p, "window.__graphiteFinalDown = null; document.addEventListener('pointerdown', e => { window.__graphiteFinalDown = { id: e.pointerId, trusted: e.isTrusted, target: !!e.target.closest('[aria-label=\"Drag to offset column\"]'), actual: e.target.outerHTML.slice(0, 300) }; }, { once: true, capture: true }); true").await?;
+    }
     if cancel {
         eval(p, "document.addEventListener('pointerdown', e => { window.__graphitePointerId = e.pointerId; window.__graphiteMoved = false; document.addEventListener('pointermove', move => { window.__graphiteMoved = move.pointerId === e.pointerId && (move.clientX !== e.clientX || move.clientY !== e.clientY); }, { once: true, capture: true }); }, { once: true, capture: true }); true").await?;
     }
@@ -183,6 +191,11 @@ async fn drag_offset(p: &Page, dy: f64, cancel: bool, observe_preview: bool) -> 
             .map_err(err)?;
         }
     }
+    let final_probe = if cancel {
+        None
+    } else {
+        Some(eval(p, "({ down: window.__graphiteFinalDown, captured: [...document.querySelectorAll('svg.m1-canvas,.m1-transform-handle')].some(e => e.hasPointerCapture(window.__graphiteFinalDown?.id)) })").await?)
+    };
     p.execute(
         DispatchMouseEventParams::builder()
             .r#type(DispatchMouseEventType::MouseReleased)
@@ -197,7 +210,7 @@ async fn drag_offset(p: &Page, dy: f64, cancel: bool, observe_preview: bool) -> 
     )
     .await
     .map_err(err)?;
-    Ok(())
+    Ok(final_probe)
 }
 async fn viewport(p: &Page, width: i64) -> Result<()> {
     let height = if width == 390 { 844 } else { 1043 };
@@ -318,10 +331,25 @@ async fn run(p: &Page, shots: Option<&str>) -> Result<()> {
     wait(p, &unchanged).await?;
     wait(p, "(() => { const r=document.querySelector('.m1-keycap-overlay.is-selected')?.getBoundingClientRect(), b=window.__graphiteInitial; return r && Math.hypot(r.x-b.x,r.y-b.y)<0.5 })()").await?;
     passed("Ctrl offset Escape restores the moved preview");
-    drag_offset(p, -15.0, true, false).await?;
-    passed("Ctrl offset rapid cancellation acquires capture");
-    wait(p, &unchanged).await?;
-    drag_offset(p, 0.0, false, false).await?;
+    let probe = drag_offset(p, 0.0, false, false)
+        .await?
+        .expect("final drag probe");
+    let down = &probe["down"];
+    let target_ok = down["trusted"] == true && down["target"] == true;
+    let target_label = format!("Ctrl offset final pointerdown reaches handle (observed: {down})");
+    if target_ok {
+        passed(&target_label);
+    } else {
+        println!("FAIL {target_label}");
+        f.push(target_label);
+    }
+    let capture_label = "Ctrl offset final drag acquires pointer capture";
+    if probe["captured"] == true {
+        passed(capture_label);
+    } else {
+        println!("FAIL {capture_label}");
+        f.push(capture_label.into());
+    }
     let changed=format!("Math.abs(Number(document.querySelector('.m1-inspector-body [aria-label=\"Offset X\"]').value)-({before})) > 0.0001");
     // The original checks the final value after up to five seconds, including a failed verdict.
     if let Err(e) = driver::wait_for(p, &changed, "offset change", Duration::from_secs(5)).await {

@@ -79,7 +79,7 @@ if (process.env.BOARDSTUDIO_GRAPHITE_IDENTITY) {
     check('Ctrl replaces stagger rather than adding a handle', await page.locator('[aria-label="Drag to stagger"]').count() === 0 && await handle.count() === 1);
     const selected = page.locator('.m1-keycap-overlay.is-selected').first();
     const initial = await selected.boundingBox();
-    for (let attempt = 0; attempt < 2; attempt++) {
+    {
       const box = await handle.boundingBox();
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       await page.evaluate(() => document.addEventListener('pointerdown', e => {
@@ -92,23 +92,31 @@ if (process.env.BOARDSTUDIO_GRAPHITE_IDENTITY) {
       await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2 - 15, { steps: 5 });
       const captured = await page.evaluate(() => [...document.querySelectorAll('svg.m1-canvas,.m1-transform-handle')].some(e => e.hasPointerCapture(window.__graphitePointerId)));
       const moved = await page.evaluate(() => window.__graphiteMoved === true);
-      if (attempt === 0) await page.waitForFunction(({ x, y }) => {
+      await page.waitForFunction(({ x, y }) => {
         const r = document.querySelector('.m1-keycap-overlay.is-selected')?.getBoundingClientRect();
         return r && Math.hypot(r.x - x, r.y - y) > 2;
       }, initial);
       await page.keyboard.press('Escape'); await page.mouse.up();
       await waitValue(offset, before);
-      if (attempt === 0) {
-        await page.waitForFunction(({ x, y }) => {
-          const r = document.querySelector('.m1-keycap-overlay.is-selected')?.getBoundingClientRect();
-          return r && Math.hypot(r.x - x, r.y - y) < 0.5;
-        }, initial);
-        check('Ctrl offset Escape restores the moved preview', captured && moved);
-      } else check('Ctrl offset rapid cancellation acquires capture', captured && moved);
+      await page.waitForFunction(({ x, y }) => {
+        const r = document.querySelector('.m1-keycap-overlay.is-selected')?.getBoundingClientRect();
+        return r && Math.hypot(r.x - x, r.y - y) < 0.5;
+      }, initial);
+      check('Ctrl offset Escape restores the moved preview', captured && moved);
     }
     const fresh = await handle.boundingBox();
     await page.mouse.move(fresh.x + fresh.width / 2, fresh.y + fresh.height / 2);
-    await page.mouse.down(); await page.mouse.move(fresh.x + fresh.width / 2 + 30, fresh.y + fresh.height / 2, { steps: 5 }); await page.mouse.up();
+    await page.evaluate(() => {
+      window.__graphiteFinalDown = null;
+      document.addEventListener('pointerdown', e => {
+        window.__graphiteFinalDown = { id: e.pointerId, trusted: e.isTrusted, target: e.target.closest('[aria-label="Drag to offset column"]') !== null, actual: e.target.outerHTML.slice(0, 300) };
+      }, { once: true, capture: true });
+    });
+    await page.mouse.down(); await page.mouse.move(fresh.x + fresh.width / 2 + 30, fresh.y + fresh.height / 2, { steps: 5 });
+    const finalProbe = await page.evaluate(() => ({ down: window.__graphiteFinalDown, captured: [...document.querySelectorAll('svg.m1-canvas,.m1-transform-handle')].some(e => e.hasPointerCapture(window.__graphiteFinalDown?.id)) }));
+    await page.mouse.up();
+    check(`Ctrl offset final pointerdown reaches handle (observed: ${JSON.stringify(finalProbe.down)})`, finalProbe.down?.trusted && finalProbe.down?.target);
+    check('Ctrl offset final drag acquires pointer capture', finalProbe.captured);
     for (let i = 0; i < 100 && Math.abs(Number(await offset.inputValue()) - before) < 0.0001; i++) await page.waitForTimeout(50);
     const committed = Math.abs(Number(await offset.inputValue()) - before) > 0.0001;
     check('Ctrl offset commits a real edit', committed);

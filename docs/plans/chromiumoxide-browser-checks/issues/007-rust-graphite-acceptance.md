@@ -646,3 +646,78 @@ reported both Case labels FAIL and exited 1 (`.evidence/ticket007-case-hidden-
 {node,rust}.log`). The Rust negative run also reported a browser-handler reset.
 These are focused checks against an existing package, not source-bound acceptance;
 the outstanding ticket gates remain open.
+
+## 2026-10-27: Final Ctrl-offset gesture probe (focused, open)
+
+The Node and Rust feedback runners now record the final committed drag's trusted
+pointerdown target and check pointer capture before release. Both retain the
+commit assertion and only perform Undo when that edit landed. The broad rapid
+cancellation sequence does not establish that cancellation occurred while an
+edit was in flight; the existing mounted in-flight regression remains the
+separate evidence for that case.
+
+Chrome for Testing 145.0.7622.0 ran each feedback runner once against the same
+existing `ticket007-visibility-site` package under the shared build lock. Node
+exited 0 with 89 PASS. Rust exited 1 with 87 PASS: its final pointerdown reached
+the offset handle and acquired capture, but the commit failed and Undo was
+blocked; the browser handler also reported a WebSocket reset. Logs are
+`.evidence/ticket007-final-drag-node.log` and
+`.evidence/ticket007-final-drag-rust.log`. This trace distinguishes those
+specific gesture failures from the observed commit failure, but does not show
+its cause. No product correction or acceptance claim follows from it. Both
+runs closed their browser processes; no owned Chrome, driver, crashhandler, or
+server remained. The first server setup and two Rust launcher attempts failed
+before browser input due to wrapper path/lock descriptor errors.
+
+This existing package is not a fresh source-bound build. Full supported checks,
+source-bound parity and closure review remain open. No acceptance box was
+cleared.
+
+## 2026-10-27: Instrumented gesture comparison (diagnostic, open)
+
+Temporary document-level event listeners recorded both runners against the same
+existing package and Chrome 145 under the shared build lock. Both recorded two
+trusted Escape-cancelled drags followed by a trusted final drag: each had five
+pressed pointer moves and capture, and the final pointerup reached the captured
+handle. The selected overlay count stayed at 10 and the displayed offset at 0
+through pointerup. Both checks then passed the commit and one-Undo assertions
+(89 PASS each); Rust classified a WebSocket reset after clean child exit as the
+existing post-boundary reset. Logs are `.evidence/ticket007-lifecycle-{rust,node}.log`.
+All owned Chrome processes and the server were reaped, and the temporary listeners
+were removed from the runners.
+
+This instrumented passing run does not explain the previous Rust red: the added
+listeners can affect timing, and the event trace does not expose the product's
+selection identity, accepted revision, preview, clear outcome, or queued resolver.
+The code admits a following drag while its same-owner clear is pending, and its
+commit resolver requires that clear to complete and the original owner to remain
+current. Those conditions were not observed at the earlier failure. No product
+or test root cause is established and no RED/GREEN fix is claimed. The Parts 3D
+narrow screenshot review, reset handling, source/build/served provenance, full
+supported checks and closure review remain open.
+
+## 2026-10-27: Approved cancellation settlement
+
+The user approved waiting for observable cancellation completion in broad Graphite
+acceptance before an ordinary drag, while retaining the separate focused immediate
+in-flight cancellation regression. The broad runners observe the preview move before
+Escape and return to its initial position before the next drag; the input must also
+remain unchanged. The scene is rendered from the published preview, and the Session
+clears that preview and completes its clear operation together. The mounted regression
+continues to cover an immediate drag while cancellation is in flight.
+
+Chrome for Testing 145.0.7622.0 ran the Node and Rust feedback runners against
+the existing `ticket007-visibility-site` package: each exited 0 with 88 PASS,
+including restoration, trusted final handle target, pointer capture, commit and
+one Undo (`.evidence/ticket007-settlement-{node,rust}.log`). Rust reported a
+WebSocket reset classified by the existing shutdown code as post-boundary after
+clean child exit. Node ran under the shared lock; the Rust launcher used its own
+shared lock. An initial Rust launch was interrupted before input because the
+outer lock and launcher lock conflicted. The server and owned Chrome processes
+were reaped. `node --check`, scoped `rustfmt --check`, and `git diff --check`
+passed. The earlier focused mounted in-flight regression receipt remains 1/1
+(`.evidence/ticket007-remember-green.log`); it was not rerun in this slice.
+
+The package is not freshly source-bound, and another agent's vendor change was
+present during the Rust build. Full source-bound parity, supported checks,
+negative controls, visual review and closure review remain open.
