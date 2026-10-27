@@ -1043,3 +1043,24 @@ ran against the existing site but failed with Chromium 156 protocol-message
 errors (`.evidence/launcher-target-smoke.log`); it is not a passing smoke.
 No full check, pinned-browser run, hosted CI, or closure review was performed;
 the ticket remains claimed and earlier failures remain failures.
+
+### 2026-10-26: final-gate consumer controls and lock blocker
+
+On clean `beb431dc2451853a7b30fb0d11bc106e58419065`, the six standalone
+Linux consumer controls passed their expected failure and no-receipt checks,
+using Chrome for Testing `145.0.7622.0` and the `boardstudio-tests.slice`
+8-CPU envelope. The harness build acquired the project build lock. The CI-step
+log is `.evidence/ticket005-final-beb431dc/consumer-controls-ci.log`.
+An initial invocation supplied only the drag-specific browser variable, but
+this standalone script requires `CHROME_BIN`; it failed at the first control
+before starting Chrome. That setup failure remains recorded in
+`.evidence/ticket005-final-beb431dc/consumer-controls.log`; the CI-configured
+invocation above corrected the environment.
+
+The full default check was not run: holding the project build lock around the
+whole scheduler would deadlock when the Rust drag launcher independently
+acquires that same lock, while omitting the outer lock would leave the other
+build phases unprotected. The full receipt, artifact matrix and browser/site
+acceptance are therefore not available for this source. Hosted CI remains
+unrun; previous full failures and the unexplained Keycaps failures remain
+unchanged. Ticket 005 stays open pending a supported lock-safe full gate.
