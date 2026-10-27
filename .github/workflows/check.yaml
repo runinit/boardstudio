@@ -50,8 +50,7 @@ jobs:
         with:
           path: ~/.cache/.wasm-pack
           key: wasm-pack-0.15.0-wasm-bindgen-0.2.129
-      # Prepare the pinned Rust drag-smoke browser without changing system Chrome,
-      # ChromeDriver, or the default Node runner before the cutover gates pass.
+      # Keep the drag browser separate from system Chrome and ChromeDriver.
       - name: Provision Rust drag-smoke Chrome
         run: scripts/install-drag-chrome.sh "$RUNNER_TEMP/drag-chrome"
       - name: Verify headless Chrome tools
@@ -65,7 +64,15 @@ jobs:
             cad/wasm -> target
           shared-key: web
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
-      - run: python3 scripts/check.py build browser
+      - name: Build and check web
+        run: python3 scripts/check.py build browser
+        env:
+          BOARDSTUDIO_DRAG_DRIVER: rust
+          BOARDSTUDIO_DRAG_CHROME_BIN: ${{ runner.temp }}/drag-chrome/chrome-linux64/chrome
+      - name: Verify drag consumer failures (Linux)
+        run: python3 scripts/test-drag-browser-consumer-controls.py
+        env:
+          CHROME_BIN: ${{ runner.temp }}/drag-chrome/chrome-linux64/chrome
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:

@@ -54,6 +54,11 @@ class BrowserToolsTests(unittest.TestCase):
     def test_chrome_only_probe_honours_chrome_bin(self):
         self.assertEqual(self.locate_chrome(env={"CHROME_BIN": "/opt/chrome"}), "/opt/chrome")
 
+    def test_drag_browser_override_and_chrome_bin_precedence(self):
+        self.assertEqual(self.locate_chrome(env={"BOARDSTUDIO_DRAG_CHROME_BIN": "/drag/chrome"}), "/drag/chrome")
+        self.assertEqual(self.locate_chrome(env={"CHROME_BIN": "/chosen/chrome",
+                                                 "BOARDSTUDIO_DRAG_CHROME_BIN": "/drag/chrome"}), "/chosen/chrome")
+
     def test_chrome_only_probe_names_chrome_bin(self):
         with self.assertRaises(browser_tools.MissingBrowserTool) as raised:
             self.locate_chrome()

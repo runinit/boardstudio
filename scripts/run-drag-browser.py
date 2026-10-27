@@ -120,8 +120,6 @@ def main() -> int:
             chrome = browser_tools.locate_chrome()
             node = None
             build_harness()
-            subprocess.run([sys.executable, str(ROOT / "scripts/test-drag-browser-consumer-controls.py")],
-                           cwd=ROOT, env={**os.environ, "CHROME_BIN": chrome}, check=True)
         else:
             node, chrome = browser_tools.locate()
     except browser_tools.MissingBrowserTool as error:

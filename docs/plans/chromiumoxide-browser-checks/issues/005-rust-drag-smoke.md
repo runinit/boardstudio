@@ -964,3 +964,35 @@ reported the expected post-boundary WebSocket reset after clean child exit.
 This is scoped Rust launcher evidence, not fresh Node/Rust parity, full default
 acceptance, or CI cutover. The prior Keycaps startup failures remain unexplained;
 the instrumented full pass does not establish their cause or resolution.
+
+### 2026-10-26: closure-review follow-up for CI and consumer controls
+
+Moved the six consumer fault controls out of the ordinary Rust launcher into a
+separate Linux CI step after the supported web check builds the harness. Each
+control retains its expected failure and no-receipt assertion. The CI web check
+selects the Rust driver and passes the provisioned Chrome 145 through the
+drag-specific browser override; the launcher supplies it as `CHROME_BIN` to the
+driver. Explicit `CHROME_BIN` still takes precedence. Other browser consumers
+and the mounted WASM ChromeDriver keep their existing environment. The local
+Node default remains available for comparisons. CI failures in either step fail
+the job; hosted CI has not been exercised.
+
+On source `46f09a11b52cadb11365f7f73ba444a82651fd72` with the implementation
+diff present (source digest `18a49299bbfee450f65326c191597e8adb277bd3c4c9ce8c6689d92d02124615`),
+the checked build passed and sequential Node and Rust launchers each passed
+15 checks on the same build digest
+`ed53fb72108110b22e932fab4925cc742528c8eda23cca1e18f62ed36dc6ea60` and
+Chrome 145. The launcher verified both receipts; ordered check names and source
+and build identities match. Receipts: `20261027T003955Z-427938c65a9b` (Node)
+and `20261027T004050Z-6e20b64413b5` (Rust), under
+`web/target/test-results/drag-browser/`. Logs: `.evidence/ticket005-closure-fix-build.log`,
+`.evidence/ticket005-closure-fix-node.log`, `.evidence/ticket005-closure-fix-rust.log`.
+The six focused controls passed their failure/no-receipt checks
+(`.evidence/ticket005-closure-fix-controls.log`). The browser-selection test
+first failed on the wrong override precedence and passed after correction;
+`check.py repo tooling lint` passed (`.evidence/ticket005-closure-fix-check.log`).
+
+This is scoped local evidence, not hosted CI or a new full supported check.
+Earlier full failures remain failures; the instrumented Node-default full pass
+does not establish the cause or resolution of prior Keycaps startup failures.
+Ticket remains claimed pending the remaining closure gates and review.

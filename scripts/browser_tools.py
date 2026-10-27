@@ -17,10 +17,10 @@ class MissingBrowserTool(Exception):
 def locate_chrome() -> str:
     """Returns the Chrome executable for the Rust harness, or raises `MissingBrowserTool`.
 
-    The Rust driver needs no Node runtime: only `CHROME_BIN` (first) and the
-    usual executable names are probed.
+    `CHROME_BIN` takes precedence, followed by the drag-specific CI override
+    and the usual executable names. The Rust driver needs no Node runtime.
     """
-    chrome = os.environ.get("CHROME_BIN") or next(
+    chrome = os.environ.get("CHROME_BIN") or os.environ.get("BOARDSTUDIO_DRAG_CHROME_BIN") or next(
         (shutil.which(name) for name in ("google-chrome", "chromium", "chromium-browser") if shutil.which(name)),
         None,
     )
