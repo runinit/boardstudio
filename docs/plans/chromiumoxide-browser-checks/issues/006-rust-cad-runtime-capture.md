@@ -170,3 +170,37 @@ This is still not the launcher capture or ticket closure. Service-worker-origin
 true, cache and service-worker controls, other workloads, U1, full event/schema and
 failure parity, supported full check and closure review remain unverified. The
 Node runner remains the default and all acceptance boxes remain open.
+
+## 2026-10-26: shared worker callback and build-lock handoff
+
+The Node capture and Rust diagnostic now use the same in-page worker preparation
+function, `cad/scripts/measure-cad-worker.cjs`, without extracting JavaScript by
+source markers. Its function body matches the prior Node callback exactly; the
+Node controlled protocol checks passed five cases plus STL controls. The Rust
+probe's two focused tests and a locked build passed. This does not yet connect
+the Rust diagnostic to the supported launcher or implement a capture consumer.
+
+A source-bound build attempt failed before compilation because `capture()` closed
+the inherited build-lock descriptor (`.evidence/ticket006-shared-source-build/command.log`).
+A process-level regression reproduced the child `Bad file descriptor` failure
+(`.evidence/ticket006-shared/lock-red.log`); the launcher now passes the validated
+lock descriptor into the capture subprocess, and all 17 Python tooling tests pass
+(`.evidence/ticket006-shared/lock-green.log`). This fixes the cause of that failed
+attempt; the failed receipt remains failed.
+
+The corrected checked noop build passed on clean source
+`ad18d53a6` under the shared lock (`.evidence/ticket006-shared-source-build-fixed/`),
+and a post-comparison binding matched its binding-after file exactly. Sequential
+C1 preview diagnostics on that site with Chrome for Testing 145 returned 492
+triangles, 35424 buffer bytes, and zero STEP bytes in both drivers. All seven Node
+URL/status/service-worker records occurred once in Rust; Rust additionally observed
+favicon 404 (`.evidence/ticket006-shared/comparison.log`). The preceding dedicated
+worker fixture observed host and favicon responses on the page session and worker
+assets on the dedicated-worker session, including redirects via request events.
+The separate attachment pauses the worker for Network enablement, which affects
+startup timing; these comparisons establish neither timing equivalence nor speed.
+
+Node remains the launcher default. The Rust consumer and launcher selection,
+startup and U1 workflows, complete output and failure parity, controlled cache and
+service-worker behavior, full workload parity, full check, hosted CI and independent
+closure review remain open. No acceptance checkbox is cleared by this slice.
