@@ -6232,6 +6232,7 @@ fn clear_transform_preview(
     None
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cancel_transform_drag(
     runtime: &Rc<Runtime>,
     drag: &Rc<RefCell<Option<TransformDrag>>>,
