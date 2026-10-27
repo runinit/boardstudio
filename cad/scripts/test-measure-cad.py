@@ -173,6 +173,25 @@ class BuildBindingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "build receipt"):
             PERF.validate_page_build_receipt(capture, build)
 
+    def test_checked_receipt_requires_matching_successful_build_capture(self):
+        build = self.sample("checked-build", state="noop")
+        bound = (build / "binding-after.log").read_text()
+        receipt = self.root / "receipt.json"
+        record = {"schema_version": 1, "generated_by": "scripts/check.py",
+                  "source": {"revision": self.HEAD, "dirty": False, "local_changes": 0},
+                  "invocation": {"accepted": True, "exit_code": 0, "steps": ["build"],
+                                 "planned_commands": 1, "ran_commands": 1, "not_run_commands": []},
+                  "commands": [{"step": "build", "command": ["python3", "scripts/build-web.py", "--fast"],
+                                "status": "ran", "passed": True, "exit_code": 0}]}
+        receipt.write_text(json.dumps(record))
+        PERF.existing_artifacts(self.root, receipt, "checked", build, bound)
+        with self.assertRaisesRegex(ValueError, "match"):
+            PERF.existing_artifacts(self.root, receipt, "checked", build, bound.replace("head=", "head=wrong"))
+        record["commands"][0]["passed"] = False
+        receipt.write_text(json.dumps(record))
+        with self.assertRaisesRegex(ValueError, "successful"):
+            PERF.existing_artifacts(self.root, receipt, "checked", build, bound)
+
     def test_u1_scope_rejects_identity_drift(self):
         import zipfile
         with zipfile.ZipFile(PERF.FIXTURES / "U1.boardstudio") as archive:

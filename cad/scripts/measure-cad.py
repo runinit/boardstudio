@@ -94,9 +94,28 @@ def schedule(build_cycles=1, runs=1, backends=("monstertruck",)):
     return rows
 
 
-def existing_artifacts(root, receipt, profile):
+def existing_artifacts(root, receipt, profile, build=None, captured=None):
     """Validate the existing integration receipt, without inventing a timed build record."""
     content = receipt.read_text()
+    if content.lstrip().startswith("{"):
+        record = json.loads(content)
+        invocation, source, commands = record.get("invocation", {}), record.get("source", {}), record.get("commands", [])
+        if (record.get("schema_version") != 1 or record.get("generated_by") != "scripts/check.py"
+                or profile != "checked" or invocation.get("accepted") is not True
+                or invocation.get("exit_code") != 0 or invocation.get("steps") != ["build"]
+                or invocation.get("planned_commands") != 1 or invocation.get("ran_commands") != 1
+                or invocation.get("not_run_commands") != [] or source.get("dirty") is not False
+                or source.get("local_changes") != 0 or len(commands) != 1
+                or commands[0].get("step") != "build" or commands[0].get("status") != "ran"
+                or commands[0].get("passed") is not True or commands[0].get("exit_code") != 0
+                or commands[0].get("command") != ["python3", "scripts/build-web.py", "--fast"]
+                or not build or not captured):
+            raise ValueError("checked receipt requires a successful build and source-bound build capture")
+        validate_page_build_receipt(None, build, captured)
+        fields = build_binding(captured)
+        if source.get("revision") != fields["head"] or fields["profile"] != profile:
+            raise ValueError("checked receipt source does not match build capture")
+        return f"validation_only=true\nreceipt={receipt}\nbuild_capture={build}\n{content}"
     match = re.search(r"Current combined source ([0-9a-f]{40});", content)
     if not match or profile != "checked" or "--no-opt" not in content or "Dioxus page debug" not in content:
         raise ValueError("existing receipt must identify tested source and checked/no-opt artifacts")
@@ -271,7 +290,7 @@ def validate_u1_scope(project):
         raise ValueError("U1 scope project/board/outline/format/revision mismatch")
 
 
-def validate_page_build_receipt(capture, build):
+def validate_page_build_receipt(capture, build, captured=None):
     with (build / "build.csv").open() as source:
         rows = list(csv.DictReader(source))
     if len(rows) != 1 or rows[0].get("status") != "ok" or "\nexit=0\n" not in (build / "command.log").read_text():
@@ -280,9 +299,10 @@ def validate_page_build_receipt(capture, build):
     before = (build / "binding-before.log").read_text()
     after = (build / "binding-after.log").read_text()
     validate_build_bindings(before, after, row["backend"], row["profile"], row["state"])
-    captured = (capture / "binding-before.log").read_text()
-    if captured != (capture / "binding-after.log").read_text():
-        raise ValueError("capture binding drift")
+    if captured is None:
+        captured = (capture / "binding-before.log").read_text()
+        if captured != (capture / "binding-after.log").read_text():
+            raise ValueError("capture binding drift")
     fields = ("head=", "source_sha256=", "profile=", "official_provider_inputs=", "provider_stamp=", "artifact_")
     select = lambda text: [line for line in text.splitlines() if line.startswith(fields)]
     if select(after) != select(captured):
@@ -655,7 +675,7 @@ def main():
         if validation:
             if args.growth or not args.artifact_receipt:
                 parser.error("validate requires --artifact-receipt and never runs repetition/growth sequences")
-            (out / "artifact-validation.log").write_text(existing_artifacts(root, args.artifact_receipt, args.profile))
+            (out / "artifact-validation.log").write_text(existing_artifacts(root, args.artifact_receipt, args.profile, args.build_run, "\n".join(before) + "\n"))
         else:
             if not args.admission_note or not args.admission_note.is_file():
                 parser.error("runtime needs root's --admission-note for this frozen source/artifacts/quiet window")
