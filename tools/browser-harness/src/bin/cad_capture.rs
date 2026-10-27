@@ -244,3 +244,12 @@ async fn capture_browser(args: &[String], capture: &mut Capture) -> Result<()> {
         Err(Error(errors.join("; ")))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn preserves_worker_metadata_float() {
+        let value: serde_json::Value = serde_json::from_str("-1.7500000000000007").unwrap();
+        assert_eq!(value.to_string(), "-1.7500000000000007");
+    }
+}
