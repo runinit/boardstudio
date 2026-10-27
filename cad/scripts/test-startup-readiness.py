@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare real startup capture readiness on controlled landing pages (diagnostic only)."""
+"""Check Rust startup capture readiness on controlled landing pages (diagnostic only)."""
 import csv
 import ctypes
 import importlib.util
@@ -14,8 +14,13 @@ import time
 from http.server import ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'scripts'))
+import browser_tools  # noqa: E402
+
 OUT = Path(sys.argv[1]).resolve()
 OUT.mkdir(parents=True, exist_ok=False)
+os.environ['CHROME_BIN'] = browser_tools.locate_chrome()
+BINARY = browser_tools._build_harness('cad-capture')
 ctypes.CDLL(None).prctl(36, 1, 0, 0, 0)  # Reap browser descendants after the capture exits.
 spec = importlib.util.spec_from_file_location('serve', ROOT / 'scripts/serve-web.py')
 serve = importlib.util.module_from_spec(spec)
@@ -97,35 +102,33 @@ def reap():
 results = {}
 try:
     for scenario in ('delayed', 'transient'):
-        for driver in ('node', 'rust'):
-            transitions.clear()
-            directory = OUT / f'{scenario}-{driver}'
-            directory.mkdir()
-            command = (['node', 'cad/scripts/measure-cad-runtime.cjs'] if driver == 'node' else
-                       ['tools/browser-harness/target/debug/cad-capture'])
-            command += [f'http://127.0.0.1:{server.server_port}', 'monstertruck', 'fixture',
-                        'startup:cold', str(directory), '1', 'validation']
-            with (directory / 'process.log').open('w') as log:
-                process = subprocess.Popen(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
-                deadline = time.monotonic() + 90
-                while process.poll() is None and time.monotonic() < deadline:
-                    children()
-                    time.sleep(.1)
-                if process.poll() is None:
-                    process.terminate()
-                    process.wait(timeout=5)
-            events = [json.loads(line) for line in (directory / 'events.log').read_text().splitlines()]
-            with (directory / 'diagnostic.csv').open() as metrics:
-                landing = next(row for row in csv.DictReader(metrics) if row['metric'] == 'navigation-to-usable-landing')
-            ready = next(event['unix_ms'] for event in events if event['name'] == 'landing-ready')
-            assert process.returncode == 0, (scenario, driver, process.returncode)
-            assert any(event['name'] == 'reply-retained' for event in events)
-            assert transitions and transitions[0]['label'] == 'loaded'
-            if scenario == 'delayed':
-                assert any(mark['label'] == 'stable' for mark in transitions), 'hidden or wrong-name button was accepted'
-            results[f'{scenario}-{driver}'] = {'metric_ms': float(landing['value']), 'landing_ready_unix_ms': ready,
-                                               'transitions': list(transitions)}
-            print(scenario, driver, json.dumps(results[f'{scenario}-{driver}']), flush=True)
+        transitions.clear()
+        directory = OUT / f'{scenario}-rust'
+        directory.mkdir()
+        command = [str(BINARY), f'http://127.0.0.1:{server.server_port}', 'monstertruck', 'fixture',
+                   'startup:cold', str(directory), '1', 'validation']
+        with (directory / 'process.log').open('w') as log:
+            process = subprocess.Popen(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+            deadline = time.monotonic() + 90
+            while process.poll() is None and time.monotonic() < deadline:
+                children()
+                time.sleep(.1)
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
+        assert process.returncode == 0, (scenario, 'rust', process.returncode, (directory / 'process.log').read_text())
+        events = [json.loads(line) for line in (directory / 'events.log').read_text().splitlines()]
+        with (directory / 'diagnostic.csv').open() as metrics:
+            landing = next(row for row in csv.DictReader(metrics) if row['metric'] == 'navigation-to-usable-landing')
+        ready = next(event['unix_ms'] for event in events if event['name'] == 'landing-ready')
+        assert any(event['name'] == 'reply-retained' for event in events)
+        assert transitions and transitions[0]['label'] == 'loaded'
+        if scenario == 'delayed':
+            stable = next((mark for mark in transitions if mark['label'] == 'stable'), None)
+            assert stable and ready >= stable['unix_ms'], 'hidden or wrong-name button was accepted'
+        results[f'{scenario}-rust'] = {'metric_ms': float(landing['value']), 'landing_ready_unix_ms': ready,
+                                     'transitions': list(transitions)}
+        print(scenario, 'rust', json.dumps(results[f'{scenario}-rust']), flush=True)
 finally:
     server.shutdown()
     server.server_close()

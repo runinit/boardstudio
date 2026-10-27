@@ -184,3 +184,22 @@ before the change and green afterward. The six existing real-consumer assertion,
 exception, rejection, close-exception, cleanup and transport-loss controls each
 failed without a success receipt on Chrome 145 under the shared build lock and
 `boardstudio-tests.slice` (`.evidence/ticket008-drag-consumer-controls.log`).
+
+## 2026-10-27: Rust-only CAD readiness diagnostic
+
+`cad/scripts/test-startup-readiness.py` now builds and runs `cad-capture` rather
+than comparing it with the Node capture. Both controlled landing scenarios remain:
+the delayed case checks that the exact visible button was not accepted before its
+stable transition, and the transient case records the capture's observed readiness
+and transitions. Both still require a retained worker reply, landing metric, success
+and owned-process cleanup. The transient observation is diagnostic, not a stability
+guarantee or benchmark. The historical Node-versus-Rust comparison is no longer
+performed by this command; old evidence remains in Git.
+
+With `NODE_PATH` unset the old command failed because it could not load
+`playwright-core` (`.evidence/ticket008-cad-readiness-red/`); the Rust-only command
+passed both scenarios on Chrome for Testing 145 under `boardstudio-tests.slice` and
+the shared build lock (`.evidence/ticket008-cad-readiness-green/`). This controlled
+page uses the existing local package, not a source-bound build receipt. The Node
+CAD protocol self-check, response comparison, and optional capture fallback still
+need their individual coverage replaced before removing their runner.

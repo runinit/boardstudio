@@ -139,6 +139,11 @@ The manual Parts inspector scroll regression runs against a running site with
 Set `CHROME_BIN` when Chrome is not at `/usr/bin/chromium`. The check uses the Rust harness;
 it needs no Playwright or `NODE_PATH`.
 
+For the controlled CAD startup-readiness diagnostic, first build the web site, then run
+`CHROME_BIN=/path/to/chrome python3 cad/scripts/test-startup-readiness.py /path/to/new-output-directory`.
+It builds the Rust capture harness, checks delayed and transient landing pages, and records
+diagnostic results rather than benchmark or source-bound acceptance evidence.
+
 **Verification receipts.** Add `--receipt PATH` to any check invocation to write a JSON receipt at
 `PATH` and a reviewer summary at `PATH.md`, both derived only from the output that invocation
 already captured. The receipt keeps native `cargo test` binaries, direct `wasm-pack test` crate
