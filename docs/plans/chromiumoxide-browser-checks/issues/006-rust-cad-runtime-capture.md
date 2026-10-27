@@ -763,8 +763,8 @@ Fresh source-bound U1 browser comparison and the remaining ticket gates are open
 
 ## 2026-10-27: Rust runtime admission guard
 
-The launcher rejects Rust `runtime` for `startup:cold` because the worker observer
-perturbs timing, and for `U1:page` because it produces validation-only output without
+The launcher rejects Rust `runtime` for `startup:cold` because its timing is
+unqualified, and for `U1:page` because it produces validation-only output without
 runtime samples. Both errors direct users to Node runtime or validation diagnostics.
 Rust validation and Node runtime remain selectable. The focused launcher regression
 failed on both previously admitted Rust modes before the guard; afterward

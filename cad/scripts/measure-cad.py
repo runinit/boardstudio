@@ -605,7 +605,7 @@ def main():
     args = parser.parse_args()
     if args.action == "runtime" and args.driver == "rust":
         if args.workload in ("startup:cold", "startup:warm"):
-            parser.error(f"Rust {args.workload} runtime timing is perturbed by the worker observer; use --driver node for runtime or validate for diagnostics")
+            parser.error(f"Rust {args.workload} runtime timing is unqualified; use --driver node for runtime or validate for diagnostics")
         if args.workload == "U1:page":
             parser.error("U1:page provides validation only, with no runtime samples; use validate for diagnostics")
     root, out = args.checkout.resolve(), args.output.resolve()

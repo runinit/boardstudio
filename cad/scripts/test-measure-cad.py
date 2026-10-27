@@ -36,6 +36,9 @@ class CaptureSelectionTests(unittest.TestCase):
                                 with self.assertRaises(SystemExit):
                                     PERF.main()
                                 self.assertIn(reason, stderr.getvalue())
+                                if workload.startswith("startup:"):
+                                    self.assertIn("unqualified", stderr.getvalue())
+                                    self.assertNotIn("perturbed", stderr.getvalue())
                                 self.assertIn("validate", stderr.getvalue())
                                 if workload == "U1:page":
                                     self.assertNotIn("--driver node for runtime", stderr.getvalue())
