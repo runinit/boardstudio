@@ -49,9 +49,12 @@ def build_drag_harness() -> Path:
     root = Path(__file__).resolve().parents[1]
     lock = Path.home() / ".cache/tmp/boardstudio-build.lock"
     lock.parent.mkdir(parents=True, exist_ok=True)
+    if not shutil.which("flock"):
+        raise MissingBrowserTool("drag browser smoke needs flock for the shared build lock; install flock (util-linux)")
     result = subprocess.run(
         ["flock", str(lock), "cargo", "build", "--locked", "--message-format=json",
-         "--manifest-path", str(root / "tools/browser-harness/Cargo.toml"), "--bin", "drag-smoke"],
+         "--manifest-path", str(root / "tools/browser-harness/Cargo.toml"),
+         "--package", "boardstudio-browser-harness", "--bin", "drag-smoke"],
         cwd=root, capture_output=True, text=True,
     )
     if result.returncode:
@@ -68,12 +71,17 @@ def build_drag_harness() -> Path:
                 diagnostic = diagnostic.replace(value, "<REDACTED>")
         diagnostic = re.sub(r"(https?://)[^\s/@]+@", r"\1<REDACTED>@", diagnostic)
         diagnostic = re.sub(r"(https?://[^\s?]+)\?[^\s]+", r"\1?<REDACTED>", diagnostic)
-        diagnostic = re.sub(r"(?i)(token|secret|password|passwd|credential|api[_-]?key)(\s*[=:]\s*)[^\s,;]+",
-                            r"\1\2<REDACTED>", diagnostic)
+        # A sensitive field can contain nested or multiline data; do not guess its end.
+        sensitive = re.search(r"(?i)(?:token|secret|password|passwd|credential|api[_-]?key|authorization)"
+                              r"[\w-]*[\"']?\s*[=:]|\bBearer\s+", diagnostic)
+        if sensitive:
+            diagnostic = diagnostic[:sensitive.start()] + "<sensitive diagnostic withheld>\n"
         raise SystemExit(f"drag browser smoke cannot build the Rust harness:\n{diagnostic}")
     try:
         artifacts = [message["executable"] for line in result.stdout.splitlines()
                      if (message := json.loads(line)).get("reason") == "compiler-artifact"
+                     and message.get("package_id", "").startswith(
+                         f"path+{(root / 'tools/browser-harness').as_uri()}#")
                      and message.get("target", {}).get("name") == "drag-smoke"
                      and "bin" in message["target"].get("kind", []) and message.get("executable")]
     except (ValueError, KeyError, TypeError) as error:

@@ -17,9 +17,16 @@ def which(*available):
 
 class BrowserToolsTests(unittest.TestCase):
     def test_harness_build_uses_cargo_artifact_and_reports_redacted_error(self):
-        artifact = '{"reason":"compiler-artifact","target":{"name":"drag-smoke","kind":["bin"]},"executable":"/target/triple/debug/drag-smoke.exe"}\n'
+        import json
+        package = (Path(__file__).resolve().parents[1] / "tools/browser-harness").as_uri()
+        def artifact(package_id, executable):
+            return json.dumps({"reason": "compiler-artifact", "package_id": package_id,
+                               "target": {"name": "drag-smoke", "kind": ["bin"]},
+                               "executable": executable}) + "\n"
+        artifacts = (artifact("path+file:///elsewhere#other@1.0.0", "/wrong") +
+                     artifact(f"path+{package}#boardstudio-browser-harness@0.1.0", "/target/triple/debug/drag-smoke.exe"))
         with mock.patch.object(browser_tools.subprocess, "run", return_value=mock.Mock(
-                returncode=0, stdout=artifact, stderr="")):
+                returncode=0, stdout=artifacts, stderr="")):
             self.assertEqual(str(browser_tools.build_drag_harness()), "/target/triple/debug/drag-smoke.exe")
         with mock.patch.dict(browser_tools.os.environ, {"CARGO_REGISTRY_TOKEN": "secret-value"}), \
                 mock.patch.object(browser_tools.subprocess, "run", return_value=mock.Mock(
@@ -28,6 +35,42 @@ class BrowserToolsTests(unittest.TestCase):
                 browser_tools.build_drag_harness()
             self.assertIn("failed to compile", str(error.exception))
             self.assertNotIn("secret-value", str(error.exception))
+
+    def test_build_diagnostics_hide_non_environment_secrets(self):
+        import json
+        cases = (
+            ('{"outer": {"token": "quoted-secret", "nested": {"password": "nested-secret"}}}',
+             ("quoted-secret", "nested-secret")),
+            ('Authorization: Bearer bearer-secret', ("bearer-secret",)),
+            ('{"Authorization": "Bearer quoted-bearer"}', ("quoted-bearer",)),
+            ('Bearer standalone-bearer', ("standalone-bearer",)),
+            ('{"token": {\n  "value": "multiline-secret"\n}}', ("multiline-secret",)),
+        )
+        for diagnostic, secrets in cases:
+            for rendered in (False, True):
+                with self.subTest(rendered=rendered, case=cases.index((diagnostic, secrets))):
+                    message = json.dumps({"reason": "compiler-message", "message": {
+                        "rendered": "error: registry request failed\n" + diagnostic}})
+                    with mock.patch.dict(browser_tools.os.environ, {}, clear=True), \
+                            mock.patch.object(browser_tools.subprocess, "run", return_value=mock.Mock(
+                                returncode=101, stdout=message if rendered else "",
+                                stderr="" if rendered else "error: registry request failed\n" + diagnostic)):
+                        with self.assertRaises(SystemExit) as error:
+                            browser_tools.build_drag_harness()
+                    output = str(error.exception)
+                    self.assertIn("registry request failed", output)
+                    for secret in secrets:
+                        self.assertFalse(secret in output, "sensitive value reached build diagnostics")
+
+    def test_missing_flock_is_actionable(self):
+        import subprocess
+        import sys
+        result = subprocess.run([sys.executable, "-c", "import browser_tools; browser_tools.build_drag_harness()"],
+                                cwd=Path(__file__).parent, env={"PATH": ""}, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("flock", result.stderr)
+        self.assertNotIn("FileNotFoundError", result.stderr)
+        self.assertIn("install", result.stderr.lower())
 
     def locate(self, *available, playwright=0, env=None):
         with mock.patch.object(browser_tools.shutil, "which", side_effect=which(*available)), \
