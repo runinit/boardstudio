@@ -925,3 +925,206 @@ Playwright ordering sends worker Network enable and resume in that order without
 awaiting either reply, while tracking both outcomes and routing responses and
 redirects from the same run. Same-site Chrome 145 comparison and failure controls
 remain required; individual timing samples do not establish timing parity.
+
+## 2026-10-27: queued worker setup detach accounting
+
+A controlled handler sequence attached a paused worker and detached it before its
+queued Network enable and resume were submitted. The new regression failed for
+missing detach error (`.evidence/ticket006-queued-detach-red.log`). The handler now
+reports and removes queued setup for a detached worker, reports worker submission
+errors, and returns to target polling after a paused worker attachment so its
+ordered setup can be submitted before consuming further incoming messages. The
+vendored library suite passed 10/10, including the regression and Network-before-
+resume check (`.evidence/ticket006-queued-detach-green.log`).
+
+One sequential Node/Rust `startup:cold` validation comparison used Chrome for
+Testing 145 and the same retained, unbound packaged site under the shared build
+lock (`.evidence/ticket006-queued-detach-real/`). Node exited 0 and observed all
+three core-worker and five CAD worker/provider assets. Rust exited 1, reporting
+worker detach during setup, missing-session errors for Network enable and resume,
+and a WebSocket reset; its 24-response receipt lacked all three core-worker
+assets, though it observed the five CAD assets. The owned-process subreaper
+tracked 30 identities, killed remaining owned processes and recorded no survivors
+or temporary profile directory. This is a failed Rust comparison; earlier worker
+attachment remains necessary to establish startup response capture, and this
+result does not close ticket 006 or establish source-bound acceptance.
+
+## 2026-10-27: lifecycle review remains open
+
+The existing uncommitted handler candidate is not ready for acceptance. Worker
+instrumentation and its fatal errors currently apply to every handler consumer,
+while the observer only checks whether any worker attached. An attachment that
+is not waiting for the debugger is not established as observed, and submitted
+setup can remain unresolved when its owner is destroyed or transport closes.
+Errors queued during target polling or timeout eviction can also be stranded
+when the handler returns Pending without another wake. The prior failed real
+comparison remains the current evidence; no new runtime or test result is
+claimed by this review.
+
+A minimal implementation direction is an explicit CAD-only opt-in on the handler
+before its drain starts, with private per-session setup state accounting for both
+queued and submitted commands. Fail the observation on an unpaused attachment,
+setup failure, timeout, owner destruction or transport closure before readiness;
+return queued errors before Pending. Keep the Node navigation sequence and avoid
+an asset inventory. Exercise the lifecycle controls and shared consumers, then
+run a real same-site comparison with owned Chrome process cleanup before claiming
+response parity. This direction is not implemented or verified here.
+
+## 2026-10-27: CAD-only handler opt-in, partial lifecycle repair
+
+The candidate now enables worker Network observation explicitly on the handler
+before the CAD capture and diagnostic probe start their handler drains. The
+handler defaults to disabled for other consumers. It rejects a known dedicated
+worker attached without a debugger pause, reports queued or submitted setup when
+its owner is destroyed, reports transport closure during setup, and drains
+queued setup errors before returning Pending. Existing setup command and detach
+accounting remains in place.
+
+Under the shared build lock, `cargo check --locked --manifest-path
+ tools/browser-harness/Cargo.toml --bins` passed and the vendored handler tests
+passed 6/6, including default-off ordering, unpaused attachment, queued detach,
+owner destruction, response routing, and existing close controls. These added
+assertions were not separately run red before the change. Submitted-command and
+transport-close failure controls, prompt wake controls, shared-consumer runtime
+checks, and a clean Chrome 145 same-site comparison remain open. No browser was
+launched in this iteration. The runtime admission guard remains in place and
+response parity is not established.
+
+## 2026-10-27: handler-integrated CDP ordering trace
+
+A targeted sequential Node/Rust cold comparison on the same retained, unbound
+site and Chrome 145 traced the actual browser connection (`.evidence/ticket006-handler-trace/`).
+Node exited 0: its page session A89F52DBBF5E7B5C17D4CC91EDF283D9 received
+paused core worker 59344598C95F60AA86A13B6402130B8C, sent Network enable and
+resume, received both successful replies and all three core responses, then sent
+the performance-host navigation. Rust exited 1: page session
+0C178A801B3075464A4ABE69B268D0B1 sent that navigation before receiving paused
+core worker 6D973AB33C36E204783279CDB69840ED. It sent Network enable and resume
+after attachment, but navigation detached the worker and both commands failed
+with session not found. The CAD worker setup succeeded and its responses arrived.
+The handler correctly failed the incomplete observation. The temporary CDP
+logging was removed; tracing may affect scheduling. Cleanup tracked 30 process
+identities and reported no survivors or temporary profile.
+
+The Rust landing predicate uses direct JavaScript evaluation while Node uses
+Playwright's role locator and its visibility wait. The trace establishes the
+race, not which difference causes it or a general timing guarantee. An actionable
+next experiment is to match Playwright's role/visibility readiness and scheduling
+without adding an asset wait, trace both sessions again, and retain fail-closed
+setup accounting; alternatively test browser-level auto-attachment before page
+creation with ownership and setup failures preserved. Neither alternative is yet
+proved, and the source-bound comparison and ticket acceptance remain open.
+
+## 2026-10-27: role and visibility landing candidate
+
+The cold Rust capture now resolves the exact button role and accessible name using
+`driver::find_role`, requires a single match, and checks its visibility with
+`driver::is_visible` before continuing. It retains the existing timeout and does
+not wait for worker assets. This is a candidate alignment with Playwright's
+`getByRole(...).waitFor()`; the CDP accessibility lookup and retry scheduling are
+not proven identical to Playwright. The prior traced run above is the failing
+real-path baseline, not a separately constructed regression test.
+
+One sequential, instrumented Node/Rust Chrome for Testing 145 `startup:cold`
+validation ran under the shared build lock against the same retained, unbound
+site, origin `http://127.0.0.1:37143` (`.evidence/ticket006-role-trace/`). Both
+exited 0 and emitted successful result events. Node page session
+E1AF1A09FD378C50C2D2252C52EC4A85 attached paused core worker
+A1F76FAA8FA995D6E9DB8726E95040F6; Rust page session
+84E307AEF17E4D5E80BEA10086386414 attached paused core worker
+0AA2E7A737BA0F81325BB8A4658E349A. Both sent Network enable then resume,
+received successful replies and the core entry, JS and WASM responses (200,
+not from a service worker), then sent performance-host navigation. Node CAD
+worker 7A22AFD72E68C6173F8C3532CF39A1B4 and Rust CAD worker
+91E4CB221FE3C5C6EEE08EA7CB9AD8E1 likewise received successful setup replies
+and all five CAD entry/provider responses (200, not from a service worker).
+Neither trace recorded a redirect. There were no CDP setup errors; Rust logged
+an expected post-boundary WebSocket reset after clean child exit, and the server
+logged a connection reset. The full response receipts differ: Rust observed an
+additional favicon 404. This single traced run does not establish response parity,
+a causal timing guarantee, or source-bound acceptance. Tracing may affect timing.
+
+Cleanup tracked 29 process identities, killed remaining owned processes, reaped
+children, and reported no survivors or temporary profile; a subsequent process
+inventory found no test Chrome, driver or crashpad. Temporary CDP trace source
+was removed. The handler's existing fail-closed setup accounting is retained;
+submitted-command, transport-close and prompt-wake failure controls and the other
+acceptance gates recorded above remain open.
+
+## 2026-10-27: owner detach and reset review fixes
+
+A controlled handler regression independently failed on page-session detach (no
+fatal setup error) and abrupt transport reset (only `Broken pipe`), recorded in
+`.evidence/ticket006-lifecycle-review-red.log` and
+`.evidence/ticket006-reset-review-red.log`. The handler now tracks each worker's
+parent session, removes its queued setup and ownership on parent detach, and
+reports unresolved queued or submitted setup. A transport error also queues a
+distinct unresolved-setup error before the handler terminates. The focused
+control exercises queued and submitted setup separately for both sequences.
+The vendored library suite passed 11/11 under the shared build lock and
+`boardstudio-tests.slice` (`.evidence/ticket006-lifecycle-review-green.log`).
+No Chrome was launched for these handler-only controls.
+
+The installed Playwright `playwright-core/lib/coreBundle.js` marks a request as
+a favicon when its URL ends exactly in `/favicon.ico` or its redirected-from
+request was marked, and suppresses its public context response event. The trace
+observed that 404 in both browser connections; the differing public receipts are
+therefore expected from that reference behavior. The Rust collector does not yet
+implement that request/redirect identity rule. Its separate request and response
+streams do not by themselves establish cross-stream ordering, so a suffix-only
+filter would not establish precise parity. This remains open along with the
+source-bound and other acceptance gates; no new browser comparison is claimed.
+
+## 2026-10-27: worker-entry redirect provenance remains blocked
+
+A focused Chrome for Testing 145 fixture redirects the worker entry to a script
+that performs a separate redirect and a missing fetch; the page also redirects
+its favicon to the same destination as the unrelated redirect. The clean probe
+fails closed with `response URL does not match request provenance`
+(`.evidence/ticket006-redirect-clean-red.log`). The regression remains red.
+
+The ordered diagnostic CDP capture (`.evidence/ticket006-redirect-full-trace.log`)
+showed page session `7244A9C2001FCC24972A9BF12B2FD8BF` requesting the entry
+with ID `3E96E55705FAB3DD6035D2B2C811AF3D`, followed by attachment of worker
+session `57023F936118FF5D5A9893A0D83D7A2E` with that target ID, and a 200
+response on the worker session for `/worker-final.js` with the same request ID.
+No entry redirect event or 302 appeared in the observed stream. The separate
+worker redirect did have a request event with `redirectResponse`, as did the
+favicon redirect. Diagnostic instrumentation was removed after capture.
+
+Installed Playwright on the same fixture and Chrome reported entry URL status
+200, the unrelated redirect 302 and destination 201, and the missing fetch 404;
+it did not report the entry 302 or final URL
+(`.evidence/ticket006-redirect-playwright-core.log`). Its response URL comes from
+the request object. This does not prove the missing redirect provenance; no
+collector exception for mismatched URLs was added. A sound way to recover the
+entry redirect chain remains open.
+
+## 2026-10-27: worker-entry handoff response
+
+For an initial worker response with no request in the worker session, the collector
+accepts the parent request only when its request ID equals the attached worker's
+target ID. It records that request in the worker session and emits its original
+URL with the observed response status and service-worker field. Subsequent
+responses and all other session/request combinations retain strict URL and
+provenance checks. This matches the installed Playwright observation; it does not
+infer or emit the entry redirect or a 302 that Chrome did not expose.
+
+The previously recorded Chrome 145 fixture failed with the provenance mismatch
+above. After this change, the real fixture passed against Playwright on the same
+fixture server: original worker entry 200, unrelated redirect 302 and destination
+201, missing fetch 404, and favicon redirect excluded without excluding the shared
+destination. Page exception and missing worker controls failed closed. A focused
+Rust unit check passed for differing response URLs outside the handoff and missing
+response URLs. These results do not close the remaining ticket gates.
+
+## 2026-10-27: retained-site cold comparison
+
+A sequential Chrome for Testing 145 validation on the same retained site produced
+26 responses for each of Node and Rust, with matching URL, status and
+service-worker response multisets (`.evidence/ticket006-handler-smoke-cold/`).
+Both capture runs exited 0; the Rust drag smoke passed 15/15. The comparison used
+a dirty candidate and an unbound retained site, so it is not source-bound
+acceptance. Cleanup tracked 68 owned process identities and recorded no survivors
+or remaining temporary profile. The runtime admission guard remains in place.
+Full source-bound, cache, service-worker and timing parity remain open.

@@ -8,7 +8,6 @@ use futures::channel::oneshot::Sender;
 use futures::stream::Stream;
 use futures::task::{Context, Poll};
 
-use chromiumoxide_cdp::cdp::CdpEventMessage;
 use chromiumoxide_cdp::cdp::browser_protocol::page::{FrameId, GetFrameTreeParams};
 use chromiumoxide_cdp::cdp::browser_protocol::{
     browser::BrowserContextId,
@@ -16,6 +15,7 @@ use chromiumoxide_cdp::cdp::browser_protocol::{
     target::{AttachToTargetParams, SessionId, SetAutoAttachParams, TargetId, TargetInfo},
 };
 use chromiumoxide_cdp::cdp::events::CdpEvent;
+use chromiumoxide_cdp::cdp::CdpEventMessage;
 use chromiumoxide_types::{Command, Method, Request, Response};
 
 use crate::auth::Credentials;
@@ -35,11 +35,49 @@ use crate::handler::page::PageHandle;
 use crate::handler::viewport::Viewport;
 use crate::handler::{PageInner, REQUEST_TIMEOUT};
 use crate::listeners::{EventListenerRequest, EventListeners};
-use crate::{ArcHttpRequest, page::Page};
+use crate::{page::Page, ArcHttpRequest};
 use chromiumoxide_cdp::cdp::js_protocol::runtime::{
     ExecutionContextId, RunIfWaitingForDebuggerParams,
 };
 use std::time::Duration;
+
+#[cfg(test)]
+mod worker_order_tests {
+    use super::*;
+
+    #[test]
+    fn paused_worker_network_precedes_resume() {
+        let info: TargetInfo = serde_json::from_str(r#"{"targetId":"page","type":"page","title":"","url":"about:blank","attached":true,"canAccessOpener":false}"#).unwrap();
+        let mut target = Target::new(info, TargetConfig::default(), BrowserContext::default());
+        let event: CdpEventMessage = serde_json::from_str(r#"{"method":"Target.attachedToTarget","params":{"sessionId":"worker-session","targetInfo":{"targetId":"worker","type":"worker","title":"","url":"worker.js","attached":true,"canAccessOpener":false},"waitingForDebugger":true},"sessionId":"page-session"}"#).unwrap();
+        let mut default_target = Target::new(
+            target.info.clone(),
+            TargetConfig::default(),
+            BrowserContext::default(),
+        );
+        default_target.on_event(serde_json::from_str(r#"{"method":"Target.attachedToTarget","params":{"sessionId":"worker-session","targetInfo":{"targetId":"worker","type":"worker","title":"","url":"worker.js","attached":true,"canAccessOpener":false},"waitingForDebugger":true},"sessionId":"page-session"}"#).unwrap());
+        assert!(!default_target.queued_events.iter().any(|event| matches!(event, TargetEvent::Request(request) if request.method.as_ref() == "Network.enable")));
+        target.on_event_with_worker_network(event, true);
+        let requests: Vec<_> = target
+            .queued_events
+            .iter()
+            .filter_map(|event| match event {
+                TargetEvent::Request(request) => Some((
+                    request.method.as_ref(),
+                    request.session_id.as_ref().map(|id| id.as_ref()),
+                )),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            requests,
+            vec![
+                ("Network.enable", Some("worker-session")),
+                ("Runtime.runIfWaitingForDebugger", Some("worker-session"))
+            ]
+        );
+    }
+}
 
 macro_rules! advance_state {
     ($s:ident, $cx:ident, $now:ident, $cmds: ident, $next_state:expr ) => {{
@@ -225,7 +263,32 @@ impl Target {
         }
     }
 
+    pub(crate) fn has_queued_worker_setup(
+        &self,
+        owners: &std::collections::HashMap<SessionId, TargetId>,
+    ) -> bool {
+        self.queued_events.iter().any(|event| matches!(event, TargetEvent::Request(request) if request.session_id.as_ref().is_some_and(|id| owners.contains_key(id.as_str()))))
+    }
+
+    pub(crate) fn discard_queued_worker_setup(&mut self, session: &SessionId) -> bool {
+        let mut discarded = false;
+        self.queued_events.retain(|event| {
+            let matches = matches!(event, TargetEvent::Request(request) if request.session_id.as_ref().is_some_and(|id| SessionId::new(id.clone()) == *session));
+            discarded |= matches;
+            !matches
+        });
+        discarded
+    }
+
     pub fn on_event(&mut self, event: CdpEventMessage) {
+        self.on_event_with_worker_network(event, false);
+    }
+
+    pub(crate) fn on_event_with_worker_network(
+        &mut self,
+        event: CdpEventMessage,
+        worker_network_capture: bool,
+    ) {
         let CdpEventMessage { params, method, .. } = event;
         match &params {
             // `FrameManager` events
@@ -258,6 +321,14 @@ impl Target {
             // `Target` events
             CdpEvent::TargetAttachedToTarget(ev) => {
                 if ev.waiting_for_debugger {
+                    if worker_network_capture && ev.target_info.r#type == "worker" {
+                        let network_cmd = chromiumoxide_cdp::cdp::browser_protocol::network::EnableParams::default();
+                        self.queued_events.push_back(TargetEvent::Request(Request {
+                            method: network_cmd.identifier(),
+                            session_id: Some(ev.session_id.clone().into()),
+                            params: serde_json::to_value(network_cmd).unwrap(),
+                        }));
+                    }
                     let runtime_cmd = RunIfWaitingForDebuggerParams::default();
 
                     self.queued_events.push_back(TargetEvent::Request(Request {

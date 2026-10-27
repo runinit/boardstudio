@@ -1,6 +1,9 @@
 //! Diagnostic CAD worker startup and response capture; not a measurement receipt.
+#[path = "../cad_handler_responses.rs"]
+mod cad_handler_responses;
 #[path = "../cad_responses.rs"]
 mod cad_responses;
+#[cfg(test)]
 #[path = "../cad_target_responses.rs"]
 mod cad_target_responses;
 #[path = "../shutdown.rs"]
@@ -32,6 +35,8 @@ async fn run() -> Result<()> {
     let root = std::env::var("TMPDIR").unwrap_or_else(|_| "/tmp".into());
     let dirs = IsolatedDirs::create(std::path::Path::new(&root)).map_err(Error)?;
     let (browser, handler) = driver::launch_chrome(&chrome, &dirs).await?;
+    let mut handler = handler;
+    handler.enable_worker_network_capture();
     let handler_errors = Arc::new(HandlerErrors::new());
     let page_errors = Arc::new(PageErrors::new());
     let drain = driver::spawn_handler_drain(handler, handler_errors.clone(), page_errors.clone());
@@ -39,7 +44,7 @@ async fn run() -> Result<()> {
         let (context, page) =
             driver::new_isolated_page(&browser, "about:blank", &page_errors).await?;
         let result = async {
-            let listener = cad_target_responses::start(browser.websocket_address(), page.target_id().inner(), None).await?;
+            let listener = cad_handler_responses::start(&page).await?;
             let startup = async {
                 let navigation = tokio::time::timeout(Duration::from_secs(180), page.goto(&url))
                     .await

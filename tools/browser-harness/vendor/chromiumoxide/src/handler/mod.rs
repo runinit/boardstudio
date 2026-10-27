@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::pin::Pin;
 use std::time::{Duration, Instant};
 
@@ -17,7 +17,7 @@ use chromiumoxide_types::{CallId, Message, Method, Response};
 use chromiumoxide_types::{MethodId, Request as CdpRequest};
 pub(crate) use page::PageInner;
 
-use crate::cmd::{CommandMessage, to_command_response};
+use crate::cmd::{to_command_response, CommandMessage};
 use crate::conn::Connection;
 use crate::error::{CdpError, Result};
 use crate::handler::browser::BrowserContext;
@@ -72,6 +72,9 @@ pub struct Handler {
     /// There can be multiple sessions per target.
     sessions: HashMap<SessionId, Session>,
     worker_owners: HashMap<SessionId, TargetId>,
+    worker_parents: HashMap<SessionId, SessionId>,
+    worker_network_capture: bool,
+    worker_errors: VecDeque<CdpError>,
     /// The websocket connection to the chromium instance
     conn: Connection<CdpEventMessage>,
     /// Evicts timed out requests periodically
@@ -119,6 +122,9 @@ impl Handler {
             navigations: Default::default(),
             sessions: Default::default(),
             worker_owners: Default::default(),
+            worker_parents: Default::default(),
+            worker_network_capture: false,
+            worker_errors: Default::default(),
             conn,
             evict_command_timeout: PeriodicJob::new(config.request_timeout),
             next_navigation_id: 0,
@@ -128,6 +134,11 @@ impl Handler {
             transport_closed: false,
             retired_listeners: Vec::new(),
         }
+    }
+
+    /// Enable dedicated worker network observation before polling this handler.
+    pub fn enable_worker_network_capture(&mut self) {
+        self.worker_network_capture = true;
     }
 
     /// Return the target with the matching `target_id`
@@ -254,6 +265,17 @@ impl Handler {
                         target.on_response(resp, method.as_ref());
                     }
                 }
+                PendingRequest::WorkerSetup(session) => {
+                    if let Some(error) = resp.error {
+                        self.worker_errors.push_back(CdpError::msg(format!(
+                            "worker {session:?} {method} failed: {error:?}"
+                        )));
+                    } else if resp.result.is_none() {
+                        self.worker_errors.push_back(CdpError::msg(format!(
+                            "worker {session:?} {method} missing result"
+                        )));
+                    }
+                }
                 PendingRequest::CloseBrowser(tx) => {
                     let result = to_command_response::<CloseParams>(resp, method)
                         .map(|response| response.result);
@@ -286,6 +308,11 @@ impl Handler {
         req: CdpRequest,
         now: Instant,
     ) -> Result<()> {
+        let worker = self.worker_network_capture.then_some(req.session_id.as_ref()).flatten().and_then(|id| {
+            self.worker_owners
+                .get(id.as_str())
+                .map(|_| SessionId::new(id.clone()))
+        });
         let call_id = self.conn.submit_command(
             req.method.clone(),
             req.session_id.map(Into::into),
@@ -293,7 +320,13 @@ impl Handler {
         )?;
         self.pending_commands.insert(
             call_id,
-            (PendingRequest::InternalCommand(target_id), req.method, now),
+            (
+                worker
+                    .map(PendingRequest::WorkerSetup)
+                    .unwrap_or(PendingRequest::InternalCommand(target_id)),
+                req.method,
+                now,
+            ),
         );
         Ok(())
     }
@@ -412,6 +445,37 @@ impl Handler {
                 if let Some(session) = self.sessions.get(parent.as_str()) {
                     self.worker_owners
                         .insert(child.session_id.clone(), session.target_id().clone());
+                    self.worker_parents.insert(child.session_id.clone(), parent.clone().into());
+                    if self.worker_network_capture && !child.waiting_for_debugger {
+                        self.worker_errors.push_back(CdpError::msg(format!(
+                            "worker {:?} attached without pause",
+                            child.session_id
+                        )));
+                    }
+                }
+            }
+        }
+        if self.worker_network_capture {
+            let params = match &event.params {
+                CdpEvent::NetworkRequestWillBeSent(ev) => Some(serde_json::to_value(ev)),
+                CdpEvent::NetworkResponseReceived(ev) => Some(serde_json::to_value(ev)),
+                CdpEvent::TargetAttachedToTarget(ev) if ev.target_info.r#type == "worker" => Some(serde_json::to_value(ev)),
+                _ => None,
+            };
+            if let Some(Err(error)) = &params {
+                self.worker_errors.push_back(CdpError::msg(format!("network observation serialization failed: {error}")));
+            }
+            if let Some(Ok(params)) = params {
+                if let Some(session) = &event.session_id {
+                    let owner = self.worker_owners.get(session.as_str()).or_else(|| self.sessions.get(session.as_str()).map(|s| s.target_id()));
+                    if let Some(target) = owner.and_then(|id| self.targets.get_mut(id)) {
+                        let payload = serde_json::json!({"session": session, "method": event.method.as_ref(), "params": params});
+                        if let Err(error) = target.event_listeners_mut().try_send_custom("BoardStudio.NetworkEvent", payload) {
+                            self.worker_errors.push_back(CdpError::msg(format!("network observation failed: {error}")));
+                        }
+                    }
+                } else {
+                    self.worker_errors.push_back(CdpError::msg("network observation missing session"));
                 }
             }
         }
@@ -439,7 +503,7 @@ impl Handler {
             }
             if let Some(session) = self.sessions.get(session_id.as_str()) {
                 if let Some(target) = self.targets.get_mut(session.target_id()) {
-                    return target.on_event(event);
+                    return target.on_event_with_worker_network(event, self.worker_network_capture);
                 }
             }
         }
@@ -494,9 +558,31 @@ impl Handler {
     /// Can be issued multiple times per target if multiple session have been
     /// attached to it.
     fn on_detached_from_target(&mut self, event: EventDetachedFromTarget) {
+        let queued = self.worker_network_capture && self
+            .worker_owners
+            .get(&event.session_id)
+            .and_then(|owner| self.targets.get_mut(owner))
+            .is_some_and(|target| target.discard_queued_worker_setup(&event.session_id));
+        if queued || self.pending_commands.values().any(|(request, _, _)| matches!(request, PendingRequest::WorkerSetup(session) if session == &event.session_id)) {
+            self.worker_errors.push_back(CdpError::msg(format!("worker {:?} detached during setup", event.session_id)));
+        }
         self.worker_owners.remove(&event.session_id);
+        self.worker_parents.remove(&event.session_id);
         // remove the session
         if let Some(session) = self.sessions.remove(&event.session_id) {
+            let owner = session.target_id();
+            let workers: Vec<_> = self.worker_parents.iter()
+                .filter(|(_, parent)| *parent == &event.session_id)
+                .map(|(worker, _)| worker.clone()).collect();
+            for worker in workers {
+                let queued = self.worker_network_capture && self.targets.get_mut(owner)
+                    .is_some_and(|target| target.discard_queued_worker_setup(&worker));
+                if queued || self.pending_commands.values().any(|(request, _, _)| matches!(request, PendingRequest::WorkerSetup(id) if id == &worker)) {
+                    self.worker_errors.push_back(CdpError::msg(format!("worker {worker:?} owner detached during setup")));
+                }
+                self.worker_owners.remove(&worker);
+                self.worker_parents.remove(&worker);
+            }
             if let Some(target) = self.targets.get_mut(session.target_id()) {
                 if target.session_id() == Some(&event.session_id) {
                     target.session_id_mut().take();
@@ -509,6 +595,22 @@ impl Handler {
 
     /// Fired when the target was destroyed in the browser
     fn on_target_destroyed(&mut self, event: EventTargetDestroyed) {
+        let workers: Vec<_> = self
+            .worker_owners
+            .iter()
+            .filter(|(_, owner)| *owner == &event.target_id)
+            .map(|(session, _)| session.clone())
+            .collect();
+        for session in workers {
+            self.worker_parents.remove(&session);
+            let queued = self.worker_network_capture && self
+                .targets
+                .get_mut(&event.target_id)
+                .is_some_and(|target| target.discard_queued_worker_setup(&session));
+            if queued || self.pending_commands.values().any(|(request, _, _)| matches!(request, PendingRequest::WorkerSetup(id) if id == &session)) {
+                self.worker_errors.push_back(CdpError::msg(format!("worker {session:?} owner destroyed during setup")));
+            }
+        }
         self.worker_owners
             .retain(|_, owner| owner != &event.target_id);
         if let Some(mut target) = self.targets.remove(&event.target_id) {
@@ -552,6 +654,9 @@ impl Handler {
                         let _ = tx.send(Err(CdpError::Timeout));
                     }
                     PendingRequest::InternalCommand(_) => {}
+                    PendingRequest::WorkerSetup(session) => self
+                        .worker_errors
+                        .push_back(CdpError::msg(format!("worker {session:?} setup timed out"))),
                     PendingRequest::CloseBrowser(tx) => {
                         let _ = tx.send(Err(CdpError::Timeout));
                     }
@@ -572,6 +677,9 @@ impl Stream for Handler {
         let pin = self.get_mut();
 
         loop {
+            if let Some(error) = pin.worker_errors.pop_front() {
+                return Poll::Ready(Some(Err(error)));
+            }
             if pin.transport_closed {
                 pin.event_listeners.poll(cx);
                 for target in pin.targets.values_mut() {
@@ -651,11 +759,19 @@ impl Stream for Handler {
                     while let Some(event) = target.poll(cx, now) {
                         match event {
                             TargetEvent::Request(req) => {
-                                let _ = pin.submit_internal_command(
+                                let worker = pin.worker_network_capture && req
+                                    .session_id
+                                    .as_ref()
+                                    .is_some_and(|id| pin.worker_owners.contains_key(id.as_str()));
+                                if let Err(error) = pin.submit_internal_command(
                                     target.target_id().clone(),
                                     req,
                                     now,
-                                );
+                                ) {
+                                    if worker {
+                                        pin.worker_errors.push_back(error);
+                                    }
+                                }
                             }
                             TargetEvent::Command(msg) => {
                                 pin.on_target_message(&mut target, msg, now);
@@ -689,6 +805,18 @@ impl Stream for Handler {
                     Poll::Ready(Some(ev)) => ev,
                     Poll::Ready(None) => {
                         pin.transport_closed = true;
+                        if pin.worker_network_capture && (pin.pending_commands.values().any(|(request, _, _)| {
+                                matches!(request, PendingRequest::WorkerSetup(_))
+                            })
+                            || pin
+                                .targets
+                                .values()
+                                .any(|target| target.has_queued_worker_setup(&pin.worker_owners)))
+                        {
+                            return Poll::Ready(Some(Err(CdpError::msg(
+                                "transport closed with unresolved worker setup",
+                            ))));
+                        }
                         if !pin.closing {
                             return Poll::Ready(Some(Err(CdpError::NoResponse)));
                         }
@@ -701,7 +829,13 @@ impl Stream for Handler {
                         pin.on_response(resp);
                     }
                     Ok(Message::Event(ev)) => {
+                        let worker_attached = pin.worker_network_capture
+                            && matches!(&ev.params, CdpEvent::TargetAttachedToTarget(child) if child.target_info.r#type == "worker" && child.waiting_for_debugger);
                         pin.on_event(ev);
+                        if worker_attached {
+                            done = false;
+                            break;
+                        }
                     }
                     Err(err @ CdpError::InvalidMessage(_, _)) => {
                         if pin.config.ignore_invalid_messages {
@@ -713,6 +847,11 @@ impl Stream for Handler {
                     Err(err) => {
                         tracing::error!("WS Connection error: {:?}", err);
                         pin.transport_closed = true;
+                        if pin.worker_network_capture && (pin.pending_commands.values().any(|(request, _, _)| matches!(request, PendingRequest::WorkerSetup(_)))
+                            || pin.targets.values().any(|target| target.has_queued_worker_setup(&pin.worker_owners)))
+                        {
+                            pin.worker_errors.push_back(CdpError::msg("transport error with unresolved worker setup"));
+                        }
                         return Poll::Ready(Some(Err(err)));
                     }
                 }
@@ -727,6 +866,9 @@ impl Stream for Handler {
                 pin.evict_timed_out_commands(now);
             }
 
+            if !pin.worker_errors.is_empty() {
+                continue;
+            }
             if done {
                 // no events/responses were read from the websocket
                 return Poll::Pending;
@@ -828,6 +970,7 @@ enum PendingRequest {
     /// Requests that are initiated directly from a `Target` (all the
     /// initialization commands).
     InternalCommand(TargetId),
+    WorkerSetup(SessionId),
     // A Request to close the browser.
     CloseBrowser(OneshotSender<Result<CloseReturns>>),
 }
@@ -858,6 +1001,134 @@ mod lifecycle_tests {
     use tokio::net::TcpListener;
 
     #[tokio::test]
+    async fn worker_commands_remain_internal_when_capture_is_disabled() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            async_tungstenite::tokio::accept_async(socket).await.unwrap()
+        });
+        let conn = Connection::connect(format!("ws://{addr}")).await.unwrap();
+        let _socket = server.await.unwrap();
+        let (_tx, rx) = futures::channel::mpsc::channel(8);
+        let mut handler = Handler::new(conn, rx, HandlerConfig::default());
+        handler.worker_owners.insert(SessionId::new("worker"), TargetId::new("page"));
+        let command = chromiumoxide_cdp::cdp::js_protocol::runtime::RunIfWaitingForDebuggerParams {};
+        handler.submit_internal_command(TargetId::new("page"), CdpRequest {
+            method: command.identifier(), session_id: Some(SessionId::new("worker").into()),
+            params: serde_json::to_value(command).unwrap(),
+        }, Instant::now()).unwrap();
+        assert!(handler.pending_commands.values().any(|(request, _, _)| matches!(request, PendingRequest::InternalCommand(_))));
+        assert!(!handler.pending_commands.values().any(|(request, _, _)| matches!(request, PendingRequest::WorkerSetup(_))));
+    }
+
+    #[tokio::test]
+    async fn owner_detach_and_transport_reset_fail_unresolved_worker_setup() {
+        for (mode, submitted) in [("reset", false), ("reset", true), ("close", false), ("close", true), ("detach", false), ("detach", true)] {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            let server = tokio::spawn(async move {
+                let (socket, _) = listener.accept().await.unwrap();
+                async_tungstenite::tokio::accept_async(socket).await.unwrap()
+            });
+            let conn = Connection::connect(format!("ws://{addr}")).await.unwrap();
+            let mut socket = server.await.unwrap();
+            let (_tx, rx) = futures::channel::mpsc::channel(8);
+            let mut handler = Handler::new(conn, rx, HandlerConfig::default());
+            handler.enable_worker_network_capture();
+            for raw in [
+                r#"{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"page","type":"page","title":"","url":"about:blank","attached":false,"canAccessOpener":false}}}"#,
+                r#"{"method":"Target.attachedToTarget","params":{"sessionId":"page-session","targetInfo":{"targetId":"page","type":"page","title":"","url":"about:blank","attached":true,"canAccessOpener":false},"waitingForDebugger":false}}"#,
+                r#"{"method":"Target.attachedToTarget","params":{"sessionId":"worker-session","targetInfo":{"targetId":"worker","type":"worker","title":"","url":"worker.js","attached":true,"canAccessOpener":false},"waitingForDebugger":true},"sessionId":"page-session"}"#,
+            ] {
+                let Message::Event(event) = serde_json::from_str(raw).unwrap() else { panic!("expected event") };
+                handler.on_event(event);
+            }
+            if submitted {
+                handler.targets.get_mut(&TargetId::new("page")).unwrap()
+                    .discard_queued_worker_setup(&SessionId::new("worker-session"));
+                let command = chromiumoxide_cdp::cdp::browser_protocol::network::EnableParams::default();
+                handler.submit_internal_command(TargetId::new("page"), CdpRequest {
+                    method: command.identifier(), session_id: Some(SessionId::new("worker-session").into()),
+                    params: serde_json::to_value(command).unwrap(),
+                }, Instant::now()).unwrap();
+            }
+            if mode != "detach" {
+                if mode == "close" {
+                    socket.close(None).await.unwrap();
+                } else {
+                    drop(socket);
+                }
+                let mut errors = Vec::new();
+                while let Some(result) = tokio::time::timeout(Duration::from_secs(2), handler.next()).await.unwrap() {
+                    if let Err(error) = result { errors.push(error.to_string()); }
+                }
+                assert!(errors.iter().any(|error| error.contains("unresolved worker setup")), "reset errors: {errors:?}");
+            } else {
+                let Message::Event(event) = serde_json::from_str(r#"{"method":"Target.detachedFromTarget","params":{"sessionId":"page-session"}}"#).unwrap() else { panic!("expected event") };
+                handler.on_event(event);
+                assert!(handler.worker_errors.iter().any(|error| error.to_string().contains("owner detached during setup")));
+                assert!(handler.worker_owners.is_empty());
+                assert!(!handler.targets.get(&TargetId::new("page")).unwrap().has_queued_worker_setup(&[(SessionId::new("worker-session"), TargetId::new("page"))].into_iter().collect()));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn worker_detach_before_queued_setup_submission_is_fatal() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            async_tungstenite::tokio::accept_async(socket)
+                .await
+                .unwrap()
+        });
+        let conn = Connection::connect(format!("ws://{addr}")).await.unwrap();
+        let _socket = server.await.unwrap();
+        let (_tx, rx) = futures::channel::mpsc::channel(8);
+        let mut handler = Handler::new(conn, rx, HandlerConfig::default());
+        handler.enable_worker_network_capture();
+        for raw in [
+            r#"{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"page","type":"page","title":"","url":"about:blank","attached":false,"canAccessOpener":false}}}"#,
+            r#"{"method":"Target.attachedToTarget","params":{"sessionId":"page-session","targetInfo":{"targetId":"page","type":"page","title":"","url":"about:blank","attached":true,"canAccessOpener":false},"waitingForDebugger":false}}"#,
+            r#"{"method":"Target.attachedToTarget","params":{"sessionId":"worker-session","targetInfo":{"targetId":"worker","type":"worker","title":"","url":"worker.js","attached":true,"canAccessOpener":false},"waitingForDebugger":true},"sessionId":"page-session"}"#,
+            r#"{"method":"Target.detachedFromTarget","params":{"sessionId":"worker-session"},"sessionId":"page-session"}"#,
+        ] {
+            let Message::Event(event) = serde_json::from_str(raw).unwrap() else {
+                panic!("expected event")
+            };
+            handler.on_event(event);
+        }
+        assert!(
+            handler
+                .worker_errors
+                .iter()
+                .any(|error| error.to_string().contains("detached during setup")),
+            "queued worker setup detach must be fatal"
+        );
+        let Message::Event(event) = serde_json::from_str(r#"{"method":"Target.attachedToTarget","params":{"sessionId":"unpaused","targetInfo":{"targetId":"worker2","type":"worker","title":"","url":"worker.js","attached":true,"canAccessOpener":false},"waitingForDebugger":false},"sessionId":"page-session"}"#).unwrap() else { panic!("expected event") };
+        handler.on_event(event);
+        assert!(handler
+            .worker_errors
+            .iter()
+            .any(|error| error.to_string().contains("attached without pause")));
+        let Message::Event(event) = serde_json::from_str(r#"{"method":"Target.attachedToTarget","params":{"sessionId":"worker3","targetInfo":{"targetId":"worker3","type":"worker","title":"","url":"worker.js","attached":true,"canAccessOpener":false},"waitingForDebugger":true},"sessionId":"page-session"}"#).unwrap() else { panic!("expected event") };
+        handler.on_event(event);
+        let Message::Event(event) = serde_json::from_str(
+            r#"{"method":"Target.targetDestroyed","params":{"targetId":"page"}}"#,
+        )
+        .unwrap() else {
+            panic!("expected event")
+        };
+        handler.on_event(event);
+        assert!(handler
+            .worker_errors
+            .iter()
+            .any(|error| error.to_string().contains("owner destroyed during setup")));
+    }
+
+    #[tokio::test]
     async fn dedicated_worker_events_reach_page_listener() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -871,6 +1142,7 @@ mod lifecycle_tests {
         let _socket = server.await.unwrap();
         let (_tx, rx) = futures::channel::mpsc::channel(8);
         let mut handler = Handler::new(conn, rx, HandlerConfig::default());
+        handler.enable_worker_network_capture();
         let send = |handler: &mut Handler, raw: &str| {
             let Message::Event(event) = serde_json::from_str(raw).unwrap() else {
                 panic!("expected event")
@@ -893,6 +1165,19 @@ mod lifecycle_tests {
             .event_listeners_mut()
             .add_listener(EventListenerRequest::new::<EventResponseReceived>(tx));
         let mut events = EventStream::<EventResponseReceived>::new(rx);
+        use chromiumoxide_cdp::cdp::js_protocol::runtime::EventExceptionThrown;
+        let (tx, rx) = futures::channel::mpsc::unbounded();
+        handler
+            .targets
+            .get_mut(&TargetId::new("page"))
+            .unwrap()
+            .event_listeners_mut()
+            .add_listener(EventListenerRequest::new::<EventExceptionThrown>(tx));
+        let mut exceptions = EventStream::<EventExceptionThrown>::new(rx);
+        send(
+            &mut handler,
+            r#"{"method":"Runtime.exceptionThrown","params":{"timestamp":1,"exceptionDetails":{"exceptionId":1,"text":"worker failure","lineNumber":0,"columnNumber":0}},"sessionId":"worker-session"}"#,
+        );
         send(
             &mut handler,
             r#"{"method":"Network.responseReceived","params":{"requestId":"worker","loaderId":"loader","timestamp":1,"type":"Script","hasExtraInfo":false,"response":{"url":"https://example.test/worker.js","status":200,"statusText":"OK","headers":{},"mimeType":"text/javascript","charset":"","connectionReused":false,"connectionId":1,"encodedDataLength":0,"securityState":"secure"}},"sessionId":"worker-session"}"#,
@@ -902,6 +1187,10 @@ mod lifecycle_tests {
             Poll::Ready(())
         })
         .await;
+        assert!(
+            exceptions.next().now_or_never().is_none(),
+            "worker exceptions must not become page exceptions"
+        );
         assert_eq!(
             events
                 .next()
@@ -1124,14 +1413,12 @@ mod lifecycle_tests {
             .await
             .unwrap()
             .unwrap();
-        assert!(
-            close_rx
-                .await
-                .unwrap()
-                .unwrap_err()
-                .to_string()
-                .contains("close denied")
-        );
+        assert!(close_rx
+            .await
+            .unwrap()
+            .unwrap_err()
+            .to_string()
+            .contains("close denied"));
         assert!(
             !errors.is_empty(),
             "unexpected transport close must be fatal"

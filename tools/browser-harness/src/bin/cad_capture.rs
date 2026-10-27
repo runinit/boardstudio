@@ -1,6 +1,9 @@
 //! Worker workload consumer for the existing CAD measurement launcher.
+#[path = "../cad_handler_responses.rs"]
+mod cad_handler_responses;
 #[path = "../cad_responses.rs"]
 mod cad_responses;
+#[cfg(test)]
 #[path = "../cad_target_responses.rs"]
 mod cad_target_responses;
 #[path = "../cad_u1.rs"]
@@ -175,6 +178,8 @@ async fn capture_browser(args: &[String], capture: &mut Capture) -> Result<()> {
         vec![]
     };
     let (browser, handler) = driver::launch_chrome_with_args(&chrome, &dirs, &extra_args).await?;
+    let mut handler = handler;
+    handler.enable_worker_network_capture();
     let handler_errors = Arc::new(HandlerErrors::new());
     let page_errors = Arc::new(PageErrors::new());
     let drain = driver::spawn_handler_drain(handler, handler_errors.clone(), page_errors.clone());
@@ -185,13 +190,7 @@ async fn capture_browser(args: &[String], capture: &mut Capture) -> Result<()> {
         let result = async {
             page.execute(AddScriptToEvaluateOnNewDocumentParams::new("if (navigator.serviceWorker) navigator.serviceWorker.register = async () => { console.warn('Service Worker registration blocked by Playwright'); };")) .await.map_err(|e| Error(e.to_string()))?;
             page.execute(SetCacheDisabledParams::new(true)).await.map_err(|e| Error(e.to_string()))?;
-            let (boundary_tx, boundary_rx) = tokio::sync::oneshot::channel();
-            let boundary = (args[3] == "startup:cold").then(|| (vec![
-                format!("{}/boardstudio/assets/core-worker/entry.js", args[0]),
-                format!("{}/boardstudio/assets/core-worker/m1_core_worker.js", args[0]),
-                format!("{}/boardstudio/assets/core-worker/m1_core_worker_bg.wasm", args[0]),
-            ], boundary_tx));
-            let listener = cad_target_responses::start(browser.websocket_address(), page.target_id().inner(), boundary).await?;
+            let listener = cad_handler_responses::start(&page).await?;
             let work = async {
                 if let Some(operation) = args[3].strip_prefix("U1:") {
                     let receipt = cad_u1::run(&browser, &context, &page, &args[0], std::path::Path::new(&args[4]), operation, &page_errors).await?;
@@ -203,11 +202,22 @@ async fn capture_browser(args: &[String], capture: &mut Capture) -> Result<()> {
                     capture.event("navigation-start", json!({}))?;
                     let start = std::time::Instant::now();
                     bounded(async { page.goto(format!("{}/boardstudio/", args[0])).await.map(|_| ()).map_err(|e| Error(e.to_string())) }, "navigation").await?;
-                    driver::wait_for(&page, r#"(() => { const b = document.querySelector('button[aria-label="Create new keyboard"]'); if (!b) return false; const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(b).visibility !== 'hidden'; })()"#, "usable landing", Duration::from_secs(180)).await?;
+                    tokio::time::timeout(Duration::from_secs(180), async {
+                        loop {
+                            let matches = driver::find_role(&page, None, "button", "Create new keyboard").await?;
+                            if matches.len() > 1 {
+                                return Err(Error("multiple Create new keyboard buttons".into()));
+                            }
+                            if let [button] = matches.as_slice() {
+                                if driver::is_visible(&page, button.0).await? {
+                                    return Ok(());
+                                }
+                            }
+                            tokio::time::sleep(Duration::from_millis(100)).await;
+                        }
+                    }).await.map_err(|_| Error("timed out waiting for usable landing".into()))??;
                     capture.metric("cold", 0, "navigation-to-usable-landing", &json!(start.elapsed().as_secs_f64() * 1000.0), "ms")?;
                     capture.event("landing-ready", json!({}))?;
-                    // Keep the landing worker alive until its observed responses and CDP setup are complete.
-                    bounded(async { boundary_rx.await.map_err(|_| Error("landing response observation ended before core worker responses".into())) }, "landing core worker responses").await?;
                 }
                 bounded(async { page.goto(format!("{}/__perf/cad/scripts/performance-host.html", args[0])).await.map(|_| ()).map_err(|e| Error(e.to_string())) }, "navigation").await?;
                 let source = include_str!("../../../../cad/scripts/measure-cad-worker.cjs");
