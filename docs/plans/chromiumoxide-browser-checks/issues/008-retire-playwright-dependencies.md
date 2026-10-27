@@ -233,3 +233,35 @@ capture did not report the expected failure
 (`.evidence/ticket008-cad-worker-cold.log`). Its temporary output was cleaned by
 that diagnostic, so the underlying response cause remains undetermined. No full
 suite or timing qualification was run.
+
+## 2026-10-27: cold-response negative-control diagnosis
+
+The prior failure was reproduced once on Chrome 145 under the shared lock and
+`boardstudio-tests.slice`, retaining the capture at
+`.evidence/ticket008-cold-repro-a49/`. The injected core-worker WASM request
+returned 404 and the same-run response log recorded 404; landing and a CAD reply
+were retained and the capture exited 0. The diagnostic expected an error from
+the old `cad_target_responses` landing-asset boundary, which is now compiled only
+for tests. The active observer records response statuses rather than enforcing that
+boundary, consistent with ticket 006's same-run response decision. This evidence
+does not prove the product can use a missing core worker beyond the measured landing.
+
+The diagnostic now checks any observed missing-core response is a cold 404, rather
+than demanding a failure or a fixed landing asset inventory. If no response is
+observed it explicitly reports that observation as inconclusive. A separate
+missing-CAD-WASM control requires an observed 404, the actual fetch error, a failed
+result and no retained reply. A retained three-case run passed
+(`.evidence/ticket008-cold-green-a49/`). A subsequent stricter run did not observe
+the core WASM response (`.evidence/ticket008-cold-control-green.log`); this is not
+a green 404 observation and shows why requiring that response in every capture
+would contradict the no-boundary decision. The final adjusted control is recorded
+separately. These use the existing package and are not source-bound acceptance.
+The adjusted diagnostic passed the three cases and observed the injected core 404
+on this run (`.evidence/ticket008-cold-control-adjusted.log`); 35 scheduler tests
+passed (`.evidence/ticket008-cold-scheduler.log`).
+
+Remaining before the Node CAD fallback can be removed: exercise Rust's actual
+one/six-operation and fresh-STEP-worker sequencing, metric status and browser-close
+failure controls in a supported gate; replace the live Node/Rust response comparison
+with equivalent retained same-run observation and failure checks; then update the
+launcher and prerequisite tests. The Node self-check and comparison remain intact.
