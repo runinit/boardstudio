@@ -110,7 +110,7 @@ def _build_harness(binary: str) -> Path:
                      and message.get("target", {}).get("name") == binary
                      and "bin" in message["target"].get("kind", []) and message.get("executable")]
     except (ValueError, KeyError, TypeError) as error:
-        raise SystemExit(ff"{binary} cannot read Cargo build output: {error}") from error
+        raise SystemExit(f"{binary} cannot read Cargo build output: {error}") from error
     if len(artifacts) != 1:
         raise SystemExit(f"{binary} cannot identify its executable in Cargo build output")
     return Path(artifacts[0])
