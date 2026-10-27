@@ -20,7 +20,7 @@ use crate::presentation::{
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution,
+    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, TerminalOutcome,
 };
 use boardstudio_core::evaluated_part_pose;
 use boardstudio_core::layout_half_offset;
@@ -52,6 +52,8 @@ type TransformEscapeListener = Rc<
         )>,
     >,
 >;
+type Cancellation =
+    Rc<RefCell<Option<(LayoutOwnerIdentity, Rc<RefCell<Option<TerminalOutcome>>>)>>>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LayoutTransformTool {
@@ -647,6 +649,7 @@ struct TransformDrag {
     start_client_y: f64,
     pending: Option<EditOperation>,
     preview_submitted: bool,
+    cancellation_dependency: Option<Rc<RefCell<Option<TerminalOutcome>>>>,
 }
 
 #[component]
@@ -708,6 +711,7 @@ pub fn LayoutTransformToolOverlay(
         rail_unmount_tool(svg_key, tool);
     });
     let drag = use_hook(|| Rc::new(RefCell::new(None::<TransformDrag>)));
+    let cancellation = use_hook(Cancellation::default);
     let snap_guide = use_signal(|| None::<Vec2>);
     // Ticket 03: hover (or keyboard focus) on a rail token previews, in
     // amber, the keys its drag would move — the same transient view state
@@ -774,12 +778,14 @@ pub fn LayoutTransformToolOverlay(
     let runtime_inner = runtime.0.clone();
     let arbiter_for_drop = arbiter.clone();
     let drag_for_drop = drag.clone();
+    let cancellation_for_drop = cancellation.clone();
     let mut guide_for_drop = snap_guide;
     use_drop(move || {
         cancel_transform_drag(
             &runtime_inner,
             &drag_for_drop,
             &arbiter_for_drop,
+            &cancellation_for_drop,
             &mut guide_for_drop,
             quick_glyph,
             swing_glyph,
@@ -792,6 +798,7 @@ pub fn LayoutTransformToolOverlay(
         let runtime = runtime.0.clone();
         let drag = drag.clone();
         let arbiter = arbiter.clone();
+        let cancellation = cancellation.clone();
         let feedback_for_escape = feedback;
         let popup_at_for_escape = popup_at;
         move || {
@@ -801,6 +808,7 @@ pub fn LayoutTransformToolOverlay(
             let runtime = runtime.clone();
             let drag = drag.clone();
             let arbiter = arbiter.clone();
+            let cancellation = cancellation.clone();
             let mut feedback_for_escape = feedback_for_escape;
             let mut popup_at_for_escape = popup_at_for_escape;
             let callback = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
@@ -836,6 +844,7 @@ pub fn LayoutTransformToolOverlay(
                     &runtime,
                     &drag,
                     &arbiter,
+                    &cancellation,
                     &mut guide,
                     quick_glyph,
                     swing_glyph,
@@ -865,6 +874,7 @@ pub fn LayoutTransformToolOverlay(
     let drag_for_owner = drag.clone();
     let runtime_for_owner = runtime.0.clone();
     let arbiter_for_owner = arbiter.clone();
+    let cancellation_for_owner = cancellation.clone();
     let mut guide_for_owner = snap_guide;
     use_effect(use_reactive(
         (&active_owner, &active_context, &active_tool),
@@ -879,6 +889,7 @@ pub fn LayoutTransformToolOverlay(
                         &runtime_for_owner,
                         &drag_for_owner,
                         &arbiter_for_owner,
+                        &cancellation_for_owner,
                         &mut guide_for_owner,
                         quick_glyph,
                         swing_glyph,
@@ -1113,6 +1124,7 @@ pub fn LayoutTransformToolOverlay(
     let svg_for_start = svg.0.clone();
     let drag_for_start = drag.clone();
     let arbiter_for_start = arbiter.clone();
+    let cancellation_for_start = cancellation.clone();
     let guide_for_start = snap_guide;
     let popup_at_for_start = popup_at;
     let start_drag = Rc::new(move |event: PointerEvent, gesture: TransformGesture| {
@@ -1187,7 +1199,12 @@ pub fn LayoutTransformToolOverlay(
             &current_owner,
             &current_context,
         ) || context_matrix_id(&current_context) != Some(matrix_for_start.id.as_str())
-            || !transform_start_is_editable(&runtime_for_start, &current_owner, &matrix_for_start)
+            || !transform_start_is_editable(
+                &runtime_for_start,
+                &current_owner,
+                &matrix_for_start,
+                &cancellation_for_start,
+            )
             || !arbiter_for_start.try_acquire(CanvasInteractionOwner::MatrixTransform)
         {
             return;
@@ -1286,6 +1303,11 @@ pub fn LayoutTransformToolOverlay(
             start_client_y: f64::from(pointer.client_y()),
             pending: None,
             preview_submitted: false,
+            cancellation_dependency: cancellation_for_start.borrow().as_ref().and_then(
+                |(owner, outcome)| {
+                    (owner == &current_owner && outcome.borrow().is_none()).then(|| outcome.clone())
+                },
+            ),
         });
         guide_for_start.set(None);
         // Ticket 06: the popup follows the pointer from pointer-down, 18 px
@@ -1314,6 +1336,7 @@ pub fn LayoutTransformToolOverlay(
     let svg_for_move = svg.0.clone();
     let drag_for_move = drag.clone();
     let arbiter_for_move = arbiter.clone();
+    let cancellation_for_move = cancellation.clone();
     let guide_for_move = snap_guide;
     let feedback_for_move = feedback;
     let popup_at_for_move = popup_at;
@@ -1343,11 +1366,21 @@ pub fn LayoutTransformToolOverlay(
             &active.owner,
             &active.context,
         ) || active.tool != tool
+            || active
+                .cancellation_dependency
+                .as_ref()
+                .is_some_and(|outcome| {
+                    outcome
+                        .borrow()
+                        .as_ref()
+                        .is_some_and(|outcome| *outcome != TerminalOutcome::Completed)
+                })
         {
             cancel_transform_drag(
                 &runtime_for_move,
                 &drag_for_move,
                 &arbiter_for_move,
+                &cancellation_for_move,
                 &mut guide_for_move,
                 quick_glyph,
                 swing_glyph,
@@ -1414,6 +1447,7 @@ pub fn LayoutTransformToolOverlay(
     let svg_for_end = svg.0.clone();
     let drag_for_end = drag.clone();
     let arbiter_for_end = arbiter.clone();
+    let cancellation_for_end = cancellation.clone();
     let guide_for_end = snap_guide;
     let feedback_for_end = feedback;
     let popup_at_for_end = popup_at;
@@ -1444,11 +1478,21 @@ pub fn LayoutTransformToolOverlay(
             &active.owner,
             &active.context,
         ) || active.tool != tool
+            || active
+                .cancellation_dependency
+                .as_ref()
+                .is_some_and(|outcome| {
+                    outcome
+                        .borrow()
+                        .as_ref()
+                        .is_some_and(|outcome| *outcome != TerminalOutcome::Completed)
+                })
         {
             cancel_transform_drag(
                 &runtime_for_end,
                 &drag_for_end,
                 &arbiter_for_end,
+                &cancellation_for_end,
                 &mut guide_for_end,
                 quick_glyph,
                 swing_glyph,
@@ -1461,6 +1505,7 @@ pub fn LayoutTransformToolOverlay(
                 &runtime_for_end,
                 &drag_for_end,
                 &arbiter_for_end,
+                &cancellation_for_end,
                 &mut guide_for_end,
                 quick_glyph,
                 swing_glyph,
@@ -1500,7 +1545,14 @@ pub fn LayoutTransformToolOverlay(
                 active.preview_submitted = true;
             }
             if !same_transform_as_start(&active, &operation) {
-                commit_transform_drag(&runtime_for_end, &active, &operation);
+                commit_transform_drag(
+                    &runtime_for_end,
+                    &active,
+                    &operation,
+                    workspace,
+                    scope_generation,
+                    selected_context,
+                );
                 // Ticket 06: a committed placement drag raises the value
                 // toast as one Undo step. The toast writes nothing: it is a
                 // signal the 1.8 s timer clears.
@@ -1558,6 +1610,7 @@ pub fn LayoutTransformToolOverlay(
     let runtime_for_cancel = runtime.0.clone();
     let drag_for_cancel = drag.clone();
     let arbiter_for_cancel = arbiter.clone();
+    let cancellation_for_cancel = cancellation.clone();
     let guide_for_cancel = snap_guide;
     let feedback_for_cancel = feedback;
     let popup_at_for_cancel = popup_at;
@@ -1585,6 +1638,7 @@ pub fn LayoutTransformToolOverlay(
                 &runtime_for_cancel,
                 &drag_for_cancel,
                 &arbiter_for_cancel,
+                &cancellation_for_cancel,
                 &mut guide_for_cancel,
                 quick_glyph,
                 swing_glyph,
@@ -1596,6 +1650,7 @@ pub fn LayoutTransformToolOverlay(
     let runtime_for_key = runtime.0.clone();
     let drag_for_key = drag.clone();
     let arbiter_for_key = arbiter.clone();
+    let cancellation_for_key = cancellation.clone();
     let guide_for_key = snap_guide;
     let feedback_for_key = feedback;
     let popup_at_for_key = popup_at;
@@ -1619,6 +1674,7 @@ pub fn LayoutTransformToolOverlay(
                 &runtime_for_key,
                 &drag_for_key,
                 &arbiter_for_key,
+                &cancellation_for_key,
                 &mut guide_for_key,
                 quick_glyph,
                 swing_glyph,
@@ -5539,9 +5595,51 @@ fn transform_drag_resolver(
     )
 }
 
-fn commit_transform_drag(runtime: &Rc<Runtime>, drag: &TransformDrag, operation: &EditOperation) {
+fn commit_transform_drag(
+    runtime: &Rc<Runtime>,
+    drag: &TransformDrag,
+    operation: &EditOperation,
+    workspace: Signal<&'static str>,
+    generation: Signal<u64>,
+    selected_context: Signal<Option<ScopedTreeContext>>,
+) {
     let Some(result) = transform_drag_result(drag, operation) else {
         return;
+    };
+    let resolver =
+        transform_drag_resolver(drag.matrix.id.clone(), drag.transaction_id.clone(), result);
+    let resolver = if let Some(dependency) = &drag.cancellation_dependency {
+        let dependency = dependency.clone();
+        let owner = drag.owner.clone();
+        let context = drag.context.clone();
+        EditResolver::new("layout-transform-drag", move |accepted| {
+            if *dependency.borrow() != Some(TerminalOutcome::Completed)
+                || owner.token != Some(accepted.token)
+                || owner.revision != Some(accepted.document.revision)
+                || owner.scope.as_ref().is_none_or(|scope| {
+                    scope.document_id != accepted.document.id
+                        || scope.session_epoch != accepted.session_epoch
+                })
+                || !workspace
+                    .try_read()
+                    .is_ok_and(|current| *current == owner.workspace)
+                || !generation
+                    .try_read()
+                    .is_ok_and(|current| *current == owner.generation)
+                || !selected_context.try_read().is_ok_and(|current| {
+                    current.as_ref().is_some_and(|selected| {
+                        Some(&selected.scope) == owner.scope.as_ref() && selected.context == context
+                    })
+                })
+            {
+                return Resolution::Retire(
+                    "The cancelled drag changed before this drag could commit.".into(),
+                );
+            }
+            resolver.resolve(accepted)
+        })
+    } else {
+        resolver
     };
     let mut edits = PendingEdits::default();
     edits.begin(
@@ -5549,7 +5647,7 @@ fn commit_transform_drag(runtime: &Rc<Runtime>, drag: &TransformDrag, operation:
         (),
         "layout-transform-drag",
         Some("transform".into()),
-        transform_drag_resolver(drag.matrix.id.clone(), drag.transaction_id.clone(), result),
+        resolver,
     );
     spawn_local(async move {
         loop {
@@ -5690,13 +5788,20 @@ fn transform_start_is_editable(
     runtime: &Runtime,
     owner: &LayoutOwnerIdentity,
     matrix: &Matrix,
+    cancellation: &Cancellation,
 ) -> bool {
     let model = runtime.model();
-    model.lifecycle == Lifecycle::Ready
+    let cancelling = cancellation
+        .borrow()
+        .as_ref()
+        .is_some_and(|(cancelled_owner, outcome)| {
+            cancelled_owner == owner && outcome.borrow().is_none()
+        });
+    (model.lifecycle == Lifecycle::Ready || (model.lifecycle == Lifecycle::Applying && cancelling))
         && owner
             .revision
             .is_some_and(|revision| model.durability == (Durability::Saved { revision }))
-        && model.display_preview.is_none()
+        && (model.display_preview.is_none() || cancelling)
         && model.gesture.is_none()
         && model.accepted.as_ref().is_some_and(|snapshot| {
             snapshot
@@ -6101,35 +6206,43 @@ fn submit_transform_edit(runtime: &Rc<Runtime>, drag: &TransformDrag, operation:
     });
 }
 
-fn clear_transform_preview(runtime: &Rc<Runtime>, drag: &TransformDrag) {
+fn clear_transform_preview(
+    runtime: &Rc<Runtime>,
+    drag: &TransformDrag,
+) -> Option<Rc<RefCell<Option<TerminalOutcome>>>> {
     if !drag.preview_submitted {
-        return;
+        return None;
     }
     if let (Some(token), Some(revision), Some(scope)) = (
         drag.owner.token,
         drag.owner.revision,
         drag.owner.scope.as_ref(),
     ) {
+        let operation_id = runtime.operation();
+        let outcome = runtime.observe_operation(operation_id);
         runtime.submit(Event::ClearPreview {
-            operation_id: runtime.operation(),
+            operation_id,
             token,
             revision,
             board_id: scope.board_id.clone(),
             transaction_id: drag.transaction_id.clone(),
         });
+        return Some(outcome);
     }
+    None
 }
 
 fn cancel_transform_drag(
     runtime: &Rc<Runtime>,
     drag: &Rc<RefCell<Option<TransformDrag>>>,
     arbiter: &CanvasInteractionArbiter,
+    cancellation: &Cancellation,
     guide: &mut Signal<Option<Vec2>>,
     mut quick_glyph: Signal<bool>,
     mut swing_glyph: Signal<bool>,
     svg_key: usize,
 ) {
-    if abandon_transform_drag(runtime, drag, arbiter) {
+    if abandon_transform_drag(runtime, drag, arbiter, cancellation) {
         guide.set(None);
         quick_glyph.set(false);
         swing_glyph.set(false);
@@ -6143,11 +6256,14 @@ fn abandon_transform_drag(
     runtime: &Rc<Runtime>,
     drag: &Rc<RefCell<Option<TransformDrag>>>,
     arbiter: &CanvasInteractionArbiter,
+    cancellation: &Cancellation,
 ) -> bool {
     let Some(active) = drag.borrow_mut().take() else {
         return false;
     };
-    clear_transform_preview(runtime, &active);
+    if let Some(outcome) = clear_transform_preview(runtime, &active) {
+        *cancellation.borrow_mut() = Some((active.owner.clone(), outcome));
+    }
     if active.capture.has_pointer_capture(active.pointer_id) {
         let _ = active.capture.release_pointer_capture(active.pointer_id);
     }
@@ -7326,6 +7442,7 @@ mod nudge_tests {
             start_client_y: 0.0,
             pending: None,
             preview_submitted: false,
+            cancellation_dependency: None,
         }
     }
 
@@ -7654,7 +7771,12 @@ mod nudge_tests {
         assert!(arbiter.try_acquire(CanvasInteractionOwner::MatrixTransform));
         // Escape, pointer cancel and lost capture all end in this.
         let cell = Rc::new(RefCell::new(Some(drag)));
-        assert!(abandon_transform_drag(&runtime, &cell, &arbiter));
+        assert!(abandon_transform_drag(
+            &runtime,
+            &cell,
+            &arbiter,
+            &Cancellation::default()
+        ));
         support::run_pending(&runtime).await;
 
         assert!(runtime.model().display_preview.is_none());
@@ -10632,6 +10754,160 @@ mod tool_tests {
             0.0,
             "one Undo restores the column"
         );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn unrelated_applying_work_does_not_admit_transform_drag() {
+        let runtime = fixture::open_matrix_runtime().await;
+        wait_until_editable(&runtime).await;
+        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Stagger).await;
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        assert_eq!(runtime.model().lifecycle, Lifecycle::Applying);
+        let press = dispatch_pointer(&handle, "pointerdown", true, false, 1, (100, 100));
+        assert!(
+            !press.default_prevented(),
+            "unrelated work must not admit a drag"
+        );
+        support::run_pending(&runtime).await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn escape_then_immediate_drag_is_remembered_while_preview_is_applying() {
+        let mut document = fixture::matrix_document();
+        document.matrices[0]
+            .column_layout
+            .resize_with(2, Default::default);
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        wait_until_editable(&runtime).await;
+        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Stagger).await;
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(&handle, "pointerdown", true, false, 1, (100, 100));
+        dispatch_pointer(&handle, "pointermove", true, false, 1, (140, 60));
+        assert_eq!(runtime.model().lifecycle, Lifecycle::Applying);
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        init.set_key("Escape");
+        let escape =
+            web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap();
+        handle.dispatch_event(&escape).unwrap();
+        let second = dispatch_pointer(&handle, "pointerdown", true, false, 1, (100, 100));
+        assert!(
+            second.default_prevented(),
+            "the immediate second press is admitted"
+        );
+        dispatch_pointer(&handle, "pointermove", true, false, 1, (140, 100));
+        dispatch_pointer(&handle, "pointerup", true, false, 0, (140, 100));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision + 1,
+            "only the second drag commits"
+        );
+        assert_ne!(
+            fixture::accepted_matrix(&runtime).column_layout[1].offset,
+            Vec2::default()
+        );
+        fixture::undo(&runtime).await;
+        assert_eq!(
+            fixture::accepted_matrix(&runtime).column_layout[1].offset,
+            Vec2::default()
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn escape_after_queued_edit_retires_immediate_second_drag() {
+        let mut document = fixture::matrix_document();
+        document.matrices[0]
+            .column_layout
+            .resize_with(2, Default::default);
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        wait_until_editable(&runtime).await;
+        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Stagger).await;
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(&handle, "pointerdown", true, false, 1, (100, 100));
+        dispatch_pointer(&handle, "pointermove", true, false, 1, (140, 60));
+        let mut matrix = fixture::accepted_matrix(&runtime);
+        matrix.origin.x += 5.0;
+        runtime.submit(Event::ResolveEdit {
+            operation_id: runtime.operation(),
+            label: "unrelated edit".into(),
+            resolver: EditResolver::new("unrelated edit", move |_| {
+                Resolution::submit(
+                    vec![matrix.id.clone()],
+                    EditOperation::SetMatrix {
+                        matrix: matrix.clone(),
+                        definitions: None,
+                    },
+                )
+            }),
+        });
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        init.set_key("Escape");
+        handle
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+        let second = dispatch_pointer(&handle, "pointerdown", true, false, 1, (100, 100));
+        assert!(second.default_prevented());
+        dispatch_pointer(&handle, "pointermove", true, false, 1, (140, 100));
+        dispatch_pointer(&handle, "pointerup", true, false, 0, (140, 100));
+        support::run_pending(&runtime).await;
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision + 1,
+            "only the unrelated edit lands"
+        );
+        assert_eq!(
+            fixture::accepted_matrix(&runtime).column_layout[1].offset,
+            Vec2::default()
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn escape_unmoved_second_drag_keeps_first_clear_for_third_press() {
+        let runtime = fixture::open_matrix_runtime().await;
+        wait_until_editable(&runtime).await;
+        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Stagger).await;
+        dispatch_pointer(&handle, "pointerdown", true, false, 1, (100, 100));
+        dispatch_pointer(&handle, "pointermove", true, false, 1, (140, 60));
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        init.set_key("Escape");
+        let escape =
+            || web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap();
+        handle.dispatch_event(&escape()).unwrap();
+        assert!(
+            dispatch_pointer(&handle, "pointerdown", true, false, 1, (100, 100))
+                .default_prevented()
+        );
+        handle.dispatch_event(&escape()).unwrap();
+        assert!(
+            dispatch_pointer(&handle, "pointerdown", true, false, 1, (100, 100))
+                .default_prevented(),
+            "third press is admitted while the first clear remains pending"
+        );
+        handle.dispatch_event(&escape()).unwrap();
+        support::run_pending(&runtime).await;
         root.remove();
     }
 
