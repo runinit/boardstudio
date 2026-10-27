@@ -1285,3 +1285,42 @@ warm captures supplied for this investigation remain observations at
 `efaae2a9`, not cache-control proof or full ticket acceptance. A real Rust
 cache/block control, full failure controls and the remaining qualification gates
 remain open.
+
+## 2026-10-27: Q generation comparison and controlled cache capture
+
+The 15-pair `c8712acb` comparison did not pass the two Q rows. Rechecking all
+six retained replies for each Q workload showed that each reply's binding and
+both analysis references contain the same per-worker UUID, and that this UUID
+is stable within each run but differs between drivers. The worker creates it
+with `crypto.randomUUID()`; qualification authenticates references against the
+worker generation. After replacing only those three generation values with a
+common placeholder, all other retained-reply fields match exactly, excluding
+the timestamps and durations already outside semantic comparison. The exact
+UUIDs and results are in `.evidence/ticket006-c871-parity/q-generation-comparison.log`.
+This is a comparison of the existing captures, not a new benchmark admission.
+
+A controlled landing served cacheable page and dedicated-worker resources, a
+real service worker, and the existing packaged CAD worker and performance
+fixture. The existing Node and Rust `startup:cold` and `startup:warm` capture
+paths each exited 0 with a real C1 reply; both missing-CAD-worker controls
+exited 1 with a 404 and no retained reply. Cold page fetches hit the origin
+both times and no service worker registered; warm page fetches hit once and
+both drivers observed activated, controlling workers and service-worker-origin
+responses. In both modes the separate dedicated worker's two fetches hit the
+origin once: the observed HTTP-cache bypass is page-session scoped, matching
+both drivers, and does not establish bypass in worker sessions. Both cold and
+warm replies matched on state, ordinal, 492 triangles, 35424 buffer bytes,
+zero STEP bytes, and metadata. These are observations, not equal response-count
+requirements. The fixture script is `.evidence/ticket006-real-fixture/control.py`; captures
+and asserted results are in `.evidence/ticket006-real-fixture-asserted/` and
+its launch log records no owned children remaining. Chrome for Testing 145 was run sequentially under the
+shared build lock, `boardstudio-tests.slice`, CPU quota 400%, and 12 GiB limit.
+
+These controls are diagnostic: at checkout `2740a52e`, the current packaged
+site digest `1cc6ed371db972d62684c8f6f28e214085ac0eeb8214130b4520845d8611ceec`
+does not match the `c8712acb` build receipt's site digest
+`37b24b492d0e476f263f2c3b416e48483619cccbfb68a84de2e08efe02f770e7`.
+The CAD package and official provider input digests match that receipt, but the
+site as a whole is not bound to it. A current source-bound build and control,
+remaining failure and full qualification gates, and Playwright removal remain
+open.
