@@ -1132,3 +1132,26 @@ The requested full-gate service exited 2 before the check started: systemd used
 `/home/chris/scripts/check.py` (`.evidence/ticket005-receipt-isolation-full.log`).
 No receipt or artifact matrix was produced. No retry was run. Ticket 005 remains
 open; the full gate, browser acceptance, and hosted CI remain unverified.
+
+### 2026-10-26: external startup diagnostic
+
+One default full gate on clean `deb75a9072ccb1456b82984fb8345fa3b26b4a04`
+passed all 57 planned commands (426.8s), including 2,396 native tests, 31
+Keycaps tests and all 112 page tests. The 8-CPU `boardstudio-tests.slice`,
+shared inherited build lock, default scheduler, `NODE_PATH`, Rust drag driver
+with Chrome for Testing 145, and system Chromium for mounted tests were used.
+The receipt and log are under `.evidence/ticket005-external-diagnostic-deb75a9/`.
+No browser capabilities, driver arguments, timeouts, tests or browser versions
+were changed. The earlier failed and instrumented receipts remain distinct.
+
+An external monitor sampled gate descendants every five seconds and captured one
+runner after 62.9 seconds: UI-shared `panels::`, not Keycaps. The runner had 18
+threads and listened on port 43755; one established connection had 596 bytes in
+its receive queue. Bounded local requests to `/run.js` and `/` returned HTTP 200
+in 1.216ms and 0.539ms respectively. That panels launch eventually passed both
+tests in 64.9s. This snapshot shows the server could answer those requests at
+that moment; it does not establish the cause of the delay or the status of the
+browser's own requests. The monitor and its two requests add observation overhead,
+and five-second sampling may miss short-lived runners. Keycaps did not stall, so
+this passing run cannot diagnose or resolve the earlier three Keycaps startup
+stalls. No repeat was run; hosted CI and other acceptance gates remain separate.
