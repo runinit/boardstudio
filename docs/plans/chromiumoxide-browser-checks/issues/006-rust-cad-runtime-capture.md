@@ -300,3 +300,473 @@ freeze/page including uploads, downloads and rendering, controlled cache and
 service-worker-origin parity, complete old/new failure controls, full supported
 check, hosted CI and independent closure review remain open. No acceptance box
 is cleared and no default change is justified.
+
+
+## 2026-10-26: cold-start response lifecycle diagnosis
+
+The uncommitted cold-start draft has not passed observation. The original direct
+Node run completed and recorded the landing core-worker entry, JS and WASM
+responses plus the CAD worker/provider responses, while Rust completed the CAD
+operation but failed closed on `Session with given id not found`
+(`.evidence/ticket006-startup-direct.log`). The diagnostic run did not establish
+source/build binding or benchmark admission.
+
+A targeted Chrome for Testing 145 direct run with temporary CDP lifecycle logging
+reproduced the same error (`.evidence/ticket006-lifecycle-direct.log`): the page
+auto-attached its paused `core-worker/entry.js` dedicated worker, navigation
+detached that worker, and the outstanding worker `Network.enable` then failed
+with -32001. The core worker is relevant: the Node observation includes its
+responses. Treating the detached session as irrelevant, or suppressing the
+error, would lose required observations. The temporary logging was removed.
+
+The cold path remains blocked until an event-driven boundary can establish that
+the landing worker's required response stream is safely drained before navigation,
+including failure and closure controls. Waiting only for attachment or Network
+enablement is insufficient; adding a delay or ignoring detached workers is not
+proof. No cold fix, source-bound cold comparison, warm or U1 work, full check or
+closure review is claimed. The existing draft remains uncommitted and Node is
+still the default.
+
+## 2026-10-26: U1 implementation investigation
+
+The Rust launcher still rejects `U1:freeze` before browser launch; a focused
+selection probe exited 1 with `Rust capture supports only worker workloads`
+(`.evidence/ticket006-u1-investigation/selection-red.log`). The probe stopped at
+freeze and did not exercise `U1:page`. No U1 implementation or browser comparison
+was completed. The checked noop build validator rejects the existing non-document
+draft in this worktree, and the validation-receipt route also rejects non-document
+changes beyond its tested source. A separate clean source checkout and its build
+binding would need to be established for a fresh comparison without disturbing the
+draft. This is a verification constraint, not a cold-start fix or an acceptance
+result. Node remains the default.
+
+
+## 2026-10-26: Rust U1 consumer, unbound diagnostic
+
+Implemented Rust U1 freeze and page routing, using the shared isolated browser
+harness, the Node workflow's worker/WebGL instrumentation, file input and
+completed-download events. It checks the accepted 2x2 project, unchanged
+project after export, accepted-revision preview and print, four print bodies,
+STEP reply, rendered frame and page errors. Output remains diagnostic and the
+launcher retains its existing source/artifact binding gates. Freeze remains
+validation-only; Node remains the default. The pre-existing cold draft is still
+uncommitted.
+
+The prior selection RED was `Rust capture supports only worker workloads`.
+The Python tooling suite passed 18 tests, Node protocol suite passed five
+controlled checks plus STL controls, and the Rust capture binary built and
+passed its three existing unit tests. A direct Rust freeze on the existing site
+exited 0 and produced its rendered image, accepted project, worker log and
+three completed downloads (`.evidence/ticket006-u1-unbound/freeze/`). This
+site was not source-bound; this is diagnostic evidence only. Direct Rust page
+import exited 1 waiting for the accepted editor and recorded failure and result
+events (`.evidence/ticket006-u1-unbound/page/`). A separate Node page run on
+the same unbound site also timed out at the editor-ready wait
+(`.evidence/ticket006-u1-unbound/node-page/`). Both failure logs show the
+committed archive is format 6, while this site requires format 7 and provides
+no conversion. The diagnostic freeze archive was not substituted for the
+committed fixture. No retry was treated as a pass.
+
+U1 page completion, source-bound old/new comparison, complete failure controls,
+cold observer fix, timing, warm/cache parity, full supported check and closure
+review remain open. No acceptance box is cleared.
+
+## 2026-10-26: U1 fixture and format-reset investigation
+
+The original archive was introduced by `e98438bf9` as a real Runtime project
+download. The U1 runbook and scope pin its format 6, revision 3 and project and
+board identities, as well as the 2x2 rigid case and four DCS/MX keycaps. Current
+Core requires format 7 and refuses earlier versions without conversion; ADR-0034
+calls for rebuilding fixtures, not stamping old documents. Thus the observed
+format refusal is consistent with current source, not evidence by itself that the
+site is stale.
+
+The prior freeze's actual Runtime download has format 7 and revision 3. Comparing
+its project JSON with the original after substituting its generated project,
+board and outline IDs with the original IDs and normalizing only the version
+gives exact equality; `archive.json` and both asset payloads are byte-identical.
+The comparison did not modify either archive. The site digest in the fresh
+read-only binding `.evidence/ticket006-u1-fixture-binding/binding-before.log`
+matches the successful checked/no-op build at `80f4b6adecc9fb6b1e4c36842b536ddc89c1f590`
+(`.evidence/ticket006-float-build/`); that commit is an ancestor of `022c3aaf`
+and their only committed difference is this ticket. The CAD package digest and
+provider input stamp also match. This binds the presently observed artifacts to
+that earlier build, but does not make the prior browser run a fresh launcher
+receipt at the dirty current source.
+
+Replacing the fixture with the real new download would change the explicitly
+pinned project, board and outline identities. Rewriting those IDs or stamping
+the old archive would no longer be the unmodified Runtime download and would
+conflict with the reset contract. The frozen-identity versus freshly rebuilt
+fixture choice therefore remains open; neither archive nor scope was changed.
+No new U1 page run, performance result, or acceptance is claimed.
+
+## 2026-10-26: cold response boundary diagnostic
+
+A fresh direct real-browser RED reproduced the missing-session failure and no
+resource receipt (`.evidence/ticket006-cold-boundary-red.log`). The observer now
+holds the landing page until the three actual core-worker response events and
+outstanding CDP setup replies arrive; a failed required status or early core
+worker detach fails the capture. The boundary observes response headers, as the
+Node response listener does; it does not claim all response bodies have finished.
+The navigation-to-landing metric is recorded before the boundary. Unlike Node's
+immediate subsequent navigation, Rust can wait after landing, so the isolated
+CAD worker starts later. Timing equivalence and coverage beyond the checked
+assets remain open; this diagnostic is not a benchmark admission.
+
+The actual Chrome 145 capture passed with all three core-worker and five CAD
+worker/provider response records at status 200 and `serviceWorker=false`.
+A controlled missing core WASM response failed closed. The reproducible browser
+check is `CHROME_BIN=<chrome> python3 cad/scripts/test-cold-responses.py` after
+building `cad-capture`; it uses the existing packaged site and is diagnostic
+only (`.evidence/ticket006-cold-closure-browser.log`). Rust capture and probe
+unit suites passed 3 and 2 tests respectively
+(`.evidence/ticket006-cold-closure-tests.log`). The build receipt is for
+`ad18d53a`, while the current HEAD and driver draft differ, and the current
+binding gates reject the overlapping dirty draft; no source-bound cold result is
+claimed. Dedicated early-detach control, timing equivalence, U1 fixture identity,
+warm/cache parity, full checks and ticket closure remain open.
+
+## 2026-10-26: unpaused observation investigation
+
+A temporary unpaused auto-attach variant removed the landing response boundary and
+issued `Network.enable` after worker attachment. A direct Node/Rust cold pair used
+the same existing site and Chrome for Testing 145, with no new source/build binding
+or benchmark admission. Node exited 0 and recorded 26 responses; Rust reached
+landing and worker readiness but exited 1 when the landing worker detached before
+its `Network.enable` reply (`Session with given id not found`). The failed Rust run
+had no resources receipt. Both place the landing metric between navigation start and
+usable landing, and the worker metric between worker creation and ready; this pair
+cannot prove equivalent timing perturbation. Logs and direct outputs are under
+`.evidence/ticket006-unpaused-probe/`.
+
+A separate diagnostic instrumented the unpaused CDP event stream, continued after the
+worker setup error solely to inspect later events, and still failed the capture. It
+observed no landing core-worker responses and no CAD worker entry response, but did
+observe the four subsequent CAD worker/provider responses. It also recorded a server
+connection reset as navigation ended. This is not a successful retry or a complete
+inventory (`.evidence/ticket006-unpaused-stream/`). Ignoring the detached session
+would lose required responses. Playwright's installed Chromium implementation also
+uses paused auto-attach; its presence does not prove the draft's additional waiting
+has equivalent timing or cache effects.
+
+A separate paused diagnostic cannot supply the measured run's `resources` event:
+responses, redirects, failures, cache and service-worker origin are observations of
+that individual run. Replacing them with another run's records would change the
+capture contract. No nonperturbing single-run mechanism or acceptable split capture
+has been established, and no observer fix or metric/fixture change is claimed. The
+existing paused boundary draft remains uncommitted and is not benchmark-ready; Node
+remains the default. Redirect/target correlation, warm and service-worker controls,
+source-bound parity and closure gates remain open.
+
+## 2026-10-27: installed driver semantics inspection
+
+The installed Playwright Chromium driver auto-attaches workers with
+`waitForDebuggerOnStart: true`. Its worker handler starts Network session setup,
+then sends `Runtime.runIfWaitingForDebugger` without awaiting the Network enable
+reply; setup and resume failures are caught. The Node capture listens to context
+responses and immediately navigates after the landing-ready event. Thus its
+observation is of whatever responses arrive in that run, not a promise to wait for
+all three landing-worker assets. The Rust draft instead waits for the Network reply
+before resuming and waits for three named landing responses before navigation.
+Both use an attachment pause, but their sequencing and failure behavior differ;
+matching the existence of a pause alone does not establish timing equivalence.
+
+The installed chromiumoxide 0.9.1 page initialization also enables paused
+auto-attachment. Its handler records attached sessions, while the existing CAD
+observer uses a separate CDP connection. This inspection and the earlier unpaused
+experiment do not establish a complete, unpaused single-run observation mechanism.
+Reusing a second run's responses or dropping required records would change the
+capture contract. No implementation, new browser run, timing equivalence, or
+benchmark admission is claimed from this inspection.
+
+## 2026-10-27: back-to-back worker setup comparison
+
+The installed Playwright worker handler sends `Runtime.enable`, starts Network
+session setup (including `Network.enable`), then sends
+`Runtime.runIfWaitingForDebugger` without awaiting setup. It catches setup and
+resume failures. The Rust draft had awaited the worker Network reply before
+sending resume and held landing navigation for three response events. To test
+that distinction, a temporary Rust variant sent worker Network enable and resume
+back-to-back and removed the landing response wait, while retaining fatal CDP
+command errors. Both drivers ran sequentially against the same existing packaged
+site, origin, inputs and Chrome for Testing 145.0.7622.0, without source/build
+binding or benchmark admission (`.evidence/ticket006-order-comparison-145/`).
+Node exited 0, navigated through landing to worker readiness, and recorded all
+three core worker and five CAD worker/provider responses (200, not from service
+worker). Rust reached landing and worker readiness but exited 1: the landing
+worker session was gone when its Network setup replied. It produced no resources
+receipt. The experiment does not establish whether swallowing the setup error
+would preserve responses; that would weaken failure handling without proof.
+
+An initial pair used Chrome 147: Node recorded all eight assets, while Rust
+recorded the five CAD assets and no core worker assets, then failed on browser
+handler protocol parsing. That run is not a valid clean comparison
+(`.evidence/ticket006-order-comparison/`). The temporary code was removed and
+the prior fail-closed boundary draft restored. Back-to-back commands alone did
+not establish equivalent observation or navigation behavior; timing parity,
+source-bound comparison, and ticket acceptance remain open. Node remains the
+default.
+The restored draft rebuilt under the shared build lock, and
+`CHROME_BIN=/home/chris/.cache/boardstudio-cft/verified-145/chrome-linux64/chrome python3 cad/scripts/test-cold-responses.py`
+passed its real-browser capture and missing-core-worker failure control
+(`.evidence/ticket006-order-comparison-145/restored-control.log`). This verifies
+the restored diagnostic, not timing or full capture parity.
+
+## 2026-10-27: per-session ownership and detach policy diagnostic
+
+A direct diagnostic pair used the same existing packaged site, server and Chrome
+145, without source/build binding or benchmark admission. Playwright protocol
+logging showed all eight required response events on their dedicated worker
+sessions: the core entry, JS and WASM on the landing worker before its detach,
+then the CAD entry, JS, WASM and two provider responses on the CAD worker. The
+context response receipt contains all eight at 200 and `serviceWorker=false`.
+This identifies event ownership in that run, not a guarantee for other runs.
+
+A temporary Rust trace with back-to-back Network enable and resume and no landing
+wait showed the landing worker attach after navigation to the performance host
+had started, followed by its detach without any of the three landing responses.
+It failed at the existing boundary. A separate temporary policy tolerated only
+session-not-found replies for an already detached worker and checked the same
+run's missing landing responses at page closure. It observed all five CAD responses
+on the CAD worker but failed with all three landing responses missing; it did not
+produce a successful resources receipt. Both Rust runs also reported a browser
+handler WebSocket reset and the local server saw a connection reset. Logs and
+per-run events are in `.evidence/ticket006-session-trace/`. The tracing itself
+can perturb scheduling, and these are individual observations, not timing parity
+or a statistical comparison.
+
+The temporary tracing and policy were removed. Suppressing a detached session's
+setup failure cannot recover responses that were never observed, and the parent
+session did not supply them in these runs. The existing fail-closed landing wait
+remains a diagnostic with different navigation timing from Node; no observer fix,
+source-bound comparison, or acceptance is claimed. Node remains the default.
+Timing equivalence, per-run complete response and redirect/failure correlation,
+warm and service-worker controls, U1 fixture identity, full supported checks and
+closure review remain open.
+
+## 2026-10-27: early target discovery experiments
+
+The existing Rust capture creates an isolated `about:blank` page first, configures
+service-worker registration and cache, then attaches the separate response CDP
+session, enables page Network and acknowledges page `Target.setAutoAttach` before
+starting landing navigation. Thus the observer registration is complete before
+navigation; the delayed observation is worker attachment, not a late call to
+`start`. Chromiumoxide has its own page session and auto-attachment.
+
+On the same existing, unbound packaged site and Chrome for Testing 145, a temporary
+variant enabled browser-level `Target.setDiscoverTargets` before page attachment
+and removed the landing response wait. Discovery reported the core worker target
+with an empty URL before the page-session `Target.attachedToTarget`. The latter
+identified the core entry and was paused, but arrived as navigation to the
+performance host began; no core worker response appeared before detach. The run
+failed closed (`.evidence/ticket006-discovery-control.log`). Discovery was enabled
+after page creation but before either navigation; this does not test browser-level
+auto-attach before page creation.
+
+A second temporary variant attached directly to every discovered worker target
+and enabled Network on that session. Its trace showed an early direct attachment
+with empty URL and `waitingForDebugger=false`, followed by the page-session paused
+attachment with the core entry URL; no core response was observed before detach,
+and the run failed closed (`.evidence/ticket006-discovery-attach-control.log`).
+Both failures also recorded a browser handler WebSocket reset. These exploratory
+variants include CDP tracing and are not timing or benchmark evidence. The earlier
+Node trace in `ticket006-session-trace/` observed all three core responses before
+navigation and all five CAD responses in that same Node run; these separate runs
+are diagnostic comparisons, not a parity receipt.
+
+The temporary variants were removed. The restored pre-existing boundary draft was
+rebuilt under `~/.cache/tmp/boardstudio-build.lock` and its real Chrome cold capture
+and missing-core-worker failure control passed (`ticket006-discovery-restored-build.log`
+and `ticket006-discovery-restored-control.log`). The draft still delays navigation
+and is not evidence of measurement parity. A concrete next experiment is to expose
+worker session events and Network setup through chromiumoxide's own page session,
+registering observation before its auto-attach resume, then compare same-run CDP
+traces and navigation ordering against Node. This may require a narrowly scoped
+upstream/fork integration; feasibility and timing equivalence are unproven. Browser-
+level auto-attach before page creation is another untested candidate. No observer
+fix, source-bound parity, or ticket acceptance is claimed; Node remains default.
+
+## 2026-10-27: handler ordering inspection (no new browser run)
+
+Inspection of the vendored chromiumoxide handler shows that its page session
+requests flattened auto-attachment with `waitForDebuggerOnStart=true`, then queues
+`Runtime.runIfWaitingForDebugger` for a paused child immediately on the page's
+`Target.attachedToTarget` event. The handler routes session events through its
+session-to-target map; child attachment events received on the page session are
+handled by the page target and do not themselves populate that map. Its existing
+internal-command response path does not report worker setup errors or timeouts to
+the CAD capture. Consequently, adding `Network.enable` ahead of resume alone is
+not sufficient evidence of a complete, fail-closed observer.
+
+The retained Playwright protocol trace in `ticket006-session-trace/node.stderr`
+shows both `Network.enable` and `Runtime.runIfWaitingForDebugger` sent on each
+worker session in that order, before either command reply; both replies succeeded.
+In that run the three core-worker responses were received on the worker session
+before the performance-host navigation. This is a single traced run, not a claim
+that waiting for the Network reply before resume has equivalent timing.
+
+A candidate integration must register capture before navigation, route each child
+session's response and redirect events to the owning page capture, account for
+setup errors, timeouts and detach, and preserve the old navigation sequence. It
+still needs a focused real-browser comparison against Node, including the missing
+response control and ordering trace. No handler change or new browser comparison
+was made from this inspection; feasibility and the existing gates remain open.
+
+
+## 2026-10-27: partial handler routing implementation
+
+The vendored handler now associates dedicated worker sessions with their owning
+page and routes worker `Network.responseReceived` and `Network.requestWillBeSent`
+events to that page's listeners. The association is removed on detach or page
+destruction. A synthetic child-session routing test first failed with no event
+and then passed; the final test uses a real CDP Network response payload. The
+focused handler lifecycle suite passed 4 tests under the shared build lock
+(`.evidence/ticket006-handler-lifecycle.log`).
+
+This is an incomplete integration, not a capture fix: the CAD observer still
+uses its separate connection and waits at the landing boundary. The handler does
+not yet enable Network before worker resume or surface setup failures/timeouts
+to the observer. The routing change has not been exercised in a real browser,
+and no new Node comparison or missing-resource control was run. Preserve the
+existing Node default and do not interpret this slice as timing parity or ticket
+acceptance.
+
+## 2026-10-27: direct handler integration attempt
+
+A temporary implementation sent `Network.enable` on the handler's attached
+worker session and resumed only after its successful reply, surfaced setup errors
+and timeouts through the handler, and collected worker responses through page
+listeners without the landing boundary wait. It built under the shared lock.
+The first Chrome for Testing 145 cold fixture failed: `Network.enable` returned
+`Session with given id not found`, the required core entry response was absent,
+and the handler also reported a WebSocket reset
+(`.evidence/ticket006-integrated-cold.log`). This is a failed run, not proof
+that every handler integration is impossible. The negative fixture and Node
+comparison did not run after this failure. The temporary integration was removed
+to avoid changing the shared handler's behavior; the prior partial routing and
+boundary draft remain. The failed experiment does not establish timing parity or
+close ticket 006. A capture without the navigation wait still needs an earlier
+attachment mechanism and same-run response and failure evidence.
+
+## 2026-10-27: approved U1 format-7 fixture replacement
+
+The user approved replacing the obsolete format-6 fixture and updating its generated
+identities. `cad/test/fixtures/performance/U1.boardstudio` is now the exact,
+unmodified Runtime download from `.evidence/ticket006-u1-unbound/freeze/` (SHA-256
+`87e2fe1f1424b26dd5def247a9b7ec1718a1f839ea9746b031e8323bce42b5a0`). The
+capture itself was unbound; the earlier recorded artifact comparison ties its site
+bytes to the checked build at `80f4b6adecc9fb6b1e4c36842b536ddc89c1f590`, not
+to a fresh source-bound browser receipt. The scope and runbook pin format 7,
+revision 3 and its generated project, board and outline IDs. A fresh comparison
+normalized only those three IDs (including board-derived closure IDs) and format:
+project JSON was exactly equal to the prior fixture, archive metadata and both
+asset payloads were byte-identical, and each payload matched its SHA-256 name.
+No archive contents were rewritten.
+
+The checked web build completed (`command.log` exit 0, 98.25 seconds), but its
+clean/no-op receipt was rejected because the checkout is dirty
+(`.evidence/ticket006-u1-format7-build-checked/binding-rejection.log`). The first
+launch used an abbreviated source SHA and stopped before building; the second
+lacked `NODE_PATH` and stopped before building. The corrected build and browser
+runs used the shared build lock and `boardstudio-tests.slice`.
+
+Node U1:page imported the replacement, rendered and exported both downloads,
+and its browser process exited 0 with a successful result. The launcher invalidated
+it because unrelated source changed during the run; before/after bindings and
+all outputs are in `.evidence/ticket006-u1-format7-node/`. The full Python download
+checker correctly refused the changed binding. Separately, ZIP path/uniqueness/CRC
+checks and `node cad/scripts/check-cad-page-downloads.cjs` passed on those Node
+outputs, including all four STL topology/material checks. This is diagnostic
+output inspection, not an admitted capture or full download-check pass.
+
+A direct Rust U1:page diagnostic against the same packaged site and Chrome 145
+exited 1 waiting for the accepted editor; the browser handler also reported a
+WebSocket reset. Its Library body shows no format-refusal message, but the cause
+of the failed import is not established (`.evidence/ticket006-u1-format7-rust-direct/`).
+The direct run has no source binding. Rust U1 completion, a stable same-source
+Node/Rust comparison and the full independent download checker remain open;
+no performance or ticket acceptance is claimed.
+
+## 2026-10-27: U1 Rust upload reproduction
+
+A second direct Rust U1:page run against the retained packaged site and Chrome 145
+failed waiting for the accepted editor and again reported `WebSocket protocol reset
+without closing handshake` (`.evidence/ticket006-u1-rust-repro-1027/`). The run
+held the shared build lock and its recorded before/after source and artifact bindings
+matched. It used the existing harness binary and is diagnostic: its build-to-source
+binding is not established, and it is not an admitted capture.
+
+The failure page reports `Storage is still initializing; try again shortly.` Runtime
+emits that error from `begin_open` when a real file import arrives before storage
+startup finishes. This supports an early upload as the immediate import failure; it
+does not explain the browser handler reset. The Library saved-project-list loading
+state is independent of Runtime storage initialization and cannot prove import
+readiness. No readiness workaround or retry was admitted on this evidence. A fresh
+source-bound harness/site comparison, Rust completion and independent checks for
+both drivers remain open.
+
+## 2026-10-27: storage readiness and U1 diagnostic
+
+Runtime exposes storage initialization readiness and retains initialization errors; both
+Library import inputs stay disabled until startup succeeds and show the retained failure.
+The Rust U1 consumer waits for the enabled file input before assigning the archive.
+The mounted Chrome regression first failed because the input was enabled during
+initialization (`.evidence/ticket006-readiness-red-render.log`); after the change it
+passed 1/1, covering the landing and menu controls, a notification-driven transition,
+and a failure that remains visible after another status (`.evidence/ticket006-readiness-green-both.log`).
+
+The checked site build completed, but the measurement tool rejected its binding because
+source changed during the build (`.evidence/ticket006-readiness-source-build/`). The
+Rust harness build succeeded under the shared lock. One Rust and one Node U1:page
+validation ran under that lock against the resulting site, with matching individual
+before/after bindings, but the site build drift makes both diagnostic and unadmitted.
+Node exited 0 and `check-cad-page-downloads.py` passed on its output
+(`.evidence/ticket006-readiness-node-diagnostic/`, `.evidence/ticket006-readiness-download-check.log`).
+Rust reached the accepted-editor wait and exited 1 with 20 Chromium 156 protocol
+message decoding errors and a WebSocket reset (`.evidence/ticket006-readiness-rust-diagnostic/`).
+The earlier Chrome 145 reset is not resolved by this result. A stable source-bound
+build, Rust completion, and admitted Node/Rust parity remain open.
+
+## 2026-10-27: canonical U1 upload path
+
+The Rust consumer now canonicalizes the fixture path before passing it to CDP,
+rejecting canonicalization, non-file and non-UTF-8 errors explicitly. The focused
+regression test failed on the original `tools/browser-harness/../../cad/...` path
+and passed on the canonical path; the capture binary's four unit tests passed
+(`.evidence/ticket006-upload-red.log`, `.evidence/ticket006-upload-green.log`).
+The earlier Chrome 145 CDP control established that the original path produces
+`NotReadableError` while the canonical path to the same file reads successfully.
+
+The freshly rebuilt Rust binary ran U1:page with Chrome 145 under the shared build
+lock, imported the fixture, rendered and exported both downloads, and exited 0
+(`.evidence/ticket006-u1-canonical-1027/`). Before/after source and artifact
+bindings matched. The independent Python download checker passed on that output
+(`.evidence/ticket006-u1-canonical-check.log`); the earlier Node Chrome 145 run
+and its checker also passed (`.evidence/u1-cft145-test-comparison-1027/`). Both
+are diagnostic: the retained site build's source binding was previously rejected
+because source changed during the build, so this is not an admitted source-bound
+comparison. The Rust log reports `WebSocket protocol reset without closing
+handshake` and classifies it as an expected post-boundary reset after clean child
+exit; it was not suppressed. A stable source-bound site build and comparison,
+remaining ticket controls and closure review remain open.
+## 2026-10-27: U1 review corrections
+
+The download checker now requires a successful source-bound build receipt and
+checks its existing binding contract against the capture. A successful build
+subprocess alone is insufficient: the retained format-7 build receipt is rejected
+because its binding was rejected. The Node importer waits for an enabled input.
+U1:page validates the approved project, board, outline, format and revision pins
+both before launch and on the accepted project; U1:freeze retains generated
+identities. These checks do not turn prior diagnostic captures into admitted proof.
+Fresh source-bound U1 browser comparison and the remaining ticket gates are open.
+
+## 2026-10-27: Rust runtime admission guard
+
+The launcher rejects Rust `runtime` for `startup:cold` because the worker observer
+perturbs timing, and for `U1:page` because it produces validation-only output without
+runtime samples. Both errors direct users to Node runtime or validation diagnostics.
+Rust validation and Node runtime remain selectable. The focused launcher regression
+failed on both previously admitted Rust modes before the guard; afterward
+`python3 cad/scripts/test-measure-cad.py` passed all 22 tests. This does not establish
+timing parity, runtime samples, or ticket acceptance; the existing gates remain open.

@@ -24,6 +24,7 @@ import subprocess
 import sys
 import threading
 import time
+import zipfile
 from http.server import ThreadingHTTPServer
 
 sys.dont_write_bytecode = True
@@ -259,6 +260,35 @@ def validate_build_bindings(before_text, after_text, backend, profile, state):
     return source, harness, (after["source_sha256"], diff, after["official_provider_inputs"])
 
 
+def validate_u1_scope(project):
+    scope = json.loads((FIXTURES / "U1-scope.json").read_text())
+    boards = project.get("boards", [])
+    if (project.get("id") != scope["projectId"] or project.get("formatVersion") != scope["formatVersion"]
+            or project.get("revision") != scope["revision"] or len(boards) != 1
+            or boards[0].get("id") != scope["boardId"]
+            or boards[0].get("outlineIds") != [scope["outlineId"]]
+            or [outline.get("id") for outline in project.get("outline", [])] != [scope["outlineId"]]):
+        raise ValueError("U1 scope project/board/outline/format/revision mismatch")
+
+
+def validate_page_build_receipt(capture, build):
+    with (build / "build.csv").open() as source:
+        rows = list(csv.DictReader(source))
+    if len(rows) != 1 or rows[0].get("status") != "ok" or "\nexit=0\n" not in (build / "command.log").read_text():
+        raise ValueError("build receipt is not successful")
+    row = rows[0]
+    before = (build / "binding-before.log").read_text()
+    after = (build / "binding-after.log").read_text()
+    validate_build_bindings(before, after, row["backend"], row["profile"], row["state"])
+    captured = (capture / "binding-before.log").read_text()
+    if captured != (capture / "binding-after.log").read_text():
+        raise ValueError("capture binding drift")
+    fields = ("head=", "source_sha256=", "profile=", "official_provider_inputs=", "provider_stamp=", "artifact_")
+    select = lambda text: [line for line in text.splitlines() if line.startswith(fields)]
+    if select(after) != select(captured):
+        raise ValueError("build receipt does not match capture binding")
+
+
 def environment():
     lines = [f"platform={platform.platform()}", f"python={sys.version}",
              f"load={os.getloadavg()}", "memory:\n" + Path("/proc/meminfo").read_text()]
@@ -458,8 +488,8 @@ def sample_tree(pid):
 
 
 def capture_driver(driver, workload):
-    if driver == "rust" and workload not in (*PAIRED, *UNPAIRED):
-        raise ValueError("Rust capture supports only worker workloads")
+    if driver == "rust" and workload not in (*PAIRED, *UNPAIRED, "startup:cold", "U1:freeze", "U1:page"):
+        raise ValueError("Rust capture does not support this workload")
     return driver
 
 
@@ -553,6 +583,11 @@ def main():
     parser.add_argument("--build-cycles", type=int, choices=(1, 3), default=1,
                         help="one matched initial build cycle; three is the retained upper proposal, only after root requests it")
     args = parser.parse_args()
+    if args.action == "runtime" and args.driver == "rust":
+        if args.workload == "startup:cold":
+            parser.error("Rust startup:cold runtime timing is perturbed by the worker observer; use --driver node for runtime or validate for diagnostics")
+        if args.workload == "U1:page":
+            parser.error("Rust U1:page provides validation only, with no runtime samples; use --driver node for runtime or validate for diagnostics")
     root, out = args.checkout.resolve(), args.output.resolve()
     if not out.is_relative_to(ROOT / ".evidence"):
         parser.error("capture outputs must be under this lane's .evidence")
@@ -598,7 +633,7 @@ def main():
                     or not any(line.startswith("historical_prebuilt_archive=") and
                                "actual=8149e781acdbd21507cfb29937e48e5fdbe628ee5c37007f720dcf5d4000e6ad" in line for line in before)):
             parser.error("pinned historical image/archive provenance unavailable; no automatic provisioning fallback")
-        browser_tools.locate()  # Fail before expensive compilation if the retained browser prerequisites drifted.
+        (browser_tools.locate if args.driver == "node" else browser_tools.locate_chrome)()
         command = [sys.executable, "scripts/build-web.py", *(["--fast"] if args.profile == "checked" else [])]
         code, elapsed = capture(command, root, out, 7200)
         sizes(root, out / "sizes.csv")
@@ -614,6 +649,9 @@ def main():
         validation = args.action == "validate"
         if args.workload == "U1:freeze" and not validation:
             parser.error("U1:freeze is validation-only; use the committed frozen archive")
+        if args.workload == "U1:page":
+            with zipfile.ZipFile(FIXTURES / "U1.boardstudio") as archive:
+                validate_u1_scope(json.loads(archive.read("project.json")))
         if validation:
             if args.growth or not args.artifact_receipt:
                 parser.error("validate requires --artifact-receipt and never runs repetition/growth sequences")
@@ -642,7 +680,10 @@ def main():
         site = root / "web/target/site"
         if not (site / "site-subpath/boardstudio/assets/cad-worker/entry.js").is_file():
             parser.error("runtime requires a fresh source-bound full page/worker package; provider-only is insufficient")
-        node, chrome = browser_tools.locate()
+        if args.driver == "node":
+            node, chrome = browser_tools.locate()
+        else:
+            chrome = browser_tools.locate_chrome()
         serve = module_at(ROOT / "scripts/serve-web.py", "perf_serve")
         base_handler = serve.handler_for(site)
 
@@ -694,6 +735,12 @@ def main():
             server.shutdown()
             server.server_close()
             thread.join(timeout=3)
+        if code == 0 and args.workload == "U1:page":
+            try:
+                validate_u1_scope(json.loads((out / "accepted-project.json").read_text()))
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                (out / "scope-rejection.log").write_text(f"U1 scope rejection: {error}\n")
+                code = 1
     after, _ = binding(root, args.profile)
     (out / "binding-after.log").write_text("\n".join(after) + "\n")
     if args.action == "build":

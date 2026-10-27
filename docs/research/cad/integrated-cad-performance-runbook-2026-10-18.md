@@ -48,9 +48,12 @@ actual movement, selected allowance and source proof as distinct fields.
 [U1.boardstudio](../../../cad/test/fixtures/performance/U1.boardstudio) is the
 unmodified real Runtime project download, including two original used bundled
 assets. [U1-scope.json](../../../cad/test/fixtures/performance/U1-scope.json) pins
-its identity, format6/revision3, ordinary2×2 rigid design, four DCS/MX caps,
+its identity, format7/revision3, ordinary2×2 rigid design, four DCS/MX caps,
 viewport1513×1043, selected Main board case assembly, and
-Assembled/Shaded/Isometric/Fit actions. Input geometry and warnings are retained.
+Assembled/Shaded/Isometric/Fit actions. The format-7 archive is the unmodified Runtime download from the unbound
+`.evidence/ticket006-u1-unbound/freeze` capture; its site artifacts match the
+checked build at `80f4b6adecc9fb6b1e4c36842b536ddc89c1f590`. Input geometry
+and warnings are retained.
 This is the common analytic physical PCB; source-backed PCB/ring-island proofs
 remain the parent's separately delivered scope. K1's25-cap worker request remains
 separate from U1's complete four-cap page export.
@@ -75,7 +78,7 @@ The actual Export workspace actions produce:
 
 ```sh
 python3 -B "$HARNESS/cad/scripts/measure-cad.py" validate --checkout "$PARENT" --source-head d9b58b6da2cb9a5438136cfb052be354dd14acdd --profile checked --workload U1:page --artifact-receipt "$RECEIPT" --output "$HARNESS/.evidence/011-next-U1"
-PYTHONPATH=/usr/lib/freecad/lib python3 -B "$HARNESS/cad/scripts/check-cad-page-downloads.py" "$HARNESS/.evidence/011-next-U1" --freecad
+PYTHONPATH=/usr/lib/freecad/lib python3 -B "$HARNESS/cad/scripts/check-cad-page-downloads.py" "$HARNESS/.evidence/011-next-U1" --build-run "$HARNESS/.evidence/011-next-build" --freecad
 ```
 
 The checker validates full ZIP inventories/CRC, original embedded asset SHA,

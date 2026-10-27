@@ -115,7 +115,9 @@ module.exports = async function validatePage(page, origin, output, operation) {
       const archive = path.join(ROOT, 'cad/test/fixtures/performance/U1.boardstudio');
       assert(fs.existsSync(archive), 'freeze and commit the ordinary U1 project first');
       mark('frozen-project-import');
-      await page.locator('input.m1-project-file-input').first().setInputFiles(archive);
+      const input = page.locator('input.m1-project-file-input:not(:disabled)').first();
+      await input.waitFor({ state: 'attached' });
+      await input.setInputFiles(archive);
       await page.getByRole('button', { name: 'Open Case workspace', exact: true }).waitFor();
       await saved();
       mark('accepted-editor-ready');
@@ -127,6 +129,16 @@ module.exports = async function validatePage(page, origin, output, operation) {
     await page.getByRole('status').filter({ hasText: 'Exact case geometry ready.' }).waitFor();
     await saved();
     const accepted = await document();
+    if (operation === 'page') {
+      const scope = JSON.parse(fs.readFileSync(path.join(ROOT, 'cad/test/fixtures/performance/U1-scope.json')));
+      assert.equal(accepted.id, scope.projectId);
+      assert.equal(accepted.formatVersion, scope.formatVersion);
+      assert.equal(accepted.revision, scope.revision);
+      assert.equal(accepted.boards.length, 1);
+      assert.equal(accepted.boards[0].id, scope.boardId);
+      assert.deepEqual(accepted.boards[0].outlineIds, [scope.outlineId]);
+      assert.deepEqual(accepted.outline.map(outline => outline.id), [scope.outlineId]);
+    }
     assert.equal(accepted.matrices.length, 1);
     assert.equal(accepted.matrices[0].rows, 2);
     assert.equal(accepted.matrices[0].columns, 2);

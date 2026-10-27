@@ -3,6 +3,8 @@
 mod cad_responses;
 #[path = "../cad_target_responses.rs"]
 mod cad_target_responses;
+#[path = "../cad_u1.rs"]
+mod cad_u1;
 #[path = "../shutdown.rs"]
 mod shutdown;
 
@@ -98,7 +100,10 @@ async fn run() -> Result<()> {
         || args[1] != "monstertruck"
         || !matches!(
             args[3].as_str(),
-            "C1plate:preview"
+            "U1:freeze"
+                | "U1:page"
+                | "startup:cold"
+                | "C1plate:preview"
                 | "C1plate:step"
                 | "C2trayboss:preview"
                 | "C2trayboss:step"
@@ -116,9 +121,12 @@ async fn run() -> Result<()> {
         )
         || !matches!(args[6].as_str(), "validation" | "latency" | "growth20")
     {
-        return Err(Error("usage: cad-capture ORIGIN monstertruck PROFILE WORKLOAD OUTPUT PAIR validation|latency|growth20 (supported worker workloads only)".into()));
+        return Err(Error("usage: cad-capture ORIGIN monstertruck PROFILE WORKLOAD OUTPUT PAIR validation|latency|growth20 (supported workloads only)".into()));
     }
     let validation = args[6] == "validation";
+    if args[3] == "U1:freeze" && !validation {
+        return Err(Error("U1:freeze is validation-only".into()));
+    }
     let output = std::path::Path::new(&args[4]);
     let mut capture = Capture {
         events: OpenOptions::new()
@@ -172,19 +180,41 @@ async fn capture_browser(args: &[String], capture: &mut Capture) -> Result<()> {
         let result = async {
             page.execute(AddScriptToEvaluateOnNewDocumentParams::new("if (navigator.serviceWorker) navigator.serviceWorker.register = async () => { console.warn('Service Worker registration blocked by Playwright'); };")) .await.map_err(|e| Error(e.to_string()))?;
             page.execute(SetCacheDisabledParams::new(true)).await.map_err(|e| Error(e.to_string()))?;
-            let listener = cad_target_responses::start(browser.websocket_address(), page.target_id().inner()).await?;
+            let (boundary_tx, boundary_rx) = tokio::sync::oneshot::channel();
+            let boundary = (args[3] == "startup:cold").then(|| (vec![
+                format!("{}/boardstudio/assets/core-worker/entry.js", args[0]),
+                format!("{}/boardstudio/assets/core-worker/m1_core_worker.js", args[0]),
+                format!("{}/boardstudio/assets/core-worker/m1_core_worker_bg.wasm", args[0]),
+            ], boundary_tx));
+            let listener = cad_target_responses::start(browser.websocket_address(), page.target_id().inner(), boundary).await?;
             let work = async {
+                if let Some(operation) = args[3].strip_prefix("U1:") {
+                    let receipt = cad_u1::run(&browser, &context, &page, &args[0], std::path::Path::new(&args[4]), operation, &page_errors).await?;
+                    capture.event("U1", receipt)?;
+                    return page_errors.fail_if_any();
+                }
+                let is_startup = args[3] == "startup:cold";
+                if is_startup {
+                    capture.event("navigation-start", json!({}))?;
+                    let start = std::time::Instant::now();
+                    bounded(async { page.goto(format!("{}/boardstudio/", args[0])).await.map(|_| ()).map_err(|e| Error(e.to_string())) }, "navigation").await?;
+                    driver::wait_for(&page, r#"(() => { const b = document.querySelector('button[aria-label="Create new keyboard"]'); if (!b) return false; const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(b).visibility !== 'hidden'; })()"#, "usable landing", Duration::from_secs(180)).await?;
+                    capture.metric("cold", 0, "navigation-to-usable-landing", &json!(start.elapsed().as_secs_f64() * 1000.0), "ms")?;
+                    capture.event("landing-ready", json!({}))?;
+                    // Keep the landing worker alive until its observed responses and CDP setup are complete.
+                    bounded(async { boundary_rx.await.map_err(|_| Error("landing response observation ended before core worker responses".into())) }, "landing core worker responses").await?;
+                }
                 bounded(async { page.goto(format!("{}/__perf/cad/scripts/performance-host.html", args[0])).await.map(|_| ()).map_err(|e| Error(e.to_string())) }, "navigation").await?;
                 let source = include_str!("../../../../cad/scripts/measure-cad-worker.cjs");
                 let (fixture, operation) = args[3].split_once(':').ok_or_else(|| Error("invalid workload".into()))?;
-                let arguments = json!({"backend":args[1], "fixture":fixture, "operation":operation, "sequence":args[6], "isStartup":false});
+                let arguments = json!({"backend":args[1], "fixture":fixture, "operation":operation, "sequence":args[6], "isStartup":is_startup});
                 let expression = format!("(() => {{ const module = {{exports: null}}; {source} return module.exports({arguments}); }})()");
                 let prepared = bounded(driver::eval(&page, &expression), "worker preparation").await?;
                 capture.event("prepared", prepared.clone())?;
                 for (i, value) in prepared["startup"].as_array().ok_or_else(|| Error("missing startup samples".into()))?.iter().enumerate() { capture.metric("worker-startup", i, "worker-create-to-ready", value, "ms")?; }
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 capture.event("idle-baseline", json!({}))?;
-                let count = if capture.validation {1} else if args[6] == "growth20" {20} else {6};
+                let count = if capture.validation || is_startup {1} else if args[6] == "growth20" {20} else {6};
                 for i in 0..count {
                     let state = if args[6] == "growth20" {"growth"} else if i == 0 {"cold"} else {"warm"};
                     if operation == "step" && i > 0 {

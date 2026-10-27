@@ -71,6 +71,7 @@ pub struct Handler {
     ///
     /// There can be multiple sessions per target.
     sessions: HashMap<SessionId, Session>,
+    worker_owners: HashMap<SessionId, TargetId>,
     /// The websocket connection to the chromium instance
     conn: Connection<CdpEventMessage>,
     /// Evicts timed out requests periodically
@@ -117,6 +118,7 @@ impl Handler {
             targets: Default::default(),
             navigations: Default::default(),
             sessions: Default::default(),
+            worker_owners: Default::default(),
             conn,
             evict_command_timeout: PeriodicJob::new(config.request_timeout),
             next_navigation_id: 0,
@@ -403,12 +405,38 @@ impl Handler {
 
     /// Process an incoming event read from the websocket
     fn on_event(&mut self, event: CdpEventMessage) {
+        if let (Some(parent), CdpEvent::TargetAttachedToTarget(child)) =
+            (&event.session_id, &event.params)
+        {
+            if child.target_info.r#type == "worker" {
+                if let Some(session) = self.sessions.get(parent.as_str()) {
+                    self.worker_owners
+                        .insert(child.session_id.clone(), session.target_id().clone());
+                }
+            }
+        }
         match &event.params {
             CdpEvent::TargetTargetDestroyed(ev) => self.on_target_destroyed(ev.clone()),
             CdpEvent::TargetDetachedFromTarget(ev) => self.on_detached_from_target(ev.clone()),
             _ => {}
         }
         if let Some(ref session_id) = event.session_id {
+            if let Some(owner) = self.worker_owners.get(session_id.as_str()) {
+                if !matches!(
+                    &event.params,
+                    CdpEvent::NetworkResponseReceived(_) | CdpEvent::NetworkRequestWillBeSent(_)
+                ) {
+                    return;
+                }
+                if let Some(target) = self.targets.get_mut(owner) {
+                    let CdpEventMessage { params, method, .. } = event;
+                    chromiumoxide_cdp::consume_event!(match params {
+                        |ev| target.event_listeners_mut().start_send(ev),
+                        |json| { let _ = target.event_listeners_mut().try_send_custom(&method, json); }
+                    });
+                }
+                return;
+            }
             if let Some(session) = self.sessions.get(session_id.as_str()) {
                 if let Some(target) = self.targets.get_mut(session.target_id()) {
                     return target.on_event(event);
@@ -466,6 +494,7 @@ impl Handler {
     /// Can be issued multiple times per target if multiple session have been
     /// attached to it.
     fn on_detached_from_target(&mut self, event: EventDetachedFromTarget) {
+        self.worker_owners.remove(&event.session_id);
         // remove the session
         if let Some(session) = self.sessions.remove(&event.session_id) {
             if let Some(target) = self.targets.get_mut(session.target_id()) {
@@ -480,6 +509,8 @@ impl Handler {
 
     /// Fired when the target was destroyed in the browser
     fn on_target_destroyed(&mut self, event: EventTargetDestroyed) {
+        self.worker_owners
+            .retain(|_, owner| owner != &event.target_id);
         if let Some(mut target) = self.targets.remove(&event.target_id) {
             self.retired_listeners
                 .push(std::mem::take(target.event_listeners_mut()));
@@ -825,6 +856,62 @@ mod lifecycle_tests {
     use futures::{FutureExt, SinkExt, StreamExt};
     use std::time::Duration;
     use tokio::net::TcpListener;
+
+    #[tokio::test]
+    async fn dedicated_worker_events_reach_page_listener() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            async_tungstenite::tokio::accept_async(socket)
+                .await
+                .unwrap()
+        });
+        let conn = Connection::connect(format!("ws://{addr}")).await.unwrap();
+        let _socket = server.await.unwrap();
+        let (_tx, rx) = futures::channel::mpsc::channel(8);
+        let mut handler = Handler::new(conn, rx, HandlerConfig::default());
+        let send = |handler: &mut Handler, raw: &str| {
+            let Message::Event(event) = serde_json::from_str(raw).unwrap() else {
+                panic!("expected event")
+            };
+            handler.on_event(event);
+        };
+        for raw in [
+            r#"{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"page","type":"page","title":"","url":"about:blank","attached":false,"canAccessOpener":false}}}"#,
+            r#"{"method":"Target.attachedToTarget","params":{"sessionId":"page-session","targetInfo":{"targetId":"page","type":"page","title":"","url":"about:blank","attached":true,"canAccessOpener":false},"waitingForDebugger":false}}"#,
+            r#"{"method":"Target.attachedToTarget","params":{"sessionId":"worker-session","targetInfo":{"targetId":"worker","type":"worker","title":"","url":"worker.js","attached":true,"canAccessOpener":false},"waitingForDebugger":true},"sessionId":"page-session"}"#,
+        ] {
+            send(&mut handler, raw);
+        }
+        use chromiumoxide_cdp::cdp::browser_protocol::network::EventResponseReceived;
+        let (tx, rx) = futures::channel::mpsc::unbounded();
+        handler
+            .targets
+            .get_mut(&TargetId::new("page"))
+            .unwrap()
+            .event_listeners_mut()
+            .add_listener(EventListenerRequest::new::<EventResponseReceived>(tx));
+        let mut events = EventStream::<EventResponseReceived>::new(rx);
+        send(
+            &mut handler,
+            r#"{"method":"Network.responseReceived","params":{"requestId":"worker","loaderId":"loader","timestamp":1,"type":"Script","hasExtraInfo":false,"response":{"url":"https://example.test/worker.js","status":200,"statusText":"OK","headers":{},"mimeType":"text/javascript","charset":"","connectionReused":false,"connectionId":1,"encodedDataLength":0,"securityState":"secure"}},"sessionId":"worker-session"}"#,
+        );
+        std::future::poll_fn(|cx| {
+            let _ = Pin::new(&mut handler).poll_next(cx);
+            Poll::Ready(())
+        })
+        .await;
+        assert_eq!(
+            events
+                .next()
+                .now_or_never()
+                .flatten()
+                .map(|e| e.response.url.clone())
+                .as_deref(),
+            Some("https://example.test/worker.js")
+        );
+    }
 
     #[tokio::test]
     async fn matching_target_marker_drains_and_closes_delayed_listener() {

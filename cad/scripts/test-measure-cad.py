@@ -5,6 +5,7 @@ import csv
 import difflib
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import subprocess
@@ -20,12 +21,68 @@ SPEC.loader.exec_module(PERF)
 
 
 class CaptureSelectionTests(unittest.TestCase):
+    def test_rust_runtime_rejects_diagnostic_only_workloads_at_launcher(self):
+        evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as directory:
+            for workload, reason in (("startup:cold", "timing"), ("U1:page", "samples")):
+                for action, driver in (("runtime", "rust"), ("validate", "rust"), ("runtime", "node")):
+                    with self.subTest(workload=workload, action=action, driver=driver):
+                        args = ["measure-cad.py", action, "--driver", driver, "--workload", workload,
+                                "--output", str(Path(directory) / f"{workload.replace(':', '-')}-{action}-{driver}")]
+                        with patch.object(sys, "argv", args), patch.object(PERF, "binding", side_effect=RuntimeError("binding reached")), \
+                             patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                            if (action, driver) == ("runtime", "rust"):
+                                with self.assertRaises(SystemExit):
+                                    PERF.main()
+                                self.assertIn(reason, stderr.getvalue())
+                                self.assertIn("validate", stderr.getvalue())
+                            else:
+                                with self.assertRaisesRegex(RuntimeError, "binding reached"):
+                                    PERF.main()
+
     def test_rust_selection_accepts_worker_workloads_only(self):
         self.assertEqual(PERF.capture_driver("node", "C1plate:preview"), "node")
         for workload in (*PERF.PAIRED, *PERF.UNPAIRED):
             self.assertEqual(PERF.capture_driver("rust", workload), "rust")
-        with self.assertRaisesRegex(ValueError, "worker workloads"):
-            PERF.capture_driver("rust", "U1:page")
+        self.assertEqual(PERF.capture_driver("rust", "startup:cold"), "rust")
+        for workload in ("U1:freeze", "U1:page"):
+            self.assertEqual(PERF.capture_driver("rust", workload), "rust")
+        with self.assertRaisesRegex(ValueError, "does not support"):
+            PERF.capture_driver("rust", "startup:warm")
+
+    def test_selected_driver_controls_build_and_validation_prerequisites(self):
+        evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as directory:
+            root = Path(directory) / "checkout"
+            worker = root / "web/target/site/site-subpath/boardstudio/assets/cad-worker/entry.js"
+            worker.parent.mkdir(parents=True)
+            worker.touch()
+            receipt = Path(directory) / "receipt"
+            receipt.touch()
+            for action in ("build", "validate"):
+                for driver in ("rust", "node"):
+                    with self.subTest(action=action, driver=driver):
+                        out = Path(directory) / f"{action}-{driver}"
+                        args = ["measure-cad.py", action, "--checkout", str(root), "--source-head", "head",
+                                "--driver", driver, "--output", str(out)]
+                        args += (["--state", "noop"] if action == "build" else
+                                 ["--workload", "C1plate:preview", "--artifact-receipt", str(receipt)])
+                        with patch.object(sys, "argv", args), patch.object(PERF, "git", return_value="head"), \
+                             patch.object(PERF, "binding", return_value=([], True)), \
+                             patch.object(PERF, "existing_artifacts", return_value="fixture"), \
+                             patch.object(PERF.browser_tools, "locate", side_effect=PERF.browser_tools.MissingBrowserTool("playwright-core unavailable")), \
+                             patch.object(PERF.browser_tools, "locate_chrome", return_value="/chrome"), \
+                             patch.object(PERF.browser_tools, "_build_harness", return_value=Path("/capture")), \
+                             patch.object(PERF, "capture", return_value=(1, 0)), \
+                             patch.object(PERF, "sizes"), patch.object(PERF.subprocess, "Popen") as process:
+                            process.return_value.wait.return_value = 0
+                            if driver == "node":
+                                with self.assertRaisesRegex(PERF.browser_tools.MissingBrowserTool, "playwright-core"):
+                                    PERF.main()
+                            else:
+                                self.assertEqual(PERF.main(), 1 if action == "build" else 0)
 
 
 class CaptureLockTests(unittest.TestCase):
@@ -99,6 +156,40 @@ class BuildBindingTests(unittest.TestCase):
         output.mkdir(exist_ok=True)
         PERF.summarize(inputs, output)
         return output
+
+    def test_page_capture_requires_successful_matching_build_receipt(self):
+        build = self.sample("page-build", state="noop")
+        capture = self.root / "page-capture"
+        capture.mkdir()
+        bound = (build / "binding-after.log").read_text()
+        (capture / "binding-before.log").write_text(bound)
+        (capture / "binding-after.log").write_text(bound)
+        PERF.validate_page_build_receipt(capture, build)
+        (capture / "binding-after.log").write_text(bound.replace("head=", "head=wrong"))
+        with self.assertRaisesRegex(ValueError, "drift"):
+            PERF.validate_page_build_receipt(capture, build)
+        (capture / "binding-after.log").write_text(bound)
+        (build / "build.csv").write_text("backend,profile,state,status\nmonstertruck,checked,noop,binding-rejected\n")
+        with self.assertRaisesRegex(ValueError, "build receipt"):
+            PERF.validate_page_build_receipt(capture, build)
+
+    def test_u1_scope_rejects_identity_drift(self):
+        import zipfile
+        with zipfile.ZipFile(PERF.FIXTURES / "U1.boardstudio") as archive:
+            project = json.loads(archive.read("project.json"))
+        PERF.validate_u1_scope(project)
+        for key in ("id", "formatVersion", "revision"):
+            changed = dict(project, **{key: "wrong"})
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "U1 scope"):
+                PERF.validate_u1_scope(changed)
+        changed = json.loads(json.dumps(project))
+        changed["boards"][0]["id"] = "wrong"
+        with self.assertRaisesRegex(ValueError, "U1 scope"):
+            PERF.validate_u1_scope(changed)
+        changed = json.loads(json.dumps(project))
+        changed["boards"][0]["outlineIds"] = ["wrong"]
+        with self.assertRaisesRegex(ValueError, "U1 scope"):
+            PERF.validate_u1_scope(changed)
 
     def test_reduction_accepts_generated_outputs_and_exact_incremental_transition(self):
         inputs = [self.sample(f"{backend}-{state}", backend, state)

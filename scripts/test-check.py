@@ -43,6 +43,7 @@ class CheckTests(unittest.TestCase):
                       for command in commands for argument in command if argument in scripts}
         delegated = {"scripts/test-drag-interactions.cjs": "scripts/run-drag-browser.py"}
         opt_in = {
+            "cad/scripts/test-cold-responses.py": "diagnostic requiring a packaged site, capture binary and Chrome",
             "scripts/test-drag-browser-consumer-controls.py": "Linux CI consumer fault controls",
             "scripts/test-graphite-feedback.cjs": "interactive Graphite acceptance against a running dev server",
             "scripts/test-graphite-usability.cjs": "compatibility entry point for Graphite acceptance",

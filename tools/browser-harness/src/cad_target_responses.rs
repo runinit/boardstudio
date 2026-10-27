@@ -10,6 +10,7 @@ use tokio::sync::oneshot;
 pub async fn start(
     address: &str,
     target: &str,
+    boundary: Option<(Vec<String>, oneshot::Sender<()>)>,
 ) -> Result<tokio::task::JoinHandle<Result<Vec<Resource>>>> {
     let (mut socket, _) = connect_async(address)
         .await
@@ -19,9 +20,12 @@ pub async fn start(
     let task = tokio::spawn(async move {
         let mut ready = Some(ready_tx);
         let result = async {
+            let mut boundary = boundary;
+            let boundary_worker_url = boundary.as_ref().and_then(|(urls, _)| urls.first()).cloned();
             let mut next_id = 1_u64;
             let mut pending = HashMap::new();
             let mut workers = HashSet::new();
+            let mut boundary_workers = HashSet::new();
             let mut responses = Vec::new();
             let mut page = String::new();
             send(&mut socket, &mut next_id, &mut pending, "Target.attachToTarget", json!({"targetId":target,"flatten":true}), None, "attach").await?;
@@ -48,6 +52,7 @@ pub async fn start(
                         "resume" => {}
                         _ => return Err(Error("unexpected response CDP command".into())),
                     }
+                    finish_boundary(&mut boundary, &pending);
                     continue;
                 }
                 let method = value["method"].as_str().ok_or_else(|| Error("invalid response CDP event".into()))?;
@@ -58,6 +63,9 @@ pub async fn start(
                         if params["targetInfo"]["type"] != "worker" || params["waitingForDebugger"] != true { return Err(Error(format!("unsupported attached target: {params}"))); }
                         let child = params["sessionId"].as_str().ok_or_else(|| Error("missing worker session".into()))?.to_owned();
                         if !workers.insert(child.clone()) { return Err(Error("duplicate worker session".into())); }
+                        if params["targetInfo"]["url"].as_str() == boundary_worker_url.as_deref() && boundary_worker_url.is_some() {
+                            boundary_workers.insert(child.clone());
+                        }
                         send(&mut socket, &mut next_id, &mut pending, "Network.enable", json!({}), Some(&child), "network").await?;
                     }
                     "Network.responseReceived" | "Network.requestWillBeSent" if session == Some(&page) || session.is_some_and(|s| workers.contains(s)) => {
@@ -71,12 +79,24 @@ pub async fn start(
                             let status = r["status"].as_i64().ok_or_else(|| Error("response missing status".into()))?;
                             let service_worker = match r.get("fromServiceWorker") { Some(v) => Some(v.as_bool().ok_or_else(|| Error("invalid service worker response field".into()))?), None => None };
                             responses.push(cad_responses::resource(url.to_owned(), status, service_worker));
+                            if method == "Network.responseReceived" {
+                                if let Some((remaining, _)) = boundary.as_mut() {
+                                    if remaining.iter().any(|expected| expected == url) && status != 200 {
+                                        return Err(Error(format!("landing core worker response failed: {url} status {status}")));
+                                    }
+                                    remaining.retain(|expected| expected != url);
+                                }
+                                finish_boundary(&mut boundary, &pending);
+                            }
                         }
                     }
                     "Target.detachedFromTarget" if value["params"]["sessionId"].as_str() == Some(&page) => {
                         if !pending.is_empty() { return Err(Error("response CDP commands incomplete at page boundary".into())); }
                         if workers.is_empty() { return Err(Error("no dedicated worker target observed".into())); }
                         return Ok(responses);
+                    }
+                    "Target.detachedFromTarget" if boundary.is_some() && value["params"]["sessionId"].as_str().is_some_and(|s| boundary_workers.contains(s)) => {
+                        return Err(Error("landing core worker detached before response boundary".into()));
                     }
                     _ => {}
                 }
@@ -108,6 +128,20 @@ pub async fn start(
             task.abort();
             Err(Error("response capture setup timed out".into()))
         }
+    }
+}
+
+fn finish_boundary(
+    boundary: &mut Option<(Vec<String>, oneshot::Sender<()>)>,
+    pending: &HashMap<u64, (&'static str, Option<String>)>,
+) {
+    if boundary
+        .as_ref()
+        .is_some_and(|(remaining, _)| remaining.is_empty())
+        && pending.is_empty()
+    {
+        let (_, tx) = boundary.take().unwrap();
+        let _ = tx.send(());
     }
 }
 
@@ -157,7 +191,7 @@ mod tests {
                 socket.next().await.unwrap().unwrap();
                 socket.send(Message::Text(reply.into())).await.unwrap();
             });
-            let error = start(&address, "target")
+            let error = start(&address, "target", None)
                 .await
                 .err()
                 .expect("capture must fail")

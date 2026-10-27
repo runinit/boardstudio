@@ -39,7 +39,7 @@ async fn run() -> Result<()> {
         let (context, page) =
             driver::new_isolated_page(&browser, "about:blank", &page_errors).await?;
         let result = async {
-            let listener = cad_target_responses::start(browser.websocket_address(), page.target_id().inner()).await?;
+            let listener = cad_target_responses::start(browser.websocket_address(), page.target_id().inner(), None).await?;
             let startup = async {
                 let navigation = tokio::time::timeout(Duration::from_secs(180), page.goto(&url))
                     .await
