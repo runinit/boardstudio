@@ -1,3 +1,4 @@
+// Run with NODE_PATH, CHROME_BIN, and BOARDSTUDIO_PREVIEW_URL pointing to a running site.
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright-core');
 

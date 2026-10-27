@@ -44,9 +44,11 @@ class CheckTests(unittest.TestCase):
         delegated = {"scripts/test-drag-interactions.cjs": "scripts/run-drag-browser.py"}
         opt_in = {
             "cad/scripts/test-cold-responses.py": "diagnostic requiring a packaged site, capture binary and Chrome",
+            "cad/scripts/test-startup-readiness.py": "diagnostic requiring a packaged site, capture binary and Chrome",
             "scripts/test-drag-browser-consumer-controls.py": "Linux CI consumer fault controls",
             "scripts/test-graphite-feedback.cjs": "interactive Graphite acceptance against a running dev server",
             "scripts/test-graphite-usability.cjs": "compatibility entry point for Graphite acceptance",
+            "scripts/test-parts-inspector-scroll.cjs": "Parts inspector check against a running site and Chrome",
         }
         self.assertEqual(scripts, registered | delegated.keys() | opt_in.keys())
         self.assertTrue(all(opt_in.values()))
