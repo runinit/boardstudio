@@ -46,6 +46,7 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -409,7 +410,7 @@ def format_wasm_failure_summary(output_or_summary: str | dict[str, object] | Non
 
 def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                captured: list[tuple[Command, str]] | None = None,
-               outputs: list[tuple[Command, str]] | None = None) -> tuple[float, int]:
+               outputs: list[tuple[Command, str]] | None = None) -> tuple[float, int, str, str]:
     print("$ " + shlex.join(command), flush=True)
     lock_fd = browser_tools._inherited_build_lock()
     if not any(part in command for part in ("scripts/run-drag-browser.py", "scripts/build-web.py",
@@ -418,9 +419,18 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
         environment.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
     lock_args = {"pass_fds": (lock_fd,)} if lock_fd is not None else {}
     started = time.monotonic()
+    started_at = datetime.now(timezone.utc).isoformat()
+    print(f"check: start {started_at} $ {shlex.join(command)}", flush=True)
+    def run(*args, **kwargs):
+        try:
+            return subprocess.run(*args, **kwargs)
+        except OSError as error:
+            message = f"startup failed: {error}\n"
+            print(message, end="", file=sys.stderr, flush=True)
+            return subprocess.CompletedProcess(command, 127, stdout=message)
     if captured is not None and is_cargo_test(command):
         # The native test-name guard reads this output; it is printed whole once the command ends.
-        done = subprocess.run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
+        done = run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, text=True, **lock_args)
         text = output_text(done.stdout)
         print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
@@ -429,17 +439,18 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
             outputs.append((command, text))
         code = done.returncode
     elif outputs is not None and is_wasm_pack_test(command):
-        done = subprocess.run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
+        done = run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, text=True, **lock_args)
         text = output_text(done.stdout)
         print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
         outputs.append((command, text))
         code = done.returncode
     else:
-        code = subprocess.run(command, cwd=cwd, env=environment, **lock_args).returncode
+        code = run(command, cwd=cwd, env=environment, **lock_args).returncode
     elapsed = time.monotonic() - started
-    print(f"  ({elapsed:.1f}s)", flush=True)
-    return elapsed, code
+    ended_at = datetime.now(timezone.utc).isoformat()
+    print(f"check: end {ended_at} exit {code} ({elapsed:.1f}s)", flush=True)
+    return elapsed, code, started_at, ended_at
 
 
 def run_parallel(batch: list[Command], environment: dict[str, str],
@@ -450,15 +461,23 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
     """Runs independent launches together, printing each one's output whole and in order."""
     lock_fd = browser_tools._inherited_build_lock()
 
-    def launch(command: Command) -> tuple[int, str, float]:
+    def launch(command: Command) -> tuple[int, str, float, str, str]:
         started = time.monotonic()
+        started_at = datetime.now(timezone.utc).isoformat()
+        print(f"check: start {started_at} $ {shlex.join(command)}", flush=True)
         child_env = environment.copy()
         if "cad/scripts/test-cad.py" not in command:
             child_env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
-        done = subprocess.run(command, cwd=ROOT, env=child_env, stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, text=True,
-                              **({"pass_fds": (lock_fd,)} if lock_fd is not None else {}))
-        return done.returncode, done.stdout, time.monotonic() - started
+        try:
+            done = subprocess.run(command, cwd=ROOT, env=child_env, stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT, text=True,
+                                  **({"pass_fds": (lock_fd,)} if lock_fd is not None else {}))
+            code, output = done.returncode, done.stdout
+        except OSError as error:
+            code, output = 127, f"startup failed: {error}\n"
+        ended_at = datetime.now(timezone.utc).isoformat()
+        print(f"check: end {ended_at} exit {code} $ {shlex.join(command)}", flush=True)
+        return code, output, time.monotonic() - started, started_at, ended_at
 
     ordered = sorted(batch, key=launch_order)
     started = time.monotonic()
@@ -466,7 +485,7 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
     with ThreadPoolExecutor(max_workers=check_jobs()) as pool:
         futures = [(command, pool.submit(launch, command)) for command in ordered]
         for command, future in futures:
-            code, output, elapsed = future.result()
+            code, output, elapsed, started_at, ended_at = future.result()
             text = output_text(output)
             print("$ " + shlex.join(command), flush=True)
             print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
@@ -476,7 +495,7 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
             if outputs is not None:
                 outputs.append((command, text))
             if receipt is not None:
-                receipt.observe(step, command, code, elapsed, text)
+                receipt.observe(step, command, code, elapsed, text, started_at=started_at, ended_at=ended_at)
             if code:
                 failed.append(command)
     return time.monotonic() - started, failed
@@ -525,10 +544,11 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
         serial_outputs: list[tuple[Command, str]] = []
         if receipt is not None:
             receipt.prepare(command)
-        elapsed, code = run_serial(command, environment, cwd, captured, serial_outputs)
+        elapsed, code, started_at, ended_at = run_serial(command, environment, cwd, captured, serial_outputs)
         total += elapsed
         if receipt is not None:
-            receipt.observe(name, command, code, elapsed, serial_outputs[-1][1] if serial_outputs else "")
+            receipt.observe(name, command, code, elapsed, serial_outputs[-1][1] if serial_outputs else "",
+                            started_at=started_at, ended_at=ended_at)
         if code:
             text = serial_outputs[-1][1] if serial_outputs else ""
             if is_crate_launch(command):

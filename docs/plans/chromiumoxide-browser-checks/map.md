@@ -87,3 +87,14 @@ until all consumers have migrated. No parent specification is closed by this han
 - Weakening assertions, hiding page errors, accepting incomplete runs, or retries that mask failures.
 - Fixing unrelated application bugs such as the part-drag Undo failure.
 - Firefox/WebKit support.
+
+## Retrospective implementation, 2026-10-26
+
+On `fix/drag-save-undo` after `b817585c`, the authorized follow-up added scheduler
+launch timestamps and startup diagnostics, and clarified delegated implementation
+handoffs in the model lookup. The Graphite draft gained pointer-capture and dependent
+Undo verdict checks plus optional launch-time local identity; the served build remains
+unverified for an arbitrary preview URL. Those Graphite changes remain in the dirty
+Ticket 007 draft pending real-browser verification and its existing parity gates. The
+TDD skill outside this repository was updated to select existing seams autonomously.
+U1 and Snap decisions remain open; this entry is not an acceptance or closure receipt.

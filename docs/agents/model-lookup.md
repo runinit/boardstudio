@@ -11,6 +11,11 @@ Before `delegate_task`, `create_threads` or `t3_thread_launch`: you have an exac
 values and allowed choices to pass on. A printed `orchestrator_capabilities({})` result is
 not a selection: it carries every provider and model.
 
+## Implementation handoff
+
+A delegated implementation brief names the concrete completion artifact, the verification
+required to accept it, and the exact blocker to report if completion is not possible.
+
 ## Codex code mode
 
 The isolate has no imports, filesystem, subprocess, `eval` or `Function` constructor, so the
