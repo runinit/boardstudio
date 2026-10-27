@@ -24,8 +24,9 @@ async fn run() -> Result<()> {
     let url = args
         .next()
         .ok_or_else(|| Error("usage: cad-response-probe URL".into()))?;
+    let workload = args.next();
     if args.next().is_some() {
-        return Err(Error("usage: cad-response-probe URL".into()));
+        return Err(Error("usage: cad-response-probe URL [WORKLOAD]".into()));
     }
     let chrome = std::env::var("CHROME_BIN").map_err(|_| Error("set CHROME_BIN".into()))?;
     let root = std::env::var("TMPDIR").unwrap_or_else(|_| "/tmp".into());
@@ -63,6 +64,36 @@ async fn run() -> Result<()> {
                 .map(|_| ())
                 .map_err(|e| Error(format!("navigation failed: {e}")));
             let startup = match navigation {
+                Ok(()) if workload.is_some() => {
+                    let workload = workload.as_deref().unwrap();
+                    let (fixture, operation) = workload.split_once(':')
+                        .ok_or_else(|| Error("workload must be FIXTURE:OPERATION".into()))?;
+                    let supported = match fixture {
+                        "C1plate" | "C2trayboss" | "C3gasket" | "P1analyticPCB" => matches!(operation, "preview" | "step"),
+                        "V1switch" => operation == "import",
+                        "V2vendor" => matches!(operation, "import" | "refine"),
+                        "K1keycap" => matches!(operation, "preview" | "print"),
+                        "Qvendor" => matches!(operation, "default" | "tight"),
+                        _ => false,
+                    };
+                    if !supported {
+                        return Err(Error("unsupported diagnostic worker workload".into()));
+                    }
+                    // shortcut: diagnostic depends on Node source markers, extract a shared module for launcher integration.
+                    let source = include_str!("../../../../cad/scripts/measure-cad-runtime.cjs");
+                    let (_, rest) = source.split_once("const result = await page.evaluate(")
+                        .ok_or_else(|| Error("worker capture preparation marker missing".into()))?;
+                    let (function, _) = rest.split_once(", { backend, fixture, operation, sequence, isStartup: fixture === 'startup' });")
+                        .ok_or_else(|| Error("worker capture preparation end marker missing".into()))?;
+                    let arguments = serde_json::json!({"backend":"monstertruck", "fixture":fixture,
+                        "operation":operation, "sequence":"validation", "isStartup":false});
+                    let expression = format!("({function})({arguments})");
+                    let prepared = tokio::time::timeout(Duration::from_secs(180), driver::eval(&page, &expression))
+                        .await.map_err(|_| Error("worker preparation timed out after 180 seconds".into()))??;
+                    let sample = tokio::time::timeout(Duration::from_secs(180), driver::eval(&page, "window.__measure.run()"))
+                        .await.map_err(|_| Error("worker operation timed out after 180 seconds".into()))??;
+                    Ok(serde_json::json!({"prepared": prepared, "sample": sample}))
+                }
                 Ok(()) => tokio::time::timeout(Duration::from_secs(180), driver::eval(&page, r#"
                     (async () => {
                       const start = performance.now();
@@ -89,7 +120,7 @@ async fn run() -> Result<()> {
         let (startup, listener) = result?;
         disposal?;
         let startup = startup?;
-        if !startup.as_f64().is_some_and(|value| value.is_finite() && value >= 0.0) {
+        if workload.is_none() && !startup.as_f64().is_some_and(|value| value.is_finite() && value >= 0.0) {
             return Err(Error("invalid worker startup duration".into()));
         }
         let responses = tokio::time::timeout(Duration::from_secs(60), listener)
@@ -99,12 +130,13 @@ async fn run() -> Result<()> {
         if responses.is_empty() {
             return Err(Error("no response events observed".into()));
         }
-        Ok::<_, Error>(serde_json::json!({
+        let mut output = serde_json::json!({
             "purpose": "diagnostic-not-benchmark",
             "responseScope": "page-target-only",
-            "workerCreateToReadyMs": startup,
             "responses": responses,
-        }))
+        });
+        output[if workload.is_some() { "operation" } else { "workerCreateToReadyMs" }] = startup;
+        Ok::<_, Error>(output)
     }
     .await;
     let (closed, confirmed) =

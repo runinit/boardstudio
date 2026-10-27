@@ -89,3 +89,30 @@ launcher, complete operation and U1 paths, response completeness, cache and
 service-worker controls, source-bound old/new comparison, negative controls,
 full check and closure review remain open. The Node capture remains the default;
 ticket 006 stays claimed and 007/008 are unchanged.
+
+## 2026-10-26: worker-operation diagnostic and response comparison
+
+The Rust probe accepts an optional non-startup worker workload and evaluates the
+existing Node driver's preparation and operation checks, including reply identity,
+revision, and output validation. It is still a diagnostic: it extracts the
+existing page callback by source markers at compile time and fails if they are
+missing; this needs a shared module before launcher integration. It does not emit
+the capture protocol or provide U1, cache, service-worker, or complete responses.
+
+With Chrome for Testing 145.0.7622.0 on the existing unbound site, C1 preview
+completed with 492 triangles and 35424 buffer bytes
+(`.evidence/ticket006/operation-browser.log`). A missing C1 fixture exited 1 with
+empty stdout (`operation-negative.log`). The prior binary rejected the workload
+argument (`operation-red.log`); this is a CLI capability control, not a browser
+regression test. The Rust probe test passed 1/1 and clippy passed; the existing
+Python tests passed 16/16 and Node protocol checks passed 5 plus STL controls.
+
+A separate Node context-response diagnostic on the same unbound site and pinned
+Chrome observed 200 responses for `cad-worker/entry.js`, `m1_cad_worker.js`,
+`m1_cad_worker_bg.wasm`, and both CAD provider assets
+(`.evidence/ticket006/node-worker-responses.log`). The Rust operation probe
+observed only host, favicon, and fixture responses. These runs establish a
+response-coverage gap, not that worker CDP capture is impossible. The supported
+launcher, U1, full source-bound capture, parity, cache/service-worker controls,
+negative controls, full check, and closure review remain open; Node remains the
+default. No acceptance checkbox has been cleared.
