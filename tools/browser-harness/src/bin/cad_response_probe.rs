@@ -1,13 +1,13 @@
 //! Diagnostic CAD worker startup and response capture; not a measurement receipt.
 #[path = "../cad_responses.rs"]
 mod cad_responses;
+#[path = "../cad_target_responses.rs"]
+mod cad_target_responses;
 #[path = "../shutdown.rs"]
 mod shutdown;
 
 use boardstudio_browser_harness::driver::{self, HandlerErrors, PageErrors};
 use boardstudio_browser_harness::{Error, IsolatedDirs, Result};
-use chromiumoxide::cdp::browser_protocol::network::{EnableParams, EventResponseReceived};
-use futures::StreamExt;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -39,100 +39,90 @@ async fn run() -> Result<()> {
         let (context, page) =
             driver::new_isolated_page(&browser, "about:blank", &page_errors).await?;
         let result = async {
-            let mut events = page
-                .event_listener::<EventResponseReceived>()
-                .await
-                .map_err(|e| Error(format!("cannot subscribe to responses: {e}")))?;
-            page.execute(EnableParams::default())
-                .await
-                .map_err(|e| Error(format!("cannot enable network events: {e}")))?;
-            let listener = tokio::spawn(async move {
-                let mut responses = Vec::new();
-                while let Some(event) = events.next().await {
-                    let r = &event.response;
-                    responses.push(cad_responses::resource(
-                        r.url.clone(),
-                        r.status,
-                        r.from_service_worker,
-                    ));
-                }
-                responses
-            });
-            let navigation = tokio::time::timeout(Duration::from_secs(180), page.goto(&url))
-                .await
-                .map_err(|_| Error("navigation timed out after 180 seconds".into()))?
-                .map(|_| ())
-                .map_err(|e| Error(format!("navigation failed: {e}")));
-            let startup = match navigation {
-                Ok(()) if workload.is_some() => {
-                    let workload = workload.as_deref().unwrap();
-                    let (fixture, operation) = workload.split_once(':')
-                        .ok_or_else(|| Error("workload must be FIXTURE:OPERATION".into()))?;
-                    let supported = match fixture {
-                        "C1plate" | "C2trayboss" | "C3gasket" | "P1analyticPCB" => matches!(operation, "preview" | "step"),
-                        "V1switch" => operation == "import",
-                        "V2vendor" => matches!(operation, "import" | "refine"),
-                        "K1keycap" => matches!(operation, "preview" | "print"),
-                        "Qvendor" => matches!(operation, "default" | "tight"),
-                        _ => false,
-                    };
-                    if !supported {
-                        return Err(Error("unsupported diagnostic worker workload".into()));
+            let listener = cad_target_responses::start(browser.websocket_address(), page.target_id().inner()).await?;
+            let startup = async {
+                let navigation = tokio::time::timeout(Duration::from_secs(180), page.goto(&url))
+                    .await
+                    .map_err(|_| Error("navigation timed out after 180 seconds".into()))?
+                    .map(|_| ())
+                    .map_err(|e| Error(format!("navigation failed: {e}")));
+                let startup = match navigation {
+                    Ok(()) if workload.is_some() => {
+                        let workload = workload.as_deref().unwrap();
+                        let (fixture, operation) = workload.split_once(':')
+                            .ok_or_else(|| Error("workload must be FIXTURE:OPERATION".into()))?;
+                        let supported = match fixture {
+                            "C1plate" | "C2trayboss" | "C3gasket" | "P1analyticPCB" => matches!(operation, "preview" | "step"),
+                            "V1switch" => operation == "import",
+                            "V2vendor" => matches!(operation, "import" | "refine"),
+                            "K1keycap" => matches!(operation, "preview" | "print"),
+                            "Qvendor" => matches!(operation, "default" | "tight"),
+                            _ => false,
+                        };
+                        if !supported {
+                            return Err(Error("unsupported diagnostic worker workload".into()));
+                        }
+                        // shortcut: diagnostic depends on Node source markers, extract a shared module for launcher integration.
+                        let source = include_str!("../../../../cad/scripts/measure-cad-runtime.cjs");
+                        let (_, rest) = source.split_once("const result = await page.evaluate(")
+                            .ok_or_else(|| Error("worker capture preparation marker missing".into()))?;
+                        let (function, _) = rest.split_once(", { backend, fixture, operation, sequence, isStartup: fixture === 'startup' });")
+                            .ok_or_else(|| Error("worker capture preparation end marker missing".into()))?;
+                        let arguments = serde_json::json!({"backend":"monstertruck", "fixture":fixture,
+                            "operation":operation, "sequence":"validation", "isStartup":false});
+                        let expression = format!("({function})({arguments})");
+                        let prepared = tokio::time::timeout(Duration::from_secs(180), driver::eval(&page, &expression))
+                            .await.map_err(|_| Error("worker preparation timed out after 180 seconds".into()))??;
+                        let sample = tokio::time::timeout(Duration::from_secs(180), driver::eval(&page, "window.__measure.run()"))
+                            .await.map_err(|_| Error("worker operation timed out after 180 seconds".into()))??;
+                        Ok(serde_json::json!({"prepared": prepared, "sample": sample}))
                     }
-                    // shortcut: diagnostic depends on Node source markers, extract a shared module for launcher integration.
-                    let source = include_str!("../../../../cad/scripts/measure-cad-runtime.cjs");
-                    let (_, rest) = source.split_once("const result = await page.evaluate(")
-                        .ok_or_else(|| Error("worker capture preparation marker missing".into()))?;
-                    let (function, _) = rest.split_once(", { backend, fixture, operation, sequence, isStartup: fixture === 'startup' });")
-                        .ok_or_else(|| Error("worker capture preparation end marker missing".into()))?;
-                    let arguments = serde_json::json!({"backend":"monstertruck", "fixture":fixture,
-                        "operation":operation, "sequence":"validation", "isStartup":false});
-                    let expression = format!("({function})({arguments})");
-                    let prepared = tokio::time::timeout(Duration::from_secs(180), driver::eval(&page, &expression))
-                        .await.map_err(|_| Error("worker preparation timed out after 180 seconds".into()))??;
-                    let sample = tokio::time::timeout(Duration::from_secs(180), driver::eval(&page, "window.__measure.run()"))
-                        .await.map_err(|_| Error("worker operation timed out after 180 seconds".into()))??;
-                    Ok(serde_json::json!({"prepared": prepared, "sample": sample}))
-                }
-                Ok(()) => tokio::time::timeout(Duration::from_secs(180), driver::eval(&page, r#"
-                    (async () => {
-                      const start = performance.now();
-                      const worker = new Worker('/boardstudio/assets/cad-worker/entry.js', { type: 'module' });
-                      try {
-                        await new Promise((resolve, reject) => {
-                          worker.onerror = e => reject(Error(e.message));
-                          worker.onmessage = e => {
-                            if (e.data.kind === 'ready') resolve();
-                            if (e.data.kind === 'init-failed') reject(Error(JSON.stringify(e.data)));
-                          };
-                        });
-                        return performance.now() - start;
-                      } finally { worker.terminate(); }
-                    })()
-                "#)).await.map_err(|_| Error("worker ready watchdog: 180 seconds".into()))?,
-                Err(error) => Err(error),
-            };
+                    Ok(()) => tokio::time::timeout(Duration::from_secs(180), driver::eval(&page, r#"
+                        (async () => {
+                          const start = performance.now();
+                          const worker = new Worker('/boardstudio/assets/cad-worker/entry.js', { type: 'module' });
+                          try {
+                            await new Promise((resolve, reject) => {
+                              worker.onerror = e => reject(Error(e.message));
+                              worker.onmessage = e => {
+                                if (e.data.kind === 'ready') resolve();
+                                if (e.data.kind === 'init-failed') reject(Error(JSON.stringify(e.data)));
+                              };
+                            });
+                            return performance.now() - start;
+                          } finally { worker.terminate(); }
+                        })()
+                    "#)).await.map_err(|_| Error("worker ready watchdog: 180 seconds".into()))?,
+                    Err(error) => Err(error),
+                };
+                startup
+            }.await;
             Ok::<_, Error>((startup, listener))
         }
         .await;
         let disposal =
             driver::dispose_isolated_page(&browser, Some(context), page, &page_errors).await;
         let (startup, listener) = result?;
-        disposal?;
+        let mut listener = listener;
+        let responses = match tokio::time::timeout(Duration::from_secs(60), &mut listener).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(error)) => Err(Error(format!("response listener failed: {error}"))),
+            Err(_) => { listener.abort(); Err(Error("response listener did not finish".into())) }
+        };
+        let errors: Vec<String> = [disposal.as_ref().err(), startup.as_ref().err(), responses.as_ref().err()]
+            .into_iter().flatten().map(ToString::to_string).collect();
+        if !errors.is_empty() { return Err(Error(errors.join("; "))); }
         let startup = startup?;
+        let responses = responses?;
         if workload.is_none() && !startup.as_f64().is_some_and(|value| value.is_finite() && value >= 0.0) {
             return Err(Error("invalid worker startup duration".into()));
         }
-        let responses = tokio::time::timeout(Duration::from_secs(60), listener)
-            .await
-            .map_err(|_| Error("response listener did not finish".into()))?
-            .map_err(|e| Error(format!("response listener failed: {e}")))?;
         if responses.is_empty() {
             return Err(Error("no response events observed".into()));
         }
         let mut output = serde_json::json!({
             "purpose": "diagnostic-not-benchmark",
-            "responseScope": "page-target-only",
+            "responseScope": "page-and-dedicated-workers",
             "responses": responses,
         });
         output[if workload.is_some() { "operation" } else { "workerCreateToReadyMs" }] = startup;

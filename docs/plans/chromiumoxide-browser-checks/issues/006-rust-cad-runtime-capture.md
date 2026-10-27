@@ -129,3 +129,44 @@ worker/provider responses; the Rust probe observed none of those, only host,
 favicon, and fixture responses. These direct diagnostic runs are not launcher
 captures or full parity: their response schemas and cache setup differ, and U1,
 the rest of the operation matrix, and failure controls have not been compared.
+
+## 2026-10-26: dedicated-worker response capture slice
+
+Chrome for Testing 145.0.7622.0 CDP probing on the `e666646` source-bound
+packaged site established that the host and favicon responses are delivered on
+its page session, while all five CAD worker/provider responses are delivered on
+its dedicated-worker session. Pausing attachment, enabling Network on the worker,
+and only then resuming captured the initial worker script as well as its imports
+(`.evidence/ticket006/cdp-target-matrix.log`). A second auto-attached session
+resuming its worker did not prevent this sequence in the observed Chrome run
+(`cdp-multi-session.log`); it is not proof for other Chrome versions.
+
+The diagnostic now attaches its own flattened page session and captures page and
+paused dedicated-worker responses through target detach. It rejects unsupported
+attached targets, failed commands, malformed CDP messages, a missing worker, and
+an incomplete boundary; page exceptions and the shared handler's invalid-message
+handling remain fatal. Redirect responses are read from the subsequent request
+CDP event. The real Chrome fixture initially failed because its 302 was missing
+(`target-redirect-red.log`), then passed with 200, 201, 302 and 404 response
+controls and fatal page-exception/missing-worker controls
+(`target-final-real-controls.log`). A controlled protocol test rejects a failed
+CDP command and malformed JSON; the probe tests passed 2/2 and harness clippy
+passed (`target-final-tests.log`, `target-final-clippy.log`). Run the real fixture
+with `CHROME_BIN=<chrome> python3 tools/browser-harness/test-cad-target-responses.py`
+after building the probe.
+
+A sequential Node/Rust C1 preview comparison on the same previously bound site
+passed with all seven Node URL/status/service-worker response records present
+once in Rust, including all five worker/provider assets; Rust additionally saw a
+favicon 404. Both reported 492 triangles, 35424 buffer bytes and zero STEP bytes
+(`target-final-comparison-counts.log`). The comparison is reproducible with
+`CHROME_BIN=<chrome> NODE_PATH=<playwright-node-modules> python3 tools/browser-harness/compare-cad-responses.py`;
+it does not independently validate build binding. An initial invocation without
+those environment variables failed before the comparison (`target-final-comparison.log`).
+The separate attachment and Network enablement add startup instrumentation overhead;
+no timing equivalence or speed claim follows from this diagnostic.
+
+This is still not the launcher capture or ticket closure. Service-worker-origin
+true, cache and service-worker controls, other workloads, U1, full event/schema and
+failure parity, supported full check and closure review remain unverified. The
+Node runner remains the default and all acceptance boxes remain open.
