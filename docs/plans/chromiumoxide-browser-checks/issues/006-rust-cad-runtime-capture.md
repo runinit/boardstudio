@@ -250,3 +250,53 @@ cache and service-worker-origin parity, complete failure/output parity, the full
 supported check, hosted CI and independent closure review remain open. The favicon
 extra and worker instrumentation timing prevent claiming exact response/timing
 parity. No acceptance checkbox is cleared.
+
+## 2026-10-26: opt-in worker workload matrix
+
+The Rust launcher now accepts all 15 non-startup worker workloads in the existing
+schedule and invokes the shared Node worker preparation and validation callback.
+STEP repetitions start fresh workers and emit `fresh-export-worker-ready`, as in
+the Node driver. Startup and U1 remain explicitly unsupported; Node remains the
+default. This is a worker slice, not ticket closure.
+
+The launcher selection test failed on C2 before the change
+(`.evidence/ticket006-worker-selection-red.log`) and the 18 Python tooling tests
+passed afterward (`ticket006-worker-python.log`). The Node protocol controls
+passed five cases plus STL controls (`ticket006-worker-node-tests.log`). On
+`f0b7c212fc4a2b1b665a749f0c1511ded0a977ce`, a checked noop build completed
+(`ticket006-worker-build/`); sequential supported Node/Rust runtime runs on that
+build completed all 15 workload pairs using Chrome for Testing 145. The comparison
+at `ticket006-matrix-final-summary.log` checks event fields and values, CSV rows,
+finite timing samples and response multiplicities: 12 pairs matched, while V1
+and both Q workloads differed in floating-point metadata. Each Rust capture also
+observed an additional favicon 404. Each STEP capture had six samples and five
+fresh-worker events; C1 STEP had 162524 bytes in every sample.
+
+The float discrepancy was reproduced in a no-browser test: parsing
+`-1.7500000000000007` produced `-1.7500000000000009`
+(`ticket006-float-red.log`). Enabling serde JSON float round-trip parsing fixed
+the test; three Rust capture tests and Clippy passed (`ticket006-float-green.log`,
+`ticket006-float-clippy.log`). A second checked noop build at
+`80f4b6adecc9fb6b1e4c36842b536ddc89c1f590` passed
+(`ticket006-float-build/`). On that build, supported sequential Node/Rust V1 and
+both Q captures matched event fields and non-timing CSV values, with all Node
+response records present and one additional Rust favicon 404
+(`ticket006-float-comparison.log`). The comparison checks that each Q capture's
+actual worker generation is consistent internally; independent worker generations
+are expected to differ. Each capture's before/after binding matched. Worker
+attachment pauses startup; none of these runs establishes timing equivalence,
+speed, benchmark admission, or a quiet window.
+
+An earlier C1 STEP pair accidentally selected system Chrome 156: Node exited 0,
+but Rust exited 1 with `result.failed=true` after rejecting unrecognized CDP
+`Network.requestWillBeSentExtraInfo` messages (`ticket006-worker-step-node/`,
+`ticket006-worker-step-rust/`). That failed observation remains failed. The
+separate 145 pair used the browser of the earlier C1 receipt and passed the
+comparison (`ticket006-worker-step145-node/`, `ticket006-worker-step145-rust/`).
+
+The full matrix has not been repeated on the float-fix source; only the three
+affected workloads have same-build comparisons there. Startup cold/warm, U1
+freeze/page including uploads, downloads and rendering, controlled cache and
+service-worker-origin parity, complete old/new failure controls, full supported
+check, hosted CI and independent closure review remain open. No acceptance box
+is cleared and no default change is justified.
