@@ -5,6 +5,7 @@ use chromiumoxide::cdp::browser_protocol::{
         SetDownloadBehaviorBehavior, SetDownloadBehaviorParams,
     },
     dom::SetFileInputFilesParams,
+    emulation::{MediaFeature, SetEmulatedMediaParams, SetTouchEmulationEnabledParams},
     page::AddScriptToEvaluateOnNewDocumentParams,
 };
 use chromiumoxide::{Browser, Page};
@@ -149,30 +150,32 @@ pub(super) async fn run(
     operation: &str,
     page_errors: &driver::PageErrors,
 ) -> Result<Value> {
-    let source = include_str!("../../../cad/scripts/measure-cad-page.cjs");
-    let instrument = source
-        .split_once("  await page.addInitScript(() => {\n")
-        .and_then(|(_, s)| s.split_once("\n  });\n  const saved"))
-        .map(|(s, _)| format!("(() => {{\n{s}\n}})()"))
-        .ok_or_else(|| Error("U1 instrumentation not found".into()))?;
-    page.execute(AddScriptToEvaluateOnNewDocumentParams::new(instrument))
-        .await
-        .map_err(|e| Error(e.to_string()))?;
-    browser
-        .execute(
-            SetDownloadBehaviorParams::builder()
-                .behavior(SetDownloadBehaviorBehavior::AllowAndName)
-                .browser_context_id(context.clone())
-                .download_path(out.to_string_lossy().to_string())
-                .events_enabled(true)
-                .build()
-                .map_err(Error)?,
-        )
-        .await
-        .map_err(|e| Error(e.to_string()))?;
     let start = Instant::now();
     let mut phases = Vec::new();
     let result = async {
+        let source = include_str!("../../../cad/scripts/measure-cad-page.cjs");
+        let instrument = source
+            .split_once("  await page.addInitScript(() => {\n")
+            .and_then(|(_, s)| s.split_once("\n  });\n  const saved"))
+            .map(|(s, _)| format!("(() => {{\n{s}\n}})()"))
+            .ok_or_else(|| Error("U1 instrumentation not found".into()))?;
+        page.execute(AddScriptToEvaluateOnNewDocumentParams::new(instrument))
+            .await
+            .map_err(|e| Error(e.to_string()))?;
+        browser
+            .execute(
+                SetDownloadBehaviorParams::builder()
+                    .behavior(SetDownloadBehaviorBehavior::AllowAndName)
+                    .browser_context_id(context.clone())
+                    .download_path(out.to_string_lossy().to_string())
+                    .events_enabled(true)
+                    .build()
+                    .map_err(Error)?,
+            )
+            .await
+            .map_err(|e| Error(e.to_string()))?;
+        page.execute(SetEmulatedMediaParams::builder().features(vec![MediaFeature::new("prefers-color-scheme", "light")]).build()).await.map_err(|e| Error(e.to_string()))?;
+        page.execute(SetTouchEmulationEnabledParams::new(false)).await.map_err(|e| Error(e.to_string()))?;
         mark(&mut phases, "navigation", start)?;
         page.goto(format!("{origin}/boardstudio/")).await.map_err(|e| Error(e.to_string()))?;
         if operation == "freeze" {
@@ -225,6 +228,7 @@ pub(super) async fn run(
             if let [one] = guide.as_slice() { if driver::is_visible(page, one.0).await? { driver::click_backend(page, one.0).await?; } }
         } else { return Err(Error("invalid U1 operation".into())); }
         wait(page, "[...document.querySelectorAll('[role=status]')].some(e=>e.textContent.includes('Exact case geometry ready.'))", "exact case geometry").await?;
+        wait(page, "document.fonts.status === 'loaded' && !matchMedia('(pointer: coarse)').matches && !matchMedia('(prefers-color-scheme: dark)').matches", "desktop light layout readiness").await?;
         saved(page).await?;
         let accepted = document(page).await?;
         if accepted["matrices"].as_array().is_none_or(|m| m.len()!=1 || m[0]["rows"]!=2 || m[0]["columns"]!=2) { return Err(Error("accepted project is not a 2x2 matrix".into())); }
@@ -237,6 +241,7 @@ pub(super) async fn run(
         wait(page, &format!("window.__u1.drawCalls > {before}"), "draw after Fit").await?;
         driver::eval(page, "window.__u1Gl.finish()").await?;
         mark(&mut phases, "accepted-Case-frame-after-camera-and-WebGL-finish", start)?;
+        write_json(&out.join("page-layout.json"), &driver::eval(page, include_str!("../../../cad/scripts/u1-layout.js")).await?)?;
         let viewer = driver::eval(page, r#"(() => { const e = document.querySelector('[role=img][aria-label^="Interactive 3D Case preview"]'); if (!e) throw Error('missing viewer'); const r=e.getBoundingClientRect(); if (r.width<=0 || r.height<=0) throw Error('empty viewer'); return {x:r.x,y:r.y,width:r.width,height:r.height}; })()"#).await?;
         page.save_screenshot(chromiumoxide::page::ScreenshotParams::builder().build(), out.join("case-rendered.png")).await.map_err(|e| Error(e.to_string()))?;
         let rendering = driver::eval(page, "({drawCalls:window.__u1.drawCalls, completion:'WebGL2.finish after draw following Fit', glVersion:window.__u1Gl.getParameter(window.__u1Gl.VERSION), selection:[...document.querySelectorAll('[aria-selected=true]')].map(n=>n.getAttribute('aria-label')||n.textContent)})").await?;

@@ -47,12 +47,34 @@ pub const LAUNCH_ARGS: [&str; 2] = ["--use-angle=swiftshader", "--enable-unsafe-
 /// Invalid protocol messages are surfaced and fail the run. The child's
 /// `XDG_CONFIG_HOME` is isolated from the user's configuration.
 pub async fn launch_chrome(chrome: &str, dirs: &IsolatedDirs) -> Result<(Browser, Handler)> {
+    launch_chrome_with_args(chrome, dirs, &[]).await
+}
+
+/// Launch Chrome with additional arguments for this run.
+pub async fn launch_chrome_with_args(
+    chrome: &str,
+    dirs: &IsolatedDirs,
+    args: &[&str],
+) -> Result<(Browser, Handler)> {
+    for arg in args {
+        let Some(value) = arg.strip_prefix("--blink-settings=") else {
+            return Err(Error(format!("unsupported additional Chrome argument: {arg}")));
+        };
+        if value.is_empty()
+            || value
+                .chars()
+                .any(|c| !c.is_ascii_alphanumeric() && c != '=' && c != ',' && c != '_')
+        {
+            return Err(Error(format!("unsupported additional Chrome argument: {arg}")));
+        }
+    }
     let config = BrowserConfig::builder()
         .chrome_executable(chrome)
         .user_data_dir(&dirs.profile_dir)
         .no_sandbox()
         .surface_invalid_messages()
         .args(LAUNCH_ARGS)
+        .args(args.iter().map(|arg| arg.strip_prefix("--").unwrap_or(arg)))
         .viewport(Viewport {
             width: VIEWPORT_WIDTH,
             height: VIEWPORT_HEIGHT,
@@ -1200,6 +1222,30 @@ pub async fn dispose_isolated_page(
 
 #[cfg(test)]
 mod redaction_tests {
+    #[tokio::test]
+    async fn additional_args_reject_harness_switches_and_allow_blink_settings() {
+        let dirs = crate::IsolatedDirs::create(std::path::Path::new("/tmp")).unwrap();
+        for arg in [
+            "--user-data-dir=/tmp/other", "user-data-dir=/tmp/other", "--user-data-dir",
+            "--remote-debugging-port=9222", "--window-size=1,1", "--no-sandbox",
+            "--use-angle=gl", "--", "--blink-settings", "----user-data-dir=/tmp/other",
+            "--blink-settings=x --user-data-dir=/tmp/other",
+        ] {
+            let error = match super::launch_chrome_with_args("/bin/false", &dirs, &[arg]).await {
+                Err(error) => error.to_string(),
+                Ok(_) => panic!("unexpected browser launch"),
+            };
+            assert!(error.contains("unsupported additional Chrome argument"), "{arg}: {error}");
+        }
+        let error = match super::launch_chrome_with_args(
+            "/bin/false", &dirs, &["--blink-settings=primaryPointerType=4"],
+        ).await {
+            Err(error) => error.to_string(),
+            Ok(_) => panic!("unexpected browser launch"),
+        };
+        assert!(!error.contains("unsupported additional Chrome argument"), "{error}");
+    }
+
     #[tokio::test]
     #[ignore = "requires CHROME_BIN; run explicitly for the real CDP failure control"]
     async fn dispatch_failure_is_not_retried_or_masked() {

@@ -5,7 +5,7 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '../..');
 const DATABASE = 'boardstudio-m1-boardstudio';
 
-module.exports = async function validatePage(page, origin, output, operation) {
+module.exports = async function validatePage(page, origin, output, operation, validation) {
   page.setDefaultTimeout(60000);
   const errors = [];
   const phases = [];
@@ -127,6 +127,7 @@ module.exports = async function validatePage(page, origin, output, operation) {
       if (await guide.isVisible()) await guide.click();
     }
     await page.getByRole('status').filter({ hasText: 'Exact case geometry ready.' }).waitFor();
+    if (validation) await page.waitForFunction(() => document.fonts.status === 'loaded' && !matchMedia('(pointer: coarse)').matches && !matchMedia('(prefers-color-scheme: dark)').matches);
     await saved();
     const accepted = await document();
     if (operation === 'page') {
@@ -151,6 +152,7 @@ module.exports = async function validatePage(page, origin, output, operation) {
     await page.waitForFunction(before => window.__u1.drawCalls > before, frameBefore);
     await page.evaluate(() => window.__u1Gl.finish());
     mark('accepted-Case-frame-after-camera-and-WebGL-finish');
+    if (validation) fs.writeFileSync(path.join(output, 'page-layout.json'), JSON.stringify(await page.evaluate(fs.readFileSync(path.join(__dirname, 'u1-layout.js'), 'utf8')), null, 2) + '\n');
     const viewer = page.getByRole('img', { name: /^Interactive 3D Case preview/ });
     const box = await viewer.boundingBox();
     assert(box && box.width > 0 && box.height > 0);

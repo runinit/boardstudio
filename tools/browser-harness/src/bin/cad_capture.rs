@@ -169,13 +169,18 @@ async fn capture_browser(args: &[String], capture: &mut Capture) -> Result<()> {
     let chrome = std::env::var("CHROME_BIN").map_err(|_| Error("set CHROME_BIN".into()))?;
     let root = std::env::var("TMPDIR").unwrap_or_else(|_| "/tmp".into());
     let dirs = IsolatedDirs::create(std::path::Path::new(&root)).map_err(Error)?;
-    let (browser, handler) = driver::launch_chrome(&chrome, &dirs).await?;
+    let extra_args = if args[3].starts_with("U1:") {
+        vec!["--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4"]
+    } else {
+        vec![]
+    };
+    let (browser, handler) = driver::launch_chrome_with_args(&chrome, &dirs, &extra_args).await?;
     let handler_errors = Arc::new(HandlerErrors::new());
     let page_errors = Arc::new(PageErrors::new());
     let drain = driver::spawn_handler_drain(handler, handler_errors.clone(), page_errors.clone());
     let outcome = async {
         let version = browser.version().await.map_err(|e| Error(e.to_string()))?.product;
-        capture.event("browser", json!({"version":version.strip_prefix("Chrome/").unwrap_or(&version),"executable":chrome,"flags":["--no-sandbox","--use-angle=swiftshader","--enable-unsafe-swiftshader"],"viewport":[1513,1043],"gc":"natural","httpCache":false,"serviceWorkers":"block"}))?;
+        capture.event("browser", json!({"version":version.strip_prefix("Chrome/").unwrap_or(&version),"executable":chrome,"flags": ([vec!["--no-sandbox","--use-angle=swiftshader","--enable-unsafe-swiftshader"], extra_args].concat()),"viewport":[1513,1043],"gc":"natural","httpCache":false,"serviceWorkers":"block"}))?;
         let (context, page) = driver::new_isolated_page(&browser, "about:blank", &page_errors).await?;
         let result = async {
             page.execute(AddScriptToEvaluateOnNewDocumentParams::new("if (navigator.serviceWorker) navigator.serviceWorker.register = async () => { console.warn('Service Worker registration blocked by Playwright'); };")) .await.map_err(|e| Error(e.to_string()))?;

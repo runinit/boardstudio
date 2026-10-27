@@ -770,3 +770,143 @@ Rust validation and Node runtime remain selectable. The focused launcher regress
 failed on both previously admitted Rust modes before the guard; afterward
 `python3 cad/scripts/test-measure-cad.py` passed all 22 tests. This does not establish
 timing parity, runtime samples, or ticket acceptance; the existing gates remain open.
+
+## 2026-10-27: U1 desktop layout differential
+
+Direct Chrome for Testing 145 U1:page captures against the same retained
+`web/target/site` reproduced the viewer height difference. Both had a 927 px
+Case panel; Node's collision section and footer were 112 and 45 px, while Rust's
+were 132 and 57 px. Those 20 and 12 px differences consume the 32 px difference
+in the flexed viewer. The initial snapshots also showed Node light and Rust dark.
+Changing only Rust's color preference to light did not change its dimensions.
+The vendored chromiumoxide viewport initialization enables touch unconditionally;
+Case controls have larger minimum sizes under `pointer: coarse`. The U1 Rust
+runner now sets light preference and disables touch before navigation, matching
+Node's light, non-touch layout semantics. Both runners wait for loaded fonts,
+non-coarse pointer, light preference, exact geometry and saved state, and write
+the same DOM layout/readiness snapshot. Existing Fit draw and WebGL finish waits
+remain in place.
+
+The focused direct comparison (`.evidence/ticket006-u1-touch/`) exited 0 for
+both drivers. Both observed light theme, loaded fonts, zero touch points, the
+same accepted project and Case child heights, and viewer rectangle
+`(272.328125, 144, 938.078125, 485.8125)` at 1513 x 1043. Node reported a fine
+pointer; Rust reported neither fine nor coarse, so full input-media parity is not
+claimed. The baseline and light-only captures are retained in
+`.evidence/ticket006-u1-layout-red/` and `.evidence/ticket006-u1-layout-green/`.
+The final per-run process inventories and cleanup checks are in each `cleanup.json`:
+all tracked live descendants had exited, and the owned temporary profiles were
+removed. Earlier diagnostic runs were not inventoried as completely; a subsequent
+process check found no Chrome 145 processes from those runs.
+
+These are direct validation diagnostics against the same retained site, not fresh
+source-bound launcher captures: the site was built at `bf8ab3ae3ed3`, while the
+workspace HEAD had advanced to `4c1d4640e284a11f03dfbfa123dcb8923fd1d738` by
+comparison time. The working tree also contained concurrent unrelated changes.
+No cumulative draw-count or timing parity, independent download admission, full
+capture parity, or ticket closure is claimed.
+
+## 2026-10-27: U1 pointer-media launch parity
+
+**Superseded:** Omitting the Playwright default changed the historical Node reference.
+The default has been restored; the comparison below does not establish parity with it.
+A U1-scoped Rust launch argument and a fresh comparison remain pending.
+
+Playwright's installed headless launcher supplies a `--blink-settings` default
+forcing fine pointer and hover; chromiumoxide does not. A Chrome 145 probe with
+otherwise identical Playwright settings observed fine pointer and hover with the
+default, and `pointer: none` and no hover with that one default omitted. The U1
+Node capture now uses Playwright's `ignoreDefaultArgs` to omit it, and records the
+omission in the browser event. Other workloads retain their existing defaults.
+No `matchMedia` override or pointer-capability emulation is used.
+
+Sequential direct U1:page validation captures under the shared build lock used the
+same retained site and Chrome 145. Both completed successfully and their full
+`page-layout.json` snapshots matched, including neither fine nor coarse pointer,
+zero touch points and the viewer rectangle. The probe and Node and Rust captures
+tracked descendants by PID and process start time in a subreaper; respectively 16,
+11 and 17 tracked processes were reaped with none remaining. Evidence is in
+`.evidence/ticket006-u1-pointer/`. The Rust capture logged its previously known
+post-boundary WebSocket reset after clean child exit.
+
+These direct captures use the retained site built at `bf8ab3ae3ed3`, not a fresh
+source-bound launcher build; they do not establish timing, download admission, or
+complete ticket acceptance. Chrome's reported absence of a pointer in this
+headless environment remains a limitation of the comparison.
+
+
+## 2026-10-27: U1 Playwright-default pointer comparison
+
+The shared launcher now accepts additional per-run Chrome arguments; its original
+entry point delegates with no additional arguments. Rust U1 passes the installed
+Playwright headless default `--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4`; other Rust workloads do not.
+The Node reference retains its defaults. U1 setup remains inside the failure
+receipt boundary.
+
+The first comparison failed: chromiumoxide prefixed the supplied switch a second
+time, producing `----blink-settings` and Rust reported no pointer. After stripping
+the leading dashes for the builder, sequential Chrome for Testing 145.0.7622.0
+U1:page validation runs under the shared build lock both exited 0. Both reported
+fine pointer, hover, fine any-pointer, any-hover, zero touch points, loaded fonts,
+light theme and a 1513 x 1043 viewport. Their viewer rectangle was
+(272.328125, 144, 938.078125, 485.8125); both screenshots were 1513 x 1043.
+Screenshots were not pixel-identical. Layout snapshots differed in one status
+element rectangle (Node zero-sized; Rust 270 x 60.78125), so full layout parity
+is not claimed. Evidence including actual process command lines and cleanup is
+in `.evidence/ticket006-u1-playwright-fixed/`; Node and Rust tracked 12 and 16
+processes respectively, with no tracked processes or profile paths remaining.
+The failed first comparison is in `.evidence/ticket006-u1-playwright-default/`.
+
+The retained site was built at `bf8ab3ae3ed3`, not the current source; these
+direct captures do not establish source-bound acceptance, timing parity, download
+admission, or ticket closure. Setup-failure receipt behavior was not independently
+exercised in this comparison. The previous pointer comparison's claimed
+`cleanup.json` files are not present in that evidence directory.
+
+## 2026-10-27: retained U1 visual and failure inspection
+
+The retained Chrome 145 screenshots in `ticket006-u1-playwright-fixed` visibly
+show the same assembled case, controls, Saved indicator, geometry-ready status,
+and four keycap findings. A pixel comparison found 60,844 differing pixels out
+of 1,578,059, mean absolute channel difference 0.075, and maximum channel
+difference 98. Within the 400 x 330 model region, 202 pixels differed. The
+screenshots and DOM snapshots are separate observations, and their data does
+not establish whether the differences arise from capture timing, rendering, or
+another cause. Pixel identity is not established or required by this inspection.
+
+The differing status rectangle belongs to the `div[role=status]` inside the
+save-state `details`; both snapshots contain the same saved text, while the
+geometry-ready and case-body status rectangles match. The save popover is not
+visible in either screenshot. The snapshots do not record the disclosure's
+open state or timing, so the cause of its different rectangle remains open.
+No capture behavior was changed on that evidence.
+
+A direct U1:page invocation of the existing Rust binary with `CHROME_BIN` unset
+exited 1 and emitted `failure` followed by `result` with `failed: true`, with
+no U1 success event (`.evidence/ticket006-u1-setup-failure/`). This fails before
+Chrome launch and before `cad_u1::run`; it does not exercise the inner U1 setup
+failure or `page-failure.log`. No browser was started for this control. The
+retained comparison remains unbound to current source; source-bound parity,
+inner setup-failure receipt, and the other open acceptance gates remain open.
+
+
+## 2026-10-27: launch and Node diagnostic review corrections
+
+The shared additional-argument entry point now admits only a syntactically bounded
+`--blink-settings=...` switch and rejects other switches before launching Chrome.
+The focused regression first failed because a `--user-data-dir` override reached
+the launcher; it then passed, including harness-owned switches and an ordinary
+Blink setting (`.evidence/ticket006-launch-red.log` and `ticket006-launch-green.log`).
+Node's extra layout readiness wait and snapshot now run only for validation; the
+existing runtime workflow retains its prior path. The launcher Python suite passed
+23 tests, and the Rust capture binary built under the shared lock.
+
+Sequential direct Node and Rust U1:page validation with Chrome 145 against the
+retained site both exited 0, emitted successful results, and produced equal layout
+snapshots (`.evidence/ticket006-review-real/`). The subreaper recorded 29 process
+identities and no remaining tracked processes; a subsequent process inventory
+showed no Chrome processes. These are diagnostics on the retained site, not
+source-bound acceptance or benchmark evidence. The requested controlled failure
+inside U1 CDP setup was not exercised; its page-failure receipt, failed result,
+absence of U1 success, and cleanup remain an open gate. Source-bound parity,
+benchmark and other ticket acceptance gates also remain open.

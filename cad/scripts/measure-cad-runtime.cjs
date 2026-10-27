@@ -41,7 +41,7 @@ function metric(state, ordinal, name, value, unit = 'ms', status = 'observed') {
   let failed = false;
   try {
     if (fixture === 'U1') {
-      event('U1', await require('./measure-cad-page.cjs')(page, origin, output, operation));
+      event('U1', await require('./measure-cad-page.cjs')(page, origin, output, operation, validation));
       return;
     }
     if (fixture === 'startup') {
