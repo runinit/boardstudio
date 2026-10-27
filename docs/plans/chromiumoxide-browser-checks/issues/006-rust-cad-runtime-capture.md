@@ -58,3 +58,34 @@ old/new parity evidence. No Rust CAD capture, regression RED/GREEN, cache fixtur
 negative controls, real capture parity, full check or closure review has been
 completed for ticket 006. The existing runner remains the default and tickets 007
 and 008 have not been advanced.
+
+## 2026-10-26: partial Rust worker-startup diagnostic
+
+Added `cad-response-probe` to the existing isolated Rust browser harness. Given
+the URL of the performance host on a server also serving the packaged worker at
+`/boardstudio/assets/cad-worker/entry.js`, it starts the real worker, waits for
+`ready` with the existing 180-second bound, and prints a diagnostic startup time
+and page-target response URL/status/service-worker fields. Run it with
+`CHROME_BIN=<chrome> cargo run --locked --manifest-path tools/browser-harness/Cargo.toml --bin cad-response-probe -- <host-url>`
+under the project's build lock. It is not connected to the measurement launcher,
+does not emit measurement CSV or a receipt, and labels its output diagnostic and
+its responses page-target-only.
+
+On the existing, unbound site artifacts and Chrome for Testing 145.0.7622.0,
+the probe started the packaged worker and observed the host 200 and favicon 404
+(`.evidence/ticket006/worker-final-browser.log`). Worker module requests were not
+present in the page-target response stream; their treatment in the existing
+runner and any additional target observation need direct comparison before a
+complete resources event can be claimed. No source/build provenance is asserted
+for this diagnostic. A missing-worker control exited 1 with no stdout; after a
+shutdown error initially masked the page failure, both errors are now retained
+(`.evidence/ticket006/worker-negative.log` and `worker-negative-fixed.log`).
+The focused Rust unit test and clippy passed, as did the existing 16 Python
+tooling tests and five Node protocol checks. The initial response-field test
+failed to compile before implementation (`.evidence/ticket006/response-red.log`).
+
+This is a partial diagnostic, not the requested capture migration: the supported
+launcher, complete operation and U1 paths, response completeness, cache and
+service-worker controls, source-bound old/new comparison, negative controls,
+full check and closure review remain open. The Node capture remains the default;
+ticket 006 stays claimed and 007/008 are unchanged.

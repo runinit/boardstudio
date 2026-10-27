@@ -30,3 +30,7 @@ path = "src/bin/drag_smoke.rs"
 
 [patch.crates-io]
 chromiumoxide = { path = "vendor/chromiumoxide" }
+
+[[bin]]
+name = "cad-response-probe"
+path = "src/bin/cad_response_probe.rs"
