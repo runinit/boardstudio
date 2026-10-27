@@ -1,6 +1,6 @@
 # 006: Rust CAD runtime capture
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [Rust drag smoke end to end](005-rust-drag-smoke.md)
 Parent: [Chromiumoxide browser checks](../map.md)
@@ -38,3 +38,23 @@ source/build identity and any blocked gates honestly. No weakened assertions, ma
 errors, baseline deletions or retry-until-green. Preserve the archived prototypes and unrelated
 work. Builds follow repository concurrency/lock rules; evidence uses supported receipts and
 logs, not custom hash manifests. All checks must be runnable by humans and CI without agent tools.
+
+## 2026-10-26: implementation inventory and baseline
+
+Ticket 005 was resolved for local scope at `6bcadff`; hosted CI remains separate.
+The current launcher in `cad/scripts/measure-cad.py` checks the build and source
+binding, staged package, artifact currency and post-capture drift; it still invokes
+`measure-cad-runtime.cjs`. That driver owns the CSV and event output, worker reply
+identity and completeness checks, response status and service-worker metadata,
+cold-cache and warm-start behavior. The U1 path in `measure-cad-page.cjs` also
+requires real page interaction, file upload and downloads. The shared Rust harness
+provides isolated launch, page errors, evaluation and input; the CAD response and
+cache/service-worker observation and U1 paths still need implementation and proof.
+
+On `6bcadff`, `python3 -B cad/scripts/test-measure-cad.py` passed 16 tests and
+`node cad/scripts/test-measure-cad-runtime.cjs` passed five controlled protocol
+checks plus STL controls. These are baseline tooling checks, not browser or
+old/new parity evidence. No Rust CAD capture, regression RED/GREEN, cache fixture,
+negative controls, real capture parity, full check or closure review has been
+completed for ticket 006. The existing runner remains the default and tickets 007
+and 008 have not been advanced.
