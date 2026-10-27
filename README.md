@@ -121,6 +121,18 @@ and exact Undo. Its success receipt and failure log are kept under `web/target/t
 CI installs the pinned `playwright-core` runner; local browser checks need it on `NODE_PATH` and a
 Chrome or Chromium executable available as `CHROME_BIN`.
 
+The manual Graphite feedback check has an experimental Rust entry point,
+`python3 scripts/run-graphite-feedback.py`, against `BOARDSTUDIO_PREVIEW_URL`
+(default `http://127.0.0.1:8182/`). It accepts `CHROME_BIN` and optional
+`BOARDSTUDIO_SCREENSHOTS`. The Node feedback and usability commands remain
+the established entry points while Rust parity and failure controls are open.
+`python3 scripts/run-graphite-usability.py` runs the same experimental Rust
+workflow, matching the Node usability entry point. Set `BOARDSTUDIO_GRAPHITE_IDENTITY=1`
+to print the checkout, HEAD, dirty source digest and preview URL before either runner. Set
+`BOARDSTUDIO_GRAPHITE_BUILD_DIR` to also digest a local build directory. These are launch-time
+observations: an arbitrary server is not bound to that build or source, so its served identity
+remains unverified unless established separately.
+
 **Verification receipts.** Add `--receipt PATH` to any check invocation to write a JSON receipt at
 `PATH` and a reviewer summary at `PATH.md`, both derived only from the output that invocation
 already captured. The receipt keeps native `cargo test` binaries, direct `wasm-pack test` crate

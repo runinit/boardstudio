@@ -37,3 +37,7 @@ path = "src/bin/cad_response_probe.rs"
 [[bin]]
 name = "cad-capture"
 path = "src/bin/cad_capture.rs"
+
+[[bin]]
+name = "graphite-feedback"
+path = "src/bin/graphite_feedback.rs"

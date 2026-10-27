@@ -2,6 +2,10 @@
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+if (process.env.BOARDSTUDIO_GRAPHITE_IDENTITY) {
+  const result = require('node:child_process').spawnSync('python3', [require('node:path').join(__dirname, 'graphite-identity.py')], { stdio: 'inherit' });
+  if (result.status !== 0) throw Error('Graphite identity collection failed');
+}
 (async () => {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_BIN || '/usr/bin/chromium', args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const context = await browser.newContext({ colorScheme: 'dark', viewport: { width: 1513, height: 1043 } });
@@ -35,16 +39,21 @@ const fs = require('node:fs');
     await page.getByRole('button', { name: 'Create new keyboard', exact: true }).click({ timeout: 60000 });
     await page.getByRole('button', { name: 'Split keyboard', exact: true }).click({ timeout: 60000 });
     await page.getByRole('button', { name: 'Continue to layout', exact: true }).click({ timeout: 60000 });
-    await page.getByRole('button', { name: 'Add key matrix', exact: true }).click({ timeout: 60000 });
-    await page.getByLabel('New matrix rows', { exact: true }).fill('10');
-    await page.getByLabel('New matrix columns', { exact: true }).fill('10');
+    for (const name of ['Rows', 'Columns']) {
+      const slider = page.getByRole('slider', { name, exact: true });
+      await slider.focus();
+      const value = Number(await slider.getAttribute('aria-valuenow'));
+      assert(Number.isInteger(value));
+      for (let i = 0; i < Math.abs(10 - value); i++) await slider.press(value < 10 ? 'ArrowRight' : 'ArrowLeft');
+      assert.equal(await slider.getAttribute('aria-valuenow'), '10');
+    }
     await page.getByRole('button', { name: 'Create matrix', exact: true }).click({ timeout: 60000 });
     await page.locator('.m1-scene-part[data-part-id^="matrix/"]').first().waitFor({ timeout: 60000 });
-    await page.getByRole('button', { name: 'Edit existing objects', exact: true }).click({ timeout: 60000 });
+    await page.getByRole('button', { name: 'Hide guide', exact: true }).click({ timeout: 60000 });
     await nav('Layout');
     await page.getByRole('button', { name: 'Fit board', exact: true }).click();
     await selectScope('Column');
-    check('workspace navigation is in the Objects dock', await page.locator('#m1-objects-panel .m1-workflow-navigation').count() === 1 && await page.locator('.m1-topbar .m1-workflow-navigation').count() === 0);
+    check('header workspace navigation exposes six workspaces and current Layout', await page.evaluate(() => (() => { const all = [...document.querySelectorAll('.m1-workflow-navigation')], n = document.querySelector('.m1-topbar .m1-workflow-navigation'); const names = ['Layout', 'PCB', 'Keymap', 'Keycaps', 'Case', 'Parts']; return all.length === 1 && n?.getAttribute('aria-label') === 'Workspaces' && !document.querySelector('#m1-objects-panel .m1-workflow-navigation') && n.querySelectorAll('button').length === 6 && names.every(name => n.querySelectorAll(`button[aria-label="Open ${name} workspace"][aria-controls="m1-workspace-panel"]`).length === 1) && n.querySelectorAll('[aria-current="page"]').length === 1 && n.querySelector('[aria-label="Open Layout workspace"]')?.getAttribute('aria-current') === 'page'; })()));
     await page.locator('.m1-scene-part[data-part-id^="matrix/"][data-part-id$="r0c2"] .m1-part-hit-area').first().click();
     check('canvas numeric card removed', await page.locator('.m1-canvas-measurements').count() === 0);
     check('board picker removed', await page.locator('#m1-objects-panel select[aria-label="Board"]').count() === 0);
@@ -59,7 +68,7 @@ const fs = require('node:fs');
     await page.waitForFunction(() => document.querySelector('.m1-key-size-preview output')?.textContent === '1u × 2u');
     check('size and rotate use accepted key geometry', true);
     await undo(); await page.waitForFunction(() => document.querySelector('.m1-key-size-preview output')?.textContent === '2u × 1u');
-    await undo();
+    await undo(); await page.waitForFunction(() => document.querySelector('.m1-key-size-preview output')?.textContent === '1u × 1u');
     const inspector = page.locator('.m1-inspector-body');
     const offset = inspector.getByLabel('Offset X', { exact: true });
     const before = Number(await offset.inputValue());
@@ -68,27 +77,50 @@ const fs = require('node:fs');
     const handle = page.locator('[aria-label="Drag to offset column"]');
     await handle.waitFor();
     check('Ctrl replaces stagger rather than adding a handle', await page.locator('[aria-label="Drag to stagger"]').count() === 0 && await handle.count() === 1);
-    const box = await handle.boundingBox();
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2 - 15, { steps: 5 });
-    await page.keyboard.press('Escape'); await page.mouse.up();
-    await waitValue(offset, before);
-    check('Ctrl offset Escape cancels', true);
+    const selected = page.locator('.m1-keycap-overlay.is-selected').first();
+    const initial = await selected.boundingBox();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const box = await handle.boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.evaluate(() => document.addEventListener('pointerdown', e => {
+        window.__graphitePointerId = e.pointerId;
+        window.__graphiteMoved = false;
+        document.addEventListener('pointermove', move => {
+          window.__graphiteMoved = move.pointerId === e.pointerId && (move.clientX !== e.clientX || move.clientY !== e.clientY);
+        }, { once: true, capture: true });
+      }, { once: true, capture: true }));
+      await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2 - 15, { steps: 5 });
+      const captured = await page.evaluate(() => [...document.querySelectorAll('svg.m1-canvas,.m1-transform-handle')].some(e => e.hasPointerCapture(window.__graphitePointerId)));
+      const moved = await page.evaluate(() => window.__graphiteMoved === true);
+      if (attempt === 0) await page.waitForFunction(({ x, y }) => {
+        const r = document.querySelector('.m1-keycap-overlay.is-selected')?.getBoundingClientRect();
+        return r && Math.hypot(r.x - x, r.y - y) > 2;
+      }, initial);
+      await page.keyboard.press('Escape'); await page.mouse.up();
+      await waitValue(offset, before);
+      if (attempt === 0) {
+        await page.waitForFunction(({ x, y }) => {
+          const r = document.querySelector('.m1-keycap-overlay.is-selected')?.getBoundingClientRect();
+          return r && Math.hypot(r.x - x, r.y - y) < 0.5;
+        }, initial);
+        check('Ctrl offset Escape restores the moved preview', captured && moved);
+      } else check('Ctrl offset rapid cancellation acquires capture', captured && moved);
+    }
     const fresh = await handle.boundingBox();
     await page.mouse.move(fresh.x + fresh.width / 2, fresh.y + fresh.height / 2);
     await page.mouse.down(); await page.mouse.move(fresh.x + fresh.width / 2 + 30, fresh.y + fresh.height / 2, { steps: 5 }); await page.mouse.up();
     for (let i = 0; i < 100 && Math.abs(Number(await offset.inputValue()) - before) < 0.0001; i++) await page.waitForTimeout(50);
-    check('Ctrl offset commits a real edit', Math.abs(Number(await offset.inputValue()) - before) > 0.0001);
-    await undo(); await waitValue(offset, before);
-    check('Ctrl offset is one undo step', true);
+    const committed = Math.abs(Number(await offset.inputValue()) - before) > 0.0001;
+    check('Ctrl offset commits a real edit', committed);
+    if (committed) {
+      await undo(); await waitValue(offset, before);
+      check('Ctrl offset is one undo step', true);
+    } else {
+      check('Ctrl offset is one undo step (blocked: edit did not land)', false);
+    }
     await page.keyboard.up('Control');
     check('stagger returns after Ctrl release', await page.locator('[aria-label="Drag to stagger"]').count() === 1);
-    const centerErrors = await page.evaluate(() => {
-      const selected = [...document.querySelectorAll('.m1-keycap-overlay.is-selected')].map(e => e.getBoundingClientRect());
-      const center = (Math.min(...selected.map(r => r.x)) + Math.max(...selected.map(r => r.right))) / 2;
-      return ['Drag to stagger', 'Drag to splay'].map(label => { const r = document.querySelector(`[aria-label="${label}"]`).getBoundingClientRect(); return Math.abs(r.x + r.width / 2 - center); });
-    });
-    check('stagger and splay align with selection center', centerErrors.every(error => error <= 3));
+    check('stagger and splay form a centered accessible rail', await page.evaluate(() => (() => { const keys = [...document.querySelectorAll('.m1-keycap-overlay.is-selected')].map(e => e.getBoundingClientRect()); const handles = ['Drag to stagger', 'Drag to splay'].map(label => document.querySelector(`[aria-label="${label}"]`)); if (!keys.length || handles.some(e => !e || e.getAttribute('role') !== 'button' || e.getAttribute('tabindex') !== '0')) return false; const [a, b] = handles.map(e => e.getBoundingClientRect()); const center = (Math.min(...keys.map(r => r.left)) + Math.max(...keys.map(r => r.right))) / 2; return a.width > 0 && b.width > 0 && Math.abs(a.right - b.left) <= 2 && Math.abs(a.top - b.top) <= 2 && Math.abs((a.left + b.right) / 2 - center) <= 3 && a.top < Math.min(...keys.map(r => r.top)); })()));
     check('delete is outside Advanced and available on canvas', await inspector.locator('.m1-selection-delete button').isVisible() && await page.locator('.m1-canvas-delete button').isVisible());
     check('Splay affects is beside Splay, outside origin disclosure', await inspector.getByLabel('Splay affects', { exact: true }).evaluate(e => !e.closest('details[aria-label="Splay and origin"]')));
     const layerTrigger = page.locator('#m1-layers-trigger');
@@ -96,15 +128,27 @@ const fs = require('node:fs');
     const dock = await layerTrigger.boundingBox(), pane = await page.locator('#m1-objects-panel').boundingBox();
     check('Layers stays at bottom independent of tree length', dock.y > pane.y + pane.height - 110);
     await layerTrigger.click();
-    const layers = await page.locator('#m1-layers-list').boundingBox();
-    check('Layers opens upward', layers && layers.y + layers.height <= dock.y + 2);
-    await page.keyboard.press('Escape');
+    check('Layers opens an accessible inline disclosure', await page.evaluate(() => (() => { const t = document.querySelector('#m1-layers-trigger'), l = document.querySelector('#m1-layers-list'), c = document.getElementById(t?.getAttribute('aria-controls')); const r = l?.getBoundingClientRect(); return t?.getAttribute('aria-label') === 'Canvas visibility' && t.getAttribute('aria-expanded') === 'true' && c?.contains(l) && !!r?.width && !!r?.height && !!l.querySelector('button[aria-label="Hide Keycaps"][aria-pressed="true"]'); })()));
+    await page.getByRole('button', { name: 'Hide Keycaps', exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector('.m1-keycap-overlay') && !!document.querySelector('#m1-layers-list button[aria-label="Show Keycaps"][aria-pressed="false"]'));
+    check('Layers visibility control hides keycaps', true);
+    await page.getByRole('button', { name: 'Show Keycaps', exact: true }).click();
+    await page.waitForFunction(() => !!document.querySelector('.m1-keycap-overlay') && !!document.querySelector('#m1-layers-list button[aria-label="Hide Keycaps"][aria-pressed="true"]'));
+    check('Layers visibility control restores keycaps', true);
+    await layerTrigger.click();
+    check('Layers disclosure closes', await layerTrigger.getAttribute('aria-expanded') === 'false' && !await page.locator('#m1-layers-list').isVisible());
     const snap = page.getByRole('button', { name: 'Snap', exact: true });
-    await snap.click();
-    const snapBody = await page.locator('#m1-snap-dock-options').boundingBox(), snapButton = await snap.boundingBox();
-    check('Snap options open upward and stay in viewport', snapBody && snapBody.y >= 0 && snapBody.y + snapBody.height <= snapButton.y + 2);
-    await page.getByLabel('Snap increment', { exact: true }).selectOption('0.5');
-    await page.keyboard.press('Escape');
+    await snap.focus();
+    await page.keyboard.press('Space');
+    const increment = page.getByLabel('Snap increment', { exact: true });
+    check('Snap accordion opens with Space and keeps focus', await snap.getAttribute('aria-expanded') === 'true' && await increment.isVisible() && await snap.evaluate(e => document.activeElement === e));
+    await increment.selectOption('0.5');
+    await snap.focus();
+    await page.keyboard.press('Enter');
+    check('Snap accordion closes by keyboard', await snap.getAttribute('aria-expanded') === 'false' && !await increment.isVisible() && await snap.evaluate(e => document.activeElement === e));
+    await page.keyboard.press('Enter');
+    check('Snap increment persists', await snap.getAttribute('aria-expanded') === 'true' && await increment.inputValue() === '0.5');
+    await page.keyboard.press('Enter');
     await selectScope('Key');
     await page.locator('.m1-scene-part[data-part-id^="matrix/"][data-part-id$="r5c5"] .m1-part-hit-area').first().click();
     const beforeDelete = await page.locator('.m1-scene-part').count();
@@ -119,17 +163,21 @@ const fs = require('node:fs');
     await page.getByLabel('Group objects by', { exact: true }).selectOption('part');
     check('parts grouped by actual categories', await page.locator('.m1-component').filter({ hasText: 'Switches' }).count() === 1 && await page.locator('.m1-component').filter({ hasText: 'Diodes' }).count() === 1);
     await page.getByLabel('Group objects by', { exact: true }).selectOption('layout');
+    const expandLeft = page.getByRole('button', { name: 'Expand Left half', exact: true });
+    if (await expandLeft.count()) await expandLeft.click();
     check('layout grouping restores matrix tree', await page.locator('.m1-component').filter({ hasText: 'keys' }).count() > 0);
     await page.locator('.m1-component').filter({ hasText: 'Main board' }).first().click();
     await page.waitForFunction(() => document.querySelector('.m1-pcb-wiring-breadcrumb')?.textContent.includes('Main board'));
     check('board tree navigation replaces removed board picker', true);
     for (const workspace of ['Layout', 'PCB', 'Keymap', 'Keycaps', 'Case', 'Parts']) {
       await nav(workspace);
+      check(`${workspace}: workspace navigation marks current`, await page.locator('.m1-workflow-navigation [aria-current="page"]').count() === 1 && await page.getByRole('button', { name: `Open ${workspace} workspace`, exact: true }).getAttribute('aria-current') === 'page');
       if (workspace === 'Layout') {
         await selectScope('Column');
         await page.locator('.m1-scene-part[data-part-id^="matrix/"][data-part-id$="r0c2"] .m1-part-hit-area').first().click();
       }
       if (workspace === 'Case') {
+        await page.locator('.m1-case-view').waitFor();
         check('Case stackup visible without configuration click', await page.locator('.m1-stackup-preview').isVisible());
         check('Case generation controls are in footer', await page.locator('footer.m1-case-footer').isVisible());
         check('camera controls joined Case toolbar', await page.locator('.m1-case-view-toolbar .m1-case-camera-controls').count() === 1);
