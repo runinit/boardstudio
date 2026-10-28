@@ -445,13 +445,19 @@ pub(super) fn RelationMatrixKey(
     // unfocused keys fade to the grey dashed outline. Ticket 16: the amber
     // at-rest field preview wins ties so the hovered field reads through
     // selection, dimming and violet references alike. Ticket 17: the badge
-    // target is selection chrome, so it wins over dimming like the selection.
+    // target is persistent selection chrome with its own violet dashed class
+    // (is-anchor-target), distinct from the transient Relations hover
+    // (is-relation-highlight), so hover/leave counts never include the badge.
     let previewed = field_previews(part_id.as_ref());
     let class = if previewed {
         "m1-matrix-key is-field-preview"
     } else if selected {
         "m1-matrix-key is-selected"
-    } else if anchor_target || highlighted {
+    } else if anchor_target && highlighted {
+        "m1-matrix-key is-anchor-target is-relation-highlight"
+    } else if anchor_target {
+        "m1-matrix-key is-anchor-target"
+    } else if highlighted {
         "m1-matrix-key is-relation-highlight"
     } else if dimmed {
         "m1-matrix-key is-dimmed"
@@ -487,7 +493,11 @@ pub(super) fn RelationPartOutline(
         "m1-part is-field-preview"
     } else if selected {
         "m1-part selected"
-    } else if anchor_target || highlighted {
+    } else if anchor_target && highlighted {
+        "m1-part is-anchor-target is-relation-highlight"
+    } else if anchor_target {
+        "m1-part is-anchor-target"
+    } else if highlighted {
         "m1-part is-relation-highlight"
     } else if dimmed {
         "m1-part is-dimmed"

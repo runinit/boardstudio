@@ -606,10 +606,15 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
 /* Relations reference highlight: dashed violet, never the selection fill or blue stroke. */
 .m1-matrix-key.is-relation-highlight { stroke: var(--wb-accent-secondary); stroke-width: .42; stroke-dasharray: 1.2 .8; }
 .m1-part.is-relation-highlight { stroke: var(--wb-accent-secondary); stroke-width: .8; stroke-dasharray: 1.2 .8; }
+/* Ticket 17: persistent anchor badge target shares the violet dashed treatment
+   with its own class, distinct from the transient Relations hover above, so
+   hover/leave counts never include the badge. */
+.m1-matrix-key.is-anchor-target { stroke: var(--wb-accent-secondary); stroke-width: .42; stroke-dasharray: 1.2 .8; }
+.m1-part.is-anchor-target { stroke: var(--wb-accent-secondary); stroke-width: .8; stroke-dasharray: 1.2 .8; }
 /* Ticket 17: canvas anchor badge (prototype variant B). The authored icon sits
    at what the selection is placed from with a short label, a dashed tie runs
-   to the selection, and the target reuses the violet dashed reference above.
-   Read-only chrome: it never takes pointer events. */
+   to the selection, and the target uses the violet dashed is-anchor-target
+   above. Read-only chrome: it never takes pointer events. */
 .m1-anchor-tie { stroke: var(--wb-accent-secondary); stroke-width: .4; stroke-dasharray: 1.2 .8; pointer-events: none; }
 .m1-anchor-tie-dot { fill: var(--wb-accent-secondary); pointer-events: none; }
 .m1-anchor-badge { pointer-events: none; }

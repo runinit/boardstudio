@@ -163,17 +163,17 @@ fn count(root_id: &str, selector: &str) -> u32 {
     query_all(root_id, selector).len() as u32
 }
 
-/// The `data-column` of every highlighted canvas key.
+/// The `data-column` of every badge-target canvas key.
 fn highlighted_columns(root_id: &str) -> Vec<String> {
-    query_all(root_id, ".m1-matrix-key.is-relation-highlight")
+    query_all(root_id, ".m1-matrix-key.is-anchor-target")
         .iter()
         .map(|key| key.get_attribute("data-column").unwrap_or_default())
         .collect()
 }
 
-/// The `(row, column)` of every highlighted canvas key.
+/// The `(row, column)` of every badge-target canvas key.
 fn highlighted_keys(root_id: &str) -> Vec<(String, String)> {
-    query_all(root_id, ".m1-matrix-key.is-relation-highlight")
+    query_all(root_id, ".m1-matrix-key.is-anchor-target")
         .iter()
         .map(|key| {
             (
@@ -492,7 +492,7 @@ async fn badge_draws_on_the_dimmed_half() {
     );
     let class = target.get_attribute("class").unwrap_or_default();
     assert!(
-        class.contains("is-relation-highlight"),
+        class.contains("is-anchor-target"),
         "the badge target keeps the violet dashed outline, not the dim: {class}"
     );
     assert!(
@@ -522,7 +522,7 @@ async fn clearing_the_selection_clears_the_badge() {
     })
     .await;
     assert_eq!(
-        count(root_id, ".m1-matrix-key.is-relation-highlight"),
+        count(root_id, ".m1-matrix-key.is-anchor-target"),
         0,
         "the badge target clears with the badge"
     );
