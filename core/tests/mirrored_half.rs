@@ -289,7 +289,17 @@ fn assert_reflects_every_part(document: &Value, pair_id: &str, label: &str) {
                 })
             });
         let source_heading = source["pose"]["rotation"].as_f64().unwrap();
-        let expected_heading = if in_matrix {
+        // Controllers keep the reflected heading without the half turn, so both halves
+        // share the MCU heading; every other independent part takes the full rule.
+        let definition_id = source["definitionId"].as_str().unwrap();
+        let is_controller = document["definitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|definition| {
+                definition["id"] == definition_id && definition["kind"] == "controller"
+            });
+        let expected_heading = if in_matrix || is_controller {
             turn - source_heading
         } else {
             turn + 180.0 - source_heading
@@ -363,6 +373,63 @@ fn a_vertical_axis_map_reflects_every_part_by_the_pair_rule() {
 }
 
 #[test]
+fn a_mirrored_mcu_keeps_its_source_heading_and_intended_origin() {
+    // Issue 3: the MCU (a controller) must mirror to the plain reflection, not the +180
+    // independent-part rule, so both halves share its heading and its intended origin.
+    let synthetic_input = synthetic_half::document();
+    let (mut engine, seed) = seed(&synthetic_input, "left");
+    let reply = create(
+        &mut engine,
+        &seed,
+        "pair-mcu",
+        "left",
+        new_board("mirror", "mirror"),
+        mapping(300.0),
+    )
+    .unwrap();
+    let document = &reply["document"];
+    let source = part(document, "left/U1");
+    let mirror = part(document, "mirror/U1");
+    // The axis map at x = 300 sends (-24, 0) to (324, 0).
+    assert_point(
+        (
+            mirror["pose"]["at"]["x"].as_f64().unwrap(),
+            mirror["pose"]["at"]["y"].as_f64().unwrap(),
+        ),
+        (324.0, 0.0),
+        "mirror MCU origin",
+    );
+    assert!(
+        angles_match(
+            mirror["pose"]["rotation"].as_f64().unwrap(),
+            source["pose"]["rotation"].as_f64().unwrap()
+        ),
+        "mirror MCU shares its source heading: {} against {}",
+        mirror["pose"]["rotation"],
+        source["pose"]["rotation"]
+    );
+    // A genuine independent (the TRRS connector) still takes the half turn.
+    let source_trrs = part(document, "left/TRRS");
+    let mirror_trrs = part(document, "mirror/TRRS");
+    assert_point(
+        (
+            mirror_trrs["pose"]["at"]["x"].as_f64().unwrap(),
+            mirror_trrs["pose"]["at"]["y"].as_f64().unwrap(),
+        ),
+        (324.0, -16.0),
+        "mirror TRRS origin",
+    );
+    assert!(
+        angles_match(
+            mirror_trrs["pose"]["rotation"].as_f64().unwrap(),
+            180.0 - source_trrs["pose"]["rotation"].as_f64().unwrap()
+        ),
+        "mirror TRRS keeps the half turn: {}",
+        mirror_trrs["pose"]["rotation"]
+    );
+}
+
+#[test]
 fn creation_derives_independent_part_poses_for_axis_and_rotated_maps() {
     let synthetic_input = synthetic_half::document();
     for (pair_id, map) in [
@@ -403,8 +470,9 @@ fn creation_derives_independent_part_poses_for_axis_and_rotated_maps() {
             pair_id,
         );
         let source_heading = source["pose"]["rotation"].as_f64().unwrap();
+        // U1 is a controller, so it keeps the reflected heading without the half turn.
         let expected_heading =
-            (map["rotation"].as_f64().unwrap() + 180.0 - source_heading).rem_euclid(360.0);
+            (map["rotation"].as_f64().unwrap() - source_heading).rem_euclid(360.0);
         assert!(angles_match(
             mirrored["pose"]["rotation"].as_f64().unwrap(),
             expected_heading
@@ -1051,7 +1119,7 @@ fn layouts_keycaps_and_electrical_configuration_follow_the_mapped_ids() {
             .unwrap()
             .clone()
     };
-    let expected = json!({"boardId": "right", "id": "right-synthetic-keys-layout", "matrixId": "right-synthetic-keys", "name": "Synthetic keys", "partIds": ["right/U1", "right/RST"]});
+    let expected = json!({"boardId": "right", "id": "right-synthetic-keys-layout", "matrixIds": ["right-synthetic-keys"], "name": "Synthetic keys", "partIds": ["right/U1", "right/RST"]});
     assert_eq!(layout("right-synthetic-keys-layout"), expected);
     assert_eq!(layout("left-synthetic-keys-layout"), seed["layouts"][0]);
     assert_eq!(document["layouts"].as_array().unwrap().len(), 2);
@@ -1377,12 +1445,12 @@ fn outlines_reflect_anchored_geometry_in_the_part_frame_and_keep_unique_identiti
             .clone()
     };
 
-    // Live outline, in the part frame: U1 is an independent part, so the mirror turns it by 180
-    // degrees (ticket 30) and its attached point is (x, -y) in that frame; the free one maps.
+    // Live outline, in the part frame: U1 is a controller, so it keeps the reflected heading
+    // and its attached point is (-x, y) in that frame; the free one maps.
     let live = find(&out["outline"], "right/synthetic-envelope");
     let connection = &live["connections"][0];
     assert_eq!(connection["points"][0]["partId"], "right/U1");
-    assert_eq!(connection["points"][0]["at"], json!({"x": 4.0, "y": -2.0}));
+    assert_eq!(connection["points"][0]["at"], json!({"x": -4.0, "y": 2.0}));
     assert_point(
         world_of(out, "right/U1", &connection["points"][0]["at"]),
         reflected_point(&map, world_of(out, "left/U1", &json!({"x": 4.0, "y": 2.0}))),
@@ -1449,9 +1517,9 @@ fn outlines_reflect_anchored_geometry_in_the_part_frame_and_keep_unique_identiti
             "{x},{y}"
         );
     }
-    // Reflection reverses the winding, so the points come back in the reverse order. U1 is an
-    // independent part turned by 180 degrees, so the local point is (x, -y), not (-x, y).
-    assert_eq!(polygon["points"][0], json!({"x": 5.0, "y": -7.0}));
+    // Reflection reverses the winding, so the points come back in the reverse order. U1 is a
+    // controller with the reflected heading, so the local point is (-x, y), not (x, -y).
+    assert_eq!(polygon["points"][0], json!({"x": -5.0, "y": 7.0}));
     let fixed_gap = &geometry["protectedGaps"]
         .as_array()
         .unwrap()
@@ -2800,8 +2868,10 @@ fn anchored_geometry_lands_on_the_mapped_world_point_at_every_heading_and_map() 
         3,
     );
     let companion = "left/TRRS";
+    // U1 is a controller, so it shares the switch rule with matrix keys: only RST still
+    // takes the full independent rule.
     let anchors = [
-        ("left/U1", true),
+        ("left/U1", false),
         ("left/RST", true),
         ("matrix/left-synthetic-keys/r0c0", false),
         (companion, false),
@@ -4208,9 +4278,11 @@ fn production_rotated_pair_map_mirror_move_preview_commit_and_history() {
         part(&accepted, "left/U1")["pose"],
         json!({"at":{"x":-24.0,"y":0.0},"rotation":0.0})
     );
+    // U1 is a controller: the rotated map reflects its heading without the half turn
+    // (90 - 0 = 90), while the position still goes through the pair map.
     assert_eq!(
         part(&accepted, "right/U1")["pose"],
-        json!({"at":{"x":200.0,"y":54.0},"rotation":270.0})
+        json!({"at":{"x":200.0,"y":54.0},"rotation":90.0})
     );
 
     let move_from_mirror = json!({
@@ -4255,7 +4327,7 @@ fn production_rotated_pair_map_mirror_move_preview_commit_and_history() {
         (186.0, 46.0),
         "literal mirror Preview pose",
     );
-    assert_eq!(mirror_preview_pose["rotation"], 270.0);
+    assert_eq!(mirror_preview_pose["rotation"], 90.0);
     assert_eq!(snapshot(&mut engine), accepted, "Preview must not publish");
 
     let committed = request(
@@ -4293,7 +4365,7 @@ fn production_rotated_pair_map_mirror_move_preview_commit_and_history() {
         (186.0, 46.0),
         "literal committed mirror pose",
     );
-    assert_eq!(mirror_committed_pose["rotation"], 270.0);
+    assert_eq!(mirror_committed_pose["rotation"], 90.0);
 
     let undone = request(
         &mut engine,
@@ -4383,10 +4455,11 @@ fn production_mirror_move_retunes_constraint_chain_through_preview_and_history()
             .find(|transform| transform["id"] == id)
             .unwrap_or_else(|| panic!("preview transform for {id} is missing: {preview}"))
     };
+    // right/U1 is a controller, so it keeps heading 0 while the connector J2 keeps the turn.
     for (id, x, y, rotation) in [
         ("left/U1", -16.0, 14.0, 0.0),
         ("left/J2", -6.0, 19.0, 0.0),
-        ("right/U1", 216.0, 14.0, 180.0),
+        ("right/U1", 216.0, 14.0, 0.0),
         ("right/J2", 206.0, 19.0, 180.0),
     ] {
         assert_eq!(
@@ -4416,7 +4489,7 @@ fn production_mirror_move_retunes_constraint_chain_through_preview_and_history()
     for (id, x, y, rotation) in [
         ("left/U1", -16.0, 14.0, 0.0),
         ("left/J2", -6.0, 19.0, 0.0),
-        ("right/U1", 216.0, 14.0, 180.0),
+        ("right/U1", 216.0, 14.0, 0.0),
         ("right/J2", 206.0, 19.0, 180.0),
     ] {
         assert_eq!(
@@ -4460,7 +4533,7 @@ fn production_mirror_move_retunes_constraint_chain_through_preview_and_history()
     for (id, x, y, rotation) in [
         ("left/U1", -24.0, 0.0, 0.0),
         ("left/J2", -14.0, 5.0, 0.0),
-        ("right/U1", 224.0, 0.0, 180.0),
+        ("right/U1", 224.0, 0.0, 0.0),
         ("right/J2", 214.0, 5.0, 180.0),
     ] {
         assert_eq!(
@@ -4492,7 +4565,7 @@ fn production_mirror_move_retunes_constraint_chain_through_preview_and_history()
     for (id, x, y, rotation) in [
         ("left/U1", -16.0, 14.0, 0.0),
         ("left/J2", -6.0, 19.0, 0.0),
-        ("right/U1", 216.0, 14.0, 180.0),
+        ("right/U1", 216.0, 14.0, 0.0),
         ("right/J2", 206.0, 19.0, 180.0),
     ] {
         assert_eq!(
@@ -4929,23 +5002,47 @@ fn production_linked_diode_move_refuses_in_preview_and_commit_without_history_lo
 fn production_targeted_instance_set_mechanical_uses_preparation_for_unpaired_instances() {
     for initially_disabled in [false, true] {
         let mut document = runtime_supported_document();
-        let mut configuration = document["hardware"]["instances"][0]["mechanical"].clone();
-        configuration["wallThickness"] = json!(3.0);
         if initially_disabled {
             document["hardware"]["instances"][0]["mechanical"] = Value::Null;
         }
         let (mut engine, before) = open(&document);
+        // Ticket 37: raw SetMechanical is deleted. A disabled instance is
+        // established with Enable before the typed dimension write.
+        let mut base = before["revision"].clone();
+        if initially_disabled {
+            let hole = mounting_hole();
+            let enabled = request(
+                &mut engine,
+                json!({"id":"runtime-instance-mechanical-enable","kind":"edit","command":{
+                    "baseRevision":base,
+                    "transactionId":"runtime-instance-mechanical-enable",
+                    "phase":"commit",
+                    "targetIds":[],
+                    "operation":{
+                        "kind":"apply-mechanical-edit",
+                        "edit":{"target":{"kind":"instance","instanceId":"left"},
+                            "change":"enable", "mountingHole": hole}}
+                }}),
+            );
+            assert_eq!(
+                enabled["kind"], "scene",
+                "disabled={initially_disabled}: {enabled}"
+            );
+            base = enabled["document"]["revision"].clone();
+        }
         let configured = request(
             &mut engine,
             json!({"id":"runtime-instance-mechanical-configure","kind":"edit","command":{
-                "baseRevision":before["revision"],
+                "baseRevision":base,
                 "transactionId":format!("runtime-instance-mechanical-configure-{initially_disabled}"),
                 "phase":"commit",
                 "targetIds":[],
+                // Ticket 37: raw SetMechanical is deleted; SetDimension on the
+                // instance is the live typed wall-thickness write.
                 "operation":{
-                    "kind":"set-mechanical",
-                    "configuration":configuration,
-                    "target":{"kind":"instance","instanceId":"left"}
+                    "kind":"apply-mechanical-edit",
+                    "edit":{"target":{"kind":"instance","instanceId":"left"},
+                        "change":{"set-dimension":{"field":"wall-thickness","value":3.0}}}
                 }
             }}),
         );
@@ -4959,7 +5056,7 @@ fn production_targeted_instance_set_mechanical_uses_preparation_for_unpaired_ins
         );
         assert_eq!(
             configured["document"]["revision"],
-            before["revision"].as_u64().unwrap() + 1
+            base.as_u64().unwrap() + 1
         );
     }
 }
@@ -5100,4 +5197,180 @@ fn production_paired_noop_commit_preserves_revision_history_and_redo() {
         part(&redone["document"], "right/U1")["pose"]["at"],
         json!({"x":222.0,"y":4.0})
     );
+}
+
+#[test]
+fn production_curved_key_move_uses_the_published_offset_inverse() {
+    let mut input = runtime_supported_document();
+    input["matrices"][0]["columnLayout"] = json!([{"rotation":90}]);
+    input["matrices"][0]["rowLayout"] = json!([{"bend":90}]);
+    let (mut engine, source) = seed(&input, "left");
+    // Prepare the matrix through Core so edit comparisons include its canonical edge gap.
+    let prepared = request(
+        &mut engine,
+        json!({"kind":"edit","id":"placement-setup","command":{
+            "baseRevision":source["revision"],"transactionId":"placement-setup","phase":"commit","targetIds":[],
+            "operation":{"kind":"set-matrix","matrix":source["matrices"][0]}
+        }}),
+    );
+    let source = prepared["document"].clone();
+    let created = create(
+        &mut engine,
+        &source,
+        "curved-placement",
+        "left",
+        new_board("right", "right"),
+        mapping(200.0),
+    )
+    .unwrap();
+    let before = created["document"].clone();
+    let id = "matrix/left-synthetic-keys/r1c0";
+    let old = part(&before, id)["pose"]["at"].clone();
+    let x = old["x"].as_f64().unwrap() + 4.0;
+    let y = old["y"].as_f64().unwrap() - 3.0;
+    let operation = json!({"kind":"move-parts","positions":[{"id":id,"at":{"x":x,"y":y}}]});
+    let preview = request(
+        &mut engine,
+        json!({"kind":"edit","id":"curved-preview","command":{
+            "baseRevision":before["revision"],"transactionId":"curved","phase":"preview","targetIds":[id],"operation":operation
+        }}),
+    );
+    assert_eq!(preview["kind"], "preview");
+    assert_eq!(snapshot(&mut engine), before);
+    let committed = request(
+        &mut engine,
+        json!({"kind":"edit","id":"curved-commit","command":{
+            "baseRevision":before["revision"],"transactionId":"curved","phase":"commit","targetIds":[id],"operation":operation
+        }}),
+    );
+    let after = &committed["document"];
+    assert_close_pair(
+        (
+            part(after, id)["pose"]["at"]["x"].as_f64().unwrap(),
+            part(after, id)["pose"]["at"]["y"].as_f64().unwrap(),
+        ),
+        (x, y),
+        "requested source move",
+    );
+    assert_eq!(
+        after["matrices"][0]["columnLayout"],
+        before["matrices"][0]["columnLayout"]
+    );
+    assert_eq!(
+        after["matrices"][0]["rowLayout"],
+        before["matrices"][0]["rowLayout"]
+    );
+    for row in 0..2 {
+        for column in 0..2 {
+            if (row, column) == (1, 0) {
+                continue;
+            }
+            let key = format!("matrix/left-synthetic-keys/r{row}c{column}");
+            assert_eq!(part(after, &key), part(&before, &key));
+            let mirror = format!("matrix/right-synthetic-keys/r{row}c{column}");
+            assert_eq!(part(after, &mirror), part(&before, &mirror));
+            assert!(
+                !committed["scene"]["changedIds"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!(key))
+            );
+        }
+    }
+    assert_reflects_every_part(after, "curved-placement", "curved move");
+    let undone = request(&mut engine, json!({"kind":"undo","id":"undo"}));
+    assert_eq!(undone["document"]["matrices"], before["matrices"]);
+    assert_eq!(undone["document"]["parts"], before["parts"]);
+    let swung = request(
+        &mut engine,
+        json!({"kind":"edit","id":"mirror-swing","command":{
+            "baseRevision":undone["document"]["revision"],"transactionId":"mirror-swing","phase":"commit","targetIds":[],
+            "operation":{"kind":"set-matrix-splay","matrixId":"right-synthetic-keys","column":0,
+                "change":{"kind":"origin-swing","world":{"x":203.0,"y":2.0}}}
+        }}),
+    );
+    let source_matrix = |document: &Value| {
+        document["matrices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|matrix| matrix["id"] == "left-synthetic-keys")
+            .unwrap()
+            .clone()
+    };
+    let mut expected = source_matrix(&before);
+    expected["columnLayout"][0]["splayOrigin"] = json!({"x":-3.0,"y":2.0});
+    assert_eq!(source_matrix(&swung["document"]), expected);
+    let source_key = part(&swung["document"], "matrix/left-synthetic-keys/r0c0");
+    assert_close_pair(
+        (
+            source_key["pose"]["at"]["x"].as_f64().unwrap(),
+            source_key["pose"]["at"]["y"].as_f64().unwrap(),
+        ),
+        (-1.0, 5.0),
+        "mirror Swing inverse",
+    );
+    assert_reflects_every_part(&swung["document"], "curved-placement", "mirror Swing");
+}
+
+#[test]
+fn production_linked_rigid_translation_retains_membership_refusal() {
+    // Linked constraint admission belongs to ticket 20; preserve its current atomic refusal.
+    for column in [None, Some(0)] {
+        let mut input = runtime_supported_document();
+        input["constraints"] = json!([{"kind":"offset","id":"internal-keys",
+            "sourcePartId":"matrix/left-synthetic-keys/r0c0","targetPartId":"matrix/left-synthetic-keys/r1c0",
+            "offset":{"x":0,"y":21},"rotation":0}]);
+        let (mut engine, source) = seed(&input, "left");
+        let prepared = request(
+            &mut engine,
+            json!({"kind":"edit","id":"internal-setup","command":{
+                "baseRevision":source["revision"],"transactionId":"internal-setup","phase":"commit","targetIds":[],
+                "operation":{"kind":"set-matrix","matrix":source["matrices"][0]}
+            }}),
+        );
+        let source = prepared["document"].clone();
+        let created = create(
+            &mut engine,
+            &source,
+            "internal-translation",
+            "left",
+            new_board("right", "right"),
+            mapping(200.0),
+        )
+        .unwrap();
+        let before = created["document"].clone();
+        let change = match column {
+            Some(column) => {
+                json!({"kind":"column-translation","column":column,"delta":{"x":4,"y":-3}})
+            }
+            None => json!({"kind":"matrix-translation","delta":{"x":4,"y":-3}}),
+        };
+        let operation =
+            json!({"kind":"set-matrix-placement","matrixId":"left-synthetic-keys","change":change});
+        for phase in ["preview", "commit"] {
+            let input = json!({"kind":"edit","id":format!("internal-{phase}"),"command":{
+                "baseRevision":before["revision"],"transactionId":"internal","phase":phase,"targetIds":[],"operation":operation
+            }});
+            let refused: Value = serde_json::from_str(&engine.request(&input.to_string())).unwrap();
+            assert_eq!(refused["kind"], "error");
+            assert_eq!(
+                refused["message"],
+                "Linked matrix placements cannot retain authored or constrained geometry"
+            );
+            assert_eq!(refused["revision"], before["revision"]);
+            assert_eq!(snapshot(&mut engine), before);
+        }
+        let undone = request(&mut engine, json!({"kind":"undo","id":"internal-undo"}));
+        let mut expected = source.clone();
+        expected["revision"] = undone["document"]["revision"].clone();
+        assert_eq!(
+            undone["document"], expected,
+            "failed edits add no history entry"
+        );
+        let redone = request(&mut engine, json!({"kind":"redo","id":"internal-redo"}));
+        expected = before;
+        expected["revision"] = redone["document"]["revision"].clone();
+        assert_eq!(redone["document"], expected);
+    }
 }

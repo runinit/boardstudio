@@ -98,9 +98,9 @@ fn part_context_model() -> ReadModel {
         "revision": 0, "transactionId": "context-test", "changedIds": [],
         "transforms": [], "matrixScenes": [{
             "matrixId": "matrix", "columns": [], "cells": [
-                {"row": 0, "column": 0, "enabled": true, "memberId": "key-1", "pose": {"at": {"x": 0, "y": 0}, "rotation": 0}},
-                {"row": 0, "column": 1, "enabled": true, "memberId": "key-10", "pose": {"at": {"x": 19, "y": 0}, "rotation": 0}},
-                {"row": 0, "column": 2, "enabled": false, "memberId": "disabled", "pose": {"at": {"x": 38, "y": 0}, "rotation": 0}}
+                {"row": 0, "column": 0, "enabled": true, "memberId": "key-1", "pose": {"at": {"x": 0, "y": 0}, "rotation": 0}, "shiftFrame": {"origin": {"x": 0, "y": 0}, "rotation": 0, "axisX": {"x": 1, "y": 0}, "axisY": {"x": 0, "y": 1}}, "offsetFrame": {"origin": {"x": 0, "y": 0}, "rotation": 0, "axisX": {"x": 1, "y": 0}, "axisY": {"x": 0, "y": 1}}},
+                {"row": 0, "column": 1, "enabled": true, "memberId": "key-10", "pose": {"at": {"x": 19, "y": 0}, "rotation": 0}, "shiftFrame": {"origin": {"x": 19, "y": 0}, "rotation": 0, "axisX": {"x": 1, "y": 0}, "axisY": {"x": 0, "y": 1}}, "offsetFrame": {"origin": {"x": 19, "y": 0}, "rotation": 0, "axisX": {"x": 1, "y": 0}, "axisY": {"x": 0, "y": 1}}},
+                {"row": 0, "column": 2, "enabled": false, "memberId": "disabled", "pose": {"at": {"x": 38, "y": 0}, "rotation": 0}, "shiftFrame": {"origin": {"x": 38, "y": 0}, "rotation": 0, "axisX": {"x": 1, "y": 0}, "axisY": {"x": 0, "y": 1}}, "offsetFrame": {"origin": {"x": 38, "y": 0}, "rotation": 0, "axisX": {"x": 1, "y": 0}, "axisY": {"x": 0, "y": 1}}}
             ]
         }], "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
         "readiness": {"layout": true, "outline": false, "pcb": false, "case": false}
@@ -446,7 +446,7 @@ fn bridge_has_same_board_selection_at_outline_and_owning_matrix_occurrences() {
     let layout = document
         .layouts
         .iter()
-        .find(|layout| layout.matrix_id == matrix_id)
+        .find(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id))
         .expect("synthetic fixture has a matrix layout");
     let bridge_id = "bridge-synthetic-matrix";
     let mut expanded = BTreeSet::from([

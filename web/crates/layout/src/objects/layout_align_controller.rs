@@ -1,7 +1,5 @@
 //! Root-lifetime admission and exact outcome settlement for Layout Align commands.
-use super::layout_align::{
-    alignment_delta, local_matrix_delta, reconcile_reference_choice, transformed_envelope,
-};
+use super::layout_align::{alignment_delta, reconcile_reference_choice, transformed_envelope};
 use super::{
     AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount, ScopedTreeContext,
     TreeContext,
@@ -675,10 +673,9 @@ fn linked_selection(
 }
 
 fn linked_partner(document: &ProjectDoc, scope: &Scope, matrix_id: &str) -> Option<String> {
-    let layout = document
-        .layouts
-        .iter()
-        .find(|layout| layout.board_id == scope.board_id && layout.matrix_id == matrix_id)?;
+    let layout = document.layouts.iter().find(|layout| {
+        layout.board_id == scope.board_id && layout.matrix_ids.iter().any(|id| *id == matrix_id)
+    })?;
     let linked = if let Some(link) = &layout.mirror_link {
         document.layouts.iter().find(|candidate| {
             candidate.board_id == scope.board_id && candidate.id == link.source_id
@@ -692,7 +689,12 @@ fn linked_partner(document: &ProjectDoc, scope: &Scope, matrix_id: &str) -> Opti
                     .is_some_and(|link| link.source_id == layout.id)
         })
     }?;
-    Some(linked.matrix_id.clone())
+    layout
+        .mirror_link
+        .as_ref()
+        .or(linked.mirror_link.as_ref())?
+        .partner_matrix(matrix_id)
+        .map(str::to_owned)
 }
 
 /// Resolve an align against the accepted document at execution time. Every part the
@@ -768,42 +770,34 @@ fn make_edit(
 ) -> Option<(EditOperation, Vec<String>)> {
     match context {
         TreeContext::Matrix { matrix_id } => {
-            let mut matrix = document
+            document
                 .matrices
                 .iter()
-                .find(|matrix| matrix.id == *matrix_id)?
-                .clone();
-            matrix.origin.x += delta.x;
-            matrix.origin.y += delta.y;
-            let id = matrix.id.clone();
+                .find(|matrix| matrix.id == *matrix_id)?;
             Some((
-                EditOperation::SetMatrix {
-                    matrix,
-                    definitions: None,
+                EditOperation::SetMatrixPlacement {
+                    matrix_id: matrix_id.clone(),
+                    change: boardstudio_core::model::MatrixPlacementChange::MatrixTranslation {
+                        delta,
+                    },
                 },
-                vec![id],
+                vec![matrix_id.clone()],
             ))
         }
         TreeContext::Column { matrix_id, column } => {
-            let mut matrix = document
+            document
                 .matrices
                 .iter()
-                .find(|matrix| matrix.id == *matrix_id)?
-                .clone();
-            let local = local_matrix_delta(&matrix, delta, *column as usize);
-            let index = *column as usize;
-            while matrix.column_offsets.len() <= index {
-                matrix.column_offsets.push(Vec2::default());
-            }
-            matrix.column_offsets[index].x += local.x;
-            matrix.column_offsets[index].y += local.y;
-            let id = matrix.id.clone();
+                .find(|matrix| matrix.id == *matrix_id)?;
             Some((
-                EditOperation::SetMatrix {
-                    matrix,
-                    definitions: None,
+                EditOperation::SetMatrixPlacement {
+                    matrix_id: matrix_id.clone(),
+                    change: boardstudio_core::model::MatrixPlacementChange::ColumnTranslation {
+                        column: *column,
+                        delta,
+                    },
                 },
-                vec![id],
+                vec![matrix_id.clone()],
             ))
         }
         TreeContext::Row { .. } => None,
@@ -902,7 +896,10 @@ fn reference_label(model: &boardstudio_application::ReadModel, id: &str) -> Stri
 mod resolver_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
-    use boardstudio_core::model::{Board, OutlineFeature, OutlineSettings, Pose2, Side};
+    use boardstudio_core::model::{
+        Board, Follow, Layout, Matrix, MatrixAnchor, MatrixCell, MatrixPlacementChange,
+        OutlineFeature, OutlineSettings, Pose2, Side,
+    };
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -1053,5 +1050,404 @@ mod resolver_tests {
             other => panic!("expected a retirement with a reason, got {other:?}"),
         }
         assert_eq!(pose_x(&runtime, "a"), None);
+    }
+
+    fn switch_definition() -> serde_json::Value {
+        serde_json::json!({
+            "id": "switch:base",
+            "name": "MX switch",
+            "kind": "switch",
+            "courtyard": [{"x": -3.0, "y": -3.0}, {"x": 3.0, "y": -3.0}, {"x": 3.0, "y": 3.0}],
+            "pads": []
+        })
+    }
+
+    fn key_part(id: &str, reference: &str, x: f64, y: f64) -> Part {
+        Part {
+            keycap: None,
+            outline: None,
+            id: id.into(),
+            definition_id: "switch:base".into(),
+            reference: reference.into(),
+            pose: Pose2 {
+                at: Vec2 { x, y },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        }
+    }
+
+    fn bent_column_document() -> ProjectDoc {
+        let mut document = ProjectDoc::empty("project", "Keyboard");
+        document.outline.push(OutlineFeature::PartEnvelope {
+            connections: vec![],
+            settings: OutlineSettings::default(),
+            id: "envelope-main".into(),
+            part_ids: vec![],
+            margin: 4.0,
+            operation: boardstudio_core::model::Operation::Add,
+        });
+        document.boards.push(Board {
+            id: "board-main".into(),
+            name: "Main".into(),
+            outline_ids: vec!["envelope-main".into()],
+            part_ids: vec![
+                "matrix/m/r0c0".into(),
+                "matrix/m/r1c0".into(),
+                "ref-part".into(),
+            ],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document
+            .definitions
+            .push(serde_json::from_value(switch_definition()).unwrap());
+        document
+            .parts
+            .push(key_part("matrix/m/r0c0", "SW1", 0.0, 0.0));
+        document
+            .parts
+            .push(key_part("matrix/m/r1c0", "SW2", 0.0, 19.05));
+        document.parts.push(key_part("ref-part", "REF", 40.0, 0.0));
+        document.matrices.push(Matrix {
+            id: "m".into(),
+            name: None,
+            rows: 2,
+            columns: 1,
+            pitch: Vec2 { x: 19.05, y: 19.05 },
+            origin: Vec2::default(),
+            definition_id: "switch:base".into(),
+            part_ids: vec!["matrix/m/r0c0".into(), "matrix/m/r1c0".into()],
+            board_id: Some("board-main".into()),
+            mirror: None,
+            rotation: None,
+            edge_gap: None,
+            diode_direction: None,
+            row_layout: vec![],
+            column_layout: vec![],
+            anchor: None,
+            cells: vec![
+                MatrixCell {
+                    shift: None,
+                    bend: None,
+                    deleted: false,
+                    row: 0,
+                    column: 0,
+                    enabled: true,
+                    definition_id: None,
+                    variant: None,
+                    offset: None,
+                    rotation: None,
+                    assemblies: vec![],
+                    assemblies_local: None,
+                },
+                MatrixCell {
+                    shift: None,
+                    bend: None,
+                    deleted: false,
+                    row: 1,
+                    column: 0,
+                    enabled: true,
+                    definition_id: None,
+                    variant: None,
+                    offset: None,
+                    rotation: None,
+                    assemblies: vec![],
+                    assemblies_local: None,
+                },
+            ],
+        });
+        document.layouts.push(Layout {
+            id: "layout".into(),
+            name: "Main".into(),
+            board_id: "board-main".into(),
+            matrix_ids: vec!["m".into()],
+            part_ids: vec!["ref-part".into()],
+            mirror_link: None,
+        });
+        document
+    }
+
+    fn accepted_poses(runtime: &Rc<Runtime>, ids: &[&str]) -> Vec<Pose2> {
+        let accepted = runtime.model().accepted.expect("an accepted document");
+        ids.iter()
+            .map(|id| {
+                accepted
+                    .document
+                    .parts
+                    .iter()
+                    .find(|part| &part.id == id)
+                    .unwrap_or_else(|| panic!("part {id} exists"))
+                    .pose
+            })
+            .collect()
+    }
+
+    async fn commit_placement(runtime: &Rc<Runtime>, operation: EditOperation, target: &str) {
+        let revision = runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .revision;
+        support::submit_fixed_command(
+            runtime,
+            EditCommand {
+                base_revision: revision,
+                transaction_id: format!("ticket-22-{target}"),
+                phase: EditPhase::Commit,
+                target_ids: vec![target.to_owned()],
+                operation,
+            },
+        );
+        support::run_pending(runtime).await;
+    }
+
+    /// Ticket 22: the Align consumer submits Core's exact edits, never client
+    /// column offsets. Column goes through `ColumnTranslation`, Matrix through its
+    /// frame, Row stays unavailable, and keys keep the `MoveParts` pose route.
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn align_submits_the_exact_core_edits() {
+        let document = bent_column_document();
+        let delta = Vec2 { x: -3.0, y: 1.5 };
+        let moving = vec!["matrix/m/r0c0".into(), "matrix/m/r1c0".into()];
+        match make_edit(
+            &document,
+            &TreeContext::Column {
+                matrix_id: "m".into(),
+                column: 0,
+            },
+            &moving,
+            delta,
+        ) {
+            Some((
+                EditOperation::SetMatrixPlacement {
+                    matrix_id,
+                    change: MatrixPlacementChange::ColumnTranslation { column, delta },
+                },
+                targets,
+            )) => {
+                assert_eq!(matrix_id, "m");
+                assert_eq!(column, 0);
+                assert_eq!(delta, Vec2 { x: -3.0, y: 1.5 });
+                assert_eq!(targets, vec!["m".to_owned()]);
+            }
+            other => panic!("a bent column must Align rigidly, got {other:?}"),
+        }
+        match make_edit(
+            &document,
+            &TreeContext::Matrix {
+                matrix_id: "m".into(),
+            },
+            &moving,
+            delta,
+        ) {
+            Some((
+                EditOperation::SetMatrixPlacement {
+                    change: MatrixPlacementChange::MatrixTranslation { .. },
+                    ..
+                },
+                _,
+            )) => {}
+            other => panic!("a matrix must Align through its frame, got {other:?}"),
+        }
+        assert!(
+            make_edit(
+                &document,
+                &TreeContext::Row {
+                    matrix_id: "m".into(),
+                    row: 0,
+                },
+                &moving,
+                delta,
+            )
+            .is_none(),
+            "rows cross splayed columns and stay unaligned"
+        );
+        match make_edit(
+            &document,
+            &TreeContext::Key {
+                matrix_id: "m".into(),
+                row: 0,
+                column: 0,
+            },
+            &moving[..1],
+            delta,
+        ) {
+            Some((EditOperation::MoveParts { positions }, _)) => {
+                assert_eq!(positions.len(), 1);
+                assert_eq!(positions[0].at, Vec2 { x: -3.0, y: 1.5 });
+            }
+            other => panic!("keys keep the MoveParts pose route, got {other:?}"),
+        }
+    }
+
+    /// Ticket 22 first slice: a Column Align on a bent column routes through Core's
+    /// exact column edit (never client column offsets), so every target moves rigidly.
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn column_align_on_a_bent_column_moves_targets_rigidly() {
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, bent_column_document()).await;
+        commit_placement(
+            &runtime,
+            EditOperation::SetMatrixPlacement {
+                matrix_id: "m".into(),
+                change: MatrixPlacementChange::KeyBend {
+                    row: 1,
+                    column: 0,
+                    value: 30.0,
+                },
+            },
+            "m",
+        )
+        .await;
+        let moving = vec!["matrix/m/r0c0".into(), "matrix/m/r1c0".into()];
+        let before = accepted_poses(&runtime, &["matrix/m/r0c0", "matrix/m/r1c0"]);
+        assert!(
+            (before[0].rotation - before[1].rotation).abs() > 1.0,
+            "the bend turns the second key: {before:?}"
+        );
+        let mut pending = PendingEdits::default();
+        pending.begin(
+            &runtime,
+            (),
+            "layout-align",
+            Some("alignment".into()),
+            align_resolver(
+                TreeContext::Column {
+                    matrix_id: "m".into(),
+                    column: 0,
+                },
+                moving,
+                "ref-part".into(),
+                AlignCommand::Left,
+            ),
+        );
+        support::run_pending(&runtime).await;
+        match pending.settle(true).as_slice() {
+            [PendingEditResult::Landed { .. }] => {}
+            other => panic!("a rigid column align lands, got {other:?}"),
+        }
+        let after = accepted_poses(&runtime, &["matrix/m/r0c0", "matrix/m/r1c0"]);
+        let delta = |index: usize| Vec2 {
+            x: after[index].at.x - before[index].at.x,
+            y: after[index].at.y - before[index].at.y,
+        };
+        let first = delta(0);
+        let second = delta(1);
+        assert!(
+            first.x.hypot(first.y) > 1e-9,
+            "the align moves the column: {before:?} -> {after:?}"
+        );
+        assert!(
+            (first.x - second.x).abs() < 1e-9 && (first.y - second.y).abs() < 1e-9,
+            "both bent-column targets share one rigid translation: {before:?} -> {after:?}"
+        );
+        assert_eq!(after[0].rotation, before[0].rotation);
+        assert_eq!(after[1].rotation, before[1].rotation);
+    }
+
+    /// Ticket 22 first slice: an anchored/Follow refusal surfaces with the document
+    /// and revision unchanged.
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn anchored_follow_refusal_leaves_the_document_unchanged() {
+        let runtime = support::new_runtime();
+        let mut document = bent_column_document();
+        document.matrices.retain(|matrix| matrix.id == "m");
+        document.matrices[0].rows = 1;
+        document.matrices[0].columns = 2;
+        document.matrices[0].part_ids = vec!["matrix/m/r0c0".into(), "matrix/m/r0c1".into()];
+        document.matrices[0].cells = document.matrices[0]
+            .cells
+            .iter()
+            .filter(|cell| cell.row == 0)
+            .cloned()
+            .collect();
+        document.matrices[0].cells.push(MatrixCell {
+            shift: None,
+            bend: None,
+            deleted: false,
+            row: 0,
+            column: 1,
+            enabled: true,
+            definition_id: None,
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        });
+        document.parts.retain(|part| part.id != "matrix/m/r1c0");
+        document
+            .parts
+            .push(key_part("matrix/m/r0c1", "SW2", 19.05, 0.0));
+        document.boards[0].part_ids = vec![
+            "matrix/m/r0c0".into(),
+            "matrix/m/r0c1".into(),
+            "ref-part".into(),
+        ];
+        support::open_document(&runtime, document).await;
+        commit_placement(
+            &runtime,
+            EditOperation::AddAnchoredMatrix {
+                id: "dep".into(),
+                anchor: MatrixAnchor {
+                    matrix_id: "m".into(),
+                    row: 0,
+                    column: 1,
+                    follow: Follow {
+                        x: false,
+                        y: true,
+                        rotation: true,
+                    },
+                    aggregate: None,
+                },
+            },
+            "dep",
+        )
+        .await;
+        let accepted = runtime.model().accepted.expect("an accepted document");
+        let moving: Vec<String> = accepted
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "dep")
+            .expect("the anchored matrix exists")
+            .part_ids
+            .clone();
+        assert!(!moving.is_empty(), "the anchored matrix materializes parts");
+        let revision = accepted.document.revision;
+        let parts = accepted.document.parts.clone();
+        let mut pending = PendingEdits::default();
+        pending.begin(
+            &runtime,
+            (),
+            "layout-align",
+            Some("alignment".into()),
+            align_resolver(
+                TreeContext::Matrix {
+                    matrix_id: "dep".into(),
+                },
+                moving,
+                "ref-part".into(),
+                AlignCommand::Left,
+            ),
+        );
+        support::run_pending(&runtime).await;
+        match pending.settle(true).as_slice() {
+            [PendingEditResult::Failed { message, .. }] => assert!(
+                message.contains("Follow"),
+                "the refusal names the Follow restriction: {message}"
+            ),
+            other => panic!("an unfollowed align refuses, got {other:?}"),
+        }
+        let after = runtime.model().accepted.expect("an accepted document");
+        assert_eq!(after.document.revision, revision);
+        assert_eq!(after.document.parts, parts);
     }
 }

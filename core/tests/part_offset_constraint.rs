@@ -34,6 +34,8 @@ fn edit(
 
 fn matrix() -> Matrix {
     let cell = |column: u32| MatrixCell {
+        shift: None,
+        bend: None,
         deleted: false,
         row: 0,
         column,
@@ -65,11 +67,13 @@ fn matrix() -> Matrix {
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![0.0, 0.0, 0.0],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![
+            boardstudio_core::model::ColumnLayout::default(),
+            boardstudio_core::model::ColumnLayout::default(),
+            boardstudio_core::model::ColumnLayout::default(),
+        ],
+        anchor: None,
         cells: vec![cell(0), cell(1), cell(2)],
     }
 }
@@ -687,12 +691,12 @@ fn mirrored_pair_with_held_left_component(
         rotation: Some(left_rotation),
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![0.0],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![boardstudio_core::model::ColumnLayout::default()],
+        anchor: None,
         cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
             deleted: false,
             row: 0,
             column: 0,
@@ -709,7 +713,7 @@ fn mirrored_pair_with_held_left_component(
         id: id.into(),
         name: id.into(),
         board_id: "board".into(),
-        matrix_id: matrix_id.into(),
+        matrix_ids: vec![matrix_id.into()],
         part_ids,
         mirror_link,
     };
@@ -723,6 +727,8 @@ fn mirrored_pair_with_held_left_component(
                 "right-matrix",
                 vec![],
                 Some(LayoutMirrorLink {
+                    correspondences: vec![],
+                    exceptions: vec![],
                     source_id: "left-layout".into(),
                     axis_x: 10.0,
                 }),
@@ -863,6 +869,10 @@ fn dragging_the_mirrored_half_retunes_a_held_board_offset_on_the_board_axes() {
 /// Holding the right mirror to its own key with a turn of 10 degrees settles that mirror at
 /// -20 degrees (its key is at -30), so the left component is back-solved to 180 - (-20) = 200
 /// degrees. Its key stands at 30, so its constraint must now store a turn of 170.
+///
+/// The mirror is a genuine independent part, so it keeps ADR-0010's half turn; the stored
+/// heading is normalized to `[0, 360)` by the shared mirror-heading helper, i.e. 340 for
+/// -20, matching the long-standing `derive::pose` convention.
 #[test]
 fn a_held_mirror_turns_the_held_left_component_and_retunes_its_stored_turn() {
     for axes in [OffsetAxes::Board, OffsetAxes::Part] {
@@ -885,7 +895,11 @@ fn a_held_mirror_turns_the_held_left_component_and_retunes_its_stored_turn() {
         let right = part(&after, "right-layout::mirror::left-part")
             .pose
             .rotation;
-        assert!((right - -20.0).abs() < 1e-9, "{axes:?}: right turn {right}");
+        // Modulo a full turn: the shared helper stores -20 normalized as 340.
+        assert!(
+            (right - -20.0).rem_euclid(360.0) < 1e-9,
+            "{axes:?}: right turn {right}"
+        );
         let left = part(&after, "left-part").pose.rotation;
         assert!((left - 200.0).abs() < 1e-9, "{axes:?}: left turn {left}");
         let Some(Constraint::Offset { rotation, .. } | Constraint::PartOffset { rotation, .. }) =

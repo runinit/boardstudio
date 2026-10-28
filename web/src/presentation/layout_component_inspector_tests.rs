@@ -6,8 +6,8 @@ use super::*;
 use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SessionEpoch};
 use boardstudio_core::model::{
     Board, Constraint, ConstraintEndpoint, ConstraintRelation, Layout, LayoutMirrorLink, Matrix,
-    MatrixCell, MatrixScene, MatrixSceneCell, PartDefinition, PartKind, PartOutline, Pose2,
-    ProjectDoc, Readiness, SceneDelta, Side,
+    MatrixCell, MatrixScene, MatrixSceneCell, MirroredCorrespondence, MirroredItemKind,
+    PartDefinition, PartKind, PartOutline, Pose2, ProjectDoc, Readiness, SceneDelta, Side, Vec2,
 };
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use std::cell::RefCell;
@@ -74,7 +74,7 @@ fn fixture_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
         id: "source-layout".into(),
         name: "Left half".into(),
         board_id: "board".into(),
-        matrix_id: "matrix".into(),
+        matrix_ids: vec!["matrix".into()],
         part_ids: vec!["selected-part".into()],
         mirror_link: None,
     });
@@ -82,9 +82,17 @@ fn fixture_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
         id: "paired-layout".into(),
         name: "Right half".into(),
         board_id: "board".into(),
-        matrix_id: "paired-matrix".into(),
+        matrix_ids: vec!["paired-matrix".into()],
         part_ids: vec![],
         mirror_link: Some(LayoutMirrorLink {
+            correspondences: vec![MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::Matrix,
+                source_id: "matrix".into(),
+                mirror_id: "paired-matrix".into(),
+            }],
+            exceptions: vec![],
             source_id: "source-layout".into(),
             axis_x: 0.0,
         }),
@@ -186,13 +194,13 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: vec![
             MatrixCell {
+                shift: None,
+                bend: None,
                 deleted: false,
                 row: 0,
                 column: 0,
@@ -205,6 +213,8 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
                 assemblies_local: None,
             },
             MatrixCell {
+                shift: None,
+                bend: None,
                 deleted: false,
                 row: 0,
                 column: 1,
@@ -217,6 +227,8 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
                 assemblies_local: None,
             },
             MatrixCell {
+                shift: None,
+                bend: None,
                 deleted: true,
                 row: 0,
                 column: 2,
@@ -238,6 +250,14 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
             companions: vec![],
             cells: vec![
                 MatrixSceneCell {
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
+                    row_shift: Vec2::default(),
+                    key_shift: Vec2::default(),
+                    row_bend: 0.0,
+                    key_bend: 0.0,
+                    cumulative_shift: Vec2::default(),
+                    cumulative_bend: 0.0,
                     row: 0,
                     column: 0,
                     enabled: true,
@@ -248,6 +268,14 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
                     },
                 },
                 MatrixSceneCell {
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
+                    row_shift: Vec2::default(),
+                    key_shift: Vec2::default(),
+                    row_bend: 0.0,
+                    key_bend: 0.0,
+                    cumulative_shift: Vec2::default(),
+                    cumulative_bend: 0.0,
                     row: 0,
                     column: 1,
                     enabled: false,
@@ -302,12 +330,12 @@ fn companion_placement_projection_normalizes_layout_selections() {
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
             deleted: false,
             row: 0,
             column: 0,
@@ -392,6 +420,14 @@ fn companion_placement_projection_normalizes_layout_selections() {
     scene.matrix_scenes.push(MatrixScene {
         matrix_id: "component-matrix".into(),
         cells: vec![MatrixSceneCell {
+            shift_frame: Default::default(),
+            offset_frame: Default::default(),
+            row_shift: Vec2::default(),
+            key_shift: Vec2::default(),
+            row_bend: 0.0,
+            key_bend: 0.0,
+            cumulative_shift: Vec2::default(),
+            cumulative_bend: 0.0,
             row: 0,
             column: 0,
             enabled: true,
@@ -1138,12 +1174,12 @@ fn runtime_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
                 rotation: None,
                 edge_gap: None,
                 diode_direction: None,
-                row_offsets: vec![],
-                column_offsets: vec![],
-                column_staggers: vec![],
-                column_splays: vec![],
-                column_origins: vec![],
+                row_layout: vec![],
+                column_layout: vec![],
+                anchor: None,
                 cells: vec![MatrixCell {
+                    shift: None,
+                    bend: None,
                     deleted: false,
                     row: 0,
                     column: 0,
@@ -1225,6 +1261,9 @@ async fn mounted_runtime_probe(
         document,
     });
     crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    runtime.model().accepted.expect(
+        "the mounted Inspector fixture must be accepted by Session/Core Open before selection",
+    );
     runtime.submit(boardstudio_application::Event::SelectParts {
         operation_id: runtime.operation(),
         part_ids: selected_parts.iter().map(|id| (*id).into()).collect(),
@@ -1579,7 +1618,7 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                 id: "component-layout".into(),
                 name: "Component half".into(),
                 board_id: "board".into(),
-                matrix_id: "component-matrix".into(),
+                matrix_ids: vec!["component-matrix".into()],
                 part_ids: vec![],
                 mirror_link: None,
             });
@@ -1587,9 +1626,17 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                 id: "component-mirror-layout".into(),
                 name: "Component mirror".into(),
                 board_id: "board".into(),
-                matrix_id: "component-paired-matrix".into(),
+                matrix_ids: vec!["component-paired-matrix".into()],
                 part_ids: vec![],
                 mirror_link: Some(LayoutMirrorLink {
+                    correspondences: vec![MirroredCorrespondence {
+                        companion_mode: None,
+                        companion_tweak: None,
+                        kind: MirroredItemKind::Matrix,
+                        source_id: "component-matrix".into(),
+                        mirror_id: "component-paired-matrix".into(),
+                    }],
+                    exceptions: vec![],
                     source_id: "component-layout".into(),
                     axis_x: 0.0,
                 }),
@@ -1609,12 +1656,12 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                 rotation: None,
                 edge_gap: None,
                 diode_direction: None,
-                row_offsets: vec![],
-                column_offsets: vec![],
-                column_staggers: vec![],
-                column_splays: vec![],
-                column_origins: vec![],
+                row_layout: vec![],
+                column_layout: vec![],
+                anchor: None,
                 cells: vec![MatrixCell {
+                    shift: None,
+                    bend: None,
                     deleted: false,
                     row: 0,
                     column: 0,
@@ -1641,12 +1688,12 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                 rotation: None,
                 edge_gap: None,
                 diode_direction: None,
-                row_offsets: vec![],
-                column_offsets: vec![],
-                column_staggers: vec![],
-                column_splays: vec![],
-                column_origins: vec![],
+                row_layout: vec![],
+                column_layout: vec![],
+                anchor: None,
                 cells: vec![MatrixCell {
+                    shift: None,
+                    bend: None,
                     deleted: false,
                     row: 0,
                     column: 0,
@@ -2465,12 +2512,12 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
             rotation: None,
             edge_gap: None,
             diode_direction: None,
-            row_offsets: vec![],
-            column_offsets: vec![],
-            column_staggers: vec![],
-            column_splays: vec![0.0],
-            column_origins: vec![],
+            row_layout: vec![],
+            column_layout: vec![boardstudio_core::model::ColumnLayout::default()],
+            anchor: None,
             cells: vec![MatrixCell {
+                shift: None,
+                bend: None,
                 deleted: false,
                 row: 0,
                 column: 0,
@@ -2478,7 +2525,7 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
                 definition_id: None,
                 variant: None,
                 offset: None,
-                rotation: None,
+                rotation: Some(30.0),
                 assemblies: vec![],
                 assemblies_local: None,
             }],
@@ -2512,6 +2559,23 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
         "the fixture's board order and key flags"
     );
     let root_id = probe.root_id;
+
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("fixture snapshot")
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == KEY)
+            .expect("the source key is accepted")
+            .pose
+            .rotation,
+        30.0,
+        "the accepted source key must retain its authored 30 degree heading before conversion"
+    );
 
     // First render: the saved part-offset constraint.
     assert_eq!(
@@ -2817,6 +2881,9 @@ mod matrix_relations_panel {
                 on_pick_splay_origin: EventHandler::new(|()| {}),
                 splay_origin_pick_pending: false,
                 on_cancel_splay_origin_pick: EventHandler::new(|()| {}),
+                on_pick_anchor: EventHandler::new(|()| {}),
+                anchor_pick_pending: false,
+                on_cancel_anchor_pick: EventHandler::new(|()| {}),
                 inspector_tab: state.inspector_tab(),
                 matrix_relations: matrix_context_relations(&model, selected.as_ref()),
                 relation_target: {
@@ -2827,6 +2894,7 @@ mod matrix_relations_panel {
                 on_select_context: EventHandler::new(move |request: objects::TreeSelectRequest| {
                     selection::submit_context(&select_runtime, &select_adapter, request.into());
                 }),
+                on_navigate_anchor_part: EventHandler::new(|_| {}),
                 outline_inspector: None,
                 findings_return_available: false,
                 on_findings_return: EventHandler::new(|()| {}),
@@ -2959,7 +3027,8 @@ mod matrix_relations_panel {
             Some(matrix_json(
                 2,
                 3,
-                json!({ "columnOffsets": [{ "x": 0.0, "y": 0.0 }, { "x": 1.5, "y": 2.0 }] }),
+                json!({ "columnLayout": [{"offset": {"x": 0.0, "y": 0.0}}, {"offset": {"x": 1.5, "y": 2.0}}]
+}),
             )),
         )
         .await;
@@ -2971,7 +3040,7 @@ mod matrix_relations_panel {
         probe.click("[data-relation-action='reset']");
         probe.land().await;
         assert_eq!(
-            probe.matrix().column_offsets[1],
+            probe.matrix().column_layout[1].offset,
             Vec2 { x: 0.0, y: 0.0 },
             "Reset lands through SetMatrixPlacement"
         );
@@ -2985,7 +3054,10 @@ mod matrix_relations_panel {
             operation_id: probe.runtime.operation(),
         });
         probe.land().await;
-        assert_eq!(probe.matrix().column_offsets[1], Vec2 { x: 1.5, y: 2.0 });
+        assert_eq!(
+            probe.matrix().column_layout[1].offset,
+            Vec2 { x: 1.5, y: 2.0 }
+        );
         assert!(
             probe.exists("[data-relation-departure='Column offset']"),
             "Undo restores the departure: {}",
@@ -2995,11 +3067,108 @@ mod matrix_relations_panel {
         probe.click("[data-relation-action='convert']");
         probe.land().await;
         let matrix = probe.matrix();
-        assert_eq!(matrix.column_staggers[1], 2.0);
-        assert_eq!(matrix.column_offsets[1], Vec2 { x: 1.5, y: 0.0 });
+        assert_eq!(matrix.column_layout[1].stagger, 2.0);
+        assert_eq!(matrix.column_layout[1].offset, Vec2 { x: 1.5, y: 0.0 });
         assert!(
             probe.text().contains("2 mm from Column 1, cumulative 2 mm"),
             "Structure shows the new stagger: {}",
+            probe.text()
+        );
+        root.remove();
+    }
+
+    /// A splayed column keeps its Column offset departure, but Convert is
+    /// disabled with the Core-owned reason wired through `aria-describedby`.
+    /// Rendering the refusal writes nothing.
+    #[wasm_bindgen_test]
+    async fn a_blocked_convert_in_relations_names_the_core_reason() {
+        let (probe, root) = mount(
+            "relations-blocked-convert-test",
+            base(),
+            Some(matrix_json(
+                2,
+                3,
+                json!({ "columnLayout": [{"offset": {"x": 0.0, "y": 0.0}}, {"offset": {"x": 1.5, "y": 2.0}, "splay": 10.0}]
+}),
+            )),
+        )
+        .await;
+        let before = probe
+            .runtime
+            .model()
+            .accepted
+            .expect("accepted document")
+            .document
+            .revision;
+        probe.select(column_ctx(1));
+        probe.land().await;
+        probe.open_relations_tab().await;
+        assert!(
+            probe.exists("[data-relation-departure='Column offset']"),
+            "the departure is listed: {}",
+            probe.text()
+        );
+        let button = root
+            .query_selector("[data-relation-action='convert']")
+            .unwrap()
+            .expect("Convert is mounted");
+        assert!(
+            button.has_attribute("disabled"),
+            "splay blocks Convert in Relations too"
+        );
+        let reason = root
+            .query_selector(".m1-matrix-transform-unavailable")
+            .unwrap()
+            .expect("the Core reason is shown");
+        assert_eq!(
+            reason.text_content().as_deref(),
+            Some("Converting requires zero Splay, Column rotation and carried Bend")
+        );
+        assert_eq!(
+            button.get_attribute("aria-describedby").as_deref(),
+            reason.get_attribute("id").as_deref(),
+            "the refusal is programmatically named"
+        );
+        assert!(
+            button
+                .get_attribute("aria-describedby")
+                .as_deref()
+                .is_some_and(|id| !id.is_empty()),
+            "the description reference is not empty"
+        );
+        assert_eq!(
+            probe
+                .runtime
+                .model()
+                .accepted
+                .expect("accepted document")
+                .document
+                .revision,
+            before,
+            "rendering a refusal writes nothing, so no Undo entry"
+        );
+        root.remove();
+    }
+
+    /// The `tie` offset constraint wins over its companion's attachment to its
+    /// key: Core derives the Constrained mode, and Relations names that
+    /// precedence in text.
+    #[wasm_bindgen_test]
+    async fn a_won_constraint_names_its_priority_over_the_key_attachment() {
+        let (document, _) = constrained_companion_document();
+        let (probe, root) = mount("relations-precedence-test", document, None).await;
+        probe.select(matrix_ctx());
+        probe.land().await;
+        probe.open_relations_tab().await;
+        let row = root
+            .query_selector("[data-relation-constraint='tie']")
+            .unwrap()
+            .expect("the constraint is listed");
+        assert!(
+            row.text_content()
+                .unwrap_or_default()
+                .contains("Takes priority over the attachment to its key."),
+            "Core-owned precedence is explained: {}",
             probe.text()
         );
         root.remove();

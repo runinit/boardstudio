@@ -2226,7 +2226,7 @@ mod tests {
             id: "left-layout".into(),
             name: "Left".into(),
             board_id: "board-a".into(),
-            matrix_id: "matrix-a".into(),
+            matrix_ids: vec!["matrix-a".into()],
             part_ids: vec![],
             mirror_link: None,
         });
@@ -2234,9 +2234,11 @@ mod tests {
             id: "right-layout".into(),
             name: "Right".into(),
             board_id: "board-a".into(),
-            matrix_id: "matrix-b".into(),
+            matrix_ids: vec!["matrix-b".into()],
             part_ids: vec![],
             mirror_link: Some(LayoutMirrorLink {
+                correspondences: vec![],
+                exceptions: vec![],
                 source_id: "left-layout".into(),
                 axis_x: 12.0,
             }),

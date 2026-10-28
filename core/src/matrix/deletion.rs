@@ -198,6 +198,32 @@ fn remap_parts(doc: &mut ProjectDoc, changes: &PartChanges) -> Vec<String> {
     }
     for layout in &mut doc.layouts {
         remap_ids(&mut layout.part_ids, changes);
+        if let Some(link) = &mut layout.mirror_link {
+            link.correspondences.retain_mut(|record| {
+                if record.kind != MirroredItemKind::Part {
+                    return true;
+                }
+                let (Some(source), Some(mirror)) = (
+                    remapped(&record.source_id, changes),
+                    remapped(&record.mirror_id, changes),
+                ) else {
+                    return false;
+                };
+                record.source_id = source;
+                record.mirror_id = mirror;
+                true
+            });
+            link.exceptions.retain_mut(|exception| {
+                if exception.kind != MirroredItemKind::Part {
+                    return true;
+                }
+                let Some(id) = remapped(&exception.mirror_id, changes) else {
+                    return false;
+                };
+                exception.mirror_id = id;
+                true
+            });
+        }
     }
     remap_outline(&mut doc.outline, changes, &before);
     for state in &mut doc.board_outlines {
@@ -269,6 +295,12 @@ fn matrices(doc: &ProjectDoc, matrix_id: &str) -> Result<Vec<Matrix>, String> {
         .find(|matrix| matrix.id == matrix_id)
         .ok_or("Matrix does not exist")?;
     let mut result = vec![current.clone()];
+    // Ticket 21: an independent (Local) or absent (Omitted) matrix edits
+    // alone; its partner follows through `sync` (live for Omitted, skipped
+    // for Local) instead of joining the grouped storage edit.
+    if layout::edits_alone(doc, matrix_id) {
+        return Ok(result);
+    }
     if let Some((partner, _)) = layout::partner(doc, matrix_id) {
         result.push(
             doc.matrices
@@ -323,6 +355,7 @@ pub(crate) fn remove_cells(
     matrix_id: &str,
     cells: &[(u32, u32)],
 ) -> Result<Vec<String>, String> {
+    layout::refuse_omitted_storage_edit(doc, matrix_id, cells)?;
     let mut matrices = matrices(doc, matrix_id)?;
     if cells
         .iter()
@@ -345,6 +378,8 @@ pub(crate) fn remove_cells(
                 cell.assemblies.clear();
             } else {
                 matrix.cells.push(MatrixCell {
+                    shift: None,
+                    bend: None,
                     deleted: true,
                     row,
                     column,
@@ -390,6 +425,9 @@ pub(crate) fn remove_axis(
     if index >= dimension {
         return Err("Matrix axis index is invalid".into());
     }
+    // Ticket 21: an absent matrix has no independent storage state; its
+    // record follows the source. Omitted keys ride structural compaction.
+    layout::refuse_omitted_storage_edit(doc, matrix_id, &[])?;
     if dimension == 1 {
         let mut changes = PartChanges::new();
         for matrix in &matrices {
@@ -412,6 +450,10 @@ pub(crate) fn remove_axis(
         return Ok(changed);
     }
     let mut changes = PartChanges::new();
+    // Anchors at the removed slot detach with their frame while the anchor key
+    // still resolves; later anchors shift after the axis removal is stored.
+    let compacted: Vec<String> = matrices.iter().map(|matrix| matrix.id.clone()).collect();
+    let mut changed = super::anchors::remap_compacted(doc, &compacted, index, row_axis)?;
     for matrix in &mut matrices {
         for row in 0..matrix.rows {
             for column in 0..matrix.columns {
@@ -445,23 +487,29 @@ pub(crate) fn remove_axis(
         });
         if row_axis {
             matrix.rows -= 1;
-            remove_index(&mut matrix.row_offsets, index);
+            remove_index(&mut matrix.row_layout, index);
+            if let Some(first) = matrix.row_layout.first_mut() {
+                first.padding = None;
+            }
         } else {
             matrix.columns -= 1;
-            remove_index(&mut matrix.column_offsets, index);
-            remove_index(&mut matrix.column_staggers, index);
-            remove_index(&mut matrix.column_splays, index);
-            remove_index(&mut matrix.column_origins, index);
+            remove_index(&mut matrix.column_layout, index);
+            if let Some(first) = matrix.column_layout.first_mut() {
+                first.spread = None;
+            }
         }
         remap_ids(&mut matrix.part_ids, &changes);
     }
     let pruned = remap_parts(doc, &changes);
-    let mut changed = changed_ids(&changes);
+    changed.extend(changed_ids(&changes));
     changed.extend(pruned);
     for matrix in matrices {
         changed.extend(set_matrix(doc, &matrix)?);
     }
     changed.extend(layout::sync(doc, matrix_id)?);
+    changed.extend(super::anchors::shift_compacted(
+        doc, &compacted, index, row_axis,
+    )?);
     Ok(changed)
 }
 
@@ -472,6 +520,10 @@ pub(crate) fn edit_selected_cells(
     selected: &BTreeMap<String, Vec<(u32, u32)>>,
     enabled: Option<bool>,
 ) -> Result<Vec<String>, String> {
+    // Ticket 21: refuse absent targets before grouping merges halves.
+    for (matrix_id, cells) in selected {
+        layout::refuse_omitted_storage_edit(doc, matrix_id, cells)?;
+    }
     let mut groups: BTreeMap<String, BTreeSet<(u32, u32)>> = BTreeMap::new();
     for (matrix_id, cells) in selected {
         let matrix = doc
@@ -491,10 +543,16 @@ pub(crate) fn edit_selected_cells(
                 return Err("Matrix cell was deleted".into());
             }
         }
-        let canonical = layout::partner(doc, matrix_id).map_or_else(
-            || matrix_id.clone(),
-            |(partner, _)| partner.min(matrix_id.clone()),
-        );
+        // Ticket 21: an independent or absent matrix is its own group;
+        // grouped selections only merge cleanly linked halves.
+        let canonical = if layout::edits_alone(doc, matrix_id) {
+            matrix_id.clone()
+        } else {
+            layout::partner(doc, matrix_id).map_or_else(
+                || matrix_id.clone(),
+                |(partner, _)| partner.min(matrix_id.clone()),
+            )
+        };
         groups
             .entry(canonical)
             .or_default()
@@ -518,6 +576,8 @@ pub(crate) fn edit_selected_cells(
                     cell.enabled = enabled;
                 } else {
                     matrix.cells.push(MatrixCell {
+                        shift: None,
+                        bend: None,
                         deleted: false,
                         row,
                         column,

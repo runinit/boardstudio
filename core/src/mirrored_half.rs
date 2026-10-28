@@ -61,6 +61,26 @@ fn matrix_owned_parts(document: &ProjectDoc, board_id: &str) -> BTreeSet<String>
         .collect()
 }
 
+/// Controller part ids on one board, shared by projection and outline anchoring.
+///
+/// Controllers keep the reflected heading (no half turn), so they follow the switch rule
+/// everywhere matrix-owned parts do: pose projection and part-frame outline geometry.
+fn controller_parts(document: &ProjectDoc, board_id: &str) -> BTreeSet<String> {
+    let board_parts: BTreeSet<&str> = document
+        .boards
+        .iter()
+        .find(|board| board.id == board_id)
+        .map(|board| board.part_ids.iter().map(String::as_str).collect())
+        .unwrap_or_default();
+    document
+        .parts
+        .iter()
+        .filter(|part| board_parts.contains(part.id.as_str()))
+        .filter(|part| derive::is_controller(&document.definitions, &part.definition_id))
+        .map(|part| part.id.clone())
+        .collect()
+}
+
 fn board_for_part<'a>(document: &'a ProjectDoc, part_id: &str) -> Option<&'a crate::model::Board> {
     document
         .boards
@@ -485,8 +505,11 @@ pub(crate) fn module_findings(doc: &ProjectDoc) -> Vec<Finding> {
 /// its image is that line image turned by 180 degrees: `forward_angle + 180`. On an axis map
 /// (`rotation == 0`) this is `180 - r`: a part facing left faces right on the mirror. The result is
 /// kept in `[0, 360)`; the rule never reduces the heading modulo 180.
+///
+/// This is the module and generic-geometry rule. Part projection goes through [`derive::pose`],
+/// which keeps the reflected heading without the half turn for controllers.
 pub(crate) fn mirror_pose(mapping: Pose2, pose: Pose2) -> Pose2 {
-    derive::pose(mapping, pose)
+    derive::pose(mapping, pose, false)
 }
 
 /// A test-only window onto `derive::companion_assembly`, the authority for companion placement,
@@ -1518,7 +1541,10 @@ fn new_board(
         mirrored
     };
     let part_reference = |id: &str| mapped_reference(id);
-    let full_rule_part = |id: &str| !matrix_owned.contains(id);
+    // Controllers follow the switch rule, like matrix-owned parts: their heading is the plain
+    // reflection, so an MCU-anchored outline uses the (-x, y) part frame.
+    let controller_parts = controller_parts(doc, &from);
+    let full_rule_part = |id: &str| !matrix_owned.contains(id) && !controller_parts.contains(id);
     let renames = Renames {
         identity: &record_identity,
         part: &part_reference,
@@ -1714,21 +1740,29 @@ fn new_board(
             .definitions
             .get(&part.definition_id)
             .unwrap_or(&part.definition_id);
+        let is_controller = derive::is_controller(&doc.definitions, &part.definition_id);
         doc.parts.push(derive::part(
             &part,
             &part_map[*id],
             definition_id,
             &reference,
             mapping,
+            is_controller,
         ));
     }
 
     // Layouts: independent copies of the source's layouts on the new board.
     for layout in &layouts {
-        let matrix_id = matrix_map
-            .get(&layout.matrix_id)
-            .ok_or("A layout's matrix is not on its board")?
-            .clone();
+        let matrix_ids = layout
+            .matrix_ids
+            .iter()
+            .map(|id| {
+                matrix_map
+                    .get(id)
+                    .cloned()
+                    .ok_or("A layout's matrix is not on its board")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let part_ids = layout
             .part_ids
             .iter()
@@ -1744,7 +1778,7 @@ fn new_board(
             id: layout_map[&layout.id].clone(),
             name: layout.name.clone(),
             board_id: to.clone(),
-            matrix_id,
+            matrix_ids,
             part_ids,
             mirror_link: None,
         });

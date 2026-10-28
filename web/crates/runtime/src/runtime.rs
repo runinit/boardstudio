@@ -387,13 +387,26 @@ impl Runtime {
 
     fn new_with_restoration(restore_active_project: bool) -> Result<Rc<Self>, String> {
         let prefix = deployment_prefix()?;
+        let store = if restore_active_project {
+            BrowserStore::scoped(if prefix == "/" { "root" } else { "boardstudio" })
+        } else {
+            BrowserStore::new(format!("boardstudio-test-{}", browser_uuid()?))
+        }
+        .map_err(|e| e.to_string())?;
+        Self::new_with_store(restore_active_project, store)
+    }
+
+    fn new_with_store(
+        restore_active_project: bool,
+        store: BrowserStore,
+    ) -> Result<Rc<Self>, String> {
+        #[cfg(not(any(test, feature = "test-support")))]
+        let prefix = deployment_prefix()?;
         let core_executor_factory: Rc<CoreExecutorFactory> = Rc::new(|| {
             resource_url("assets/core-worker/entry.js")
                 .and_then(|url| CoreWorker::new(&url).map_err(|e| e.to_string()))
                 .map(|worker| Rc::new(worker) as Rc<dyn CoreExecutor>)
         });
-        let store = BrowserStore::scoped(if prefix == "/" { "root" } else { "boardstudio" })
-            .map_err(|e| e.to_string())?;
         let runtime = Rc::new(Self {
             session: RefCell::new(Session::new()),
             operation_outcomes: crate::operation_outcomes::OperationOutcomes::default(),
@@ -882,9 +895,19 @@ impl Runtime {
         }
         document.id = browser_uuid()?;
         document.revision = 0;
-        self.submit(Event::Open {
-            operation_id: self.operation(),
-            document,
+        self.confirm_project_replacement(&document)?;
+        self.begin_open()?;
+        let operation_id = self.operation();
+        self.submit(if self.model().lifecycle == Lifecycle::RecoveryRequired {
+            Event::RecoverWithDocument {
+                operation_id,
+                document,
+            }
+        } else {
+            Event::Open {
+                operation_id,
+                document,
+            }
         });
         Ok(())
     }
@@ -927,30 +950,61 @@ impl Runtime {
             thickness: 3.0,
         });
 
+        if !allow_project_deletion {
+            self.confirm_project_replacement(&document)?;
+            // The confirm above explicitly discarded pending edits: drop the
+            // retained download buffer now so a latched quota failure cannot
+            // outlive recovery. Session drops its own retained save when the
+            // RecoverWithDocument below is submitted; the Persist emitted
+            // afterwards carries only the new document.
+            self.pending_document.borrow_mut().take();
+            self.begin_open()?;
+        }
+
         let operation_id = self.operation();
         let outcome = self.observe_operation(operation_id);
         if allow_project_deletion {
             self.project_deletion_open.set(Some(operation_id));
         }
-        self.submit(Event::Open {
-            operation_id,
-            document,
+        self.submit(if self.model().lifecycle == Lifecycle::RecoveryRequired {
+            Event::RecoverWithDocument {
+                operation_id,
+                document,
+            }
+        } else {
+            Event::Open {
+                operation_id,
+                document,
+            }
         });
         Ok((project_id, outcome))
     }
 
     pub async fn delete_saved_project(self: &Rc<Self>, project_id: String) -> Result<(), String> {
-        if self.model().lifecycle == Lifecycle::RecoveryRequired && !self.confirm_discard_pending()
-        {
+        let recovery = self.model().lifecycle == Lifecycle::RecoveryRequired;
+        if recovery && !self.confirm_discard_pending() {
             return Err("Pending edits were kept; no keyboard was deleted.".into());
         }
         let lease = self.begin_project_deletion()?;
         self.supersede_pending_opens_for_deletion()?;
-        let initial = if self.model().lifecycle == Lifecycle::RecoveryRequired {
-            self.recover_active_project_for_deletion().await?
-        } else {
-            self.wait_for_saved_active_document().await?
-        };
+        if recovery {
+            // Quota escape hatch: the confirm above explicitly discarded pending
+            // work, so remove the single key without rewriting durable state
+            // first. Recovery and replacement writes re-hit a full origin and
+            // abort, which used to make in-app deletion impossible. Opening a
+            // replacement stays a later, explicit user action; the retained
+            // pending doc stays available for explicit retry or download.
+            self.store
+                .delete_project_by_key(project_id.clone())
+                .await
+                .map_err(|error| {
+                    format!("This keyboard could not be deleted. Try again. {error}")
+                })?;
+            self.saved_tokens.borrow_mut().remove(&project_id);
+            drop(lease);
+            return Ok(());
+        }
+        let initial = self.wait_for_saved_active_document().await?;
 
         let deleting_active = initial.document.id == project_id;
         let expected_delete = if deleting_active {
@@ -6957,18 +7011,22 @@ impl Runtime {
         if self.open_sequence.get() != sequence {
             return Err("Open superseded by another import.".into());
         }
+        self.confirm_project_replacement(&document)?;
         self.assets.borrow_mut().extend(copied);
-        self.submit(Event::Open {
-            operation_id: operation,
-            document,
+        self.submit(if self.model().lifecycle == Lifecycle::RecoveryRequired {
+            Event::RecoverWithDocument {
+                operation_id: operation,
+                document,
+            }
+        } else {
+            Event::Open {
+                operation_id: operation,
+                document,
+            }
         });
         Ok(())
     }
     pub fn open_saved(self: &Rc<Self>, id: String) {
-        if self.model().lifecycle == Lifecycle::RecoveryRequired && !self.confirm_discard_pending()
-        {
-            return;
-        }
         let sequence = match self.begin_open() {
             Ok(sequence) => sequence,
             Err(error) => {
@@ -6994,18 +7052,25 @@ impl Runtime {
             }
             match loaded {
                 Ok(Some(saved)) if this.open_sequence.get() == sequence => {
-                    let document = this.remember_saved(saved);
-                    let operation_id = this.operation();
-                    if this.model().lifecycle == Lifecycle::RecoveryRequired {
-                        this.submit(Event::RecoverWithDocument {
-                            operation_id,
-                            document,
-                        });
-                    } else {
-                        this.submit(Event::Open {
-                            operation_id,
-                            document,
-                        });
+                    match this.confirm_project_replacement(&saved.document) {
+                        Err(error) => {
+                            this.report(format!("Could not open the saved keyboard: {error}"))
+                        }
+                        Ok(()) => {
+                            let document = this.remember_saved(saved);
+                            let operation_id = this.operation();
+                            if this.model().lifecycle == Lifecycle::RecoveryRequired {
+                                this.submit(Event::RecoverWithDocument {
+                                    operation_id,
+                                    document,
+                                });
+                            } else {
+                                this.submit(Event::Open {
+                                    operation_id,
+                                    document,
+                                });
+                            }
+                        }
                     }
                 }
                 Ok(Some(_)) => {}
@@ -7149,6 +7214,34 @@ impl Runtime {
         self.pending_document.borrow().is_none() || web_sys::window().and_then(|window| window.confirm_with_message(
             "Discard your pending edits and reload the saved keyboard? Download your pending edits first if you want to keep them."
         ).ok()).unwrap_or(false)
+    }
+
+    fn confirm_project_replacement(&self, document: &ProjectDoc) -> Result<(), String> {
+        boardstudio_core::CoreEngine::validate_open(document)?;
+        let model = self.model();
+        let pending = self.has_pending_edits();
+        if model.accepted.is_none() && !pending {
+            return Ok(());
+        }
+        let message = if model.lifecycle == Lifecycle::RecoveryRequired && pending {
+            format!(
+                "Discard your pending edits and open \"{}\"? Download your pending edits first if you want to keep them.",
+                document.name
+            )
+        } else {
+            format!(
+                "Open \"{}\"? Any uncommitted drafts will be discarded. Owned edits and saves will finish before switching.",
+                document.name
+            )
+        };
+        let confirmed = web_sys::window()
+            .and_then(|window| window.confirm_with_message(&message).ok())
+            .unwrap_or(false);
+        if confirmed {
+            Ok(())
+        } else {
+            Err("Project switch canceled; your current work was kept.".into())
+        }
     }
 
     pub fn has_pending_edits(&self) -> bool {
@@ -7704,14 +7797,14 @@ pub mod firmware_export_test_support {
             edge_gap: None,
 
             diode_direction: Some(DiodeDirection::Row2col),
-            row_offsets: vec![],
-            column_offsets: vec![],
-            column_staggers: vec![],
-            column_splays: vec![],
-            column_origins: vec![],
+            row_layout: vec![],
+            column_layout: vec![],
+            anchor: None,
             cells: (0..2)
                 .flat_map(|r| {
                     (0..2).map(move |c| MatrixCell {
+                        shift: None,
+                        bend: None,
                         deleted: false,
                         row: r,
                         column: c,
@@ -8590,6 +8683,411 @@ mod project_open_supersession_tests {
     use boardstudio_core::CoreEngine;
     use wasm_bindgen_test::wasm_bindgen_test;
 
+    struct ConfirmChoice {
+        original: JsValue,
+        calls: Rc<Cell<u32>>,
+        answer: Rc<Cell<bool>>,
+        _callback: Closure<dyn FnMut(JsValue) -> bool>,
+    }
+
+    impl ConfirmChoice {
+        fn new() -> Self {
+            let window = web_sys::window().unwrap();
+            let original = Reflect::get(&window, &"confirm".into()).unwrap();
+            let calls = Rc::new(Cell::new(0));
+            let answer = Rc::new(Cell::new(false));
+            let count = calls.clone();
+            let result = answer.clone();
+            let callback = Closure::<dyn FnMut(JsValue) -> bool>::new(move |_| {
+                count.set(count.get() + 1);
+                result.get()
+            });
+            Reflect::set(&window, &"confirm".into(), callback.as_ref()).unwrap();
+            Self {
+                original,
+                calls,
+                answer,
+                _callback: callback,
+            }
+        }
+    }
+
+    impl Drop for ConfirmChoice {
+        fn drop(&mut self) {
+            Reflect::set(
+                &web_sys::window().unwrap(),
+                &"confirm".into(),
+                &self.original,
+            )
+            .unwrap();
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn unknown_outcome_recovery_still_confirms_discard_before_new() {
+        let runtime = test_support::new_runtime();
+        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        let current = ProjectDoc::empty("unknown-current", "Current");
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: current.clone(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert_eq!(*runtime.model().accepted.unwrap().document, current);
+        test_support::fail_next_core_reply(&runtime, "unknown worker outcome");
+        let mut edited = current.clone();
+        edited.name = "Unknown edit".into();
+        test_support::replace_document(&runtime, "unknown-before-new", &current.id, edited).await;
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        assert!(!runtime.has_pending_edits());
+        let before = runtime.model();
+        let confirm = ConfirmChoice::new();
+        assert!(
+            runtime.create_new_keyboard().is_err(),
+            "an unknown outcome does not authorize discarding local drafts"
+        );
+        assert_eq!(confirm.calls.get(), 1);
+        assert_eq!(runtime.model(), before);
+        assert_eq!(
+            runtime.store.list_projects().await.unwrap().documents,
+            vec![current.clone()]
+        );
+        assert_eq!(
+            runtime
+                .store
+                .load_document(current.id.clone())
+                .await
+                .unwrap(),
+            Some(current)
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn new_project_cancel_keeps_drafts_and_publication_waits_for_persistence() {
+        let runtime = test_support::new_runtime();
+        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        let current = ProjectDoc::empty("new-keeps-current", "Current");
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: current.clone(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert_eq!(*runtime.model().accepted.unwrap().document, current);
+        let mut edited = current.clone();
+        edited.name = "Current with history".into();
+        let current =
+            (*test_support::replace_document(&runtime, "before-new", &current.id, edited)
+                .await
+                .document)
+                .clone();
+        assert_eq!(current.revision, 1);
+        runtime.submit(Event::GestureBegin {
+            operation_id: runtime.operation(),
+            pointer_id: 19,
+            target_ids: Vec::new(),
+            transaction_id: "retained-draft".into(),
+            start: Vec::new(),
+            pitch: boardstudio_core::model::Vec2 { x: 19.05, y: 19.05 },
+            snap_fraction: 0.0,
+            geometry_snap: false,
+            gap: None,
+            alt: false,
+        });
+        test_support::run_pending(&runtime).await;
+        let before = runtime.model();
+        assert!(before.gesture.is_some());
+        let confirm = ConfirmChoice::new();
+        assert!(
+            runtime.create_new_keyboard().is_err(),
+            "cancel must keep the current draft"
+        );
+        assert_eq!(confirm.calls.get(), 1);
+        assert_eq!(runtime.model(), before);
+        assert_eq!(
+            runtime.store.list_projects().await.unwrap().documents,
+            vec![current.clone()]
+        );
+        confirm.answer.set(true);
+        let (entered, release) = test_support::gate_next_persist(&runtime);
+        let (id, outcome) = runtime.create_new_keyboard().unwrap();
+        test_support::drive_pending(&runtime);
+        entered.await.unwrap();
+        assert_eq!(runtime.model().accepted, before.accepted);
+        assert_ne!(id, current.id);
+        assert!(
+            runtime
+                .store
+                .load_document(id.clone())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        release.send(()).unwrap();
+        test_support::run_pending(&runtime).await;
+        assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document.id, id);
+        assert_ne!(
+            accepted.session_epoch,
+            before.accepted.unwrap().session_epoch
+        );
+        assert!(runtime.model().gesture.is_none());
+        assert_eq!(
+            runtime
+                .store
+                .load_document(current.id.clone())
+                .await
+                .unwrap(),
+            Some(current)
+        );
+        let undo = test_support::observe_next(&runtime);
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert!(matches!(
+            &*undo.borrow(),
+            Some(TerminalOutcome::Rejected(_))
+        ));
+        assert_eq!(runtime.model().accepted.unwrap(), accepted);
+    }
+
+    #[wasm_bindgen_test]
+    async fn unsupported_saved_target_is_validated_before_discard_confirmation() {
+        let runtime = test_support::new_runtime();
+        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        let current = ProjectDoc::empty("recover-pending", "Current");
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: current.clone(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert_eq!(*runtime.model().accepted.unwrap().document, current);
+        test_support::fail_next_persist(&runtime, "quota");
+        let mut pending = current.clone();
+        pending.name = "Keep my failed edit".into();
+        test_support::replace_document(&runtime, "pending-recovery", &current.id, pending).await;
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        let before = runtime.model();
+        let retained = runtime.pending_document.borrow().clone().unwrap();
+        let mut old = ProjectDoc::empty("recover-unsupported", "Older");
+        old.format_version = 6;
+        runtime
+            .store
+            .save_document(&old, &BTreeMap::new())
+            .await
+            .unwrap();
+        let confirm = ConfirmChoice::new();
+        let done = test_support::track_open_saved(&runtime);
+        runtime.open_saved(old.id);
+        assert_eq!(
+            confirm.calls.get(),
+            0,
+            "invalid targets must not ask to discard work"
+        );
+        done.await.unwrap();
+        test_support::run_pending(&runtime).await;
+        assert_eq!(confirm.calls.get(), 0);
+        assert_eq!(runtime.model(), before);
+        assert!(Arc::ptr_eq(
+            runtime.pending_document.borrow().as_ref().unwrap(),
+            &retained
+        ));
+        assert!(runtime.status().contains("No conversion"));
+        runtime.submit(Event::RetrySave {
+            operation_id: runtime.operation(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Keep my failed edit"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn unsupported_saved_open_preserves_current_work_storage_and_undo() {
+        let runtime = test_support::new_runtime();
+        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        let current = ProjectDoc::empty("recovery-current", "Before edit");
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: current.clone(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert_eq!(*runtime.model().accepted.unwrap().document, current);
+        let mut edited = current.clone();
+        edited.name = "Accepted edit".into();
+        test_support::replace_document(&runtime, "recovery-edit", &current.id, edited).await;
+        let before = runtime.model().accepted.unwrap();
+        let scope = runtime.scope();
+        let mut older = ProjectDoc::empty("recovery-older", "Older saved keyboard");
+        older.format_version = 6;
+        let payload = b"preserved unsupported-project payload".to_vec();
+        let hash = sha256_hex(&payload);
+        older.assets.push(boardstudio_core::model::Asset {
+            id: "older-asset".into(),
+            name: "retained.bin".into(),
+            media_type: "application/octet-stream".into(),
+            sha256: hash.clone(),
+            license: None,
+            source: None,
+        });
+        runtime
+            .store
+            .save_document(&older, &BTreeMap::from([(hash.clone(), payload.clone())]))
+            .await
+            .unwrap();
+        let raw_before = runtime
+            .store
+            .raw_project(&older.id.clone().into())
+            .await
+            .unwrap()
+            .unwrap()
+            .0;
+        let listing = runtime.store.list_projects().await.unwrap();
+        assert_eq!(listing.documents, vec![(*before.document).clone()]);
+        assert_eq!(listing.unreadable.len(), 1);
+        assert!(listing.unreadable[0].error.contains("format 6"));
+        let done = test_support::track_open_saved(&runtime);
+        runtime.open_saved(older.id.clone());
+        done.await.unwrap();
+        test_support::run_pending(&runtime).await;
+        assert!(runtime.status().contains("No conversion"));
+        assert_eq!(runtime.model().accepted.unwrap(), before);
+        assert_eq!(runtime.scope(), scope);
+        assert_eq!(
+            runtime
+                .store
+                .load_asset(hash.clone())
+                .await
+                .unwrap()
+                .map(|bytes| bytes.to_vec()),
+            Some(payload.clone())
+        );
+        assert_eq!(
+            runtime
+                .store
+                .raw_project(&older.id.clone().into())
+                .await
+                .unwrap()
+                .unwrap()
+                .0,
+            raw_before
+        );
+        assert_eq!(
+            runtime
+                .store
+                .load_document(current.id.clone())
+                .await
+                .unwrap(),
+            Some((*before.document).clone())
+        );
+        let confirm = ConfirmChoice::new();
+        let incoming_bytes = b"must not be partially imported".to_vec();
+        let incoming_hash = sha256_hex(&incoming_bytes);
+        for (version, revision, reason) in [
+            (6, 0, "No conversion"),
+            (7, u64::MAX, "revision is exhausted"),
+        ] {
+            let mut candidate = older.clone();
+            candidate.id = format!("refused-import-{version}");
+            candidate.format_version = version;
+            candidate.revision = revision;
+            candidate.assets[0].sha256 = incoming_hash.clone();
+            let metadata = serde_json::to_string(&ArchiveRequest::PackFiles {
+                entries: vec![
+                    ArchiveEntry {
+                        path: "project.json".into(),
+                        buffer_index: 0,
+                    },
+                    ArchiveEntry {
+                        path: format!("assets/{incoming_hash}"),
+                        buffer_index: 1,
+                    },
+                    ArchiveEntry {
+                        path: "archive.json".into(),
+                        buffer_index: 2,
+                    },
+                ],
+            })
+            .unwrap();
+            let (reply, packed) = boardstudio_core::archive::request(
+                &metadata,
+                &[
+                    serde_json::to_vec(&candidate).unwrap(),
+                    incoming_bytes.clone(),
+                    b"{\"author\":\"retained metadata\"}".to_vec(),
+                ],
+            );
+            assert!(matches!(
+                serde_json::from_str::<ArchiveReply>(&reply).unwrap(),
+                ArchiveReply::Packed
+            ));
+            let file = web_sys::File::new_with_u8_array_sequence(
+                &Array::of1(&Uint8Array::from(packed[0].as_slice()).into()),
+                "refused.boardstudio",
+            )
+            .unwrap();
+            let pending_assets = runtime.assets.borrow().clone();
+            let model = runtime.model();
+            let done = test_support::track_import_file(&runtime);
+            runtime.import_file(file.clone());
+            done.await.unwrap();
+            test_support::run_pending(&runtime).await;
+            assert!(runtime.status().contains(reason), "{}", runtime.status());
+            assert_eq!(runtime.model(), model);
+            assert_eq!(*runtime.assets.borrow(), pending_assets);
+            assert_eq!(confirm.calls.get(), 0);
+            assert!(
+                runtime
+                    .store
+                    .load_document(candidate.id)
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+            assert!(
+                runtime
+                    .store
+                    .load_asset(incoming_hash.clone())
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+            assert_eq!(
+                Uint8Array::new(&JsFuture::from(file.array_buffer()).await.unwrap()).to_vec(),
+                packed[0]
+            );
+        }
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Before edit"
+        );
+        assert_eq!(
+            runtime
+                .store
+                .load_asset(hash.clone())
+                .await
+                .unwrap()
+                .map(|bytes| bytes.to_vec()),
+            Some(payload)
+        );
+        assert_eq!(
+            runtime
+                .store
+                .raw_project(&older.id.into())
+                .await
+                .unwrap()
+                .unwrap()
+                .0,
+            raw_before
+        );
+    }
+
     async fn fixture() -> (Rc<Runtime>, ProjectDoc, ProjectDoc) {
         let runtime = test_support::new_runtime();
         let suffix = new_project_id().expect("browser fixture id is available");
@@ -8666,6 +9164,8 @@ mod project_open_supersession_tests {
 
     #[wasm_bindgen_test]
     async fn delayed_import_cannot_replace_a_newer_saved_project_open() {
+        let confirm = ConfirmChoice::new();
+        confirm.answer.set(true);
         let (runtime, _, newer) = fixture().await;
         let imported = imported_document(&newer);
         let (archive_entered, release_archive) =
@@ -8701,6 +9201,8 @@ mod project_open_supersession_tests {
 
     #[wasm_bindgen_test]
     async fn delayed_saved_open_cannot_replace_a_newer_import() {
+        let confirm = ConfirmChoice::new();
+        confirm.answer.set(true);
         let (runtime, stale_saved, current) = fixture().await;
         let imported = imported_document(&current);
         let (open_entered, release_open) = test_support::gate_open_saved_result(&runtime);
@@ -8979,7 +9481,7 @@ mod offline_safety_tests {
             document: document.clone(),
         });
         project_name_test_support::run_pending(&first).await;
-        let second = project_name_test_support::new_runtime();
+        let second = Runtime::new_with_store(false, first.store.clone()).unwrap();
         project_name_test_support::install(
             &second,
             Session::new(),
@@ -9061,7 +9563,9 @@ mod offline_safety_tests {
         let old_confirm = Reflect::get(&window, &"confirm".into()).unwrap();
         let cancel = Closure::<dyn FnMut(JsValue) -> bool>::new(|_| false);
         Reflect::set(&window, &"confirm".into(), cancel.as_ref()).unwrap();
+        let done = project_name_test_support::track_open_saved(&second);
         second.open_saved(document.id.clone());
+        done.await.unwrap();
         assert_eq!(
             second.delete_saved_project("another-keyboard".into()).await,
             Err("Pending edits were kept; no keyboard was deleted.".into())
@@ -9099,6 +9603,10 @@ mod offline_safety_tests {
 
     #[wasm_bindgen_test]
     async fn archive_exactly_at_size_limit_reaches_normal_validation() {
+        let window = web_sys::window().unwrap();
+        let original = Reflect::get(&window, &"confirm".into()).unwrap();
+        let confirm = Closure::<dyn FnMut(JsValue) -> bool>::new(|_| true);
+        Reflect::set(&window, &"confirm".into(), confirm.as_ref()).unwrap();
         let runtime = project_name_test_support::new_runtime();
         project_name_test_support::open_document(&runtime, in_process_support::board_document())
             .await;
@@ -9132,6 +9640,7 @@ mod offline_safety_tests {
         );
         release.send(()).unwrap();
         done.await.unwrap();
+        Reflect::set(&window, &"confirm".into(), &original).unwrap();
         project_name_test_support::run_pending(&runtime).await;
         assert_eq!(
             runtime.model().accepted.unwrap().document.id,
@@ -9163,5 +9672,251 @@ mod offline_safety_tests {
             runtime.status()
         );
         assert_eq!(runtime.model().accepted.unwrap().token, before.token);
+    }
+}
+
+/// Quota-recovery RED tests: with origin storage full every save aborts, so the
+/// in-app delete path must not rewrite durable state before the single-key
+/// delete, and create-new must discard the latched pending doc without
+/// committing it. Saves are failed through the persistence port (the quota
+/// simulation); single-key deletes go straight to the store and must succeed.
+#[cfg(all(test, target_arch = "wasm32"))]
+mod quota_recovery_deletion_tests {
+    use super::*;
+    use crate::runtime::project_name_test_support as test_support;
+    use boardstudio_core::CoreEngine;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    struct ConfirmChoice {
+        original: JsValue,
+        calls: Rc<Cell<u32>>,
+        answer: Rc<Cell<bool>>,
+        _callback: Closure<dyn FnMut(JsValue) -> bool>,
+    }
+
+    impl ConfirmChoice {
+        fn new() -> Self {
+            let window = web_sys::window().unwrap();
+            let original = Reflect::get(&window, &"confirm".into()).unwrap();
+            let calls = Rc::new(Cell::new(0));
+            let answer = Rc::new(Cell::new(false));
+            let count = calls.clone();
+            let result = answer.clone();
+            let callback = Closure::<dyn FnMut(JsValue) -> bool>::new(move |_| {
+                count.set(count.get() + 1);
+                result.get()
+            });
+            Reflect::set(&window, &"confirm".into(), callback.as_ref()).unwrap();
+            Self {
+                original,
+                calls,
+                answer,
+                _callback: callback,
+            }
+        }
+    }
+
+    impl Drop for ConfirmChoice {
+        fn drop(&mut self) {
+            Reflect::set(
+                &web_sys::window().unwrap(),
+                &"confirm".into(),
+                &self.original,
+            )
+            .unwrap();
+        }
+    }
+
+    async fn quota_latched_runtime(active_name: &str) -> Rc<Runtime> {
+        let runtime = test_support::new_runtime();
+        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        let active = ProjectDoc::empty("quota-delete-active", active_name);
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: active.clone(),
+        });
+        test_support::run_pending(&runtime).await;
+        let other = ProjectDoc::empty("quota-delete-other", "Other board");
+        runtime
+            .store
+            .save_document(&other, &BTreeMap::new())
+            .await
+            .unwrap();
+        test_support::fail_next_persist(&runtime, "QuotaExceededError: origin storage is full");
+        let mut edited = active.clone();
+        edited.name = "Oversized failed edit".into();
+        test_support::replace_document(&runtime, "quota-delete-edit", &active.id, edited).await;
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        assert!(
+            runtime.has_pending_edits(),
+            "the aborted save latches pending edits"
+        );
+        runtime
+    }
+
+    #[wasm_bindgen_test]
+    async fn quota_delete_non_active_skips_recovery_writes_and_keeps_pending_for_explicit_retry() {
+        let runtime = quota_latched_runtime("Active board").await;
+        // Persistent quota: every save aborts, not just the latched one.
+        test_support::fail_next_persist(&runtime, "QuotaExceededError: origin storage is full");
+        let active_id = "quota-delete-active";
+        let mut pending_target = test_support::track_next_persist_target(&runtime);
+        let confirm = ConfirmChoice::new();
+        confirm.answer.set(true);
+        let result = runtime
+            .delete_saved_project("quota-delete-other".into())
+            .await;
+        assert!(
+            result.is_ok(),
+            "quota delete must succeed where the save aborted: {result:?}"
+        );
+        assert_eq!(
+            confirm.calls.get(),
+            1,
+            "one explicit discard-confirm gates the recovery delete"
+        );
+        test_support::run_pending(&runtime).await;
+        assert!(
+            pending_target.try_recv().unwrap().is_none(),
+            "no recovery or replacement write may run before the single-key delete"
+        );
+        assert!(
+            runtime
+                .store
+                .load_document("quota-delete-other".into())
+                .await
+                .unwrap()
+                .is_none(),
+            "the other keyboard is gone"
+        );
+        assert_eq!(
+            runtime
+                .store
+                .load_document(active_id.into())
+                .await
+                .unwrap()
+                .unwrap()
+                .name,
+            "Active board",
+            "the durable active copy is untouched"
+        );
+        assert_eq!(runtime.model().accepted.unwrap().document.id, active_id);
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        assert!(
+            runtime.has_pending_edits(),
+            "the pending doc stays available for explicit retry or download"
+        );
+        let remaining = runtime.store.list_documents().await.unwrap();
+        assert!(
+            remaining
+                .iter()
+                .all(|document| document.id != "quota-delete-fresh"),
+            "no replacement keyboard is created by the delete"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn quota_delete_active_removes_only_the_saved_copy() {
+        let runtime = quota_latched_runtime("Active board").await;
+        // Persistent quota: every save aborts, not just the latched one.
+        test_support::fail_next_persist(&runtime, "QuotaExceededError: origin storage is full");
+        let active_id = "quota-delete-active";
+        let confirm = ConfirmChoice::new();
+        confirm.answer.set(true);
+        let result = runtime.delete_saved_project(active_id.into()).await;
+        assert!(
+            result.is_ok(),
+            "quota delete of the active keyboard must succeed: {result:?}"
+        );
+        test_support::run_pending(&runtime).await;
+        assert!(
+            runtime
+                .store
+                .load_document(active_id.into())
+                .await
+                .unwrap()
+                .is_none(),
+            "the active saved copy is gone"
+        );
+        assert!(
+            runtime
+                .store
+                .load_document("quota-delete-other".into())
+                .await
+                .unwrap()
+                .is_some(),
+            "the other keyboard is untouched"
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.id,
+            active_id,
+            "the accepted in-memory keyboard stays for the explicit next step"
+        );
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        assert!(
+            !runtime.saved_tokens.borrow().contains_key(active_id),
+            "the saved token is dropped with the record"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn quota_create_new_discards_pending_without_committing_oversized_doc() {
+        let runtime = quota_latched_runtime("Active board").await;
+        test_support::fail_next_persist(&runtime, "QuotaExceededError: origin storage is full");
+        let confirm = ConfirmChoice::new();
+        confirm.answer.set(true);
+        let (id, outcome) = runtime
+            .create_new_keyboard()
+            .expect("discard-confirmed create-new must replace");
+        assert_eq!(confirm.calls.get(), 1);
+        assert!(
+            !runtime.has_pending_edits(),
+            "the explicit discard clears the latched pending doc immediately"
+        );
+        test_support::run_pending(&runtime).await;
+        assert!(
+            matches!(
+                &*outcome.borrow(),
+                Some(TerminalOutcome::PersistenceFailed(_))
+            ),
+            "the fresh save fails explicitly under quota instead of retrying silently"
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.id,
+            "quota-delete-active",
+            "under quota the accepted keyboard stays until a save succeeds"
+        );
+        let durable = runtime
+            .store
+            .load_document("quota-delete-active".into())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            durable.name, "Active board",
+            "the oversized doc is never committed"
+        );
+        assert_eq!(durable.revision, 0);
+        // The escape hatch retains only the fresh small doc: an explicit retry
+        // (quota simulation spent) commits and installs it, proving the
+        // oversized candidate was discarded rather than retried.
+        runtime.submit(Event::RetrySave {
+            operation_id: runtime.operation(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.id,
+            id,
+            "explicit retry installs the fresh keyboard, not the oversized edit"
+        );
+        assert!(
+            runtime
+                .store
+                .load_document(id.clone())
+                .await
+                .unwrap()
+                .is_some(),
+            "the fresh keyboard is durably saved"
+        );
     }
 }

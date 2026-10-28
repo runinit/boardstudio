@@ -8,8 +8,9 @@
 //! decide precedence.
 
 use boardstudio_core::model::{
-    Constraint, ConstraintEndpoint, ConstraintRelation, Matrix, MatrixCompanionMode,
-    MatrixCompanionPlacement, MatrixScene, Mirror, ProjectDoc, Vec2,
+    AggregateMethod, Constraint, ConstraintEndpoint, ConstraintRelation, Follow, Matrix,
+    MatrixAnchor, MatrixCompanionMode, MatrixCompanionPlacement, MatrixScene, Mirror,
+    MirroredExceptionState, MirroredItemKind, ProjectDoc, Vec2,
 };
 use boardstudio_web_ui_model::tree::TreeContext;
 
@@ -20,6 +21,10 @@ pub struct RelationItem {
     pub value: String,
     pub target: Option<TreeContext>,
     pub highlight: Vec<String>,
+    /// A parameter entry: activating it selects its owner and opens the matching
+    /// tool/editor. Receiver references (followers, anchor dependants, linked
+    /// partners) navigate without leaving the Relations tab instead.
+    pub opens_editor: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -78,14 +83,79 @@ pub struct MatrixRelations {
     pub structure: Vec<RelationItem>,
     pub departures: Vec<Departure>,
     pub constraints: Vec<ConstraintItem>,
+    /// Set when the selected parts span matrices: the chain covers one context
+    /// only, never a merged cross-matrix frame.
+    pub selection_note: Option<String>,
+}
+
+/// Explain a cross-matrix selection instead of merging it into one chain.
+/// Returns a note when the selected parts name live members of more than one
+/// matrix scene; the chain still covers only `context`.
+pub fn cross_matrix_note(
+    scenes: &[MatrixScene],
+    context: &TreeContext,
+    selected_part_ids: &[String],
+) -> Option<String> {
+    let mut owners = std::collections::BTreeSet::new();
+    for id in selected_part_ids {
+        for scene in scenes {
+            let member = scene
+                .cells
+                .iter()
+                .any(|cell| cell.member_id.as_deref() == Some(id.as_str()))
+                || scene
+                    .companions
+                    .iter()
+                    .any(|companion| companion.part_id == *id);
+            if member {
+                owners.insert(scene.matrix_id.as_str());
+            }
+        }
+    }
+    if owners.len() < 2 {
+        return None;
+    }
+    Some(format!(
+        "Parts in {} matrices are selected. This chain covers {}; select one matrix context for detail.",
+        owners.len(),
+        describe_context(context)
+    ))
+}
+
+fn describe_context(context: &TreeContext) -> String {
+    match context {
+        TreeContext::Matrix { matrix_id } => format!("matrix {matrix_id}"),
+        TreeContext::Row { matrix_id, row } => {
+            format!("row {} of matrix {matrix_id}", row + 1)
+        }
+        TreeContext::Column { matrix_id, column } => {
+            format!("column {} of matrix {matrix_id}", column + 1)
+        }
+        TreeContext::Key {
+            matrix_id,
+            row,
+            column,
+        } => format!(
+            "row {}, column {} of matrix {matrix_id}",
+            row + 1,
+            column + 1
+        ),
+        TreeContext::Component { part_id, .. } => {
+            format!("component {}", part_id.as_deref().unwrap_or("unknown"))
+        }
+        _ => "this selection".to_owned(),
+    }
 }
 
 /// The relationships of one matrix selection, or `None` when the context does not name a
 /// live object of this matrix (another matrix, or a removed row, column, key or component).
+/// `scenes` carries every matrix scene so cross-matrix receiver references resolve
+/// against current accepted identities instead of fabricated coordinates.
 pub fn matrix_relations(
     document: &ProjectDoc,
     scene: &MatrixScene,
     context: &TreeContext,
+    scenes: &[MatrixScene],
 ) -> Option<MatrixRelations> {
     let matrix = document
         .matrices
@@ -94,6 +164,7 @@ pub fn matrix_relations(
     let view = View {
         document,
         scene,
+        scenes,
         matrix,
     };
     match context {
@@ -118,6 +189,7 @@ pub fn matrix_relations(
 struct View<'a> {
     document: &'a ProjectDoc,
     scene: &'a MatrixScene,
+    scenes: &'a [MatrixScene],
     matrix: &'a Matrix,
 }
 
@@ -148,6 +220,217 @@ impl View<'_> {
             .iter()
             .find(|cell| cell.row == row && cell.column == column)
             .and_then(|cell| cell.member_id.as_deref())
+    }
+
+    fn scene_of(&self, matrix_id: &str) -> Option<&MatrixScene> {
+        self.scenes
+            .iter()
+            .find(|scene| scene.matrix_id == matrix_id)
+    }
+
+    /// The live member of another matrix's key, resolved against the current
+    /// accepted scenes. `None` when the key has no live member, so references
+    /// never highlight or navigate a stale identity.
+    fn member_of(&self, matrix_id: &str, row: u32, column: u32) -> Option<&str> {
+        self.scene_of(matrix_id)?
+            .cells
+            .iter()
+            .find(|cell| cell.row == row && cell.column == column)
+            .and_then(|cell| cell.member_id.as_deref())
+    }
+
+    fn scene_members(&self, matrix_id: &str) -> Vec<String> {
+        self.scene_of(matrix_id)
+            .map(|scene| {
+                scene
+                    .cells
+                    .iter()
+                    .filter_map(|cell| cell.member_id.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Mirrors Core's exception lookup over same-board links and native pairs,
+    /// read-only: what Local/Omitted overlay covers this linked item, if any.
+    fn exception(&self, kind: MirroredItemKind, id: &str) -> Option<MirroredExceptionState> {
+        self.document
+            .layouts
+            .iter()
+            .filter_map(|layout| layout.mirror_link.as_ref())
+            .flat_map(|link| &link.exceptions)
+            .chain(
+                self.document
+                    .hardware
+                    .iter()
+                    .flat_map(|hardware| &hardware.pairs)
+                    .filter_map(|pair| pair.halves.as_ref())
+                    .flat_map(|halves| &halves.exceptions),
+            )
+            .find(|exception| exception.kind == kind && exception.mirror_id == id)
+            .map(|exception| exception.state)
+    }
+
+    /// The canonical member Core assigns a matrix slot. Only a fallback for
+    /// naming a Local/Omitted overlay whose part is suppressed from the scene;
+    /// never a navigation or highlight target.
+    fn canonical_member(matrix_id: &str, row: u32, column: u32) -> String {
+        format!("matrix/{matrix_id}/r{row}c{column}")
+    }
+
+    fn key_overlay(&self, row: u32, column: u32) -> Option<MirroredExceptionState> {
+        let member = self
+            .member(row, column)
+            .map(str::to_owned)
+            .unwrap_or_else(|| Self::canonical_member(&self.matrix.id, row, column));
+        self.exception(MirroredItemKind::Part, &member)
+    }
+
+    /// Matrices directly anchored to this matrix in document order: through the
+    /// single key, or through any aggregate part.
+    fn dependants(&self) -> Vec<&Matrix> {
+        self.document
+            .matrices
+            .iter()
+            .filter(|matrix| {
+                matrix.anchor.as_ref().is_some_and(|anchor| {
+                    anchor
+                        .targets()
+                        .iter()
+                        .any(|part| part.matrix_id == self.matrix.id)
+                })
+            })
+            .collect()
+    }
+
+    /// Matrices directly anchored to this key; their poses follow its result.
+    /// Aggregate parts count: a part anchored to this key moves with it.
+    fn key_dependants(&self, row: u32, column: u32) -> Vec<&Matrix> {
+        self.document
+            .matrices
+            .iter()
+            .filter(|matrix| {
+                matrix.anchor.as_ref().is_some_and(|anchor| {
+                    anchor.targets().iter().any(|part| {
+                        part.matrix_id == self.matrix.id && part.row == row && part.column == column
+                    })
+                })
+            })
+            .collect()
+    }
+
+    /// "X, Y, rotation" for the Follow subset, or "none" when nothing follows.
+    fn follow_text(follow: &Follow) -> String {
+        let mut parts = Vec::new();
+        if follow.x {
+            parts.push("X");
+        }
+        if follow.y {
+            parts.push("Y");
+        }
+        if follow.rotation {
+            parts.push("rotation");
+        }
+        if parts.is_empty() {
+            "none".to_owned()
+        } else {
+            parts.join(", ")
+        }
+    }
+
+    /// "row 2, column 2 of matrix main".
+    fn anchor_part_text(matrix_id: &str, row: u32, column: u32) -> String {
+        format!(
+            "row {}, column {} of matrix {}",
+            row + 1,
+            column + 1,
+            matrix_id,
+        )
+    }
+
+    /// "row 2, column 2 of matrix main (follows X, Y)".
+    fn anchor_key_text(anchor: &MatrixAnchor) -> String {
+        format!(
+            "{} (follows {})",
+            Self::anchor_part_text(&anchor.matrix_id, anchor.row, anchor.column),
+            Self::follow_text(&anchor.follow),
+        )
+    }
+
+    /// "Average of 2 keys" or "Intersection of 2 keys", from the Core-admitted
+    /// aggregate method. `None` for single-key anchors.
+    fn aggregate_kind_text(anchor: &MatrixAnchor) -> Option<String> {
+        let aggregate = anchor.aggregate.as_ref()?;
+        let method = match aggregate.method {
+            AggregateMethod::Average => "Average",
+            AggregateMethod::Intersect => "Intersection",
+        };
+        let count = aggregate.parts.len();
+        Some(format!(
+            "{method} of {count} {}",
+            if count == 1 { "key" } else { "keys" }
+        ))
+    }
+
+    fn anchor_target(&self, anchor: &MatrixAnchor) -> TreeContext {
+        TreeContext::Key {
+            matrix_id: anchor.matrix_id.clone(),
+            row: anchor.row,
+            column: anchor.column,
+        }
+    }
+
+    /// The anchor frame item for row/column/key chains: the anchor key this
+    /// matrix follows, with its Follow subset. `None` when unanchored.
+    fn anchor_frame_item(&self) -> Option<RelationItem> {
+        let anchor = self.matrix.anchor.as_ref()?;
+        let highlight: Vec<String> = self
+            .member_of(&anchor.matrix_id, anchor.row, anchor.column)
+            .map(str::to_owned)
+            .into_iter()
+            .collect();
+        Some(item(
+            "Anchor frame",
+            Self::anchor_key_text(anchor),
+            Some(self.anchor_target(anchor)),
+            highlight,
+        ))
+    }
+
+    /// The anchor frame items for row/column/key chains: the single anchor key
+    /// this matrix follows, or one entry per aggregate part. Every target and
+    /// highlight resolves against the live accepted scenes, never fabricated
+    /// coordinates.
+    fn anchor_frame_items(&self) -> Vec<RelationItem> {
+        let Some(anchor) = self.matrix.anchor.as_ref() else {
+            return Vec::new();
+        };
+        let Some(aggregate) = anchor.aggregate.as_ref() else {
+            return self.anchor_frame_item().into_iter().collect();
+        };
+        aggregate
+            .parts
+            .iter()
+            .map(|part| {
+                item(
+                    "Anchor frame",
+                    format!(
+                        "{} (follows {})",
+                        Self::anchor_part_text(&part.matrix_id, part.row, part.column),
+                        Self::follow_text(&anchor.follow),
+                    ),
+                    Some(TreeContext::Key {
+                        matrix_id: part.matrix_id.clone(),
+                        row: part.row,
+                        column: part.column,
+                    }),
+                    self.member_of(&part.matrix_id, part.row, part.column)
+                        .map(str::to_owned)
+                        .into_iter()
+                        .collect(),
+                )
+            })
+            .collect()
     }
 
     fn members(&self, keep: impl Fn(u32, u32) -> bool) -> Vec<String> {
@@ -222,7 +505,7 @@ impl View<'_> {
             .document
             .layouts
             .iter()
-            .find(|layout| layout.matrix_id == self.matrix.id)?;
+            .find(|layout| layout.matrix_ids.contains(&self.matrix.id))?;
         let partner = match &owner.mirror_link {
             Some(link) => self
                 .document
@@ -236,11 +519,10 @@ impl View<'_> {
                     .is_some_and(|link| link.source_id == owner.id)
             })?,
         };
-        let matrix = self
-            .document
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == partner.matrix_id)?;
+        let matrix = self.document.matrices.iter().find(|matrix| {
+            let link = owner.mirror_link.as_ref().or(partner.mirror_link.as_ref());
+            link.and_then(|link| link.partner_matrix(&self.matrix.id)) == Some(matrix.id.as_str())
+        })?;
         Some((partner, matrix))
     }
 
@@ -260,8 +542,9 @@ impl View<'_> {
 
     fn stagger(&self, column: u32) -> f64 {
         self.matrix
-            .column_staggers
+            .column_layout
             .get(column as usize)
+            .map(|record| &record.stagger)
             .copied()
             .unwrap_or(0.0)
     }
@@ -272,31 +555,106 @@ impl View<'_> {
 
     fn splay(&self, column: u32) -> f64 {
         self.matrix
-            .column_splays
+            .column_layout
             .get(column as usize)
+            .map(|record| &record.splay)
             .copied()
             .unwrap_or(0.0)
     }
 
+    fn column_turn(&self, column: u32) -> (f64, f64) {
+        let record = self.matrix.column_layout.get(column as usize);
+        (
+            record.map(|record| record.splay).unwrap_or(0.0),
+            record.map(|record| record.rotation).unwrap_or(0.0),
+        )
+    }
+
+    /// The column's own step: Spread (absent on column 0, otherwise the pitch
+    /// unless explicitly stored) and stagger, before any turns.
+    fn column_step_text(&self, column: u32) -> String {
+        let stagger = format!("{} mm", mm(self.stagger(column)));
+        if column == 0 {
+            return format!("no spread, stagger {stagger}");
+        }
+        let spread = self
+            .matrix
+            .column_layout
+            .get(column as usize)
+            .and_then(|record| record.spread)
+            .map(|spread| format!("{} mm", mm(spread)))
+            .unwrap_or_else(|| format!("{} mm (pitch)", mm(self.matrix.pitch.x)));
+        format!("spread {spread}, stagger {stagger}")
+    }
+
+    /// This column's own turn: Splay plus Column rotation, which never carry to
+    /// later columns.
+    fn column_turn_text(&self, column: u32) -> String {
+        let (splay, rotation) = self.column_turn(column);
+        if splay == 0.0 && rotation == 0.0 && !self.custom_origin(column) {
+            return "none (this column only)".to_owned();
+        }
+        let mut text = format!(
+            "splay {}°, column rotation {}° (this column only)",
+            mm(splay),
+            mm(rotation)
+        );
+        if self.custom_origin(column) {
+            text.push_str(", custom origin");
+        }
+        text
+    }
+
+    /// The padding step into this row: stored per row, defaulting to the pitch.
+    /// Row 0 has no padding step.
+    fn row_padding_text(&self, row: u32) -> String {
+        if row == 0 {
+            return "no padding on row 1".to_owned();
+        }
+        self.matrix
+            .row_layout
+            .get(row as usize)
+            .and_then(|record| record.padding)
+            .map(|padding| format!("{} mm", mm(padding)))
+            .unwrap_or_else(|| format!("{} mm (pitch)", mm(self.matrix.pitch.y)))
+    }
+
+    /// This column's Spread: absent on column 0, the pitch unless explicitly
+    /// stored.
+    fn column_spread_text(&self, column: u32) -> String {
+        if column == 0 {
+            return "no spread on column 1".to_owned();
+        }
+        self.matrix
+            .column_layout
+            .get(column as usize)
+            .and_then(|record| record.spread)
+            .map(|spread| format!("{} mm", mm(spread)))
+            .unwrap_or_else(|| format!("{} mm (pitch)", mm(self.matrix.pitch.x)))
+    }
+
     fn custom_origin(&self, column: u32) -> bool {
         self.matrix
-            .column_origins
+            .column_layout
             .get(column as usize)
-            .is_some_and(Option::is_some)
+            .map(|record| &record.splay_origin)
+            .is_some_and(|origin| *origin != Vec2::default())
     }
 
     fn column_offset(&self, column: u32) -> Vec2 {
         self.matrix
-            .column_offsets
+            .column_layout
             .get(column as usize)
+            .map(|record| &record.offset)
             .copied()
             .unwrap_or(ZERO)
     }
 
     fn row_offset(&self, row: u32) -> Vec2 {
         self.matrix
-            .row_offsets
+            .row_layout
             .get(row as usize)
+            .map(|record| &record.offset)
             .copied()
             .unwrap_or(ZERO)
     }
@@ -430,6 +788,223 @@ impl View<'_> {
             Some(Mirror::Y) => structure.push(item("Mirror", "Y".into(), None, vec![])),
             _ => {}
         }
+        // The anchor frame comes first in kernel order: an anchored matrix
+        // derives its world frame from its anchor key, then follows it. An
+        // aggregate anchor derives one combined frame from N part poses, so
+        // the chain names one entry per part from Core-published values only.
+        if let Some(anchor) = &matrix.anchor {
+            let matrix_context = Some(TreeContext::Matrix {
+                matrix_id: matrix.id.clone(),
+            });
+            match anchor.aggregate.as_ref() {
+                None => {
+                    structure.push(parameter(
+                        "Anchor",
+                        Self::anchor_key_text(anchor),
+                        matrix_context,
+                        all.clone(),
+                    ));
+                    let mut follows = Self::anchor_key_text(anchor);
+                    if let Some(member) =
+                        self.member_of(&anchor.matrix_id, anchor.row, anchor.column)
+                        && self.exception(MirroredItemKind::Part, member)
+                            == Some(MirroredExceptionState::Local)
+                    {
+                        follows.push_str("; the anchor key is Local and holds its final pose");
+                    }
+                    structure.push(item(
+                        "Follows",
+                        follows,
+                        Some(self.anchor_target(anchor)),
+                        self.member_of(&anchor.matrix_id, anchor.row, anchor.column)
+                            .map(str::to_owned)
+                            .into_iter()
+                            .collect(),
+                    ));
+                }
+                Some(aggregate) => {
+                    let members: Vec<String> = aggregate
+                        .parts
+                        .iter()
+                        .filter_map(|part| self.member_of(&part.matrix_id, part.row, part.column))
+                        .map(str::to_owned)
+                        .collect();
+                    structure.push(parameter(
+                        "Anchor",
+                        Self::aggregate_kind_text(anchor)
+                            .expect("the aggregate arm names its method"),
+                        matrix_context,
+                        all.clone(),
+                    ));
+                    for part in &aggregate.parts {
+                        structure.push(item(
+                            "Anchor part",
+                            Self::anchor_part_text(&part.matrix_id, part.row, part.column),
+                            Some(TreeContext::Key {
+                                matrix_id: part.matrix_id.clone(),
+                                row: part.row,
+                                column: part.column,
+                            }),
+                            self.member_of(&part.matrix_id, part.row, part.column)
+                                .map(str::to_owned)
+                                .into_iter()
+                                .collect(),
+                        ));
+                    }
+                    let mut follows = Self::follow_text(&anchor.follow);
+                    let mut local: Vec<String> = aggregate
+                        .parts
+                        .iter()
+                        .filter(|part| {
+                            self.member_of(&part.matrix_id, part.row, part.column)
+                                .is_some_and(|member| {
+                                    self.exception(MirroredItemKind::Part, member)
+                                        == Some(MirroredExceptionState::Local)
+                                })
+                        })
+                        .map(|part| Self::anchor_part_text(&part.matrix_id, part.row, part.column))
+                        .collect();
+                    local.sort();
+                    local.dedup();
+                    for text in local {
+                        follows.push_str(&format!("; {text} is Local and holds its final pose"));
+                    }
+                    structure.push(item("Follows", follows, None, members));
+                }
+            }
+        }
+        for dependant in self.dependants() {
+            structure.push(item(
+                "Followed by",
+                format!("Matrix {}", dependant.id),
+                Some(TreeContext::Matrix {
+                    matrix_id: dependant.id.clone(),
+                }),
+                self.scene_members(&dependant.id),
+            ));
+        }
+        match self.exception(MirroredItemKind::Matrix, &matrix.id) {
+            Some(MirroredExceptionState::Local) => structure.push(item(
+                "Local matrix",
+                "keeps its own dimensions and layout; its anchor stays detached".into(),
+                None,
+                all.clone(),
+            )),
+            Some(MirroredExceptionState::Omitted) => structure.push(item(
+                "Omitted matrix",
+                "live logical poses only; inherited parts stay suppressed".into(),
+                None,
+                Vec::new(),
+            )),
+            None => {}
+        }
+        // Shared values across the matrix, or "Varies" when members disagree.
+        // No per-key value is presented as universal.
+        let keys = self.all_keys();
+        let spreads: Vec<String> = (1..matrix.columns)
+            .map(|column| {
+                matrix
+                    .column_layout
+                    .get(column as usize)
+                    .and_then(|record| record.spread)
+                    .map(|spread| format!("{} mm", mm(spread)))
+                    .unwrap_or_else(|| format!("{} mm (pitch)", mm(matrix.pitch.x)))
+            })
+            .collect();
+        structure.push(item(
+            "Column spread",
+            if matrix.columns <= 1 {
+                "no spread (single column)".to_owned()
+            } else {
+                uniform_or_varies(spreads)
+            },
+            None,
+            all.clone(),
+        ));
+        structure.push(item(
+            "Column stagger",
+            uniform_or_varies(
+                (0..matrix.columns)
+                    .map(|column| format!("{} mm", mm(self.stagger(column))))
+                    .collect(),
+            ),
+            None,
+            all.clone(),
+        ));
+        structure.push(item(
+            "Column splay",
+            uniform_or_varies(
+                (0..matrix.columns)
+                    .map(|column| format!("{}°", mm(self.column_turn(column).0)))
+                    .collect(),
+            ),
+            None,
+            all.clone(),
+        ));
+        structure.push(item(
+            "Column rotation",
+            uniform_or_varies(
+                (0..matrix.columns)
+                    .map(|column| format!("{}°", mm(self.column_turn(column).1)))
+                    .collect(),
+            ),
+            None,
+            all.clone(),
+        ));
+        let paddings: Vec<String> = (1..matrix.rows)
+            .map(|row| {
+                matrix
+                    .row_layout
+                    .get(row as usize)
+                    .and_then(|record| record.padding)
+                    .map(|padding| format!("{} mm", mm(padding)))
+                    .unwrap_or_else(|| format!("{} mm (pitch)", mm(matrix.pitch.y)))
+            })
+            .collect();
+        structure.push(item(
+            "Row padding",
+            if matrix.rows <= 1 {
+                "no padding (single row)".to_owned()
+            } else {
+                uniform_or_varies(paddings)
+            },
+            None,
+            all.clone(),
+        ));
+        structure.push(item(
+            "Row shift",
+            uniform_or_varies(
+                (0..matrix.rows)
+                    .map(|row| offset_text(self.row_stored_shift(row)))
+                    .collect(),
+            ),
+            None,
+            all.clone(),
+        ));
+        structure.push(item(
+            "Row bend",
+            uniform_or_varies(
+                (0..matrix.rows)
+                    .map(|row| bend_text(self.row_stored_bend(row)))
+                    .collect(),
+            ),
+            None,
+            all.clone(),
+        ));
+        structure.push(item("Key shift", aggregate_shift(&keys), None, all.clone()));
+        structure.push(item("Key bend", aggregate_bend(&keys), None, all.clone()));
+        structure.push(item(
+            "Cumulative shift",
+            aggregate_cumulative_shift(&keys),
+            None,
+            all.clone(),
+        ));
+        structure.push(item(
+            "Cumulative bend",
+            aggregate_cumulative_bend(&keys),
+            None,
+            all.clone(),
+        ));
         for column in 0..matrix.columns {
             let members = self.members(|_, c| c == column);
             if self.stagger(column) != 0.0 {
@@ -496,7 +1071,63 @@ impl View<'_> {
             structure,
             departures,
             constraints: self.constraints_touching(&all),
+            selection_note: None,
         }
+    }
+
+    /// Stored and Core-published facts for one logical key. Stored shift/bend
+    /// come from the document (so deleted keys keep their carried values);
+    /// cumulative totals come from Core's scene (so only scene-present keys
+    /// have them).
+    fn key_facts(&self, row: u32, column: u32) -> AggregatedKey {
+        let stored = self
+            .matrix
+            .cells
+            .iter()
+            .find(|cell| cell.row == row && cell.column == column);
+        let published = self.contributions(row, column);
+        AggregatedKey {
+            shift: stored.and_then(|cell| cell.shift).unwrap_or(ZERO),
+            bend: stored.and_then(|cell| cell.bend).unwrap_or(0.0),
+            cumulative_shift: published.map(|facts| facts.cumulative_shift),
+            cumulative_bend: published.map(|facts| facts.cumulative_bend),
+            state: self.key_state(row, column),
+        }
+    }
+
+    fn row_keys(&self, row: u32) -> Vec<AggregatedKey> {
+        (0..self.matrix.columns)
+            .map(|column| self.key_facts(row, column))
+            .collect()
+    }
+
+    fn column_keys(&self, column: u32) -> Vec<AggregatedKey> {
+        (0..self.matrix.rows)
+            .map(|row| self.key_facts(row, column))
+            .collect()
+    }
+
+    fn all_keys(&self) -> Vec<AggregatedKey> {
+        (0..self.matrix.rows)
+            .flat_map(|row| (0..self.matrix.columns).map(move |column| (row, column)))
+            .map(|(row, column)| self.key_facts(row, column))
+            .collect()
+    }
+
+    fn row_stored_shift(&self, row: u32) -> Vec2 {
+        self.matrix
+            .row_layout
+            .get(row as usize)
+            .map(|record| record.shift)
+            .unwrap_or(ZERO)
+    }
+
+    fn row_stored_bend(&self, row: u32) -> f64 {
+        self.matrix
+            .row_layout
+            .get(row as usize)
+            .map(|record| record.bend)
+            .unwrap_or(0.0)
     }
 
     fn row(&self, row: u32) -> Option<MatrixRelations> {
@@ -504,28 +1135,79 @@ impl View<'_> {
             return None;
         }
         let members = self.members(|r, _| r == row);
-        let keys = (0..self.matrix.columns)
-            .filter(|column| self.key_state(row, *column) == KeyState::Enabled)
-            .count();
-        let structure = vec![
-            item(
-                "Keys",
-                format!("{keys} keys in Row {}", row + 1),
-                None,
-                members.clone(),
-            ),
-            if row == 0 {
-                item("Spacing", "from the matrix origin".into(), None, vec![])
-            } else {
-                item(
-                    "Spacing",
-                    format!("{} mm from Row {}", mm(self.matrix.pitch.y), row),
-                    Some(self.row_context(row - 1)),
-                    self.members(|r, _| r == row - 1),
-                )
-            },
-            item("Column staggers", "apply to each key".into(), None, vec![]),
-        ];
+        let keys = self.row_keys(row);
+        let (mut enabled, mut disabled, mut removed) = (0u32, 0u32, 0u32);
+        for key in &keys {
+            match key.state {
+                KeyState::Enabled => enabled += 1,
+                KeyState::Disabled => disabled += 1,
+                KeyState::Removed => removed += 1,
+            }
+        }
+        let mut keys_text = format!("{enabled} keys in Row {}", row + 1);
+        if disabled > 0 {
+            keys_text.push_str(&format!(", {disabled} disabled"));
+        }
+        if removed > 0 {
+            keys_text.push_str(&format!(", {removed} removed"));
+        }
+        let mut structure = vec![item("Keys", keys_text, None, members.clone())];
+        // The anchor frame heads the chain: this row inherits a frame derived
+        // from the anchor key, or one entry per aggregate part.
+        for frame in self.anchor_frame_items() {
+            structure.push(frame);
+        }
+        structure.push(parameter(
+            "Padding",
+            self.row_padding_text(row),
+            (row > 0).then(|| self.row_context(row)),
+            members.clone(),
+        ));
+        structure.push(parameter(
+            "Row shift",
+            offset_text(self.row_stored_shift(row)),
+            Some(self.row_context(row)),
+            members.clone(),
+        ));
+        structure.push(parameter(
+            "Row bend",
+            bend_text(self.row_stored_bend(row)),
+            Some(self.row_context(row)),
+            members.clone(),
+        ));
+        structure.push(item(
+            "Key shift",
+            aggregate_shift(&keys),
+            None,
+            members.clone(),
+        ));
+        structure.push(item(
+            "Key bend",
+            aggregate_bend(&keys),
+            None,
+            members.clone(),
+        ));
+        structure.push(item(
+            "Cumulative shift",
+            aggregate_cumulative_shift(&keys),
+            None,
+            members.clone(),
+        ));
+        structure.push(item(
+            "Cumulative bend",
+            aggregate_cumulative_bend(&keys),
+            None,
+            members.clone(),
+        ));
+        // Padding carries to later rows, so later rows inherit this row's steps.
+        for later in row + 1..self.matrix.rows {
+            structure.push(item(
+                "Inherited by",
+                format!("Row {}", later + 1),
+                Some(self.row_context(later)),
+                self.members(|r, _| r == later),
+            ));
+        }
         let offset = self.row_offset(row);
         let departures = (offset != ZERO)
             .then(|| Departure {
@@ -541,6 +1223,7 @@ impl View<'_> {
             structure,
             departures,
             constraints: self.constraints_touching(&members),
+            selection_note: None,
         })
     }
 
@@ -560,29 +1243,57 @@ impl View<'_> {
         if cumulative != 0.0 {
             value.push_str(&format!(", cumulative {} mm", mm(cumulative)));
         }
+        // Stagger totals are steps before turns, not final key positions.
+        value.push_str(", before turns");
+        let keys = self.column_keys(column);
         let mut structure = vec![item("Stagger", value, None, members.clone())];
+        // The anchor frame heads the chain: this column inherits a frame
+        // derived from the anchor key, or one entry per aggregate part.
+        for frame in self.anchor_frame_items() {
+            structure.push(frame);
+        }
+        structure.push(parameter(
+            "Column spread",
+            self.column_spread_text(column),
+            Some(self.column_context(column)),
+            members.clone(),
+        ));
+        structure.push(parameter(
+            "Column turn",
+            self.column_turn_text(column),
+            Some(self.column_context(column)),
+            members.clone(),
+        ));
+        structure.push(item(
+            "Key shift",
+            aggregate_shift(&keys),
+            None,
+            members.clone(),
+        ));
+        structure.push(item(
+            "Key bend",
+            aggregate_bend(&keys),
+            None,
+            members.clone(),
+        ));
+        structure.push(item(
+            "Cumulative shift",
+            aggregate_cumulative_shift(&keys),
+            None,
+            members.clone(),
+        ));
+        structure.push(item(
+            "Cumulative bend",
+            aggregate_cumulative_bend(&keys),
+            None,
+            members.clone(),
+        ));
         for later in column + 1..self.matrix.columns {
             structure.push(item(
                 "Inherited by",
                 format!("Column {}", later + 1),
                 Some(self.column_context(later)),
                 self.members(|_, c| c == later),
-            ));
-        }
-        if self.splay(column) != 0.0 || self.custom_origin(column) {
-            structure.push(item(
-                "Splay",
-                format!(
-                    "{}°, {} pivot",
-                    mm(self.splay(column)),
-                    if self.custom_origin(column) {
-                        "custom"
-                    } else {
-                        "default"
-                    }
-                ),
-                None,
-                members.clone(),
             ));
         }
         let offset = self.column_offset(column);
@@ -605,7 +1316,23 @@ impl View<'_> {
             structure,
             departures,
             constraints: self.constraints_touching(&members),
+            selection_note: None,
         })
+    }
+
+    fn contributions(&self, row: u32, column: u32) -> Option<CoreCellFacts> {
+        self.scene
+            .cells
+            .iter()
+            .find(|cell| cell.row == row && cell.column == column)
+            .map(|cell| CoreCellFacts {
+                row_shift: cell.row_shift,
+                key_shift: cell.key_shift,
+                row_bend: cell.row_bend,
+                key_bend: cell.key_bend,
+                cumulative_shift: cell.cumulative_shift,
+                cumulative_bend: cell.cumulative_bend,
+            })
     }
 
     fn key(&self, row: u32, column: u32) -> Option<MatrixRelations> {
@@ -617,13 +1344,19 @@ impl View<'_> {
         }
         let member = self.member(row, column).map(str::to_owned);
         let highlight: Vec<String> = member.iter().cloned().collect();
+        let facts = self.contributions(row, column).unwrap_or_default();
         let row_offset = self.row_offset(row);
         let column_offset = self.column_offset(column);
+        let row_members = self.members(|r, _| r == row);
+        let column_members = self.members(|_, c| c == column);
         let mirror = match self.matrix.mirror {
             Some(Mirror::X) => "X",
             Some(Mirror::Y) => "Y",
             _ => "none",
         };
+        // The chain follows kernel order: matrix frame, column step and turn,
+        // row padding, carried row/key shift and bend with their matrix-axes
+        // totals, then the independent offsets that never carry.
         let mut structure = vec![
             item(
                 "Pitch cell",
@@ -631,31 +1364,7 @@ impl View<'_> {
                 None,
                 highlight.clone(),
             ),
-            item(
-                "Row offset",
-                offset_text(row_offset),
-                Some(self.row_context(row)),
-                self.members(|r, _| r == row),
-            ),
-            item(
-                "Column offset",
-                offset_text(column_offset),
-                Some(self.column_context(column)),
-                self.members(|_, c| c == column),
-            ),
-            item(
-                "Cumulative stagger",
-                format!("{} mm", mm(self.cumulative(column))),
-                Some(self.column_context(column)),
-                self.members(|_, c| c == column),
-            ),
-            item(
-                "Splay",
-                format!("{}°", mm(self.splay(column))),
-                Some(self.column_context(column)),
-                vec![],
-            ),
-            item(
+            parameter(
                 "Matrix frame",
                 format!(
                     "rotation {}°, mirror {mirror}",
@@ -666,7 +1375,148 @@ impl View<'_> {
                 }),
                 self.members(|_, _| true),
             ),
+            parameter(
+                "Column step",
+                self.column_step_text(column),
+                Some(self.column_context(column)),
+                column_members.clone(),
+            ),
+            parameter(
+                "Cumulative stagger",
+                format!("{} mm", mm(self.cumulative(column))),
+                Some(self.column_context(column)),
+                column_members.clone(),
+            ),
+            parameter(
+                "Column turn",
+                self.column_turn_text(column),
+                Some(self.column_context(column)),
+                column_members.clone(),
+            ),
+            parameter(
+                "Row padding",
+                self.row_padding_text(row),
+                (row > 0).then(|| self.row_context(row)),
+                row_members.clone(),
+            ),
+            parameter(
+                "Row shift",
+                offset_text(facts.row_shift),
+                Some(self.row_context(row)),
+                row_members.clone(),
+            ),
+            item(
+                "Key shift",
+                offset_text(facts.key_shift),
+                None,
+                highlight.clone(),
+            ),
+            parameter(
+                "Row bend",
+                bend_text(facts.row_bend),
+                Some(self.row_context(row)),
+                row_members.clone(),
+            ),
+            item(
+                "Key bend",
+                bend_text(facts.key_bend),
+                None,
+                highlight.clone(),
+            ),
+            item(
+                "Cumulative shift",
+                format!(
+                    "{}, {} mm in matrix axes",
+                    mm(facts.cumulative_shift.x),
+                    mm(facts.cumulative_shift.y)
+                ),
+                None,
+                highlight.clone(),
+            ),
+            item(
+                "Cumulative bend",
+                format!("{}° (row and key only)", mm(facts.cumulative_bend)),
+                None,
+                highlight.clone(),
+            ),
+            parameter(
+                "Row offset",
+                offset_text(row_offset),
+                Some(self.row_context(row)),
+                row_members,
+            ),
+            parameter(
+                "Column offset",
+                offset_text(column_offset),
+                Some(self.column_context(column)),
+                column_members,
+            ),
         ];
+        if self.key_state(row, column) == KeyState::Disabled {
+            structure.insert(
+                1,
+                item(
+                    "Key state",
+                    "disabled (stored values still carry)".into(),
+                    None,
+                    highlight.clone(),
+                ),
+            );
+        }
+        // Anchor frame right after the matrix frame: an anchored matrix derives
+        // its world frame from its anchor key, then follows it.
+        let mut insert_at = structure
+            .iter()
+            .position(|item| item.label == "Matrix frame")
+            .map(|index| index + 1)
+            .unwrap_or(1);
+        for frame in self.anchor_frame_items() {
+            structure.insert(insert_at, frame);
+            insert_at += 1;
+        }
+        match self.key_overlay(row, column) {
+            Some(MirroredExceptionState::Local) => {
+                structure.insert(
+                    insert_at,
+                    item(
+                        "Local key",
+                        "holds its final pose; carried fields stay shared".into(),
+                        None,
+                        highlight.clone(),
+                    ),
+                );
+                insert_at += 1;
+            }
+            Some(MirroredExceptionState::Omitted) => {
+                structure.insert(
+                    insert_at,
+                    item(
+                        "Omitted key",
+                        "live logical pose only; inherited parts stay suppressed. Clear the omission in the Key inspector to rejoin.".into(),
+                        None,
+                        Vec::new(),
+                    ),
+                );
+                insert_at += 1;
+            }
+            None => {}
+        }
+        // An independent offset here can still move another matrix anchored to
+        // this key's resulting pose; list that relationship directly.
+        for dependant in self.key_dependants(row, column) {
+            structure.insert(
+                insert_at,
+                item(
+                    "Followed by",
+                    format!("Matrix {}", dependant.id),
+                    Some(TreeContext::Matrix {
+                        matrix_id: dependant.id.clone(),
+                    }),
+                    self.scene_members(&dependant.id),
+                ),
+            );
+            insert_at += 1;
+        }
         if let Some((layout, partner)) = self.partner() {
             let partner_member = format!("matrix/{}/r{row}c{column}", partner.id);
             structure.push(item(
@@ -734,6 +1584,7 @@ impl View<'_> {
             structure,
             departures,
             constraints: self.constraints_touching(&touched),
+            selection_note: None,
         })
     }
 
@@ -787,11 +1638,24 @@ impl View<'_> {
             structure,
             departures,
             constraints,
+            selection_note: None,
         })
     }
 }
 
 const ZERO: Vec2 = Vec2 { x: 0.0, y: 0.0 };
+
+/// Carried per-key facts published by Core's kernel through the scene. Relations
+/// reads them; it never recomputes layout maths.
+#[derive(Clone, Copy, Debug, Default)]
+struct CoreCellFacts {
+    row_shift: Vec2,
+    key_shift: Vec2,
+    row_bend: f64,
+    key_bend: f64,
+    cumulative_shift: Vec2,
+    cumulative_bend: f64,
+}
 
 fn item(
     label: &str,
@@ -804,6 +1668,24 @@ fn item(
         value,
         target,
         highlight,
+        opens_editor: false,
+    }
+}
+
+/// A parameter entry: activating it selects its owner and opens the matching
+/// tool/editor instead of staying on the Relations tab.
+fn parameter(
+    label: &str,
+    value: String,
+    target: Option<TreeContext>,
+    highlight: Vec<String>,
+) -> RelationItem {
+    RelationItem {
+        label: label.to_owned(),
+        value,
+        target,
+        highlight,
+        opens_editor: true,
     }
 }
 
@@ -813,6 +1695,121 @@ fn offset_text(offset: Vec2) -> String {
     } else {
         format!("{}, {} mm", mm(offset.x), mm(offset.y))
     }
+}
+
+fn bend_text(bend: f64) -> String {
+    if bend == 0.0 {
+        "none".to_owned()
+    } else {
+        format!("{}°", mm(bend))
+    }
+}
+
+/// One aggregated logical key: stored shift/bend from the document (deleted
+/// keys keep theirs) and Core's cumulative totals when the scene carries them.
+struct AggregatedKey {
+    shift: Vec2,
+    bend: f64,
+    cumulative_shift: Option<Vec2>,
+    cumulative_bend: Option<f64>,
+    state: KeyState,
+}
+
+/// One shared text when every value agrees, otherwise "Varies".
+fn uniform_or_varies(mut values: Vec<String>) -> String {
+    values.sort();
+    values.dedup();
+    if values.len() == 1 {
+        values
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| "Varies".to_owned())
+    } else {
+        "Varies".to_owned()
+    }
+}
+
+/// Names the non-enabled contributors behind an aggregate, so disabled and
+/// deleted keys are not silently dropped from the chain.
+fn state_suffix(disabled: bool, deleted: bool) -> &'static str {
+    match (disabled, deleted) {
+        (true, true) => " (includes disabled and deleted keys)",
+        (true, false) => " (includes disabled keys)",
+        (false, true) => " (includes deleted keys)",
+        (false, false) => "",
+    }
+}
+
+/// Stored key shifts across an aggregate, labelled with contributor state.
+fn aggregate_shift(keys: &[AggregatedKey]) -> String {
+    let texts: Vec<String> = keys.iter().map(|key| offset_text(key.shift)).collect();
+    let mut text = uniform_or_varies(texts);
+    let (mut disabled, mut deleted) = (false, false);
+    for key in keys {
+        if key.shift != ZERO {
+            match key.state {
+                KeyState::Disabled => disabled = true,
+                KeyState::Removed => deleted = true,
+                KeyState::Enabled => {}
+            }
+        }
+    }
+    text.push_str(state_suffix(disabled, deleted));
+    text
+}
+
+/// Stored key bends across an aggregate, labelled with contributor state.
+fn aggregate_bend(keys: &[AggregatedKey]) -> String {
+    let texts: Vec<String> = keys.iter().map(|key| bend_text(key.bend)).collect();
+    let mut text = uniform_or_varies(texts);
+    let (mut disabled, mut deleted) = (false, false);
+    for key in keys {
+        if key.bend != 0.0 {
+            match key.state {
+                KeyState::Disabled => disabled = true,
+                KeyState::Removed => deleted = true,
+                KeyState::Enabled => {}
+            }
+        }
+    }
+    text.push_str(state_suffix(disabled, deleted));
+    text
+}
+
+/// Core's cumulative shifts across scene-present keys; keys removed from the
+/// scene carry no published total.
+fn aggregate_cumulative_shift(keys: &[AggregatedKey]) -> String {
+    let texts: Vec<String> = keys
+        .iter()
+        .filter_map(|key| key.cumulative_shift)
+        .map(|shift| format!("{}, {} mm in matrix axes", mm(shift.x), mm(shift.y)))
+        .collect();
+    if texts.is_empty() {
+        return "not shown (keys removed)".to_owned();
+    }
+    let mut text = uniform_or_varies(texts);
+    let disabled = keys.iter().any(|key| {
+        key.cumulative_shift.is_some_and(|shift| shift != ZERO) && key.state == KeyState::Disabled
+    });
+    text.push_str(state_suffix(disabled, false));
+    text
+}
+
+fn aggregate_cumulative_bend(keys: &[AggregatedKey]) -> String {
+    let texts: Vec<String> = keys
+        .iter()
+        .filter_map(|key| key.cumulative_bend)
+        .map(|bend| format!("{}° (row and key only)", mm(bend)))
+        .collect();
+    if texts.is_empty() {
+        return "not shown (keys removed)".to_owned();
+    }
+    let mut text = uniform_or_varies(texts);
+    let disabled = keys.iter().any(|key| {
+        key.cumulative_bend.is_some_and(|bend| bend != 0.0) && key.state == KeyState::Disabled
+    });
+    text.push_str(state_suffix(disabled, false));
+    text
 }
 
 /// A millimetre or degree value without trailing zeros; a minus sign is U+2212.

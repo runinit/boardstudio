@@ -1449,11 +1449,9 @@ fn project_current_for(
         .matrices
         .iter()
         .find(|matrix| matrix.id == *matrix_id)?;
-    let layout = snapshot
-        .document
-        .layouts
-        .iter()
-        .find(|layout| layout.board_id == scope.board_id && layout.matrix_id == matrix.id);
+    let layout = snapshot.document.layouts.iter().find(|layout| {
+        layout.board_id == scope.board_id && layout.matrix_ids.iter().any(|id| id == &matrix.id)
+    });
     let (name_target, name_label, name_value, name_baseline) = if let Some(layout) = layout {
         (
             MatrixNameTarget::Layout {
@@ -1742,7 +1740,9 @@ fn field_value(
             MatrixNameTarget::Layout { id } => document
                 .layouts
                 .iter()
-                .find(|layout| layout.id == *id && layout.matrix_id == matrix_id)
+                .find(|layout| {
+                    layout.id == *id && layout.matrix_ids.iter().any(|id| *id == matrix_id)
+                })
                 .map(|layout| MatrixEditValue::Name(Some(layout.name.clone()))),
         },
         MatrixEditField::Rows => document
@@ -1829,7 +1829,9 @@ fn build_operation(
                 let mut layout = document
                     .layouts
                     .iter()
-                    .find(|layout| layout.id == *id && layout.matrix_id == matrix.id)
+                    .find(|layout| {
+                        layout.id == *id && layout.matrix_ids.iter().any(|id| id == &matrix.id)
+                    })
                     .cloned()
                     .ok_or_else(|| "The selected layout no longer owns this matrix.".to_owned())?;
                 layout.name = name.to_owned();
@@ -1955,6 +1957,8 @@ fn resize_matrix(matrix: &Matrix, rows: u32, columns: u32) -> Result<Matrix, Str
                 continue;
             }
             replacement.cells.push(MatrixCell {
+                shift: None,
+                bend: None,
                 deleted: false,
                 row,
                 column,
@@ -2775,6 +2779,8 @@ mod tests {
             .cells
             .retain(|cell| !(cell.row == 1 && cell.column == 1));
         matrix.cells.push(MatrixCell {
+            shift: None,
+            bend: None,
             deleted: false,
             row: 2,
             column: 5,
@@ -2868,7 +2874,9 @@ mod tests {
         let layout = document
             .layouts
             .iter()
-            .find(|layout| layout.matrix_id == matrix.id && layout.board_id == "main")
+            .find(|layout| {
+                layout.matrix_ids.iter().any(|id| id == &matrix.id) && layout.board_id == "main"
+            })
             .unwrap();
         let operation = build_operation(
             &document,
@@ -2884,7 +2892,7 @@ mod tests {
             panic!("layout name changes should use SetLayout");
         };
         assert_eq!(renamed.id, layout.id);
-        assert_eq!(renamed.matrix_id, matrix.id);
+        assert_eq!(renamed.matrix_ids, [matrix.id.clone()]);
         assert_eq!(renamed.name, "Renamed layout");
         assert_eq!(matrix.name.as_deref(), Some("Authored matrix name"));
     }
@@ -3355,7 +3363,7 @@ mod tests {
                 id: "layout-main".into(),
                 name: "Canonical layout".into(),
                 board_id: fixture::BOARD_ID.into(),
-                matrix_id: fixture::MATRIX_ID.into(),
+                matrix_ids: vec![fixture::MATRIX_ID.into()],
                 part_ids: vec![],
                 mirror_link: None,
             });
@@ -3377,7 +3385,8 @@ mod tests {
             assert!(
                 runtime.model().accepted.is_some_and(|snapshot| {
                     snapshot.document.layouts.iter().any(|layout| {
-                        layout.id == "layout-main" && layout.matrix_id == fixture::MATRIX_ID
+                        layout.id == "layout-main"
+                            && layout.matrix_ids.iter().any(|id| id == fixture::MATRIX_ID)
                     })
                 }),
                 "the real Runtime accepts the replacement Layout"
@@ -3598,6 +3607,234 @@ mod tests {
                 "remount projects the latest accepted Rows"
             );
             assert!(root.query_selector("[role='alert']").unwrap().is_none());
+        }
+
+        fn linked_unlink_document() -> boardstudio_core::model::ProjectDoc {
+            use boardstudio_core::model::{
+                Layout, LayoutMirrorLink, MirroredCorrespondence, MirroredItemKind,
+            };
+            let mut document = fixture::matrix_document();
+            let mirror_id = "matrix-mirror";
+            let mirror_keys = [
+                "matrix-mirror/r0c0",
+                "matrix-mirror/r0c1",
+                "matrix-mirror/r0c2",
+            ];
+            for (column, id) in mirror_keys.iter().enumerate() {
+                document.boards[0].part_ids.push((*id).into());
+                document.parts.push(boardstudio_core::model::Part {
+                    keycap: None,
+                    outline: None,
+                    id: (*id).into(),
+                    definition_id: "switch:base".into(),
+                    reference: format!("SW-M{}", column + 1),
+                    pose: boardstudio_core::model::Pose2 {
+                        at: boardstudio_core::model::Vec2 {
+                            x: 100.0 + 19.05 * column as f64,
+                            y: 0.0,
+                        },
+                        rotation: 0.0,
+                    },
+                    side: boardstudio_core::model::Side::Front,
+                    locked: None,
+                    properties: None,
+                    generator_parameters: None,
+                });
+            }
+            let source = document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == fixture::MATRIX_ID)
+                .expect("the source matrix exists")
+                .clone();
+            let mut mirror = source.clone();
+            mirror.id = mirror_id.into();
+            mirror.part_ids = mirror_keys.iter().map(|id| (*id).into()).collect();
+            document.matrices.push(mirror);
+            document.layouts.push(Layout {
+                id: "layout-left".into(),
+                name: "Left".into(),
+                board_id: fixture::BOARD_ID.into(),
+                matrix_ids: vec![fixture::MATRIX_ID.into()],
+                part_ids: vec![],
+                mirror_link: None,
+            });
+            document.layouts.push(Layout {
+                id: "layout-right".into(),
+                name: "Right".into(),
+                board_id: fixture::BOARD_ID.into(),
+                matrix_ids: vec![mirror_id.into()],
+                part_ids: vec![],
+                mirror_link: Some(LayoutMirrorLink {
+                    source_id: "layout-left".into(),
+                    axis_x: 50.0,
+                    correspondences: vec![MirroredCorrespondence {
+                        companion_mode: None,
+                        companion_tweak: None,
+                        kind: MirroredItemKind::Matrix,
+                        source_id: fixture::MATRIX_ID.into(),
+                        mirror_id: mirror_id.into(),
+                    }],
+                    exceptions: vec![],
+                }),
+            });
+            document
+        }
+
+        /// Ticket 35, RED: unlinking a linked pair through the confirmed UI action
+        /// leaves two valid independent halves with no live correspondence, and a
+        /// single Undo restores the linked pair with poses unchanged.
+        #[wasm_bindgen_test]
+        async fn mounted_unlink_halves_confirms_then_clears_link_with_one_undo() {
+            let runtime = support::new_runtime();
+            support::open_document(&runtime, linked_unlink_document()).await;
+            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+            let revision_before = runtime
+                .model()
+                .accepted
+                .expect("an accepted document")
+                .document
+                .revision;
+            let poses_before: Vec<(String, boardstudio_core::model::Pose2)> = runtime
+                .model()
+                .accepted
+                .expect("an accepted document")
+                .document
+                .parts
+                .iter()
+                .map(|part| (part.id.clone(), part.pose))
+                .collect();
+            button_named(&root, "Unlink halves").click();
+            gloo_timers::future::TimeoutFuture::new(10).await;
+            assert!(
+                root.query_selector(".m1-matrix-unlink-confirm")
+                    .unwrap()
+                    .is_some(),
+                "the first click arms an explicit confirmation"
+            );
+            assert_eq!(
+                runtime
+                    .model()
+                    .accepted
+                    .expect("an accepted document")
+                    .document
+                    .revision,
+                revision_before,
+                "arming the confirmation writes nothing"
+            );
+            button_named(&root, "Cancel").click();
+            gloo_timers::future::TimeoutFuture::new(10).await;
+            assert!(
+                root.query_selector(".m1-matrix-unlink-confirm")
+                    .unwrap()
+                    .is_none(),
+                "Cancel drops the confirmation without writing"
+            );
+            assert_eq!(
+                runtime
+                    .model()
+                    .accepted
+                    .expect("an accepted document")
+                    .document
+                    .revision,
+                revision_before,
+                "cancelling writes nothing"
+            );
+            button_named(&root, "Unlink halves").click();
+            gloo_timers::future::TimeoutFuture::new(10).await;
+            button_named(&root, "Confirm unlink").click();
+            support::run_pending(&runtime).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+            let mut version = probe
+                .version
+                .borrow()
+                .as_ref()
+                .copied()
+                .expect("mounted version signal");
+            version.set(version() + 1);
+            gloo_timers::future::TimeoutFuture::new(10).await;
+            support::run_pending(&runtime).await;
+            let after = runtime.model().accepted.expect("an accepted document");
+            assert_eq!(
+                after.document.revision,
+                revision_before + 1,
+                "Confirm writes one atomic Core intent"
+            );
+            assert!(
+                after
+                    .document
+                    .layouts
+                    .iter()
+                    .all(|layout| layout.mirror_link.is_none()),
+                "no orphaned correspondences remain: neither half references the former pair"
+            );
+            assert_eq!(
+                after.document.layouts.len(),
+                2,
+                "both halves stay valid layouts"
+            );
+            assert!(
+                after
+                    .document
+                    .layouts
+                    .iter()
+                    .any(|layout| layout.matrix_ids == vec![fixture::MATRIX_ID.to_owned()]),
+                "the source half keeps its layout membership"
+            );
+            assert!(
+                after
+                    .document
+                    .layouts
+                    .iter()
+                    .any(|layout| layout.matrix_ids == vec!["matrix-mirror".to_owned()]),
+                "the mirror half keeps its layout membership"
+            );
+            let poses_after: Vec<(String, boardstudio_core::model::Pose2)> = after
+                .document
+                .parts
+                .iter()
+                .map(|part| (part.id.clone(), part.pose))
+                .collect();
+            assert_eq!(
+                poses_after, poses_before,
+                "unlink keeps every pose: no silent geometry loss"
+            );
+            assert!(
+                root.query_selector(".m1-matrix-unlink-confirm")
+                    .unwrap()
+                    .is_none(),
+                "the pair relationship stops showing once unlinked"
+            );
+            fixture::undo(&runtime).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+            version.set(version() + 1);
+            gloo_timers::future::TimeoutFuture::new(10).await;
+            support::run_pending(&runtime).await;
+            let undone = runtime.model().accepted.expect("an accepted document");
+            assert!(
+                undone
+                    .document
+                    .layouts
+                    .iter()
+                    .any(|layout| layout.id == "layout-right"
+                        && layout
+                            .mirror_link
+                            .as_ref()
+                            .is_some_and(|link| link.source_id == "layout-left")),
+                "one Undo restores the linked pair"
+            );
+            let poses_undone: Vec<(String, boardstudio_core::model::Pose2)> = undone
+                .document
+                .parts
+                .iter()
+                .map(|part| (part.id.clone(), part.pose))
+                .collect();
+            assert_eq!(
+                poses_undone, poses_before,
+                "one Undo restores every pose exactly"
+            );
+            root.remove();
         }
     }
 }

@@ -13,15 +13,32 @@ use std::{
 pub(super) fn transform_tools(
     context: &super::objects::TreeContext,
     active: Option<super::objects::LayoutTransformTool>,
+    handles_visible: bool,
 ) -> Vec<super::objects::LayoutTransformTool> {
     use super::objects::{LayoutTransformTool as Tool, TreeContext};
+    if !handles_visible {
+        // View-only: every passive handle hides, but the active tool keeps
+        // the handle its gesture requires. Origin and Splay expose their
+        // origin through the active overlay itself, so no extra overlay is
+        // needed. With no active tool nothing draws.
+        return match (context, active) {
+            (TreeContext::Column { .. }, Some(tool)) => vec![tool],
+            (TreeContext::Row { .. }, Some(Tool::Offset)) => vec![Tool::Offset],
+            (TreeContext::Matrix { .. }, Some(active @ (Tool::Move | Tool::Rotate))) => {
+                vec![active]
+            }
+            _ => Vec::new(),
+        };
+    }
     match context {
         TreeContext::Column { .. } => match active {
             Some(Tool::Offset) => vec![Tool::Offset, Tool::Splay],
             Some(Tool::Origin) => vec![Tool::Stagger, Tool::Origin],
+            Some(Tool::Spread) => vec![Tool::Spread, Tool::Splay],
             _ => vec![Tool::Stagger, Tool::Splay],
         },
         TreeContext::Row { .. } => vec![Tool::Offset],
+        TreeContext::Matrix { .. } => vec![Tool::Move, Tool::Rotate],
         _ => vec![],
     }
 }
@@ -108,6 +125,12 @@ impl PartialEq for SceneSource {
 #[derive(Props, Clone)]
 pub(super) struct SceneProps {
     source: SceneSource,
+    /// A transform drag is previewing: mark the effective poses amber until
+    /// the preview clears. Part of PartialEq so toggling re-renders.
+    preview_active: bool,
+    /// The accepted scene behind the preview: keys whose accepted pose
+    /// differs render a dashed ghost. Only `Some` while previewing.
+    accepted_scene: Option<Arc<SceneDelta>>,
     selected_ids: Vec<String>,
     selected_context: Option<super::objects::ScopedTreeContext>,
     keys_visible: bool,
@@ -122,6 +145,12 @@ impl PartialEq for SceneProps {
     fn eq(&self, other: &Self) -> bool {
         // Props memoization refreshes callbacks even when the geometry does not rerender.
         self.source == other.source
+            && self.preview_active == other.preview_active
+            && match (&self.accepted_scene, &other.accepted_scene) {
+                (Some(mine), Some(theirs)) => Arc::ptr_eq(mine, theirs),
+                (None, None) => true,
+                _ => false,
+            }
             && self.selected_ids == other.selected_ids
             && self.selected_context == other.selected_context
             && self.keys_visible == other.keys_visible
@@ -185,7 +214,15 @@ pub(super) fn Scene(props: SceneProps) -> Element {
         .iter()
         .map(|matrix| (matrix.matrix_id.as_str(), matrix))
         .collect();
-    scene(LayoutCanvasInput {
+    let accepted_matrix_scenes: Option<BTreeMap<&str, &MatrixScene>> =
+        props.accepted_scene.as_ref().map(|accepted| {
+            accepted
+                .matrix_scenes
+                .iter()
+                .map(|matrix| (matrix.matrix_id.as_str(), matrix))
+                .collect()
+        });
+    let input = LayoutCanvasInput {
         document,
         visible_indices: &visible_indices,
         definition_indices: &definition_indices,
@@ -193,6 +230,7 @@ pub(super) fn Scene(props: SceneProps) -> Element {
         definitions: &definitions,
         matrices: &matrices,
         matrix_scenes: &matrix_scenes,
+        accepted_matrix_scenes: accepted_matrix_scenes.as_ref(),
         transforms: &scene_data.transforms,
         selected_ids: &props.selected_ids,
         selected_context: props.selected_context.as_ref(),
@@ -202,7 +240,15 @@ pub(super) fn Scene(props: SceneProps) -> Element {
         footprints_visible: props.footprints_visible,
         on_matrix_pointer_down: props.on_matrix_pointer_down,
         on_part_pointer_down: props.on_part_pointer_down,
-    })
+    };
+    // The wrapper stays mounted whether or not a preview is up so toggling
+    // the amber mark never rebuilds memoized part graphics.
+    rsx! {
+        g {
+            class: if props.preview_active { "m1-scene-preview" } else { "m1-scene" },
+            {scene(input)}
+        }
+    }
 }
 
 pub(super) struct MatrixPointerDown {
@@ -226,6 +272,7 @@ pub(super) struct LayoutCanvasInput<'a> {
     pub(super) definitions: &'a BTreeMap<&'a str, &'a PartDefinition>,
     pub(super) matrices: &'a [&'a Matrix],
     pub(super) matrix_scenes: &'a BTreeMap<&'a str, &'a MatrixScene>,
+    pub(super) accepted_matrix_scenes: Option<&'a BTreeMap<&'a str, &'a MatrixScene>>,
     pub(super) transforms: &'a [Transform],
     pub(super) selected_ids: &'a [String],
     pub(super) selected_context: Option<&'a super::objects::ScopedTreeContext>,
@@ -287,6 +334,48 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
         input.matrix_scenes,
         input.transforms,
     );
+    // Dashed ghosts of accepted (pre-drag) key poses, drawn only for matrix
+    // keys whose preview pose moved. Computed up front: rsx flow takes no
+    // bare `let` bindings.
+    let mut ghosts: Vec<(String, u32, u32, Pose2, Vec2)> = Vec::new();
+    if let Some(accepted_scenes) = input.accepted_matrix_scenes {
+        for matrix in input.matrices {
+            if let (Some(displayed), Some(accepted)) = (
+                input.matrix_scenes.get(matrix.id.as_str()),
+                accepted_scenes.get(matrix.id.as_str()),
+            ) {
+                for cell in accepted.cells.iter().filter(|cell| cell.enabled) {
+                    let unchanged = displayed.cells.iter().any(|shown| {
+                        shown.enabled
+                            && shown.row == cell.row
+                            && shown.column == cell.column
+                            && shown.pose == cell.pose
+                    });
+                    if unchanged {
+                        continue;
+                    }
+                    let member = cell
+                        .member_id
+                        .as_deref()
+                        .and_then(|id| projection.visible_by_id.get(id).copied());
+                    let definition = match member {
+                        Some(part) => input.definitions.get(part.definition_id.as_str()).copied(),
+                        None => input
+                            .definitions
+                            .get(matrix.definition_id.as_str())
+                            .copied(),
+                    };
+                    ghosts.push((
+                        matrix.id.clone(),
+                        cell.row,
+                        cell.column,
+                        cell.pose,
+                        resolved_matrix_keycap(member, definition, matrix),
+                    ));
+                }
+            }
+        }
+    }
     rsx! {
         if input.keys_visible {
             for matrix in input.matrices {
@@ -345,6 +434,17 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                         }
                     }
                 }
+            }
+        }
+        for (matrix_id, row, column, pose, size) in &ghosts {
+            rect {
+                key: "ghost-{matrix_id}-{row}-{column}",
+                class: "m1-scene-ghost",
+                x: "{-size.x / 2.0}",
+                y: "{-size.y / 2.0}",
+                width: "{size.x}",
+                height: "{size.y}",
+                transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})",
             }
         }
         for (part_index, part) in input.visible_indices.iter().zip(input.visible) {
@@ -521,15 +621,15 @@ mod tests {
             column: 0,
         };
         assert_eq!(
-            transform_tools(&column, Some(Tool::Offset)),
+            transform_tools(&column, Some(Tool::Offset), true),
             vec![Tool::Offset, Tool::Splay]
         );
         assert_eq!(
-            transform_tools(&column, Some(Tool::Origin)),
+            transform_tools(&column, Some(Tool::Origin), true),
             vec![Tool::Stagger, Tool::Origin]
         );
         assert_eq!(
-            transform_tools(&column, None),
+            transform_tools(&column, None, true),
             vec![Tool::Stagger, Tool::Splay]
         );
         assert_eq!(
@@ -538,9 +638,85 @@ mod tests {
                     matrix_id: "matrix".into(),
                     row: 0
                 },
-                Some(Tool::Stagger)
+                Some(Tool::Stagger),
+                true,
             ),
             vec![Tool::Offset]
+        );
+        assert_eq!(
+            transform_tools(
+                &TreeContext::Matrix {
+                    matrix_id: "matrix".into()
+                },
+                None,
+                true,
+            ),
+            vec![Tool::Move, Tool::Rotate]
+        );
+        assert_eq!(
+            transform_tools(
+                &TreeContext::Matrix {
+                    matrix_id: "matrix".into()
+                },
+                Some(Tool::Move),
+                true,
+            ),
+            vec![Tool::Move, Tool::Rotate]
+        );
+        assert_eq!(
+            transform_tools(
+                &TreeContext::Matrix {
+                    matrix_id: "matrix".into()
+                },
+                Some(Tool::Move),
+                false,
+            ),
+            vec![Tool::Move]
+        );
+    }
+
+    /// Ticket 23: the Handles toggle is view-only. Hidden handles drop every
+    /// passive overlay but keep the active tool's required handle; with no
+    /// active tool nothing draws.
+    #[wasm_bindgen_test]
+    fn hidden_handles_keep_only_the_active_tool() {
+        use super::super::objects::{LayoutTransformTool as Tool, TreeContext};
+        let column = TreeContext::Column {
+            matrix_id: "matrix".into(),
+            column: 1,
+        };
+        let row = TreeContext::Row {
+            matrix_id: "matrix".into(),
+            row: 0,
+        };
+        let key = TreeContext::Key {
+            matrix_id: "matrix".into(),
+            row: 0,
+            column: 1,
+        };
+        assert_eq!(transform_tools(&column, None, false), Vec::new());
+        assert_eq!(transform_tools(&row, None, false), Vec::new());
+        assert_eq!(transform_tools(&key, None, false), Vec::new());
+        assert_eq!(
+            transform_tools(&column, Some(Tool::Stagger), false),
+            vec![Tool::Stagger]
+        );
+        assert_eq!(
+            transform_tools(&column, Some(Tool::Spread), false),
+            vec![Tool::Spread]
+        );
+        assert_eq!(
+            transform_tools(&column, Some(Tool::Origin), false),
+            vec![Tool::Origin]
+        );
+        assert_eq!(
+            transform_tools(&row, Some(Tool::Offset), false),
+            vec![Tool::Offset]
+        );
+        // A Row selection never draws a Stagger handle, even hidden.
+        assert_eq!(
+            transform_tools(&row, Some(Tool::Stagger), false),
+            Vec::new()
         );
     }
 
@@ -580,7 +756,8 @@ mod tests {
         use_context_provider(|| super::super::RelationHighlight(highlight));
         let (document, initial_scene) = use_hook(fixture);
         let mut accepted_document = use_signal(|| document.clone());
-        let mut displayed = use_signal(|| initial_scene);
+        let mut displayed = use_signal(|| initial_scene.clone());
+        let mut preview = use_signal(|| false);
         let mut generation = use_signal(|| 0_usize);
         let mut observed = use_signal(|| 0_usize);
         let mut selected = use_signal(Vec::<String>::new);
@@ -593,7 +770,12 @@ mod tests {
                 let mut next = (*displayed()).clone();
                 next.transforms = vec![Transform { id: "key".into(), pose: Pose2 { at: Vec2 { x: 9.0, y: 4.0 }, rotation: 0.0 } }];
                 displayed.set(Arc::new(next));
+                preview.set(true);
             }, "Preview" }
+            button { id: "canvas-preview-off", onclick: move |_| {
+                displayed.set(initial_scene.clone());
+                preview.set(false);
+            }, "Clear preview" }
             button { id: "canvas-select", onclick: move |_| selected.set(vec!["key".into()]), "Select" }
             button { id: "canvas-accepted", onclick: move |_| {
                 let mut next = accepted_document();
@@ -605,6 +787,8 @@ mod tests {
             svg {
                 Scene {
                     source: SceneSource { document: accepted_document(), scene: displayed(), board_id: "board".into() },
+                    preview_active: preview(),
+                    accepted_scene: None,
                     selected_ids: selected(), selected_context: None,
                     keys_visible: keys(), components_visible: true, keycaps_visible: keys(), footprints_visible: false,
                     on_matrix_pointer_down: |_| {},
@@ -711,6 +895,45 @@ mod tests {
         root.remove();
     }
 
+    /// Ticket 23 slice 9, RED: a transform-drag preview marks the effective
+    /// poses amber until the preview clears.
+    #[wasm_bindgen_test]
+    async fn transform_preview_marks_the_scene_amber_until_it_clears() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(render_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(5).await;
+        let click = |selector: &str| {
+            root.query_selector(selector)
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+                .click()
+        };
+        assert!(
+            root.query_selector(".m1-scene-preview").unwrap().is_none(),
+            "the settled scene carries no preview mark"
+        );
+        click("#canvas-preview");
+        gloo_timers::future::TimeoutFuture::new(5).await;
+        assert!(
+            root.query_selector(".m1-scene-preview").unwrap().is_some(),
+            "the preview marks its effective poses amber"
+        );
+        click("#canvas-preview-off");
+        gloo_timers::future::TimeoutFuture::new(5).await;
+        assert!(
+            root.query_selector(".m1-scene-preview").unwrap().is_none(),
+            "clearing the preview restores the scene"
+        );
+        root.remove();
+    }
+
     #[wasm_bindgen_test]
     fn projection_indexes_visible_parts_enabled_matrix_keycaps_and_first_transform() {
         let visible: Vec<Part> = vec![
@@ -730,6 +953,14 @@ mod tests {
             matrix_id: "matrix".into(),
             cells: vec![
                 MatrixSceneCell {
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
+                    row_shift: Vec2 { x: 0.0, y: 0.0 },
+                    key_shift: Vec2 { x: 0.0, y: 0.0 },
+                    row_bend: 0.0,
+                    key_bend: 0.0,
+                    cumulative_shift: Vec2 { x: 0.0, y: 0.0 },
+                    cumulative_bend: 0.0,
                     row: 0,
                     column: 0,
                     enabled: true,
@@ -740,6 +971,14 @@ mod tests {
                     },
                 },
                 MatrixSceneCell {
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
+                    row_shift: Vec2 { x: 0.0, y: 0.0 },
+                    key_shift: Vec2 { x: 0.0, y: 0.0 },
+                    row_bend: 0.0,
+                    key_bend: 0.0,
+                    cumulative_shift: Vec2 { x: 0.0, y: 0.0 },
+                    cumulative_bend: 0.0,
                     row: 0,
                     column: 1,
                     enabled: false,
@@ -784,5 +1023,152 @@ mod tests {
             projection.part_transforms.get("key-1").unwrap().at,
             Vec2 { x: 5.0, y: 6.0 }
         );
+    }
+}
+
+#[cfg(test)]
+mod ghost_tests {
+    use super::*;
+    use boardstudio_core::model::SceneDelta;
+    use serde_json::json;
+    use std::sync::Arc;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    fn ghost_fixture() -> (Arc<ProjectDoc>, Arc<SceneDelta>, Arc<SceneDelta>) {
+        let mut document = ProjectDoc::empty("canvas", "Canvas");
+        document.parts.push(
+            serde_json::from_value(json!({
+                "id": "matrix/m/r0c0", "definitionId": "switch", "reference": "SW1",
+                "pose": {"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0}, "side": "front",
+                "keycap": {"x": 18.0, "y": 18.0}
+            }))
+            .unwrap(),
+        );
+        document.definitions.push(
+            serde_json::from_value(json!({
+                "id": "switch", "name": "Switch", "kind": "switch", "courtyard": [], "pads": []
+            }))
+            .unwrap(),
+        );
+        document.boards.push(
+            serde_json::from_value(json!({
+                "id": "board", "name": "Board", "partIds": ["matrix/m/r0c0"],
+                "outlineIds": [], "netIds": [], "thickness": 1.6
+            }))
+            .unwrap(),
+        );
+        document.matrices.push(
+            serde_json::from_value(json!({
+                "id": "m", "rows": 1, "columns": 1,
+                "pitch": {"x": 19.05, "y": 19.05}, "origin": {"x": 0.0, "y": 0.0},
+                "definitionId": "switch", "partIds": ["matrix/m/r0c0"], "boardId": "board",
+                "cells": [{"row": 0, "column": 0, "enabled": true, "definitionId": "switch", "assemblies": []}]
+            }))
+            .unwrap(),
+        );
+        let document = Arc::new(document);
+        let cell = |x: f64, y: f64| {
+            json!({
+                "row": 0, "column": 0, "enabled": true, "memberId": "matrix/m/r0c0",
+                "pose": {"at": {"x": x, "y": y}, "rotation": 0.0},
+                "shiftFrame": {"origin": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0}},
+                "offsetFrame": {"origin": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0}}
+            })
+        };
+        let scene_with = |x: f64, y: f64| -> Arc<SceneDelta> {
+            Arc::new(
+                serde_json::from_value(json!({
+                    "revision": 0, "transactionId": "fixture", "changedIds": [], "transforms": [],
+                    "matrixScenes": [{
+                        "matrixId": "m", "cells": [cell(x, y)],
+                        "columns": [{
+                            "column": 0, "base": {"x": 0.0, "y": 0.0}, "rotation": 0.0,
+                            "relativeOrigin": {"x": 0.0, "y": 0.0},
+                            "splayOrigin": {"x": 0.0, "y": 0.0}, "splayAngle": 0.0, "customOrigin": false,
+                            "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0},
+                            "staggerAxis": {"x": 0.0, "y": 1.0}
+                        }]
+                    }],
+                    "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
+                    "readiness": {"layout": true, "outline": false, "pcb": false, "case": false}
+                }))
+                .unwrap(),
+            )
+        };
+        (document, scene_with(0.0, 0.0), scene_with(9.0, 4.0))
+    }
+
+    fn render_ghost_fixture() -> Element {
+        let highlight = use_signal(|| None::<Vec<String>>);
+        use_context_provider(|| super::super::RelationHighlight(highlight));
+        let (document, initial_scene, preview_scene) = use_hook(ghost_fixture);
+        let accepted_document = use_signal(|| document.clone());
+        let mut displayed = use_signal(|| initial_scene.clone());
+        rsx! {
+            button { id: "canvas-ghost-preview", onclick: move |_| {
+                displayed.set(preview_scene.clone());
+            }, "Preview" }
+            button { id: "canvas-ghost-off", onclick: move |_| {
+                displayed.set(initial_scene.clone());
+            }, "Clear preview" }
+            svg {
+                Scene {
+                    source: SceneSource { document: accepted_document(), scene: displayed(), board_id: "board".into() },
+                    preview_active: false,
+                    accepted_scene: Some(initial_scene.clone()),
+                    selected_ids: Vec::new(), selected_context: None,
+                    keys_visible: true, components_visible: true, keycaps_visible: true, footprints_visible: false,
+                    on_matrix_pointer_down: |_| {}, on_part_pointer_down: |_| {},
+                }
+            }
+        }
+    }
+
+    /// Ticket 23 slice 10, RED: a transform preview ghosts the pre-drag pose
+    /// of every moved matrix key until the preview clears.
+    #[wasm_bindgen_test]
+    async fn transform_preview_ghosts_the_pre_drag_pose() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(render_ghost_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(5).await;
+        let click = |selector: &str| {
+            root.query_selector(selector)
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+                .click()
+        };
+        assert!(
+            root.query_selector(".m1-scene-ghost").unwrap().is_none(),
+            "the settled scene carries no ghosts"
+        );
+        click("#canvas-ghost-preview");
+        gloo_timers::future::TimeoutFuture::new(5).await;
+        let ghost = root
+            .query_selector(".m1-scene-ghost")
+            .unwrap()
+            .expect("the preview ghosts the pre-drag pose");
+        assert!(
+            ghost
+                .get_attribute("transform")
+                .as_deref()
+                .unwrap_or_default()
+                .contains("translate(0 0)"),
+            "the ghost sits on the pre-drag pose"
+        );
+        click("#canvas-ghost-off");
+        gloo_timers::future::TimeoutFuture::new(5).await;
+        assert!(
+            root.query_selector(".m1-scene-ghost").unwrap().is_none(),
+            "clearing the preview retires its ghosts"
+        );
+        root.remove();
     }
 }

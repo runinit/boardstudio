@@ -1,7 +1,7 @@
 use crate::mechanical::pair;
 use crate::model::{
     ConstraintRelation, MechanicalMirrorPair, MirroredCompanionMode, MirroredCorrespondence,
-    MirroredExceptionState, MirroredHalves, MirroredItemKind, Pose2, ProjectDoc, Vec2,
+    MirroredExceptionState, MirroredHalves, MirroredItemKind, PartKind, Pose2, ProjectDoc, Vec2,
 };
 use serde::{Deserialize, Serialize};
 
@@ -260,6 +260,11 @@ pub(super) enum EndpointFrame {
     LinkedMirror {
         mapping: Pose2,
     },
+    /// A controller mirrored part: the heading is the plain reflection, without the half
+    /// turn, matching the part projection rule.
+    LinkedController {
+        mapping: Pose2,
+    },
     /// A mirrored matrix key.
     LinkedKey {
         mapping: Pose2,
@@ -299,7 +304,7 @@ impl EndpointFrame {
                     rotation: (mapping.rotation + 180.0 - authoritative.rotation).rem_euclid(360.0),
                 }
             }
-            Self::LinkedKey { mapping } => {
+            Self::LinkedController { mapping } | Self::LinkedKey { mapping } => {
                 validate_mapping(mapping)?;
                 Pose2 {
                     at: pair::forward(mapping, authoritative.at),
@@ -361,7 +366,7 @@ impl EndpointFrame {
                     rotation: nearest_equivalent(base_rotation, previous_authoritative.rotation),
                 }
             }
-            Self::LinkedKey { mapping } => {
+            Self::LinkedKey { mapping } | Self::LinkedController { mapping } => {
                 validate_mapping(mapping)?;
                 Pose2 {
                     at: pair::inverse(mapping, visible.at),
@@ -570,6 +575,21 @@ fn linked_frame(
         .any(|matrix| matrix.part_ids.iter().any(|id| id == source_part_id))
     {
         return Ok((EndpointFrame::LinkedKey { mapping }, None));
+    }
+    // Controllers keep the reflected heading without the half turn, like the part
+    // projection rule, so relations authored against them resolve in the same frame
+    // the mirror is reconciled with.
+    let is_controller = document
+        .parts
+        .iter()
+        .find(|part| part.id == source_part_id)
+        .is_some_and(|part| {
+            document.definitions.iter().any(|definition| {
+                definition.id == part.definition_id && definition.kind == PartKind::Controller
+            })
+        });
+    if is_controller {
+        return Ok((EndpointFrame::LinkedController { mapping }, None));
     }
     Ok((EndpointFrame::LinkedMirror { mapping }, None))
 }

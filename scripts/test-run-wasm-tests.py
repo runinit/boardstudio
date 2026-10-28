@@ -581,6 +581,122 @@ class RunWasmTestsTests(unittest.TestCase):
         self.assertEqual(report["filters"][0]["first_failure"]["kind"], "wasm_trap")
         self.assertTrue(report["filters"][0]["first_failure"]["timed_out_after_failure"])
 
+    def _empty_owners(self):
+        owner_path = self.dir / "owners-empty.json"
+        owner_path.write_text(json.dumps({"schema_version": 1, "sources": {}}))
+        return owner_path
+
+    def _depth_selection(self, files, names, depth, isolated=()):
+        with patch.object(runner, "TEST_OWNERS", self._empty_owners()), \
+             patch.object(runner, "list_wasm_tests", return_value=names):
+            return runner.selection_for_listed_files(
+                files, {}, self.dir, depth=depth, isolated=isolated)
+
+    def test_files_without_depth_keeps_per_module_filters(self):
+        names = ["presentation::keycaps_workspace::tests::a",
+                 "presentation::setup_workspace::tests::b"]
+        with patch.object(runner, "TEST_OWNERS", self._empty_owners()), \
+             patch.object(runner, "list_wasm_tests", return_value=names):
+            filters, expected, unmatched, _, _ = runner.selection_for_listed_files(
+                ["web/src/presentation/keycaps_workspace.rs",
+                 "web/src/presentation/setup_workspace.rs"], {}, self.dir)
+        self.assertEqual(filters, ["presentation::keycaps_workspace::tests::",
+                                   "presentation::setup_workspace::tests::"])
+        self.assertEqual(expected, {names[0].rsplit("::", 1)[0] + "::": [names[0]],
+                                    names[1].rsplit("::", 1)[0] + "::": [names[1]]})
+        self.assertEqual(unmatched, [])
+
+    def test_files_depth_groups_modules_into_one_invocation(self):
+        self.fake(
+            "echo 'test presentation::keycaps_workspace::tests::a ... ok'\n"
+            "echo 'test presentation::setup_workspace::tests::b ... ok'"
+        )
+        code, out, _ = self.main(
+            "--files", "web/src/presentation/keycaps_workspace.rs",
+            "web/src/presentation/setup_workspace.rs", "--depth", "1")
+        self.assertEqual(code, 0, out)
+        self.assertIn("executed 2, failed 0", out)
+        self.assertEqual(self.log.read_text().splitlines(), ["--list", "presentation::"])
+
+    def test_files_depth_groups_selection_to_shared_parents(self):
+        names = ["presentation::keycaps_workspace::tests::a",
+                 "presentation::setup_workspace::tests::b"]
+        filters, expected, unmatched, _, _ = self._depth_selection(
+            ["web/src/presentation/keycaps_workspace.rs",
+             "web/src/presentation/setup_workspace.rs"], names, 1)
+        self.assertEqual(filters, ["presentation::"])
+        self.assertEqual(expected, {"presentation::": names})
+        self.assertEqual(unmatched, [])
+
+    def test_files_depth_keeps_applicable_isolate_separate(self):
+        names = ["presentation::case_workspace::mounted::t1",
+                 "presentation::setup_workspace::tests::t2"]
+        filters, expected, unmatched, _, _ = self._depth_selection(
+            ["web/src/presentation/case_workspace.rs",
+             "web/src/presentation/setup_workspace.rs"],
+            names, 1, ["presentation::case_workspace::"])
+        self.assertEqual(filters, ["presentation::", "presentation::case_workspace::"])
+        self.assertEqual(expected, {"presentation::": [names[1]],
+                                    "presentation::case_workspace::": [names[0]]})
+        self.assertEqual(unmatched, [])
+
+    def test_files_depth_ignores_inapplicable_isolate(self):
+        names = ["presentation::setup_workspace::tests::t2"]
+        filters, expected, unmatched, _, _ = self._depth_selection(
+            ["web/src/presentation/setup_workspace.rs"],
+            names, 1, ["presentation::case_workspace::"])
+        self.assertEqual(filters, ["presentation::"])
+        self.assertEqual(expected, {"presentation::": names})
+        self.assertEqual(unmatched, [])
+
+    def test_files_depth_runs_covering_isolate_instead_of_grouped_modules(self):
+        names = ["presentation::case_workspace::mounted::t1"]
+        filters, expected, unmatched, _, _ = self._depth_selection(
+            ["web/src/presentation/case_workspace/mounted.rs"],
+            names, 9, ["presentation::case_workspace::"])
+        self.assertEqual(filters, ["presentation::case_workspace::"])
+        self.assertEqual(expected, {"presentation::case_workspace::": names})
+        self.assertEqual(unmatched, [])
+
+    def test_files_depth_keeps_owner_tests_exact(self):
+        owner_test = "presentation::setup_workspace::tests::reviewed"
+        owner_path = self.dir / "owners.json"
+        owner_path.write_text(json.dumps({"schema_version": 1, "sources": {
+            "web/src/presentation/setup_workspace.rs": {
+                "tests": [owner_test], "coverage": "reviewed single test"}
+        }}))
+        names = [owner_test,
+                 "presentation::setup_workspace::tests::unreviewed",
+                 "presentation::keycaps_workspace::tests::k"]
+        with patch.object(runner, "TEST_OWNERS", owner_path), \
+             patch.object(runner, "list_wasm_tests", return_value=names):
+            filters, expected, unmatched, _, _ = runner.selection_for_listed_files(
+                ["web/src/presentation/setup_workspace.rs",
+                 "web/src/presentation/keycaps_workspace.rs"],
+                {}, self.dir, depth=1)
+        self.assertEqual(filters, ["presentation::", owner_test])
+        self.assertEqual(expected, {
+            "presentation::": [names[1], names[2]],
+            owner_test: [owner_test]})
+        self.assertEqual(unmatched, [])
+
+    def test_files_depth_rejects_non_positive_integer(self):
+        with patch.object(runner, "TEST_OWNERS", self._empty_owners()), \
+             patch.object(runner, "list_wasm_tests", return_value=[]):
+            with self.assertRaisesRegex(runner.RunnerError, "--depth must be a positive integer"):
+                runner.selection_for_listed_files(
+                    ["web/src/presentation/a.rs"], {}, self.dir, depth=0)
+
+    def test_files_overlapping_applicable_isolates_rejected(self):
+        names = ["a::b::c::t"]
+        with self.assertRaisesRegex(runner.RunnerError, "isolated module filters overlap"):
+            self._depth_selection(["web/src/a/b.rs"], names, 9, ["a::", "a::b::"])
+
+    def test_files_isolate_must_end_with_separator(self):
+        names = ["a::b::c::t"]
+        with self.assertRaisesRegex(runner.RunnerError, "isolated modules must end with '::'"):
+            self._depth_selection(["web/src/a/b.rs"], names, 9, ["a::b"])
+
 
 
 if __name__ == "__main__":

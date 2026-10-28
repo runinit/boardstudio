@@ -487,7 +487,8 @@ fn matrices_follow_stagger_rotation_growth_and_shrink() {
         id: "open".into(),
         document: doc,
     }));
-    let mut matrix = json!({"id":"keys","boardId":"board","rows":3,"columns":3,"pitch":{"x":19.05,"y":19.05},"origin":{"x":0,"y":0},"definitionId":"switch","partIds":[],"rotation":30,"rowOffsets":[{"x":0,"y":0},{"x":5,"y":0},{"x":10,"y":0}],"cells":[{"row":0,"column":0,"enabled":false}]});
+    let mut matrix = json!({"id":"keys","boardId":"board","rows":3,"columns":3,"pitch":{"x":19.05,"y":19.05},"origin":{"x":0,"y":0},"definitionId":"switch","partIds":[],"rotation":30,"rowLayout": [{"offset": {"x": 0, "y": 0}}, {"offset": {"x": 5, "y": 0}}, {"offset": {"x": 10, "y": 0}}],
+"cells":[{"row":0,"column":0,"enabled":false}]});
     let rotated = commit(&mut core, 0, json!({"kind":"set-matrix","matrix":matrix}));
     assert!(!contains(&rotated.contours, 0.0, 0.0));
     assert!(contains(
@@ -976,6 +977,145 @@ fn connection_endpoints_follow_moves_and_detach_atomically() {
 }
 
 #[test]
+fn grouped_anchored_matrices_keep_linked_outline_halves_separate() {
+    let mut doc = document();
+    doc.parts.clear();
+    doc.boards[0].part_ids.clear();
+    for (id, anchor, x) in [
+        ("source-root", None, 0.0),
+        ("aa-source-child", Some("source-root"), 0.0),
+        ("mirror-root", None, 100.0),
+        ("aa-mirror-child", Some("mirror-root"), 0.0),
+    ] {
+        let part_id = format!("matrix/{id}/r0c0");
+        let mut matrix = json!({"id":id,"boardId":"board","rows":1,"columns":1,
+            "pitch":{"x":19.05,"y":19.05},"origin":{"x":x,"y":if anchor.is_some() {20.0} else {0.0}},
+            "definitionId":"switch","partIds":[part_id]});
+        if let Some(anchor) = anchor {
+            matrix["anchor"] = json!({"matrixId":anchor,"row":0,"column":0});
+        }
+        doc.matrices.push(serde_json::from_value(matrix).unwrap());
+        doc.parts.push(
+            serde_json::from_value(json!({"id":part_id,"definitionId":"switch",
+            "reference":id,"pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"}))
+            .unwrap(),
+        );
+        doc.boards[0].part_ids.push(part_id);
+    }
+    doc.layouts = serde_json::from_value(json!([
+        {"id":"source","name":"Source","boardId":"board","matrixIds":["aa-source-child","source-root"],"partIds":[]},
+        {"id":"mirror","name":"Mirror","boardId":"board","matrixIds":["aa-mirror-child","mirror-root"],"partIds":[],
+         "mirrorLink":{"sourceId":"source","axisX":50,"correspondences":[
+             {"kind":"matrix","sourceId":"source-root","mirrorId":"mirror-root"},
+             {"kind":"matrix","sourceId":"aa-source-child","mirrorId":"aa-mirror-child"}]}}
+    ])).unwrap();
+    if let OutlineFeature::PartEnvelope { part_ids, .. } = &mut doc.outline[0] {
+        *part_ids = doc.boards[0].part_ids.clone();
+    }
+    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
+        id: "grouped-outline".into(),
+        document: doc,
+    }));
+    assert_eq!(
+        result.contours.len(),
+        2,
+        "relative child origins must not classify the whole Layout on the source side"
+    );
+    assert!(!contains(&result.contours, 50.0, 0.0));
+}
+
+#[test]
+fn unrelated_roots_in_one_layout_classify_each_part_against_its_own_root() {
+    let mut doc = document();
+    doc.parts.clear();
+    doc.boards[0].part_ids.clear();
+    for (id, x) in [("s-a", 0.0), ("s-b", 100.0), ("m-a", 100.0), ("m-b", 0.0)] {
+        let part_id = format!("matrix/{id}/r0c0");
+        let matrix = json!({"id":id,"boardId":"board","rows":1,"columns":1,
+            "pitch":{"x":19.05,"y":19.05},"origin":{"x":x,"y":0.0},
+            "definitionId":"switch","partIds":[part_id]});
+        doc.matrices.push(serde_json::from_value(matrix).unwrap());
+        doc.parts.push(
+            serde_json::from_value(json!({"id":part_id,"definitionId":"switch",
+            "reference":id,"pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"}))
+            .unwrap(),
+        );
+        doc.boards[0].part_ids.push(part_id);
+    }
+    doc.layouts = serde_json::from_value(json!([
+        {"id":"source","name":"Source","boardId":"board","matrixIds":["s-a","s-b"],"partIds":[]},
+        {"id":"mirror","name":"Mirror","boardId":"board","matrixIds":["m-a","m-b"],"partIds":[],
+         "mirrorLink":{"sourceId":"source","axisX":50,"correspondences":[
+             {"kind":"matrix","sourceId":"s-a","mirrorId":"m-a"},
+             {"kind":"matrix","sourceId":"s-b","mirrorId":"m-b"}]}}
+    ]))
+    .unwrap();
+    if let OutlineFeature::PartEnvelope { part_ids, .. } = &mut doc.outline[0] {
+        *part_ids = doc.boards[0].part_ids.clone();
+    }
+    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
+        id: "two-roots".into(),
+        document: doc,
+    }));
+    assert!(
+        result.board_outline_scenes[0].bridges.is_empty(),
+        "no bridge may cross the split: {:?}",
+        result.board_outline_scenes[0].bridges
+    );
+    assert_eq!(result.contours.len(), 2);
+    assert!(!contains(&result.contours, 50.0, 0.0));
+}
+
+#[test]
+fn a_part_outside_any_matrix_is_classified_by_its_own_pose() {
+    let mut doc = document();
+    doc.parts.clear();
+    doc.boards[0].part_ids.clear();
+    for (id, x) in [("s-a", 0.0), ("m-a", 100.0)] {
+        let part_id = format!("matrix/{id}/r0c0");
+        let matrix = json!({"id":id,"boardId":"board","rows":1,"columns":1,
+            "pitch":{"x":19.05,"y":19.05},"origin":{"x":x,"y":0.0},
+            "definitionId":"switch","partIds":[part_id]});
+        doc.matrices.push(serde_json::from_value(matrix).unwrap());
+        doc.parts.push(
+            serde_json::from_value(json!({"id":part_id,"definitionId":"switch",
+            "reference":id,"pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"}))
+            .unwrap(),
+        );
+        doc.boards[0].part_ids.push(part_id);
+    }
+    for (id, x) in [("loose-s", 0.0), ("loose-m", 100.0)] {
+        doc.parts.push(
+            serde_json::from_value(json!({"id":id,"definitionId":"switch",
+            "reference":id,"pose":{"at":{"x":x,"y":20},"rotation":0},"side":"front"}))
+            .unwrap(),
+        );
+        doc.boards[0].part_ids.push(id.to_owned());
+    }
+    doc.layouts = serde_json::from_value(json!([
+        {"id":"source","name":"Source","boardId":"board","matrixIds":["s-a"],"partIds":["loose-s"]},
+        {"id":"mirror","name":"Mirror","boardId":"board","matrixIds":["m-a"],"partIds":["loose-m"],
+         "mirrorLink":{"sourceId":"source","axisX":50,"correspondences":[
+             {"kind":"matrix","sourceId":"s-a","mirrorId":"m-a"}]}}
+    ]))
+    .unwrap();
+    if let OutlineFeature::PartEnvelope { part_ids, .. } = &mut doc.outline[0] {
+        *part_ids = doc.boards[0].part_ids.clone();
+    }
+    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
+        id: "loose-part".into(),
+        document: doc,
+    }));
+    assert!(
+        result.board_outline_scenes[0].bridges.is_empty(),
+        "a loose part must stay on its own side of the split: {:?}",
+        result.board_outline_scenes[0].bridges
+    );
+    assert_eq!(result.contours.len(), 2);
+    assert!(!contains(&result.contours, 50.0, 10.0));
+}
+
+#[test]
 fn manual_connections_respect_linked_split_boundaries() {
     for (points, crosses_axis, another_axis) in [
         (json!([]), false, false),
@@ -1004,8 +1144,8 @@ fn manual_connections_respect_linked_split_boundaries() {
             {"id":"right","boardId":"board","rows":1,"columns":1,"pitch":{"x":19.05,"y":19.05},"origin":{"x":60,"y":0},"definitionId":"switch","partIds":["k1"]}
         ])).unwrap();
         doc.layouts=serde_json::from_value(json!([
-            {"id":"left-layout","name":"Left","boardId":"board","matrixId":"left","partIds":[]},
-            {"id":"right-layout","name":"Right","boardId":"board","matrixId":"right","partIds":[],"mirrorLink":{"sourceId":"left-layout","axisX":30}}
+            {"id":"left-layout","name":"Left","boardId":"board","matrixIds":["left"],"partIds":[]},
+            {"id":"right-layout","name":"Right","boardId":"board","matrixIds":["right"],"partIds":[],"mirrorLink":{"sourceId":"left-layout","axisX":30,"correspondences":[{"kind":"matrix","sourceId":"left","mirrorId":"right"}]}}
         ])).unwrap();
         if another_axis {
             for (id, x) in [("k2", 120.0), ("k3", 180.0)] {
@@ -1018,8 +1158,8 @@ fn manual_connections_respect_linked_split_boundaries() {
                 doc.matrices.push(serde_json::from_value(json!({"id":id,"boardId":"board","rows":1,"columns":1,"pitch":{"x":19.05,"y":19.05},"origin":{"x":x,"y":0},"definitionId":"switch","partIds":[id]})).unwrap());
             }
             doc.layouts.extend(serde_json::from_value::<Vec<Layout>>(json!([
-                {"id":"far-left-layout","name":"Far left","boardId":"board","matrixId":"k2","partIds":[]},
-                {"id":"far-right-layout","name":"Far right","boardId":"board","matrixId":"k3","partIds":[],"mirrorLink":{"sourceId":"far-left-layout","axisX":150}}
+                {"id":"far-left-layout","name":"Far left","boardId":"board","matrixIds":["k2"],"partIds":[]},
+                {"id":"far-right-layout","name":"Far right","boardId":"board","matrixIds":["k3"],"partIds":[],"mirrorLink":{"sourceId":"far-left-layout","axisX":150,"correspondences":[{"kind":"matrix","sourceId":"k2","mirrorId":"k3"}]}}
             ])).unwrap());
         }
         if let OutlineFeature::PartEnvelope { connections, .. } = &mut doc.outline[0] {

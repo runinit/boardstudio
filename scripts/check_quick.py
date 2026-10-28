@@ -110,7 +110,11 @@ def select(files: list[str], packages: dict[str, Package]) -> Selection:
             selection.rust = True
             direct.add(package.name)
             if package.directory == "web" and path.startswith(("web/src/", "web/tests/")):
-                selection.page_files.append(path)
+                if path.startswith("web/src/") and path.endswith(".rs"):
+                    selection.page_files.append(path)
+                else:
+                    selection.full_rust = True
+                    selection.notes.append(f"{path}: not a web/src Rust file; every Rust check applies")
         else:
             selection.unplaced.append(path)
             selection.full_rust = True

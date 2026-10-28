@@ -12,6 +12,8 @@ page = ["dep:boardstudio-application", "dep:boardstudio_core", "dep:serde_json"]
 # The CAD worker's job protocol.
 cad-worker = ["dep:boardstudio_core", "dep:serde_json"]
 test-harness = []
+# Test-only storage hooks the page's own tests drive (raw record fixtures).
+test-support = []
 
 [dependencies]
 boardstudio-application = { path = "../../../application", optional = true }

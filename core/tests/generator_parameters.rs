@@ -354,7 +354,7 @@ fn scene_document(reply: CoreReply) -> ProjectDoc {
 
 /// Saved version 3 data as an older Parts editor could have left it, after the migration the
 /// page runs before Open: it keeps the text that is not a number and the name no generator declares.
-fn migrated_version_3_with_unconvertible_text() -> Value {
+fn current_document_with_unconvertible_text() -> Value {
     let mut definition = catalogue_definition(HOLE);
     definition
         .generator
@@ -368,23 +368,25 @@ fn migrated_version_3_with_unconvertible_text() -> Value {
         json!({ "hole_size": " 3.5 ", "not_a_parameter": "4" }),
     );
     let mut saved = serde_json::to_value(ProjectDoc::empty("saved", "Saved")).unwrap();
-    saved["formatVersion"] = json!(3);
+    saved["formatVersion"] = json!(migrate::CURRENT_VERSION);
     saved["definitions"] = json!([definition]);
     saved["parts"] = json!([held]);
-    migrate::migrate_value(saved).expect("migrates").0
+    migrate::migrate_value(saved)
+        .expect("current schema is admitted unchanged")
+        .0
 }
 
 #[test]
-fn a_migrated_project_that_keeps_unconvertible_number_text_opens_with_a_warning() {
+fn a_current_project_that_keeps_unconvertible_number_text_opens_with_a_warning() {
     let mut engine = CoreEngine::new();
     let opened: Value = serde_json::from_str(&engine.request(
-        &json!({ "id": "open", "kind": "open", "document": migrated_version_3_with_unconvertible_text() })
+        &json!({ "id": "open", "kind": "open", "document": current_document_with_unconvertible_text() })
             .to_string(),
     ))
     .unwrap();
     assert_eq!(
         opened["kind"], "scene",
-        "migration keeps it, so Open must: {opened}"
+        "current-schema saved text remains a warning, not an edit: {opened}"
     );
     let found: Vec<&Value> = opened["scene"]["findings"]
         .as_array()
@@ -416,7 +418,7 @@ fn a_migrated_project_that_keeps_unconvertible_number_text_opens_with_a_warning(
 fn a_project_that_opened_with_number_text_still_takes_replace_document_and_unrelated_edits() {
     let mut engine = CoreEngine::new();
     let opened: Value = serde_json::from_str(&engine.request(
-        &json!({ "id": "open", "kind": "open", "document": migrated_version_3_with_unconvertible_text() })
+        &json!({ "id": "open", "kind": "open", "document": current_document_with_unconvertible_text() })
             .to_string(),
     ))
     .unwrap();
@@ -451,7 +453,7 @@ fn a_project_that_opened_with_number_text_still_takes_replace_document_and_unrel
 fn text_for_a_number_is_still_refused_when_an_edit_writes_it() {
     let mut engine = CoreEngine::new();
     let opened: Value = serde_json::from_str(&engine.request(
-        &json!({ "id": "open", "kind": "open", "document": migrated_version_3_with_unconvertible_text() })
+        &json!({ "id": "open", "kind": "open", "document": current_document_with_unconvertible_text() })
             .to_string(),
     ))
     .unwrap();

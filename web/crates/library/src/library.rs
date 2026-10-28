@@ -952,18 +952,21 @@ pub fn Library(
                             let runtime = runtime.clone();
                             let key = record.key.clone();
                             move |_| runtime.download_raw_project(key.clone())
-                        }, "Download raw saved data" }
-                        button { class: "m1-project-unreadable-delete", r#type: "button", disabled: record.token.is_none(), onclick: {
+                        }, "Download raw saved data (JSON only)" }
+                        button { class: "m1-project-unreadable-delete", r#type: "button", onclick: {
                             let runtime = runtime.clone();
                             let record = record.clone();
                             move |_| {
+                                // Token-independent: records we cannot read stay
+                                // deletable behind this explicit confirm, with no
+                                // list/load/replacement or follow-up save.
                                 if !web_sys::window().and_then(|window| window.confirm_with_message(
-                                    "Permanently delete this unreadable keyboard? Download its raw saved data first if you want to keep it."
+                                    &format!("Permanently delete what we cannot read for saved keyboard \"{}\"? This removes the unreadable record from this browser and cannot be undone. Download its raw saved data first if you want to keep it.", record.label)
                                 ).ok()).unwrap_or(false) { return; }
                                 let runtime = runtime.clone();
                                 let record = record.clone();
                                 spawn_local(async move {
-                                    match runtime.store.delete_unreadable(&record).await {
+                                    match runtime.store.delete_unreadable_by_key(&record).await {
                                         Ok(()) => retry += 1,
                                         Err(error) => runtime.report(format!("The unreadable keyboard was kept: {error}")),
                                     }
@@ -1313,6 +1316,7 @@ mod mounted_tests {
         window: web_sys::Window,
         original: wasm_bindgen::JsValue,
         answer: Rc<Cell<bool>>,
+        message: Rc<std::cell::RefCell<String>>,
         _callback: wasm_bindgen::closure::Closure<dyn FnMut(wasm_bindgen::JsValue) -> bool>,
     }
 
@@ -1322,15 +1326,21 @@ mod mounted_tests {
             let original = js_sys::Reflect::get(&window, &"confirm".into()).unwrap();
             let answer = Rc::new(Cell::new(false));
             let result = answer.clone();
+            let message = Rc::new(std::cell::RefCell::new(String::new()));
+            let prompt = message.clone();
             let callback =
                 wasm_bindgen::closure::Closure::<dyn FnMut(wasm_bindgen::JsValue) -> bool>::new(
-                    move |_| result.get(),
+                    move |value: wasm_bindgen::JsValue| {
+                        *prompt.borrow_mut() = value.as_string().unwrap();
+                        result.get()
+                    },
                 );
             js_sys::Reflect::set(&window, &"confirm".into(), callback.as_ref()).unwrap();
             Self {
                 window,
                 original,
                 answer,
+                message,
                 _callback: callback,
             }
         }
@@ -1380,9 +1390,21 @@ mod mounted_tests {
         )
         .await;
         assert!(root.text_content().unwrap().contains("partial-list-future"));
+        let raw_action = root
+            .query_selector(".m1-project-raw-download")
+            .unwrap()
+            .unwrap();
+        assert!(
+            raw_action.text_content().unwrap().contains("JSON only"),
+            "raw saved data must not promise an asset-complete archive"
+        );
         let confirm = ConfirmFixture::new();
         click(&root, ".m1-project-unreadable-delete");
         drain_and_yield(&runtime).await;
+        assert!(
+            confirm.message.borrow().contains(&future.id),
+            "delete confirmation must name its target"
+        );
         assert!(
             runtime
                 .store
@@ -1414,6 +1436,98 @@ mod mounted_tests {
         drop(confirm);
         clean_saved_projects(&runtime, &[&healthy.id]).await;
         remove_test_root("partial-list-mounted-regression");
+    }
+
+    /// Quota-recovery RED: an unreadable record with no comparable token must
+    /// stay deletable behind the explicit "permanently delete what we cannot
+    /// read" confirm, and the delete must use the token-independent by-key
+    /// path instead of the guarded delete that refuses tokenless records.
+    #[wasm_bindgen_test]
+    async fn tokenless_unreadable_record_stays_deletable_by_explicit_confirm() {
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let healthy = ProjectDoc::empty("tokenless-healthy", "Healthy board");
+        runtime
+            .store
+            .save_document(&healthy, &Default::default())
+            .await
+            .unwrap();
+        let raw = js_sys::Object::new();
+        js_sys::Reflect::set(
+            &raw,
+            &"id".into(),
+            &wasm_bindgen::JsValue::from_str("tokenless-unreadable"),
+        )
+        .unwrap();
+        let huge = js_sys::BigInt::new(&wasm_bindgen::JsValue::from_str(
+            "1267650600228229401496703205376",
+        ))
+        .unwrap();
+        js_sys::Reflect::set(&raw, &"marker".into(), &huge).unwrap();
+        runtime
+            .store
+            .put_raw_record_for_test(raw.into())
+            .await
+            .unwrap();
+        let (session, core) = accepted(healthy.clone());
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let root = mount_menu(runtime.clone(), "tokenless-unreadable-mounted-regression");
+        wait_until(
+            "tokenless unreadable record renders with a delete action",
+            || {
+                root.query_selector(".m1-project-unreadable-delete")
+                    .unwrap()
+                    .is_some()
+            },
+        )
+        .await;
+        let button = root
+            .query_selector(".m1-project-unreadable-delete")
+            .unwrap()
+            .unwrap();
+        assert!(
+            button.get_attribute("disabled").is_none(),
+            "records we cannot read stay deletable without a token"
+        );
+        let confirm = ConfirmFixture::new();
+        click(&root, ".m1-project-unreadable-delete");
+        drain_and_yield(&runtime).await;
+        assert!(
+            confirm
+                .message
+                .borrow()
+                .to_lowercase()
+                .contains("permanently delete what we cannot read"),
+            "the confirm names the unreadable delete explicitly: {}",
+            confirm.message.borrow()
+        );
+        assert!(
+            confirm.message.borrow().contains("tokenless-unreadable"),
+            "delete confirmation must name its target"
+        );
+        confirm.answer.set(true);
+        click(&root, ".m1-project-unreadable-delete");
+        wait_until_step("tokenless unreadable record is deleted", async || {
+            runtime
+                .store
+                .list_projects()
+                .await
+                .unwrap()
+                .unreadable
+                .is_empty()
+        })
+        .await;
+        assert_eq!(
+            runtime
+                .store
+                .load_document(healthy.id.clone())
+                .await
+                .unwrap()
+                .unwrap(),
+            healthy
+        );
+        drop(confirm);
+        clean_saved_projects(&runtime, &[&healthy.id]).await;
+        remove_test_root("tokenless-unreadable-mounted-regression");
     }
 
     #[wasm_bindgen_test]

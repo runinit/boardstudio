@@ -54,9 +54,11 @@ from the watched development loop. Development uses an online server; use the
 production preview to test offline behavior.
 
 The normal Dioxus service worker supports offline use and application updates.
-React, its deployment handoff and rollback tooling are retired. Version 1 projects migrate to document format version 2 when loaded; current
-projects save locally and round-trip through `.boardstudio` exports. Existing user files are never erased by
-build or cleanup commands.
+React, its deployment handoff and rollback tooling are retired. This integration lane reads
+document format 7 only; older projects are retained but cannot be converted by this build.
+Current projects save locally and round-trip through `.boardstudio` exports. Existing user
+files are never erased by build or cleanup commands. Do not promote this lane to user-data
+stores before the layout-parity acceptance gate.
 
 ## Local project safety
 
@@ -78,6 +80,8 @@ python3 scripts/check.py build   # checked web build without wasm-opt
 python3 scripts/check.py browser # mounted browser tests and browser smoke checks
 python3 scripts/check.py         # the full pre-PR check
 ```
+
+A single Core Rust test runs with `cargo test -p boardstudio_core --test integration <filter>`.
 
 **Routine loop.** `quick` takes the files changed against `main` (plus untracked files; or name
 them with `--files`) and runs the documentation checks, rustfmt and Clippy, WASM page compilation,

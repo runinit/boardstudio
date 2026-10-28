@@ -910,105 +910,6 @@ fn circuit_member_moves_and_removals_translate_with_the_circuit_member_map() {
     assert!(message.contains("embedded/left-circuit/"), "{message}");
 }
 
-// ---- nets -----------------------------------------------------------------------------------
-
-fn net_pins(operation: &EditOperation) -> Vec<(String, String)> {
-    let EditOperation::SetNet { net } = operation else {
-        panic!("a net request stays a net request");
-    };
-    net.pins
-        .iter()
-        .map(|pin| (pin.part_id.clone(), pin.pad_id.clone()))
-        .collect()
-}
-
-#[test]
-fn a_mirror_net_edit_is_a_pin_delta_on_the_source_net() {
-    // The mirror net gains a pin on the mirror of `matrix/left-keys/r0c0` and drops the
-    // connector pin. The source keeps its source-only pin and its own order.
-    let request = json!({"kind": "set-net", "net": {"id": "net-right", "name": "SIGNAL", "pins": [
-        pin("embedded/right-circuit/U1", "pad-1"), pin("right/FREE", "pad-f"),
-        pin("matrix/right-keys/r0c0", "pad-1")]}});
-    let result = run(&fixture(), &request).unwrap();
-    let EditOperation::SetNet { net } = &result.operation else {
-        panic!();
-    };
-    assert_eq!(net.id, "net-left");
-    assert_eq!(net.name, "SIGNAL");
-    assert_eq!(
-        net_pins(&result.operation),
-        vec![
-            ("embedded/left-circuit/U1".into(), "pad-1".into()),
-            ("left/SRC-ONLY".into(), "pad-s".into()),
-            ("matrix/left-keys/r0c0".into(), "pad-1".into()),
-        ]
-    );
-}
-
-#[test]
-fn an_unchanged_mirror_net_translates_to_the_unchanged_source_net() {
-    let mirror = serde_json::to_value(&fixture().nets[1]).unwrap();
-    let result = run(&fixture(), &json!({"kind": "set-net", "net": mirror})).unwrap();
-    let EditOperation::SetNet { net } = result.operation else {
-        panic!();
-    };
-    assert_eq!(net, fixture().nets[0]);
-}
-
-#[test]
-fn a_renamed_mirror_net_renames_the_source_net_and_pad_ids_are_kept() {
-    let request = json!({"kind": "set-net", "net": {"id": "embedded/right-circuit/N$1",
-        "name": "PRIVATE EDITED", "pins": [pin("embedded/right-circuit/U1", "pad-9")]}});
-    expect(
-        &fixture(),
-        request,
-        json!({"kind": "set-net", "net": {"id": "embedded/left-circuit/N$1",
-            "name": "PRIVATE EDITED", "pins": [pin("embedded/left-circuit/U1", "pad-9")]}}),
-    );
-}
-
-#[test]
-fn a_net_edit_that_changes_the_mirrors_own_pins_is_refused() {
-    let request = json!({"kind": "set-net", "net": {"id": "net-right", "name": "SIGNAL", "pins": [
-        pin("embedded/right-circuit/U1", "pad-1"), pin("right/CONN", "pad-two")]}});
-    let message = refused(&fixture(), request);
-    assert!(message.contains("no source"), "{message}");
-}
-
-#[test]
-fn source_local_omitted_and_new_nets_follow_the_established_rules() {
-    let source = json!({"kind": "set-net", "net": {"id": "net-left", "name": "X",
-        "pins": [pin("left/CONN", "p")]}});
-    unchanged(&fixture(), source);
-    let fresh = json!({"kind": "set-net", "net": {"id": "brand-new", "name": "X",
-        "pins": [pin("right/FREE", "p")]}});
-    unchanged(&fixture(), fresh);
-    let mirror = json!({"kind": "set-net", "net": {"id": "net-right", "name": "X", "pins": []}});
-    unchanged(
-        &with_exception("net", "net-right", MirroredExceptionState::Local),
-        mirror.clone(),
-    );
-    assert!(
-        refused(
-            &with_exception("net", "net-right", MirroredExceptionState::Omitted),
-            mirror.clone()
-        )
-        .contains("omitted")
-    );
-    // A private net follows its circuit's exception.
-    unchanged(
-        &with_exception(
-            "embedded-circuit",
-            "right-circuit",
-            MirroredExceptionState::Local,
-        ),
-        json!({"kind": "set-net", "net": {"id": "embedded/right-circuit/N$1", "name": "X",
-            "pins": [pin("right/CONN", "pad-two")]}}),
-    );
-}
-
-// ---- scan and wiring modes and keycaps ----------------------------------------------------
-
 #[test]
 fn owner_ids_map_and_scalar_payloads_are_unchanged() {
     for (request, expected) in [
@@ -1111,7 +1012,6 @@ fn an_unpaired_document_runs_every_hosted_request_as_written() {
     for request in [
         json!({"kind": "remove-mounted-module", "id": "right-module"}),
         json!({"kind": "remove-embedded-circuit", "id": "right-circuit"}),
-        json!({"kind": "set-net", "net": {"id": "net-right", "name": "X", "pins": []}}),
         json!({"kind": "set-wiring-mode", "boardId": "right", "mode": "direct"}),
         json!({"kind": "set-keycap-key", "keyId": "matrix/right-keys/r0c0",
             "change": {"kind": "legend", "value": "A"}}),
@@ -1399,32 +1299,6 @@ fn a_mirror_embed_lands_every_member_exactly_as_typed() {
             }
         }
     }
-}
-
-#[test]
-fn a_pin_on_a_member_of_a_local_circuit_is_the_mirrors_own_pin() {
-    let document = with_exception(
-        "embedded-circuit",
-        "right-circuit",
-        MirroredExceptionState::Local,
-    );
-    // Unchanged: the source net is exactly the source's own.
-    let mirror = serde_json::to_value(&document.nets[1]).unwrap();
-    let result = run(&document, &json!({"kind": "set-net", "net": mirror})).unwrap();
-    let EditOperation::SetNet { net } = result.operation else {
-        panic!();
-    };
-    assert_eq!(net, document.nets[0]);
-    // Dropping the Local circuit member's pin changes a pin the source cannot see.
-    let request = json!({"kind": "set-net", "net": {"id": "net-right", "name": "SIGNAL", "pins": [
-        pin("right/CONN", "pad-two"), pin("right/FREE", "pad-f")]}});
-    let message = refused(&document, request.clone());
-    assert!(message.contains("no source"), "{message}");
-    // The same edit with the circuit linked removes the source's member pin.
-    let result = run(&fixture(), &request).unwrap();
-    assert!(
-        !net_pins(&result.operation).contains(&("embedded/left-circuit/U1".into(), "pad-1".into()))
-    );
 }
 
 #[test]

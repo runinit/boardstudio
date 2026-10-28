@@ -6,7 +6,10 @@ mod tests;
 
 use super::{MembershipContext, TransitionState};
 use crate::constraints::{ConstraintEndpoint, FramedConstraint};
-use crate::model::{Constraint, HalfExceptionState, MirroredExceptionState, MirroredItemKind};
+use crate::model::{
+    AggregateAnchor, AnchorPart, Constraint, HalfExceptionState, MirroredExceptionState,
+    MirroredItemKind,
+};
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -622,6 +625,10 @@ fn project_lifecycle_matrix(
         })
         .ok_or("The exact lifecycle Matrix association is unavailable")?;
     if owner.state == TransitionState::Omitted {
+        // A matrix-level Omitted mirror is record-absent by design (the
+        // halves record requires it): nothing projects onto it. A stale
+        // record would only survive outside this lifecycle; leave it for the
+        // kernel's member accounting to refuse rather than rewriting it here.
         return Ok(());
     }
     if owner.state == TransitionState::Local {
@@ -1311,6 +1318,165 @@ fn copy_part_payload(target: &mut crate::model::Part, source: &crate::model::Par
 /// Coordinate durable exceptions with the existing forward projector. Membership-changing
 /// matrix edits continue through `prepare_membership_transition`; this seam handles fixed
 /// membership and selective independent/hosted exceptions.
+/// Ticket 29: a Rejoin adopts the source anchor onto the mirror half. The
+/// projection copies the anchor verbatim, so remap every target through the
+/// pair's matrix correspondences and refuse — naming the missing key —
+/// instead of materializing a cross-half anchor or silently retargeting.
+fn adopt_rejoined_anchor(
+    projected: &mut crate::model::Matrix,
+    draft: &crate::model::ProjectDoc,
+    context: &MembershipContext,
+    matrix_pair: &super::MatrixPairContext,
+) -> Result<(), String> {
+    let Some(anchor) = projected.anchor.clone() else {
+        return Ok(());
+    };
+    let counterpart = |matrix_id: &str| {
+        context
+            .pair_right
+            .correspondences
+            .iter()
+            .find(|record| record.kind == MirroredItemKind::Matrix && record.source_id == matrix_id)
+            .map(|record| record.mirror_id.clone())
+    };
+    // A counterpart slot is missing when its matrix record is gone, the
+    // slot is out of range, or the slot is explicitly removed.
+    let slot_missing = |mirror_id: &str, row: u32, column: u32| -> bool {
+        let Some(record) = draft.matrices.iter().find(|matrix| matrix.id == mirror_id) else {
+            return true;
+        };
+        if row >= record.rows || column >= record.columns {
+            return true;
+        }
+        record
+            .cells
+            .iter()
+            .any(|cell| cell.row == row && cell.column == column && (cell.deleted || !cell.enabled))
+    };
+    let mut next = anchor.clone();
+    match &anchor.aggregate {
+        Some(aggregate) => {
+            let mut parts = Vec::with_capacity(aggregate.parts.len());
+            for part in &aggregate.parts {
+                let Some(mirror_id) = counterpart(&part.matrix_id) else {
+                    return Err(format!(
+                        "Cannot Rejoin {}: the adopted source anchor targets {:?}, which has no mirrored counterpart in this pair",
+                        matrix_pair.mirror_id, part.matrix_id
+                    ));
+                };
+                if slot_missing(&mirror_id, part.row, part.column) {
+                    return Err(format!(
+                        "Cannot Rejoin {}: the adopted source anchor targets matrix/{}/r{}c{}, whose mirror counterpart matrix/{}/r{}c{} is missing",
+                        matrix_pair.mirror_id,
+                        part.matrix_id,
+                        part.row,
+                        part.column,
+                        mirror_id,
+                        part.row,
+                        part.column
+                    ));
+                }
+                parts.push(AnchorPart {
+                    matrix_id: mirror_id,
+                    row: part.row,
+                    column: part.column,
+                });
+            }
+            next.aggregate = Some(AggregateAnchor {
+                method: aggregate.method,
+                parts,
+            });
+        }
+        None => {
+            let Some(mirror_id) = counterpart(&anchor.matrix_id) else {
+                return Err(format!(
+                    "Cannot Rejoin {}: the adopted source anchor targets {:?}, which has no mirrored counterpart in this pair",
+                    matrix_pair.mirror_id, anchor.matrix_id
+                ));
+            };
+            if slot_missing(&mirror_id, anchor.row, anchor.column) {
+                return Err(format!(
+                    "Cannot Rejoin {}: the adopted source anchor targets matrix/{}/r{}c{}, whose mirror counterpart matrix/{}/r{}c{} is missing",
+                    matrix_pair.mirror_id,
+                    anchor.matrix_id,
+                    anchor.row,
+                    anchor.column,
+                    mirror_id,
+                    anchor.row,
+                    anchor.column
+                ));
+            }
+            next.matrix_id = mirror_id;
+        }
+    }
+    projected.anchor = Some(next);
+    Ok(())
+}
+
+/// Ticket 29: the native shared-detach proposal. After reconciliation, a
+/// plain detach that moved its linked native partner refuses with the
+/// ticket-23 confirmation shape, so the UI can offer the confirmed variant
+/// verbatim. A partner that owns its pose (Local/Omitted) never moves
+/// through the projection and is skipped; anything else keeps its poses.
+pub(super) fn native_detach_proposal(
+    accepted: &crate::model::ProjectDoc,
+    draft: &crate::model::ProjectDoc,
+    matrix_id: &str,
+) -> Option<String> {
+    use crate::model::MirroredItemKind;
+    let halves_list = accepted
+        .hardware
+        .as_ref()
+        .into_iter()
+        .flat_map(|hardware| &hardware.pairs)
+        .filter_map(|pair| pair.halves.as_ref());
+    for halves in halves_list {
+        let Some(partner) = halves
+            .correspondences
+            .iter()
+            .find(|record| record.kind == MirroredItemKind::Matrix && record.source_id == matrix_id)
+            .map(|record| record.mirror_id.clone())
+        else {
+            continue;
+        };
+        if halves.exceptions.iter().any(|exception| {
+            exception.kind == MirroredItemKind::Matrix && exception.mirror_id == partner
+        }) {
+            continue;
+        }
+        let pose = |document: &crate::model::ProjectDoc, id: &str| {
+            document
+                .parts
+                .iter()
+                .find(|part| part.id == id)
+                .map(|part| part.pose)
+        };
+        let prefix = format!("matrix/{partner}/");
+        let moved = halves
+            .correspondences
+            .iter()
+            .filter(|record| {
+                record.kind == MirroredItemKind::Part && record.mirror_id.starts_with(&prefix)
+            })
+            .any(|record| {
+                match (
+                    pose(accepted, &record.mirror_id),
+                    pose(draft, &record.mirror_id),
+                ) {
+                    (Some(before), Some(after)) => before != after,
+                    _ => false,
+                }
+            });
+        if moved {
+            return Some(format!(
+                "Detaching {matrix_id} would move its linked partner {partner}; \
+                 make {partner} Local to keep its pose and confirm the detach"
+            ));
+        }
+    }
+    None
+}
+
 pub(super) fn prepare_edit_transition(
     before: &crate::model::ProjectDoc,
     post_source: &crate::model::ProjectDoc,
@@ -1403,39 +1569,112 @@ pub(super) fn prepare_edit_transition(
         return prepare_lifecycle_output(before, output, &effects).map(Some);
     }
 
-    if let EditOperation::SetMechanical {
-        configuration: None,
-        target: Some(crate::mechanical::MechanicalTarget::Instance { instance_id }),
+    // Ticket 29: the native shared detach. Detaching an anchored matrix
+    // whose linked native partner follows the anchor would move the
+    // partner, so the confirmed intent clears both anchors and records the
+    // named Local exception in this one transition. Only the pair linking
+    // the two matrices handles it; stale confirmations refuse unchanged.
+    if let EditOperation::DetachMatrixAnchorConfirmed {
+        matrix_id,
+        local_matrix_id,
     } = operation
     {
-        let hardware = before
+        use crate::model::MirroredItemKind;
+        let halves = before
             .hardware
             .as_ref()
-            .ok_or("Physical instances are unavailable")?;
-        let mut pairs = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
-        let Some(pair) = pairs.next() else {
+            .into_iter()
+            .flat_map(|hardware| &hardware.pairs)
+            .filter(|pair| pair.id == pair_id)
+            .filter_map(|pair| pair.halves.as_ref())
+            .next();
+        let Some(halves) = halves else {
             return Ok(None);
         };
-        if pairs.next().is_some() {
-            return Err("The exact lifecycle pair is ambiguous".into());
-        }
-        if !pair.members.iter().any(|member| member == instance_id) || pair.halves.is_none() {
+        // The detaching matrix must be a linked source of this pair;
+        // otherwise another pair (or the same-board path) owns the intent.
+        if !halves
+            .correspondences
+            .iter()
+            .any(|record| record.kind == MirroredItemKind::Matrix && record.source_id == *matrix_id)
+        {
             return Ok(None);
         }
-
-        let records = lifecycle_constraint_records(before)?;
-        let delta = prepare_constraint_lifecycle_delta(
-            &records,
-            &[ConstraintLifecycleEffect::Unlink {
-                pair_id: pair.id.clone(),
+        if !halves.correspondences.iter().any(|record| {
+            record.kind == MirroredItemKind::Matrix
+                && record.source_id == *matrix_id
+                && record.mirror_id == *local_matrix_id
+        }) {
+            return Err(format!(
+                "Confirmed detach is stale: {local_matrix_id} is not the linked partner of {matrix_id}"
+            ));
+        }
+        if halves.exceptions.iter().any(|exception| {
+            exception.kind == MirroredItemKind::Matrix && exception.mirror_id == *local_matrix_id
+        }) {
+            return Err(format!(
+                "Confirmed detach is stale: {local_matrix_id} is already excepted"
+            ));
+        }
+        let context = lifecycle_context(
+            before,
+            pair_id,
+            Some(super::MatrixPairContext {
+                source_id: matrix_id.clone(),
+                mirror_id: local_matrix_id.clone(),
+            }),
+        )?;
+        let pending = transition_exception_context(
+            &context,
+            MirroredItemKind::Matrix,
+            matrix_id,
+            local_matrix_id,
+            TransitionState::Local,
+        )?;
+        let output = prepare_lifecycle_transition(before, post_source, &pending)?;
+        let mut prepared = prepare_lifecycle_output(
+            before,
+            output,
+            &[ConstraintLifecycleEffect::MakeLocal {
+                pair_id: pair_id.to_owned(),
+                source_part_id: matrix_id.clone(),
+                mirror_part_id: local_matrix_id.clone(),
             }],
         )?;
-        let mut draft = post_source.clone();
-        apply_constraint_lifecycle_delta(&mut draft, delta);
-        return Ok(Some(super::PreparedLifecycleDraft {
-            draft,
-            changed_document_ids: Vec::new(),
-        }));
+        // The Local transition keeps the mirror's inherited anchor record;
+        // freezing its world frame first detaches the mirror exactly like
+        // the source below, so both poses survive in the one entry.
+        let frozen = prepared
+            .draft
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == *local_matrix_id)
+            .cloned()
+            .ok_or_else(|| format!("The confirmed detach mirror {local_matrix_id} is missing"))?;
+        if frozen.anchor.is_some() {
+            let frame = crate::matrix::evaluation::evaluate(&frozen, &prepared.draft)
+                .map_err(|message| message.to_string())?
+                .frame;
+            let mut next = frozen.clone();
+            next.anchor = None;
+            next.origin = frame.origin;
+            next.rotation = if frame.rotation == 0.0 {
+                None
+            } else {
+                Some(frame.rotation)
+            };
+            crate::matrix::set_matrix(&mut prepared.draft, &next)?;
+            for part_id in &next.part_ids {
+                if !prepared.changed_document_ids.contains(part_id) {
+                    prepared.changed_document_ids.push(part_id.clone());
+                }
+            }
+        }
+        // Clearing the source anchor keeps its world frame.
+        let mut detached = crate::matrix::anchors::detach(&mut prepared.draft, matrix_id)?;
+        prepared.changed_document_ids.append(&mut detached);
+        prepared.changed_document_ids.push(local_matrix_id.clone());
+        return Ok(Some(prepared));
     }
 
     if let EditOperation::UnlinkHalves {
@@ -1793,6 +2032,16 @@ fn lifecycle_context(
                         );
                     }
                     return (None, None);
+                }
+                // A top-level key with an aligned slot inherits its matrix
+                // pair's state (spec §5): the matrix correspondence is its
+                // parent, so whole-matrix Local/Omitted transitions reach
+                // every member without per-key exception records.
+                if suffix == mirror_suffix {
+                    return (
+                        Some(matrix.source_id.clone()),
+                        Some(matrix.mirror_id.clone()),
+                    );
                 }
                 return (None, None);
             }
@@ -2223,6 +2472,20 @@ fn prepare_matrix_membership_edit(
     let post_source = &filtered_post_source;
     let context = &filtered_context;
 
+    // A detached matrix-level mirror owns its membership (spec §5): source
+    // growth stays source-only, so no mirror additions are planned for it. A
+    // Local mirror keeps its members; an Omitted mirror stays absent (its
+    // record is gone by design, so its member view is empty).
+    let matrix_detached = context.associations.iter().any(|association| {
+        association.kind == MirroredItemKind::Matrix
+            && association.source_id == matrix_pair.source_id.as_str()
+            && association.mirror_id == matrix_pair.mirror_id.as_str()
+            && matches!(
+                association.state,
+                TransitionState::Local | TransitionState::Omitted
+            )
+            && association.explicit_state
+    });
     let source_before = before
         .matrices
         .iter()
@@ -2231,8 +2494,12 @@ fn prepare_matrix_membership_edit(
     let mirror_before = before
         .matrices
         .iter()
-        .find(|matrix| matrix.id == matrix_pair.mirror_id.as_str())
-        .ok_or("The mirror transition Matrix is unavailable")?;
+        .find(|matrix| matrix.id == matrix_pair.mirror_id.as_str());
+    let mirror_before = match mirror_before {
+        Some(matrix) => Some(matrix),
+        None if matrix_detached => None,
+        None => return Err("The mirror transition Matrix is unavailable".into()),
+    };
     let source_after_ids: BTreeSet<_> = post_source
         .matrices
         .iter()
@@ -2299,7 +2566,11 @@ fn prepare_matrix_membership_edit(
         .map(|association| (association.mirror_id.as_str(), association))
         .collect();
     let mut mirror_identity_map = BTreeMap::new();
-    for old_mirror_id in &mirror_before.part_ids {
+    // An Omitted-absent mirror has no record, so its member view is empty.
+    let mirror_before_part_ids: &[String] = mirror_before
+        .map(|matrix| matrix.part_ids.as_slice())
+        .unwrap_or(&[]);
+    for old_mirror_id in mirror_before_part_ids {
         let association = association_by_mirror
             .get(old_mirror_id.as_str())
             .ok_or_else(|| {
@@ -2332,10 +2603,14 @@ fn prepare_matrix_membership_edit(
     }
 
     let mapped_sources: BTreeSet<_> = source_identity_map.values().flatten().cloned().collect();
-    let planned_source_ids: BTreeSet<_> = source_after_ids
-        .difference(&mapped_sources)
-        .cloned()
-        .collect();
+    let planned_source_ids: BTreeSet<_> = if matrix_detached {
+        BTreeSet::new()
+    } else {
+        source_after_ids
+            .difference(&mapped_sources)
+            .cloned()
+            .collect()
+    };
     let mut used_references: BTreeSet<_> = before
         .parts
         .iter()
@@ -2406,6 +2681,27 @@ fn prepare_matrix_membership_edit(
             .iter()
             .filter_map(|(id, mapped)| mapped.is_none().then_some(id.clone())),
     );
+    // A matrix-level Omitted mirror never materializes members, so its mirror
+    // map carries no entries for them. Retiring a source-removed Omitted child
+    // still needs its canonical mirror slot as closure evidence.
+    if matrix_detached {
+        for association in &context.associations {
+            if association.kind == MirroredItemKind::Part
+                && association.state == TransitionState::Omitted
+                && source_identity_map.get(&association.source_id) == Some(&None)
+            {
+                let suffix = association
+                    .source_id
+                    .strip_prefix(&format!("matrix/{}/", matrix_pair.source_id.as_str()));
+                if let Some(suffix) = suffix {
+                    explicit_removal_closure.insert(format!(
+                        "matrix/{}/{suffix}",
+                        matrix_pair.mirror_id.as_str()
+                    ));
+                }
+            }
+        }
+    }
 
     let retained_mirror_ids: BTreeSet<_> = mirror_identity_map
         .values()
@@ -2830,11 +3126,22 @@ fn prepare_lifecycle_transition(
             .iter()
             .any(|matrix| matrix.id == matrix_pair.source_id)
     });
+    // A matrix-level Omitted mirror with a live source goes live-yet-absent
+    // (spec §5): the mirror record is dropped while its correspondences stay
+    // live. The layout shell keeps naming the absent matrix so the pair's
+    // layout correspondence keeps following the reconciled matrix pair;
+    // Rejoin recreates the matrix from source. A source removal with a
+    // non-Local mirror still retires the whole pair side through the full
+    // removal cascade below.
     if let (Some(_owner), Some(matrix_pair)) = (
-        matrix_owner.filter(|owner| {
-            owner.state == TransitionState::Omitted
-                || (source_matrix_removed && owner.state != TransitionState::Local)
-        }),
+        matrix_owner
+            .filter(|owner| owner.state == TransitionState::Omitted && !source_matrix_removed),
+        context.matrix_pair.as_ref(),
+    ) {
+        draft.matrices.retain(|m| m.id != matrix_pair.mirror_id);
+    }
+    if let (Some(_owner), Some(matrix_pair)) = (
+        matrix_owner.filter(|owner| source_matrix_removed && owner.state != TransitionState::Local),
         context.matrix_pair.as_ref(),
     ) {
         if let Some(matrix) = draft
@@ -2885,6 +3192,7 @@ fn prepare_lifecycle_transition(
             companion_tweak: matrix_owner.raw_tweak,
         };
         let mut projected = super::project_matrix(&source, &seed, &record, context.mapping)?;
+        adopt_rejoined_anchor(&mut projected, &draft, context, matrix_pair)?;
         for cell in &mut projected.cells {
             let key = format!(
                 "matrix/{}/r{}c{}",
@@ -3034,7 +3342,16 @@ fn prepare_lifecycle_transition(
                 companion_mode: association.raw_mode_override,
                 companion_tweak: association.raw_tweak,
             };
-            let projected = super::project_part(source, &seed, &record, context.mapping)?;
+            let projected = super::project_part(
+                source,
+                &seed,
+                &record,
+                context.mapping,
+                super::super::derive::is_controller(
+                    &post_source.definitions,
+                    &source.definition_id,
+                ),
+            )?;
             if let Some(target) = draft
                 .parts
                 .iter_mut()

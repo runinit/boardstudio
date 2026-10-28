@@ -282,38 +282,26 @@ pub struct Matrix {
     pub edge_gap: Option<Vec2>,
     #[serde(rename = "diodeDirection", skip_serializing_if = "Option::is_none")]
     pub diode_direction: Option<DiodeDirection>,
-    #[serde(rename = "rowOffsets", default, skip_serializing_if = "Vec::is_empty")]
-    pub row_offsets: Vec<Vec2>,
     #[serde(
-        rename = "columnOffsets",
+        rename = "columnLayout",
         default,
         skip_serializing_if = "Vec::is_empty"
     )]
-    pub column_offsets: Vec<Vec2>,
-    #[serde(
-        rename = "columnStaggers",
-        default,
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub column_staggers: Vec<f64>,
-    #[serde(
-        rename = "columnSplays",
-        default,
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub column_splays: Vec<f64>,
-    #[serde(
-        rename = "columnOrigins",
-        default,
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub column_origins: Vec<Option<Vec2>>,
+    pub column_layout: Vec<ColumnLayout>,
+    #[serde(rename = "rowLayout", default, skip_serializing_if = "Vec::is_empty")]
+    pub row_layout: Vec<RowLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<MatrixAnchor>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cells: Vec<MatrixCell>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MatrixCell {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shift: Option<Vec2>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bend: Option<f64>,
     /// Removed slots have neither generated members nor snapping geometry.
     #[serde(default, skip_serializing_if = "is_false")]
     pub deleted: bool,
@@ -336,6 +324,273 @@ pub struct MatrixCell {
         skip_serializing_if = "Option::is_none"
     )]
     pub assemblies_local: Option<bool>,
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct ColumnLayout {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spread: Option<f64>,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub stagger: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub splay: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub rotation: f64,
+    #[serde(skip_serializing_if = "is_zero_vec2")]
+    pub splay_origin: Vec2,
+    #[serde(skip_serializing_if = "is_zero_vec2")]
+    pub offset: Vec2,
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct RowLayout {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub padding: Option<f64>,
+    #[serde(skip_serializing_if = "is_zero_vec2")]
+    pub shift: Vec2,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub bend: f64,
+    #[serde(skip_serializing_if = "is_zero_vec2")]
+    pub offset: Vec2,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "Vec<FollowComponent>", into = "Vec<FollowComponent>")]
+pub struct Follow {
+    pub x: bool,
+    pub y: bool,
+    pub rotation: bool,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum FollowComponent {
+    X,
+    Y,
+    Rotation,
+}
+impl TryFrom<Vec<FollowComponent>> for Follow {
+    type Error = &'static str;
+    fn try_from(values: Vec<FollowComponent>) -> Result<Self, Self::Error> {
+        for (index, value) in values.iter().enumerate() {
+            if values[..index].contains(value) {
+                return Err("Follow components must be unique");
+            }
+        }
+        Ok(Self {
+            x: values.contains(&FollowComponent::X),
+            y: values.contains(&FollowComponent::Y),
+            rotation: values.contains(&FollowComponent::Rotation),
+        })
+    }
+}
+impl From<Follow> for Vec<FollowComponent> {
+    fn from(follow: Follow) -> Self {
+        [
+            (follow.x, FollowComponent::X),
+            (follow.y, FollowComponent::Y),
+            (follow.rotation, FollowComponent::Rotation),
+        ]
+        .into_iter()
+        .filter_map(|(enabled, component)| enabled.then_some(component))
+        .collect()
+    }
+}
+impl Default for Follow {
+    fn default() -> Self {
+        Self {
+            x: true,
+            y: true,
+            rotation: true,
+        }
+    }
+}
+/// Stored anchor target: the `single | aggregate` union from ticket 28
+/// (`anchor.target: { single: {matrixId,row,column} } | { aggregate: {...} }`
+/// with top-level `follow` unchanged). The untagged document grammar keeps
+/// the flat shape so saved single-key anchors open byte-identical: a bare
+/// `{matrixId,row,column,follow}` document is the single arm, a
+/// `{follow,aggregate}` document is the aggregate arm, and a document naming
+/// both arms is refused at admission, matching upstream's ref+aggregate
+/// throw. The arms are matched explicitly (rather than with an untagged
+/// enum) so each arm's inner refusal — e.g. the unknown aggregate method —
+/// keeps its own error instead of collapsing into an untagged mismatch.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MatrixAnchor {
+    /// Single-key target. Inert while the aggregate arm is present: the
+    /// admission grammar never populates both arms, so in-memory single
+    /// fields on an aggregate anchor stay empty/zero and `targets()` never
+    /// reads them. Inert fields are also omitted when an aggregate anchor
+    /// serializes, so saved aggregate anchors reopen.
+    pub matrix_id: String,
+    pub row: u32,
+    pub column: u32,
+    pub follow: Follow,
+    /// Aggregate arm (average / intersection over single-key parts). When
+    /// present, evaluation resolves every part and combines the poses before
+    /// Origin/Rotation and Follow apply; the single-key fields above are
+    /// ignored. Parts are single-key refs only: nesting is unrepresentable.
+    pub aggregate: Option<AggregateAnchor>,
+}
+
+impl serde::Serialize for MatrixAnchor {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        match &self.aggregate {
+            None => {
+                let mut anchor = serializer.serialize_struct("MatrixAnchor", 4)?;
+                anchor.serialize_field("matrixId", &self.matrix_id)?;
+                anchor.serialize_field("row", &self.row)?;
+                anchor.serialize_field("column", &self.column)?;
+                anchor.serialize_field("follow", &self.follow)?;
+                anchor.end()
+            }
+            Some(aggregate) => {
+                let mut anchor = serializer.serialize_struct("MatrixAnchor", 2)?;
+                anchor.serialize_field("follow", &self.follow)?;
+                anchor.serialize_field("aggregate", aggregate)?;
+                anchor.end()
+            }
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for MatrixAnchor {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_map(AnchorUnionVisitor)
+    }
+}
+
+struct AnchorUnionVisitor;
+
+impl<'de> serde::de::Visitor<'de> for AnchorUnionVisitor {
+    type Value = MatrixAnchor;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str(
+            "a single-key anchor {matrixId, row, column, follow} or an aggregate anchor {follow, aggregate}",
+        )
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<MatrixAnchor, A::Error> {
+        use serde::de::Error;
+        let mut matrix_id: Option<String> = None;
+        let mut row: Option<u32> = None;
+        let mut column: Option<u32> = None;
+        let mut follow = Follow::default();
+        let mut follow_seen = false;
+        let mut aggregate: Option<AggregateAnchor> = None;
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "matrixId" => {
+                    if matrix_id.is_some() {
+                        return Err(A::Error::duplicate_field("matrixId"));
+                    }
+                    matrix_id = Some(map.next_value()?);
+                }
+                "row" => {
+                    if row.is_some() {
+                        return Err(A::Error::duplicate_field("row"));
+                    }
+                    row = Some(map.next_value()?);
+                }
+                "column" => {
+                    if column.is_some() {
+                        return Err(A::Error::duplicate_field("column"));
+                    }
+                    column = Some(map.next_value()?);
+                }
+                "follow" => {
+                    if follow_seen {
+                        return Err(A::Error::duplicate_field("follow"));
+                    }
+                    follow_seen = true;
+                    follow = map.next_value()?;
+                }
+                "aggregate" => {
+                    if aggregate.is_some() {
+                        return Err(A::Error::duplicate_field("aggregate"));
+                    }
+                    aggregate = Some(map.next_value()?);
+                }
+                other => {
+                    return Err(A::Error::unknown_field(
+                        other,
+                        &["matrixId", "row", "column", "follow", "aggregate"],
+                    ));
+                }
+            }
+        }
+        if aggregate.is_some() && (matrix_id.is_some() || row.is_some() || column.is_some()) {
+            return Err(A::Error::custom(
+                "Matrix anchor cannot combine a single-key target (matrixId/row/column) with an aggregate arm; name one target",
+            ));
+        }
+        Ok(MatrixAnchor {
+            matrix_id: matrix_id.unwrap_or_default(),
+            row: row.unwrap_or_default(),
+            column: column.unwrap_or_default(),
+            follow,
+            aggregate,
+        })
+    }
+}
+
+impl MatrixAnchor {
+    /// Every single-key target this anchor resolves: the single key, or each
+    /// aggregate part in order. Evaluation order, cycle walks and part-aware
+    /// guards consume this so aggregates never fall back to the inert
+    /// single-key fields.
+    pub fn targets(&self) -> Vec<AnchorPart> {
+        match &self.aggregate {
+            None => vec![AnchorPart {
+                matrix_id: self.matrix_id.clone(),
+                row: self.row,
+                column: self.column,
+            }],
+            Some(aggregate) => aggregate.parts.clone(),
+        }
+    }
+
+    pub fn is_aggregate(&self) -> bool {
+        self.aggregate.is_some()
+    }
+}
+
+/// Aggregate anchor target: one combined pose from N single-key parts.
+/// Unknown methods are refused at admission; the default is upstream's
+/// `average`. An empty part list parses but refuses at evaluation.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AggregateAnchor {
+    #[serde(default)]
+    pub method: AggregateMethod,
+    #[serde(default)]
+    pub parts: Vec<AnchorPart>,
+}
+
+/// Upstream Ergogen aggregators, nothing else. Deserializing any other
+/// method name fails, which is the unknown-method refusal.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AggregateMethod {
+    #[default]
+    Average,
+    Intersect,
+}
+
+/// One single-key part reference. There is no nested-anchor arm here, so
+/// aggregates cannot nest by construction.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AnchorPart {
+    pub matrix_id: String,
+    pub row: u32,
+    pub column: u32,
+}
+fn is_zero_f64(value: &f64) -> bool {
+    *value == 0.0
+}
+fn is_zero_vec2(value: &Vec2) -> bool {
+    *value == Vec2::default()
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MatrixAssembly {
@@ -888,7 +1143,7 @@ pub struct Layout {
     pub id: String,
     pub name: String,
     pub board_id: String,
-    pub matrix_id: String,
+    pub matrix_ids: Vec<String>,
     pub part_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mirror_link: Option<LayoutMirrorLink>,
@@ -898,6 +1153,26 @@ pub struct Layout {
 pub struct LayoutMirrorLink {
     pub source_id: String,
     pub axis_x: f64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub correspondences: Vec<MirroredCorrespondence>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exceptions: Vec<MirroredException>,
+}
+impl LayoutMirrorLink {
+    pub fn partner_matrix(&self, id: &str) -> Option<&str> {
+        self.correspondences.iter().find_map(|record| {
+            if record.kind != MirroredItemKind::Matrix {
+                return None;
+            }
+            if record.source_id == id {
+                Some(record.mirror_id.as_str())
+            } else if record.mirror_id == id {
+                Some(record.source_id.as_str())
+            } else {
+                None
+            }
+        })
+    }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProjectDoc {
@@ -1495,6 +1770,14 @@ pub enum MatrixSplayChange {
     Origin {
         world: Option<Vec2>,
     },
+    /// Ctrl is captured by the caller at pointer-down. This intent never compensates steps.
+    OriginSwing {
+        world: Option<Vec2>,
+    },
+    /// Fields and nudges edit the stored relative origin and always hold keys still.
+    OriginRelative {
+        value: Vec2,
+    },
     Angle {
         angle: f64,
         affect: MatrixSplayAffect,
@@ -1506,6 +1789,39 @@ pub enum MatrixSplayChange {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum MatrixPlacementChange {
+    ColumnSpread {
+        column: u32,
+        value: Option<f64>,
+    },
+    RowPadding {
+        row: u32,
+        value: Option<f64>,
+    },
+    RowBend {
+        row: u32,
+        value: f64,
+    },
+    KeyShift {
+        row: u32,
+        column: u32,
+        value: Vec2,
+    },
+    KeyBend {
+        row: u32,
+        column: u32,
+        value: f64,
+    },
+    RowShift {
+        row: u32,
+        value: Vec2,
+    },
+    MatrixTranslation {
+        delta: Vec2,
+    },
+    ColumnTranslation {
+        column: u32,
+        delta: Vec2,
+    },
     ColumnStagger {
         column: u32,
         value: f64,
@@ -1533,14 +1849,20 @@ pub fn convert_offset_available(matrix: &Matrix, column: u32) -> Result<(), Stri
     if column >= matrix.columns {
         return Err("Matrix placement column is out of bounds".into());
     }
-    let index = column as usize;
-    let splay = matrix.column_splays.get(index).copied().unwrap_or(0.0);
-    let custom = matrix
-        .column_origins
-        .get(index)
-        .is_some_and(Option::is_some);
-    if splay != 0.0 && !custom {
-        return Err("Converting would move this column: its splay pivots with the stagger.".into());
+    let values = matrix
+        .column_layout
+        .get(column as usize)
+        .copied()
+        .unwrap_or_default();
+    if values.splay != 0.0
+        || values.rotation != 0.0
+        || matrix.row_layout.iter().any(|r| r.bend != 0.0)
+        || matrix
+            .cells
+            .iter()
+            .any(|c| c.column == column && c.bend.unwrap_or_default() != 0.0)
+    {
+        return Err("Converting requires zero Splay, Column rotation and carried Bend".into());
     }
     Ok(())
 }
@@ -1612,46 +1934,20 @@ pub enum EditOperation {
         key_id: String,
         change: KeycapKeyChange,
     },
-    SetMechanical {
-        configuration: Option<Box<MechanicalConfiguration>>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        target: Option<crate::mechanical::MechanicalTarget>,
+    /// One typed keycap-size resize. Core validates every entry before writing
+    /// anything, so a keycap resize commits the typed sizes, the reflow poses
+    /// and the cell offsets atomically with one Undo entry instead of a
+    /// whole-document replacement.
+    SetKeycapSize {
+        /// part_id to its new physical keycap size in mm.
+        sizes: BTreeMap<String, Vec2>,
+        /// Absolute pose updates from the key-size reflow.
+        moves: Vec<Position>,
+        /// Cell offset updates from the key-size reflow.
+        offsets: Vec<KeycapCellOffset>,
     },
     MoveParts {
         positions: Vec<Position>,
-    },
-    SetOutline {
-        feature: OutlineFeature,
-    },
-    CopyOutline {
-        #[serde(rename = "boardId")]
-        board_id: String,
-        #[serde(rename = "versionId")]
-        version_id: String,
-        name: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        edit: Option<OutlineContourEdit>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        feature: Option<OutlineFeature>,
-    },
-    SelectOutline {
-        #[serde(rename = "boardId")]
-        board_id: String,
-        #[serde(rename = "versionId", default)]
-        version_id: Option<String>,
-    },
-    RenameOutline {
-        #[serde(rename = "boardId")]
-        board_id: String,
-        #[serde(rename = "versionId")]
-        version_id: String,
-        name: String,
-    },
-    RemoveOutline {
-        #[serde(rename = "boardId")]
-        board_id: String,
-        #[serde(rename = "versionId")]
-        version_id: String,
     },
     AddPart {
         part: Part,
@@ -1699,9 +1995,6 @@ pub enum EditOperation {
     RemoveParts {
         ids: Vec<String>,
     },
-    SetNet {
-        net: Net,
-    },
     SetCase {
         body: CaseBody,
     },
@@ -1722,6 +2015,38 @@ pub enum EditOperation {
         #[serde(rename = "matrixId")]
         matrix_id: String,
         change: MatrixPlacementChange,
+    },
+    /// Creates a 1x3 matrix anchored to one key of another matrix. Core assigns
+    /// the anchor target's board, joins its Layout, uses Origin (0, -pitch.y)
+    /// with all Follow components and materializes members in one Undo entry.
+    AddAnchoredMatrix {
+        id: String,
+        anchor: MatrixAnchor,
+    },
+    /// Re-targets one matrix's anchor and Follow subset in one Undo entry.
+    SetMatrixAnchor {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        anchor: MatrixAnchor,
+    },
+    /// Clears one matrix's anchor after writing its current effective world
+    /// frame to Origin/Rotation, so every pose is unchanged. Linked groups
+    /// detach together; a detach that would need a new Local exception is
+    /// refused and names it instead of silently changing one side.
+    DetachMatrixAnchor {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+    },
+    /// Applies a confirmed linked detach that needs one additional Local
+    /// matrix exception: clears both anchors, keeps both world poses, and
+    /// records the named Local exception in the same Undo entry. The named
+    /// matrix must be the linked partner needing the exception; anything
+    /// else refuses as a stale confirmation and changes nothing.
+    DetachMatrixAnchorConfirmed {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        #[serde(rename = "localMatrixId")]
+        local_matrix_id: String,
     },
     SetConstraint {
         constraint: Constraint,
@@ -1840,6 +2165,15 @@ pub struct OutlineContourEdit {
 pub struct Position {
     pub id: String,
     pub at: Vec2,
+}
+/// One matrix cell offset update carried by a typed keycap-size resize.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeycapCellOffset {
+    pub matrix_id: String,
+    pub row: u32,
+    pub column: u32,
+    pub offset: Option<Vec2>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -1990,11 +2324,47 @@ pub struct MatrixSceneCell {
     #[serde(rename = "memberId", skip_serializing_if = "Option::is_none")]
     pub member_id: Option<String>,
     pub pose: Pose2,
+    #[serde(rename = "shiftFrame")]
+    pub shift_frame: crate::matrix::kernel::ComposedFrame,
+    #[serde(rename = "offsetFrame")]
+    pub offset_frame: crate::matrix::kernel::ComposedFrame,
+    /// Carried row/key contributions from the layout kernel, in stored axes.
+    /// Relations reads these instead of recomputing layout maths.
+    #[serde(rename = "rowShift", default, skip_serializing_if = "is_zero_vec2")]
+    pub row_shift: Vec2,
+    #[serde(rename = "keyShift", default, skip_serializing_if = "is_zero_vec2")]
+    pub key_shift: Vec2,
+    #[serde(rename = "rowBend", default, skip_serializing_if = "is_zero_f64")]
+    pub row_bend: f64,
+    #[serde(rename = "keyBend", default, skip_serializing_if = "is_zero_f64")]
+    pub key_bend: f64,
+    /// Accumulated carried translation in unreflected matrix axes: each shift
+    /// transported through the running carried heading, not a raw sum.
+    #[serde(
+        rename = "cumulativeShift",
+        default,
+        skip_serializing_if = "is_zero_vec2"
+    )]
+    pub cumulative_shift: Vec2,
+    /// Accumulated carried row/key bend in degrees; excludes Splay, Column
+    /// rotation, Key rotation and matrix/anchor rotation.
+    #[serde(
+        rename = "cumulativeBend",
+        default,
+        skip_serializing_if = "is_zero_f64"
+    )]
+    pub cumulative_bend: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MatrixColumnBasis {
     pub column: u32,
+    pub base: Vec2,
+    pub rotation: f64,
+    #[serde(rename = "relativeOrigin")]
+    pub relative_origin: Vec2,
+    #[serde(rename = "spreadAxis", skip_serializing_if = "Option::is_none")]
+    pub spread_axis: Option<Vec2>,
     #[serde(rename = "splayOrigin")]
     pub splay_origin: Vec2,
     #[serde(rename = "splayAngle")]

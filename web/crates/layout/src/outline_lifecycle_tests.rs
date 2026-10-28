@@ -30,18 +30,18 @@ fn explicit_connection_joins_mirrored_layouts_inside_one_outline() {
         "../../../../core/tests/fixtures/synthetic-outline.json"
     ))
     .unwrap();
-    input["formatVersion"] = json!(6);
     for key in ["parts", "matrices", "layouts", "outline"] {
         input[key] = json!([]);
     }
     input["boards"][0]["partIds"] = json!([]);
     input["boards"][0]["outlineIds"] = json!([]);
     let mut engine = boardstudio_core::CoreEngine::new();
-    let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Open {
+    let reply = engine.handle(CoreRequest::Open {
         id: "open".into(),
         document: serde_json::from_value(input).unwrap(),
-    }) else {
-        panic!("the synthetic board opens");
+    });
+    let CoreReply::Scene { document, .. } = reply else {
+        panic!("the synthetic board opens: {reply:?}");
     };
     let apply = |engine: &mut boardstudio_core::CoreEngine,
                  document: &ProjectDoc,
@@ -63,10 +63,10 @@ fn explicit_connection_joins_mirrored_layouts_inside_one_outline() {
         &document,
         json!({"kind":"create-mirrored-pair",
             "matrix":{"id":"left-matrix","rows":1,"columns":2,"pitch":{"x":24.,"y":19.},
-                "origin":{"x":-36.,"y":0.},"columnOffsets":[{"x":0.,"y":0.},{"x":0.,"y":10.}],
-                "definitionId":"synthetic/switch","boardId":"main","partIds":[]},
-            "left":{"id":"left-layout","name":"Left","boardId":"main","matrixId":"left-matrix","partIds":[]},
-            "right":{"id":"right-layout","name":"Right","boardId":"main","matrixId":"right-matrix", "partIds":[],
+                "origin":{"x":-36.,"y":0.},"columnLayout": [{"offset": {"x": 0.0, "y": 0.0}}, {"offset": {"x": 0.0, "y": 10.0}}],
+        "definitionId":"synthetic/switch","boardId":"main","partIds":[]},
+            "left":{"id":"left-layout","name":"Left","boardId":"main","matrixIds":["left-matrix"],"partIds":[]},
+            "right":{"id":"right-layout","name":"Right","boardId":"main","matrixIds":["right-matrix"], "partIds":[],
                 "mirrorLink":{"sourceId":"left-layout","axisX":0.}}
         }),
     );

@@ -402,9 +402,13 @@ fn changing_one_refinements_margin_updates_only_that_refinement() {
         &mut engine,
         opened.revision,
         serde_json::json!({
-            "kind": "set-outline",
-            "feature": { "kind": "part-envelope", "id": ENVELOPE, "partIds": ["a", "b"],
-                         "margin": 3.0, "operation": "add", "settings": settings() }
+            // Ticket 37: raw SetOutline is deleted; SetFeature on the version is live.
+            "kind": "apply-outline-edit", "edit": {
+                "target": {"kind": "version", "boardId": "board", "versionId": "refined"},
+                "change": {"set-feature": {"feature": { "kind": "part-envelope", "id": ENVELOPE, "partIds": ["a", "b"],
+                             "margin": 3.0, "operation": "add", "settings": settings() }}},
+                "seed": 21, "reviewed": null
+            }
         }),
     );
     assert_eq!(bounds(&adjusted, "board"), (-10.0, -10.0, 24.0, 10.0));
@@ -500,11 +504,14 @@ fn a_failed_resolution_stays_linked_with_located_findings_and_resumes_after_a_re
         &mut engine,
         moved.revision,
         serde_json::json!({
-            "kind": "set-outline",
-            "feature": { "kind": "polygon", "id": "board:board:version:refined:cutout:bad",
-                         "anchorPartId": "a", "operation": "add",
-                         "points": [{ "x": 3.0, "y": 3.0 }, { "x": 7.0, "y": 3.0 },
-                                    { "x": 7.0, "y": 7.0 }, { "x": 3.0, "y": 7.0 }] }
+            "kind": "apply-outline-edit", "edit": {
+                "target": {"kind": "version", "boardId": "board", "versionId": "refined"},
+                "change": {"set-feature": {"feature": { "kind": "polygon", "id": "board:board:version:refined:cutout:bad",
+                             "anchorPartId": "a", "operation": "add",
+                             "points": [{ "x": 3.0, "y": 3.0 }, { "x": 7.0, "y": 3.0 },
+                                        { "x": 7.0, "y": 7.0 }, { "x": 3.0, "y": 7.0 }] }}},
+                "seed": 22, "reviewed": null
+            }
         }),
     );
     assert!(
@@ -723,10 +730,11 @@ fn split_fixture(broken: bool) -> serde_json::Value {
         members.clone();
     document["layouts"] = serde_json::json!([
         { "id": "left-keys", "name": "Left keys", "boardId": "board",
-          "matrixId": "left-matrix", "partIds": ["a", "c"] },
+          "matrixIds": ["left-matrix"], "partIds": ["a", "c"] },
         { "id": "right-keys", "name": "Right keys", "boardId": "board",
-          "matrixId": "right-matrix", "partIds": ["mirror-a", "mirror-c"],
-          "mirrorLink": { "sourceId": "left-keys", "axisX": 50.0 } }
+          "matrixIds": ["right-matrix"], "partIds": ["mirror-a", "mirror-c"],
+          "mirrorLink": { "sourceId": "left-keys", "axisX": 50.0,
+            "correspondences": [{"kind":"matrix","sourceId":"left-matrix","mirrorId":"right-matrix"}] } }
     ]);
     let matrix = |id: &str, origin: f64| {
         serde_json::json!({
@@ -757,7 +765,7 @@ fn merged_fixture() -> serde_json::Value {
     let mut document = split_fixture(false);
     document["layouts"] = serde_json::json!([
         { "id": "keys", "name": "Keys", "boardId": "board",
-          "matrixId": "keys-matrix",
+          "matrixIds": ["keys-matrix"],
           "partIds": ["a", "c", "mirror-a", "mirror-c"] }
     ]);
     document["matrices"] = serde_json::json!([{

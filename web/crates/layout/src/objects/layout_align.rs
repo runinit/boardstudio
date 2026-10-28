@@ -1,7 +1,6 @@
 //! Private Layout Align toolbar controls.
 pub use super::layout_align_geometry::{
-    AlignCommand, alignment_delta, local_matrix_delta, reconcile_reference_choice,
-    transformed_envelope,
+    AlignCommand, alignment_delta, reconcile_reference_choice, transformed_envelope,
 };
 use super::layout_toolbar::{LayoutCommandMenu, close_layout_command_menu};
 use super::tree::TreeContext;

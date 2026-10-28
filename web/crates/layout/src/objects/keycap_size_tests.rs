@@ -304,6 +304,8 @@ fn accepted_projection_uses_session_add_toggle_selection_across_hit_contexts() {
     document.matrices[0]
         .cells
         .push(boardstudio_core::model::MatrixCell {
+            shift: None,
+            bend: None,
             deleted: false,
             row: 0,
             column: 2,
@@ -1135,5 +1137,47 @@ async fn queued_key_resize_retires_when_row_delete_reuses_the_selected_id() {
     assert_eq!(
         accepted.document.parts[0].keycap,
         captured.document.parts[0].keycap
+    );
+}
+
+/// Ticket 33: the key-size resolver submits one typed SetKeycapSize edit, never
+/// a whole-document replacement; invalid units resolve Unchanged and write nothing.
+#[wasm_bindgen_test]
+async fn resize_resolver_submits_a_typed_keycap_size_edit() {
+    use crate::runtime::project_name_test_support as support;
+    use boardstudio_core::model::EditOperation;
+
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, key_fixture()).await;
+    let accepted = runtime.model().accepted.expect("the fixture opens");
+    let resolver = resize_resolver_for(
+        &accepted.document,
+        "board-main".into(),
+        vec![KEY_ID.into()],
+        Vec2 { x: 2.0, y: 1.0 },
+        Some(ResizeAxis::X),
+    );
+    match resolver.resolve(&accepted) {
+        Resolution::Submit(command) => assert!(
+            matches!(command.operation, EditOperation::SetKeycapSize { .. }),
+            "key size must commit a typed edit, got {:?}",
+            command.operation
+        ),
+        Resolution::Unchanged => panic!("a valid resize must submit"),
+        Resolution::Retire(message) => panic!("a valid resize must not retire: {message}"),
+    }
+    let invalid = resize_resolver_for(
+        &accepted.document,
+        "board-main".into(),
+        vec![KEY_ID.into()],
+        Vec2 {
+            x: f64::NAN,
+            y: 1.0,
+        },
+        Some(ResizeAxis::X),
+    );
+    assert!(
+        matches!(invalid.resolve(&accepted), Resolution::Unchanged),
+        "invalid units write nothing"
     );
 }

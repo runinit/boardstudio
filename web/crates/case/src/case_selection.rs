@@ -56,7 +56,7 @@ pub fn selected_part_summary(
                 .iter()
                 .find(|layout| {
                     layout.board_id == model.active_board_id
-                        && layout.matrix_id == matrix_id
+                        && layout.matrix_ids.iter().any(|id| *id == matrix_id)
                         && !layout.name.trim().is_empty()
                 })
                 .map(|layout| layout.name.clone())
