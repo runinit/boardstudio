@@ -15,7 +15,30 @@ WORKFLOW = (REPO / ".github" / "workflows" / "check.yaml").read_text()
 CAD_BUILD = (REPO / "cad" / "scripts" / "cad_build.py").read_text()
 TOOLCHAIN = (REPO / "rust-toolchain.toml").read_text()
 CACHE_ACTION = "Swatinem/rust-cache@"
-TRUSTED_SAVE = "${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}"
+MAIN_REPO = "runinit/boardstudio"
+
+
+def save_if(step: str, **context: str) -> bool:
+    """Evaluate a step's `save-if` the way Actions would for the given event/ref/head repo."""
+    raw = re.search(r"^ +save-if: (.*)$", step, re.M).group(1)
+    if raw == "false":
+        return False
+    expr = raw.removeprefix("${{").removesuffix("}}").strip()
+    # Longest names first: `github.ref` must not eat a prefix of `github.repository`.
+    for name, var in (("github.event.pull_request.head.repo.full_name", "head_repo"),
+                      ("github.event_name", "event"), ("github.repository", "repo"), ("github.ref", "ref")):
+        expr = expr.replace(name, var)
+    expr = expr.replace("&&", " and ").replace("||", " or ")
+    assert "github." not in expr, f"unmodelled context in save-if: {raw}"
+    return bool(eval(expr, {"__builtins__": {}}, context))  # noqa: S307 - our own workflow text, no builtins
+
+
+def pull_request(head_repo: str) -> dict[str, str]:
+    return {"event": "pull_request", "ref": "refs/pull/9/merge", "head_repo": head_repo, "repo": MAIN_REPO}
+
+
+def push(ref: str) -> dict[str, str]:
+    return {"event": "push", "ref": ref, "head_repo": "", "repo": MAIN_REPO}
 
 
 def job(name: str) -> str:
@@ -30,14 +53,58 @@ def cache_steps(text: str) -> list[str]:
 
 
 class CachePolicyTests(unittest.TestCase):
-    def test_rust_cache_saves_only_from_trusted_branches(self):
-        steps = [step for name in ("native", "web", "release-build") for step in cache_steps(job(name))]
-        self.assertEqual(len(steps), 3)
-        for step in steps:
-            save_if = re.search(r"^ +save-if: (.*)$", step, re.M)
-            self.assertIsNotNone(save_if, step)
-            self.assertIn(save_if.group(1), (TRUSTED_SAVE, "false"),
-                          "a pull request must never write a cache a trusted branch can read")
+    def test_rust_cache_save_matrix(self):
+        # GitHub scopes a pull_request cache to refs/pull/N/merge, so a same-repo pull request may save
+        # (its own later pushes restore it); trusted branches keep saving; nothing else may.
+        for name in ("native", "web"):
+            [step] = cache_steps(job(name))
+            for label, ctx, expected in (
+                ("push main", push("refs/heads/main"), True),
+                ("push dev", push("refs/heads/dev"), True),
+                ("same-repo pull request", pull_request(MAIN_REPO), True),
+                ("fork pull request", pull_request("someone/boardstudio"), False),
+                ("push to another branch", push("refs/heads/stack/02-split-board"), False),
+                ("dispatch on a feature branch", {**push("refs/heads/feature"), "event": "workflow_dispatch"}, False),
+            ):
+                self.assertEqual(save_if(step, **ctx), expected, f"{name}: {label}")
+
+    def test_release_build_never_saves(self):
+        [step] = cache_steps(job("release-build"))
+        for ctx in (push("refs/heads/main"), {**push("refs/heads/main"), "event": "workflow_dispatch"}, pull_request(MAIN_REPO)):
+            self.assertFalse(save_if(step, **ctx), "release-build restores the web cache; only `web` saves it")
+
+    def test_cache_on_failure_stays_off(self):
+        # post-if is `success() || CACHE_ON_FAILURE == 'true'`, which also runs on cancellation. With
+        # cancel-in-progress, a superseded first run would save a partial target under a key that every
+        # later run exact-hits (and therefore never overwrites).
+        for name in ("native", "web", "release-build"):
+            for step in cache_steps(job(name)):
+                self.assertNotRegex(step, r"cache-on-failure:\s*['\"]?true", name)
+
+    def test_no_trigger_can_write_the_default_branch_cache_scope(self):
+        triggers = set(re.findall(r"^  (\w+):", WORKFLOW.split("\npermissions:\n")[0].split("\non:\n", 1)[1], re.M))
+        self.assertEqual(triggers, {"pull_request", "push", "workflow_dispatch"},
+                         "pull_request_target/workflow_run run with base-scope cache access")
+        top = WORKFLOW.split("\nconcurrency:\n")[0].split("\npermissions:\n", 1)[1]
+        self.assertEqual(top.strip(), "contents: read")
+
+    def test_toolchain_is_installed_before_the_cache_hashes_rustc(self):
+        # RUSTUP_HOME starts empty on every runner; `rustup target add` only worked there through a
+        # deprecated auto-install (rustup#4836).
+        self.assertNotIn("rustup target add", WORKFLOW)
+        for name in ("native", "web", "release-build"):
+            text = job(name)
+            self.assertIn("      - run: rustup toolchain install\n", text, name)
+            self.assertLess(text.index("- run: rustup toolchain install"), text.index("- uses: " + CACHE_ACTION), name)
+
+    def test_tool_caches_are_version_keyed_and_release_only_restores(self):
+        for name in ("web", "release-build"):
+            for key in re.findall(r"^ +key: (.*)$", job(name), re.M):
+                self.assertNotIn("github.", key, "tool cache keys are content versions, not refs")
+        self.assertNotIn("actions/cache@", job("release-build"))
+        # The wasm-pack cache key must follow the wasm-pack version web-tools installs.
+        [key_version] = re.findall(r"key: wasm-pack-(\d+\.\d+\.\d+)-", job("web"))
+        self.assertIn(f"wasm-pack/releases/download/v{key_version}/", (REPO / ".github" / "actions" / "web-tools" / "action.yml").read_text())
 
     def test_cache_key_sees_only_the_pinned_toolchain(self):
         env = WORKFLOW.split("\njobs:\n")[0].split("\nenv:\n", 1)[1]
