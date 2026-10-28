@@ -5,6 +5,7 @@ import csv
 import difflib
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import subprocess
@@ -17,6 +18,187 @@ sys.dont_write_bytecode = True
 SPEC = importlib.util.spec_from_file_location("measure_cad", Path(__file__).with_name("measure-cad.py"))
 PERF = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(PERF)
+
+
+class CaptureSelectionTests(unittest.TestCase):
+    def test_historical_cadrum_execution_is_retired_before_output(self):
+        evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as directory:
+            root = Path(directory) / "checkout"
+            marker = root / "cad/scripts/cadrum_build.py"
+            marker.parent.mkdir(parents=True)
+            marker.touch()
+            for action in ("build", "runtime", "validate"):
+                output = Path(directory) / action
+                args = ["measure-cad.py", action, "--checkout", str(root), "--output", str(output)]
+                with self.subTest(action=action), patch.object(sys, "argv", args), \
+                        patch.object(PERF, "binding", side_effect=AssertionError("binding reached")), \
+                        patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                    with self.assertRaises(SystemExit):
+                        PERF.main()
+                self.assertIn("historical Cadrum reproduction is retired", stderr.getvalue())
+                self.assertFalse(output.exists())
+
+    def test_node_driver_rejected_for_current_checkout_before_output_or_browser(self):
+        evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as directory:
+            output = Path(directory) / "out"
+            args = ["measure-cad.py", "validate", "--driver", "node", "--checkout", str(Path(directory)),
+                    "--output", str(output)]
+            with patch.object(sys, "argv", args), patch.object(PERF, "binding", side_effect=AssertionError("binding reached")), \
+                    patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                with self.assertRaises(SystemExit):
+                    PERF.main()
+            self.assertIn("invalid choice: 'node'", stderr.getvalue())
+            self.assertFalse(output.exists())
+
+    def test_default_build_uses_rust_chrome_prerequisites(self):
+        evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as directory:
+            args = ["measure-cad.py", "build", "--state", "noop", "--source-head", "head",
+                    "--output", str(Path(directory) / "out")]
+            with patch.object(sys, "argv", args), patch.object(PERF, "git", return_value="head"), \
+                 patch.object(PERF, "binding", return_value=([], True)), \
+                 patch.object(PERF.browser_tools, "locate_chrome", return_value="/chrome") as chrome, \
+                 patch.object(PERF, "capture", return_value=(1, 0)), patch.object(PERF, "sizes"):
+                self.assertEqual(PERF.main(), 1)
+                chrome.assert_called_once_with()
+
+    def test_rust_runtime_rejects_diagnostic_only_workloads_at_launcher(self):
+        evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as directory:
+            for workload, reason in (("U1:page", "samples"),):
+                for action, driver in (("runtime", "rust"), ("validate", "rust")):
+                    with self.subTest(workload=workload, action=action, driver=driver):
+                        args = ["measure-cad.py", action, "--driver", driver, "--workload", workload,
+                                "--output", str(Path(directory) / f"{workload.replace(':', '-')}-{action}-{driver}")]
+                        with patch.object(sys, "argv", args), patch.object(PERF, "binding", side_effect=RuntimeError("binding reached")), \
+                             patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                            if (action, driver) == ("runtime", "rust"):
+                                with self.assertRaises(SystemExit):
+                                    PERF.main()
+                                self.assertIn(reason, stderr.getvalue())
+                                self.assertIn("validate", stderr.getvalue())
+                                if workload == "U1:page":
+                                    self.assertNotIn("--driver node for runtime", stderr.getvalue())
+                            else:
+                                with self.assertRaisesRegex(RuntimeError, "binding reached"):
+                                    PERF.main()
+
+    def test_rust_runtime_accepts_startup_workloads_at_launcher(self):
+        evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as directory:
+            for workload in ("startup:cold", "startup:warm"):
+                with self.subTest(workload=workload), \
+                     patch.object(sys, "argv", ["measure-cad.py", "runtime", "--driver", "rust",
+                                               "--workload", workload, "--output", str(Path(directory) / workload)]), \
+                     patch.object(PERF, "binding", side_effect=RuntimeError("binding reached")):
+                    with self.assertRaisesRegex(RuntimeError, "binding reached"):
+                        PERF.main()
+
+    def test_runtime_rejects_invalid_build_receipt_before_browser(self):
+        evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as directory:
+            root = Path(directory)
+            note = root / "note"
+            note.touch()
+            build = root / "build"
+            build.mkdir()
+            (build / "binding-after.log").write_text("")
+            (build / "command.log").write_text("\nexit=0\n")
+            (build / "build.csv").write_text("status\nbinding-rejected\n")
+            args = ["measure-cad.py", "runtime", "--checkout", str(root), "--source-head", "head",
+                    "--workload", "C1plate:preview", "--admission-note", str(note),
+                    "--build-run", str(build), "--output", str(root / "out")]
+            with patch.object(sys, "argv", args), patch.object(PERF, "git", return_value="head"), \
+                 patch.object(PERF, "binding", return_value=([], True)), \
+                 patch.object(PERF.browser_tools, "locate_chrome", side_effect=AssertionError("browser reached")), \
+                 patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                with self.assertRaises(SystemExit):
+                    PERF.main()
+                self.assertIn("build receipt", stderr.getvalue())
+
+    def test_selected_driver_controls_build_and_validation_prerequisites(self):
+        evidence = PERF.ROOT / ".evidence/011-prerequisite-test"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as directory:
+            root = Path(directory) / "checkout"
+            worker = root / "web/target/site/site-subpath/boardstudio/assets/cad-worker/entry.js"
+            worker.parent.mkdir(parents=True)
+            worker.touch()
+            receipt = Path(directory) / "receipt"
+            receipt.touch()
+            for action in ("build", "validate"):
+                with self.subTest(action=action):
+                    out = Path(directory) / f"{action}-rust"
+                    args = ["measure-cad.py", action, "--checkout", str(root), "--source-head", "head",
+                            "--driver", "rust", "--output", str(out)]
+                    args += (["--state", "noop"] if action == "build" else
+                             ["--workload", "C1plate:preview", "--artifact-receipt", str(receipt)])
+                    with patch.object(sys, "argv", args), patch.object(PERF, "git", return_value="head"), \
+                         patch.object(PERF, "binding", return_value=([], True)), \
+                         patch.object(PERF, "existing_artifacts", return_value="fixture"), \
+                         patch.object(PERF.browser_tools, "locate_chrome", return_value="/chrome"), \
+                         patch.object(PERF.browser_tools, "_build_harness", return_value=Path("/capture")), \
+                         patch.object(PERF, "capture", return_value=(1, 0)), \
+                         patch.object(PERF, "sizes"), patch.object(PERF.subprocess, "Popen") as process:
+                        process.return_value.wait.return_value = 0
+                        self.assertEqual(PERF.main(), 1 if action == "build" else 0)
+
+class MemorySamplingTests(unittest.TestCase):
+    def test_owned_rust_and_legacy_browsers_and_descendants_are_attributed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            proc = Path(directory)
+            processes = {
+                100: (1, [b"cad-capture"]),
+                101: (100, [b"chrome", b"--remote-debugging-port=0", b"--user-data-dir=/profile"]),
+                102: (101, [b"chrome", b"--type=renderer"]),
+                103: (100, [b"helper", b"--remote-debugging-port=123", b"--user-data-dir=/helper"]),
+                104: (100, [b"chrome", b"--remote-debugging-pipe"]),
+                105: (104, [b"chrome", b"--type=gpu-process"]),
+                106: (1, [b"chrome", b"--remote-debugging-port=0", b"--user-data-dir=/other"]),
+                107: (100, [b"chrome --remote-debugging-port=0 --user-data-dir=/profile"]),
+            }
+            for pid, (parent, command) in processes.items():
+                path = proc / str(pid)
+                path.mkdir()
+                (path / "stat").write_text(f"{pid} (process) S {parent} 0\n")
+                (path / "cmdline").write_bytes(b"\0".join(command) + b"\0")
+                (path / "smaps_rollup").write_text("Rss: 20 kB\nPss: 10 kB\n")
+            with patch.object(PERF, "Path", side_effect=lambda path: proc if str(path) == "/proc"
+                              else proc / str(path).removeprefix("/proc/")), \
+                    patch.object(PERF.os.path, "samefile", side_effect=lambda path, chrome: path in ("/proc/101/exe", "/proc/107/exe")):
+                rows = PERF.sample_tree(100, "/chosen/chrome")
+            self.assertEqual(rows, [(100, "controller", 10, 20, "ok"),
+                                    (101, "browser", 10, 20, "ok"),
+                                    (102, "browser", 10, 20, "ok"),
+                                    (103, "controller", 10, 20, "ok"),
+                                    (104, "browser", 10, 20, "ok"),
+                                    (105, "browser", 10, 20, "ok"),
+                                    (107, "browser", 10, 20, "ok")])
+
+
+class CaptureLockTests(unittest.TestCase):
+    def test_browser_capture_without_verified_browser_memory_is_invalid(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(PERF, "sample_tree", return_value=[(1, "controller", 1, 1, "ok")]):
+            code, _ = PERF.capture([sys.executable, "-c", "import time; time.sleep(.1)"],
+                                   PERF.ROOT, Path(directory), 10, dict(PERF.os.environ, CHROME_BIN="/wrapper"))
+            self.assertNotEqual(code, 0)
+            self.assertIn("browser memory attribution unavailable", Path(directory, "command.log").read_text())
+
+    def test_capture_inherits_build_lock_descriptor(self):
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryFile() as lock:
+            with patch.object(PERF.browser_tools, "_inherited_build_lock", return_value=lock.fileno()):
+                code, _ = PERF.capture([sys.executable, "-c", f"import os; os.fstat({lock.fileno()})"],
+                                       PERF.ROOT, Path(directory), 10)
+            self.assertEqual(code, 0, Path(directory, "command.log").read_text())
 
 
 class BuildBindingTests(unittest.TestCase):
@@ -81,6 +263,59 @@ class BuildBindingTests(unittest.TestCase):
         output.mkdir(exist_ok=True)
         PERF.summarize(inputs, output)
         return output
+
+    def test_page_capture_requires_successful_matching_build_receipt(self):
+        build = self.sample("page-build", state="noop")
+        capture = self.root / "page-capture"
+        capture.mkdir()
+        bound = (build / "binding-after.log").read_text()
+        (capture / "binding-before.log").write_text(bound)
+        (capture / "binding-after.log").write_text(bound)
+        PERF.validate_page_build_receipt(capture, build)
+        (capture / "binding-after.log").write_text(bound.replace("head=", "head=wrong"))
+        with self.assertRaisesRegex(ValueError, "drift"):
+            PERF.validate_page_build_receipt(capture, build)
+        (capture / "binding-after.log").write_text(bound)
+        (build / "build.csv").write_text("backend,profile,state,status\nmonstertruck,checked,noop,binding-rejected\n")
+        with self.assertRaisesRegex(ValueError, "build receipt"):
+            PERF.validate_page_build_receipt(capture, build)
+
+    def test_checked_receipt_requires_matching_successful_build_capture(self):
+        build = self.sample("checked-build", state="noop")
+        bound = (build / "binding-after.log").read_text()
+        receipt = self.root / "receipt.json"
+        record = {"schema_version": 1, "generated_by": "scripts/check.py",
+                  "source": {"revision": self.HEAD, "dirty": False, "local_changes": 0},
+                  "invocation": {"accepted": True, "exit_code": 0, "steps": ["build"],
+                                 "planned_commands": 1, "ran_commands": 1, "not_run_commands": []},
+                  "commands": [{"step": "build", "command": ["python3", "scripts/build-web.py", "--fast"],
+                                "status": "ran", "passed": True, "exit_code": 0}]}
+        receipt.write_text(json.dumps(record))
+        PERF.existing_artifacts(self.root, receipt, "checked", build, bound)
+        with self.assertRaisesRegex(ValueError, "match"):
+            PERF.existing_artifacts(self.root, receipt, "checked", build, bound.replace("head=", "head=wrong"))
+        record["commands"][0]["passed"] = False
+        receipt.write_text(json.dumps(record))
+        with self.assertRaisesRegex(ValueError, "successful"):
+            PERF.existing_artifacts(self.root, receipt, "checked", build, bound)
+
+    def test_u1_scope_rejects_identity_drift(self):
+        import zipfile
+        with zipfile.ZipFile(PERF.FIXTURES / "U1.boardstudio") as archive:
+            project = json.loads(archive.read("project.json"))
+        PERF.validate_u1_scope(project)
+        for key in ("id", "formatVersion", "revision"):
+            changed = dict(project, **{key: "wrong"})
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "U1 scope"):
+                PERF.validate_u1_scope(changed)
+        changed = json.loads(json.dumps(project))
+        changed["boards"][0]["id"] = "wrong"
+        with self.assertRaisesRegex(ValueError, "U1 scope"):
+            PERF.validate_u1_scope(changed)
+        changed = json.loads(json.dumps(project))
+        changed["boards"][0]["outlineIds"] = ["wrong"]
+        with self.assertRaisesRegex(ValueError, "U1 scope"):
+            PERF.validate_u1_scope(changed)
 
     def test_reduction_accepts_generated_outputs_and_exact_incremental_transition(self):
         inputs = [self.sample(f"{backend}-{state}", backend, state)
@@ -216,7 +451,7 @@ class BuildBindingTests(unittest.TestCase):
                         "--state", state, "--output", str(output)]
                 with patch.object(sys, "argv", argv), patch.object(PERF, "git", return_value=self.HEAD), \
                      patch.object(PERF, "binding", side_effect=[(before.splitlines(), False), (after.splitlines(), True)]), \
-                     patch.object(PERF.browser_tools, "locate"), patch.object(PERF, "sizes"), \
+                     patch.object(PERF.browser_tools, "locate_chrome"), patch.object(PERF, "sizes"), \
                      patch.object(PERF, "environment", return_value="controlled environment; diagnostic only\n"), \
                      patch.object(PERF, "capture", side_effect=controlled_capture):
                     result = PERF.main()
