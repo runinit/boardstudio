@@ -3,12 +3,12 @@
 Status: resolved
 Type: grilling
 Blocked by: [02](02-ergogen-anchor-and-mirror-semantics.md)
-Map: [map.md](../map.md) · Decision: [ADR-0034](../../../adr/0034-matrices-follow-ergogen-point-layout.md)
+Map: [map.md](../map.md) · Decision: [ADR-0036](../../../adr/0036-matrices-follow-ergogen-point-layout.md)
 
 ## Question
 
 A layout can hold several matrices, and a matrix can anchor its frame to a key of another
-matrix in the same layout, with shift, rotation and ergogen-style `affect` (ADR-0034). Decide:
+matrix in the same layout, with shift, rotation and ergogen-style `affect` (ADR-0036). Decide:
 
 - the stored anchor shape. How it composes is settled by the
   [kernel ticket](04-layout-kernel-order-of-operations.md#answer): world = anchor frame ·

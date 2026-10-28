@@ -43,6 +43,22 @@ class BrowserToolsTests(unittest.TestCase):
                 self.locate(*available, playwright=playwright)
             self.assertIn(expected, str(raised.exception))
 
+    def locate_chrome(self, *available, env=None):
+        with mock.patch.object(browser_tools.shutil, "which", side_effect=which(*available)), \
+                mock.patch.dict(browser_tools.os.environ, env or {}, clear=True):
+            return browser_tools.locate_chrome()
+
+    def test_chrome_only_probe_needs_no_node(self):
+        self.assertEqual(self.locate_chrome("chromium"), "/usr/bin/chromium")
+
+    def test_chrome_only_probe_honours_chrome_bin(self):
+        self.assertEqual(self.locate_chrome(env={"CHROME_BIN": "/opt/chrome"}), "/opt/chrome")
+
+    def test_chrome_only_probe_names_chrome_bin(self):
+        with self.assertRaises(browser_tools.MissingBrowserTool) as raised:
+            self.locate_chrome()
+        self.assertIn("CHROME_BIN", str(raised.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

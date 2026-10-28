@@ -3,12 +3,12 @@
 Status: resolved
 Type: grilling
 Blocked by: [04](04-layout-kernel-order-of-operations.md), [07](07-matrix-anchors.md), [08](08-uniform-pitch-consumers.md), [09](09-inspector-and-toolbar-prototype.md), [11](11-mirrored-halves-rules.md), [12](12-relations-and-highlight.md), [13](13-format-reset-and-recovery.md)
-Map: [map.md](../map.md) · Decision: [ADR-0034](../../../adr/0034-matrices-follow-ergogen-point-layout.md)
+Map: [map.md](../map.md) · Decision: [ADR-0036](../../../adr/0036-matrices-follow-ergogen-point-layout.md)
 
 ## Question
 
 Graduated from the map's Starters fog now that layout, anchors, editing and explanation
-semantics are settled. ADR-0034 requires rebuilding starters and fixtures under the new
+semantics are settled. ADR-0036 requires rebuilding starters and fixtures under the new
 format rather than migrating them. Decide:
 
 - which current bundled examples, starter/demo paths and fixture families must be rebuilt;

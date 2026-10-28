@@ -1,7 +1,7 @@
 # Ergogen parity fixture pipeline
 
 Date: 2026-10-22. Recommendation for ticket 03, based on the standing decisions in
-[ADR-0034](../adr/0034-matrices-follow-ergogen-point-layout.md) and the comparison and
+[ADR-0036](../adr/0036-matrices-follow-ergogen-point-layout.md) and the comparison and
 dependents reports ([comparison](2026-10-22-ergogen-layout-engine-comparison.md),
 [inventory](2026-10-22-matrix-layout-dependents-inventory.md)).
 
@@ -120,9 +120,9 @@ Reject running the full Ergogen CLI for fixture generation: the points parser is
 direct seam and the full package brings unrelated dependencies ([pinned package.json](https://github.com/ergogen/ergogen/blob/8286e18f18ac064aa6d2ebca9c449bf2f6ba4d37/package.json),
 [points.js](https://github.com/ergogen/ergogen/blob/8286e18f18ac064aa6d2ebca9c449bf2f6ba4d37/src/points.js)).
 Reject keeping the oracle only in an outside cache because that would not make the exact
-expected values reviewable or available to normal Rust tests; ADR-0034 requires committed
+expected values reviewable or available to normal Rust tests; ADR-0036 requires committed
 golden evidence. Reject deleting the old projection fixture because it records BoardStudio
-behavior beyond the new upstream parity cases ([ADR-0034](../adr/0034-matrices-follow-ergogen-point-layout.md),
+behavior beyond the new upstream parity cases ([ADR-0036](../adr/0036-matrices-follow-ergogen-point-layout.md),
 [existing fixture](../../core/tests/fixtures/matrix-projections.json)).
 
 ## Evidence run

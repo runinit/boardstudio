@@ -51,7 +51,7 @@ the stored gap, so saved boards open with byte-identical geometry; the adaptive 
 commit path (`layout::adapt_spacing`, after resolve, before the no-op check) brings every
 stored-gap pair to `max(stored gap, minimum)` in the same Undo entry, then re-resolves.
 
-- Minimum (ADR-0036): per-half envelope = enabled key cells (`pitch - edge gap` rects) plus
+- Minimum (ADR-0038): per-half envelope = enabled key cells (`pitch - edge gap` rects) plus
   the pair's own independent layout parts (courtyard, else keycap, else bare pose; members,
   companions and Utility excluded). `need = 4 * margin` with the widest PartEnvelope margin
   on the board (default 3.0 mm, prototype feel); the search starts at gap zero with the side

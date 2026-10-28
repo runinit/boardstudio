@@ -98,13 +98,25 @@ async function setSlider(page, name, target) {
     const saving = states.indexOf('saving', 1);
     return saving >= 0 && states.slice(saving + 1).includes('saved');
   }, null, { timeout: 20000 });
+  // page.waitForFunction resolves with the first poll's value for async
+  // predicates instead of waiting, so IndexedDB waits poll page.evaluate
+  // from Node until the predicate reads true. Same 20 s timeout semantics,
+  // same failure verdicts (non-zero exit, no receipt).
+  const waitForPageState = async (read, what, timeout = 20000) => {
+    const started = Date.now();
+    for (;;) {
+      if (await read()) return;
+      if (Date.now() - started > timeout) throw new Error(`Timed out waiting for ${what}`);
+      await page.waitForTimeout(100);
+    }
+  };
   const selectScope = async name => {
     const direct = page.getByRole('button', { name: `Select ${name}`, exact: true });
     if (await direct.isVisible().catch(() => false)) return direct.click();
     await page.locator('#m1-layout-select-trigger').click();
     await page.locator('#m1-layout-select-menu').getByRole('button', { name, exact: true }).click();
   };
-  const waitDocument = signature => page.waitForFunction(async ({ expected, database }) => {
+  const waitDocument = signature => waitForPageState(() => page.evaluate(async ({ expected, database }) => {
     const project = await new Promise((resolve, reject) => {
       const request = indexedDB.open(database);
       request.onerror = () => reject(request.error);
@@ -122,7 +134,7 @@ async function setSlider(page, name, target) {
         ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])]))
         : value;
     return JSON.stringify(canonical(project)) === expected;
-  }, { expected: signature, database: STORAGE_DATABASE }, { timeout: 20000 });
+  }, { expected: signature, database: STORAGE_DATABASE }), 'the expected saved document');
   const matrixState = (project, matrixId, row, column) => {
     const matrix = project.matrices.find(item => item.id === matrixId);
     assert.ok(matrix, `matrix ${matrixId} exists in the saved document`);
@@ -220,7 +232,7 @@ async function setSlider(page, name, target) {
     await startSaveTracking();
     await release();
     await waitForSaveCycle();
-    await page.waitForFunction(async ({ database, matrixId, row, column, expected, fields }) => {
+    await waitForPageState(() => page.evaluate(async ({ database, matrixId, row, column, expected, fields }) => {
       const project = await new Promise((resolve, reject) => {
         const request = indexedDB.open(database);
         request.onerror = () => reject(request.error);
@@ -245,7 +257,7 @@ async function setSlider(page, name, target) {
         origin: matrix.origin || { x: 0, y: 0 },
       };
       return fields.every(field => JSON.stringify(state[field]) !== JSON.stringify(expected[field]));
-    }, { database: STORAGE_DATABASE, ...identity, expected, fields: expectedFields }, { timeout: 20000 });
+    }, { database: STORAGE_DATABASE, ...identity, expected, fields: expectedFields }), 'the dragged matrix state');
     const durableAt = await page.evaluate(() => performance.now());
     const after = await doc();
     assert.notEqual(after.signature, before.signature, `${config.name}: edit was durably saved`);

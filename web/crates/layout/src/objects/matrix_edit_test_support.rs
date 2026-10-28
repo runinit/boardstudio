@@ -3,7 +3,8 @@
 #![cfg(all(test, target_arch = "wasm32"))]
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_core::model::{
-    Board, OutlineFeature, OutlineSettings, Part, Pose2, ProjectDoc, Side, Vec2,
+    Board, Follow, Layout, LayoutMirrorLink, MirroredCorrespondence, MirroredItemKind,
+    OutlineFeature, OutlineSettings, Part, PartAnchor, Pose2, ProjectDoc, Side, Vec2,
 };
 use std::rc::Rc;
 
@@ -89,6 +90,190 @@ pub fn matrix_document() -> ProjectDoc {
 pub async fn open_matrix_runtime() -> Rc<Runtime> {
     let runtime = support::new_runtime();
     support::open_document(&runtime, matrix_document()).await;
+    runtime
+}
+
+/// Ticket 07: the matrix document plus a layout homing the matrix and one
+/// anchored independent part (the MCU), following the split-board-editing
+/// column vocabulary: local Offset/Rotation plus the Spread and Stagger
+/// carried from anchor key r0c1.
+pub fn anchored_part(step: (f64, f64), anchored: bool, locked: bool) -> Part {
+    Part {
+        keycap: None,
+        outline: None,
+        id: "mcu".into(),
+        definition_id: "switch:base".into(),
+        reference: "U1".into(),
+        pose: Pose2 {
+            at: Vec2 { x: 60.0, y: 40.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        anchor: anchored.then(|| PartAnchor {
+            matrix_id: MATRIX_ID.into(),
+            row: 0,
+            column: 1,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            },
+            spread: step.0,
+            stagger: step.1,
+            splay: 0.0,
+            offset: Vec2::default(),
+            rotation: 0.0,
+        }),
+        locked: locked.then_some(true),
+        properties: None,
+        generator_parameters: None,
+    }
+}
+
+/// Ticket 07: one layout homing the matrix and the independent parts, so
+/// part anchor edits resolve.
+pub fn part_document(step: (f64, f64)) -> ProjectDoc {
+    let mut document = matrix_document();
+    document.boards[0].part_ids.push("mcu".into());
+    document.layouts.push(Layout {
+        id: "layout".into(),
+        name: "Layout".into(),
+        board_id: BOARD_ID.into(),
+        matrix_ids: vec![MATRIX_ID.into()],
+        part_ids: vec!["mcu".into()],
+        mirror_link: None,
+    });
+    document.parts.push(anchored_part(step, true, false));
+    document
+}
+
+pub async fn open_part_runtime(step: (f64, f64)) -> Rc<Runtime> {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, part_document(step)).await;
+    runtime
+}
+
+/// Ticket 07: the single-layout part document with a detached (and unlocked)
+/// MCU, for the detached rail.
+pub fn detached_part_document() -> ProjectDoc {
+    let mut document = part_document((0.0, 0.0));
+    let part = document
+        .parts
+        .iter_mut()
+        .find(|part| part.id == "mcu")
+        .expect("the mcu part");
+    part.anchor = None;
+    document
+}
+
+pub async fn open_detached_part_runtime() -> Rc<Runtime> {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, detached_part_document()).await;
+    runtime
+}
+
+/// Ticket 07: a mirrored pair whose halves each carry an anchored independent
+/// part, with a Part correspondence so a rail drag on one half fans out to
+/// the other per ADR-0038.
+pub fn part_pair_document() -> ProjectDoc {
+    let mut document = matrix_document();
+    document.boards[0].part_ids.push("mcu".into());
+    document.boards[0].part_ids.push("mcu-mirror".into());
+    document.matrices.push(
+        serde_json::from_value(serde_json::json!({
+            "id": "matrix-mirror",
+            "rows": 1,
+            "columns": 3,
+            "pitch": {"x": 19.05, "y": 19.05},
+            "origin": {"x": 0.0, "y": 0.0},
+            "definitionId": "switch:base",
+            "partIds": ["matrix/matrix-mirror/r0c0", "matrix/matrix-mirror/r0c1", "matrix/matrix-mirror/r0c2"],
+            "mirror": "x",
+            "boardId": BOARD_ID,
+            "cells": (0..3).map(|column| serde_json::json!({
+                "row": 0, "column": column, "enabled": true,
+                "definitionId": "switch:base", "assemblies": []
+            })).collect::<Vec<_>>()
+        }))
+        .unwrap(),
+    );
+    for (index, column) in [0, 1, 2].iter().enumerate() {
+        document.parts.push(Part {
+            keycap: None,
+            outline: None,
+            anchor: None,
+            id: format!("matrix/matrix-mirror/r0c{column}"),
+            definition_id: "switch:base".into(),
+            reference: format!("SW{}M", index + 1),
+            pose: Pose2 {
+                at: Vec2 {
+                    x: 19.05 * *column as f64,
+                    y: 0.0,
+                },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        });
+        document.boards[0]
+            .part_ids
+            .push(format!("matrix/matrix-mirror/r0c{column}"));
+    }
+    document.layouts.push(Layout {
+        id: "left".into(),
+        name: "Left".into(),
+        board_id: BOARD_ID.into(),
+        matrix_ids: vec![MATRIX_ID.into()],
+        part_ids: vec!["mcu".into()],
+        mirror_link: None,
+    });
+    document.layouts.push(Layout {
+        id: "right".into(),
+        name: "Right".into(),
+        board_id: BOARD_ID.into(),
+        matrix_ids: vec!["matrix-mirror".into()],
+        part_ids: vec!["mcu-mirror".into()],
+        mirror_link: Some(LayoutMirrorLink {
+            source_id: "left".into(),
+            axis_x: 40.0,
+            split_gap: Some(80.0),
+            spacing: None,
+            correspondences: vec![
+                MirroredCorrespondence {
+                    kind: MirroredItemKind::Matrix,
+                    source_id: MATRIX_ID.into(),
+                    mirror_id: "matrix-mirror".into(),
+                    companion_mode: None,
+                    companion_tweak: None,
+                },
+                MirroredCorrespondence {
+                    kind: MirroredItemKind::Part,
+                    source_id: "mcu".into(),
+                    mirror_id: "mcu-mirror".into(),
+                    companion_mode: None,
+                    companion_tweak: None,
+                },
+            ],
+            exceptions: vec![],
+        }),
+    });
+    let mut mcu = anchored_part((19.0, 0.0), true, false);
+    document.parts.push(mcu.clone());
+    mcu.id = "mcu-mirror".into();
+    mcu.reference = "U1M".into();
+    if let Some(anchor) = mcu.anchor.as_mut() {
+        anchor.matrix_id = "matrix-mirror".into();
+        anchor.spread = -19.0;
+    }
+    document.parts.push(mcu);
+    document
+}
+
+pub async fn open_part_pair_runtime() -> Rc<Runtime> {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, part_pair_document()).await;
     runtime
 }
 
