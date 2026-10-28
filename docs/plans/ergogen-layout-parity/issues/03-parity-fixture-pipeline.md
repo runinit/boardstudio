@@ -3,12 +3,12 @@
 Status: resolved
 Type: research
 Blocked by: none
-Map: [map.md](../map.md) · Decision: [ADR-0034](../../../adr/0036-matrices-follow-ergogen-point-layout.md)
+Map: [map.md](../map.md) · Decision: [ADR-0036](../../../adr/0036-matrices-follow-ergogen-point-layout.md)
 
 ## Question
 
 Parity is proven by golden fixtures generated from pinned upstream ergogen and asserted by Rust
-tests. Normal test runs need no Node and no ergogen (ADR-0034; the project rule that tests run
+tests. Normal test runs need no Node and no ergogen (ADR-0036; the project rule that tests run
 with standard tools).
 
 Find and recommend:
@@ -37,7 +37,7 @@ Find and recommend:
 ## Comments
 
 - 2026-10-22 (map owner): Keeping `matrix-projections.json` unchanged conflicts with the wipe
-  decision (ADR-0034, which replaces the old oracle). The new kernel changes custom-origin
+  decision (ADR-0036, which replaces the old oracle). The new kernel changes custom-origin
   geometry, so its expected poses cannot stay. Its BoardStudio-only cases (Y mirror, custom
   origins, saved poses) are re-expressed as regenerated extended-feature regressions; the
   TypeScript-captured values are not kept.

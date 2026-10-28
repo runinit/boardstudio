@@ -37,6 +37,9 @@ RUNNER_ENV = "BOARDSTUDIO_WASM_TEST_COMMAND"
 WASM_PACK = ["wasm-pack", "test", "--headless", "--chrome", "--mode", "no-install", "web",
              "--no-default-features", "--features", "page", "--bin", "boardstudio-web", "--"]
 CHROME_BINARIES = ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "chrome")
+CHROME_BIN_ENV = "CHROME_BIN"
+CFT_DIR_ENV = "BOARDSTUDIO_CFT_DIR"
+CFT_PIN_JSON = Path(__file__).with_name("chrome-for-testing.json")
 WEBDRIVER_CONFIG_ENV = "WASM_BINDGEN_TEST_WEBDRIVER_JSON"
 TEST_LINE = re.compile(r"^test (\S+) \.\.\. (ok|FAILED|FAIL)\b", re.M)
 INVOKED_LINE = re.compile(r"^\s*Invoking test: (\S+)", re.M)
@@ -179,23 +182,81 @@ def wasm_bindgen_dir(root=ROOT):
     return sorted(candidates)[-1]
 
 
+def pinned_cft_dir(env=None):
+    """Pinned Chrome-for-Testing install dir, or None when the pin cannot be read.
+
+    Explicit BOARDSTUDIO_CFT_DIR wins; otherwise the default cache path derived
+    from the version in scripts/chrome-for-testing.json. Never raises: an
+    unreadable pin simply means no pinned install.
+    """
+    src = os.environ if env is None else env
+    override = src.get(CFT_DIR_ENV) or os.environ.get(CFT_DIR_ENV)
+    if override:
+        return Path(override)
+    try:
+        version = json.loads(CFT_PIN_JSON.read_text())["version"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if not version:
+        return None
+    return Path(os.path.expanduser("~/.cache/boardstudio/chrome-for-testing")) / version
+
+
+def pinned_cft_binary(kind, env=None):
+    """Path to the pinned CfT `kind` binary ('chrome' or 'chromedriver'), or None."""
+    base = pinned_cft_dir(env)
+    if base is None:
+        return None
+    candidate = base / f"{kind}-linux64" / kind
+    return str(candidate) if candidate.is_file() else None
+
+
+def resolve_chromedriver(env=None):
+    """Explicit CHROMEDRIVER > pinned CfT install > PATH discovery."""
+    src = os.environ if env is None else env
+    if src.get("CHROMEDRIVER"):
+        return src["CHROMEDRIVER"]
+    pinned = pinned_cft_binary("chromedriver", src)
+    if pinned:
+        return pinned
+    return shutil.which("chromedriver")
+
+
+def resolve_chrome_binary(env=None):
+    """Explicit CHROME_BIN > pinned CfT install > PATH discovery."""
+    src = os.environ if env is None else env
+    if src.get(CHROME_BIN_ENV):
+        return src[CHROME_BIN_ENV]
+    pinned = pinned_cft_binary("chrome", src)
+    if pinned:
+        return pinned
+    for name in CHROME_BINARIES:
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+
 def runner_environment(root=ROOT):
     env = os.environ.copy()
     # Broad mounted batches exceed the runner's small per-invocation default.
     env.setdefault("WASM_BINDGEN_TEST_TIMEOUT", "120")
     # Test wasm without DWARF is about a seventh of the size, which is most of a launch.
     env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
-    driver = env.get("CHROMEDRIVER") or shutil.which("chromedriver")
+    driver = resolve_chromedriver(env)
     if not driver:
         raise RunnerError("chromedriver not found; install it (e.g. `pacman -S chromium`/`apt install chromium-driver`) "
                           "or set CHROMEDRIVER=/path/to/chromedriver")
-    if not any(shutil.which(name) for name in CHROME_BINARIES):
+    chrome = resolve_chrome_binary(env)
+    if not chrome:
         raise RunnerError("Chrome/Chromium not found on PATH; install google-chrome or chromium "
                           "(chromedriver needs a matching browser)")
     if not shutil.which("wasm-pack"):
         raise RunnerError("wasm-pack not found on PATH; install it with `cargo install wasm-pack`")
     env["CHROMEDRIVER"] = driver
+    env[CHROME_BIN_ENV] = chrome
     env["PATH"] = f"{wasm_bindgen_dir(root)}{os.pathsep}{env['PATH']}"
+    print(f"run-wasm-tests: chrome {chrome}; chromedriver {driver}", file=sys.stderr)
     return env
 
 
@@ -404,20 +465,44 @@ def all_module_selection(env, root=ROOT, depth=None, isolated=()):
 
 @contextmanager
 def desktop_webdriver_config(env, root=ROOT):
-    """Set a deterministic desktop Chrome viewport unless the caller supplied capabilities."""
+    """Set a deterministic desktop Chrome viewport unless the caller supplied capabilities.
+
+    A caller-supplied WASM_BINDGEN_TEST_WEBDRIVER_JSON is honored as-is. The
+    crate webdriver.json path and the generated temp config both get the
+    resolved chrome binary merged into goog:chromeOptions as "binary".
+    """
     env = dict(env)
     if env.get(WEBDRIVER_CONFIG_ENV):
         yield env
         return
+    chrome = resolve_chrome_binary(env)
     existing = next((path for path in (Path(root) / "web/webdriver.json", Path(root) / "webdriver.json")
                      if path.is_file()), None)
-    if existing:
+    if existing and chrome is None:
         env[WEBDRIVER_CONFIG_ENV] = str(existing.resolve())
         yield env
         return
+    try:
+        base = json.loads(existing.read_text()) if existing else {}
+    except (OSError, ValueError):
+        base = {}
+    if not isinstance(base, dict):
+        base = {}
+    options = base.get("goog:chromeOptions")
+    if not isinstance(options, dict):
+        options = {}
+        base["goog:chromeOptions"] = options
+    args = options.get("args")
+    if not isinstance(args, list):
+        args = []
+        options["args"] = args
+    if not any(isinstance(arg, str) and arg.startswith("--window-size=") for arg in args):
+        args.append("--window-size=1280,900")
+    if chrome is not None:
+        options["binary"] = chrome
     with TemporaryDirectory(prefix="boardstudio-wasm-webdriver-") as temporary:
         config = Path(temporary) / "webdriver.json"
-        config.write_text(json.dumps({"goog:chromeOptions": {"args": ["--window-size=1280,900"]}}))
+        config.write_text(json.dumps(base))
         env[WEBDRIVER_CONFIG_ENV] = str(config)
         yield env
 

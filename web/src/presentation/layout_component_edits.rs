@@ -654,8 +654,9 @@ pub fn part_anchor_follow_resolver(part_id: String, follow: Follow) -> EditResol
     )
 }
 
-/// Ticket 13: retarget the anchor key (or anchor a detached part) in one Undo
-/// entry via SetPartAnchor, keeping the pose.
+/// Ticket 13, retarget rule 04: retarget the anchor key (or anchor a
+/// detached part) in one Undo entry via SetPartAnchor. The stored values
+/// ride along, so the part moves to the fresh placement from the new key.
 pub fn part_anchor_pick_resolver(
     part_id: String,
     matrix_id: String,

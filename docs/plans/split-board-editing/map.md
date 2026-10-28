@@ -15,7 +15,7 @@ editable board during layout work. That means:
 
 ## Notes
 
-- Builds on ergogen-layout-parity (resolved), [ADR-0034](../../adr/0034-matrices-follow-ergogen-point-layout.md),
+- Builds on ergogen-layout-parity (resolved), [ADR-0036](../../adr/0036-matrices-follow-ergogen-point-layout.md),
   and tickets [09](../ergogen-layout-parity/issues/09-inspector-and-toolbar-prototype.md) /
   [12](../ergogen-layout-parity/issues/12-relations-and-highlight.md) /
   [24](../ergogen-layout-parity/issues/24-relations-and-highlights.md) decisions.
@@ -84,11 +84,11 @@ Build (from 08):
 - Round 3 Q13 (dim preserved): spacing adjust never changes focus/dim state — see [05](issues/05-decide-dim-and-focus-interaction.md).
 - 07 resolved (prototype approved): variant B. Spacing = max(stored gap, minimum) after every committed edit, both directions (supersedes Q1 "never auto re-spaces"). Parts keep half-local coordinates, cannot cross the split, controller mirrored by default, and parts use column-style anchor placement. The canvas shows selection anchors. Archived on `prototype/split-board-editing` — see [07](issues/07-prototype-split-editing-view.md).
 - 08 resolved: build sliced into 09–18 (frontier 09, 14, 15, 16) — see [08](issues/08-slice-the-build.md).
-- 09 resolved: per-half frame and stored Split gap contract ([ADR-0035](../../adr/0035-split-half-frame-and-stored-gap.md)); legacy boards open unchanged, first matrix-geometry edit adopts, gap change is one Undo — see [09](issues/09-split-half-frame-contract.md).
-- 10 resolved: Core adaptive spacing ([ADR-0036](../../adr/0036-adaptive-split-spacing-on-commit.md)): every committed edit brings stored-gap pairs to `max(stored gap, minimum)` in the same Undo; newly adopted legacy pairs space only when touching; no-op commits and creation untouched. Inspector split section + status line are web follow-ups — see [10](issues/10-adaptive-spacing-on-commit.md).
+- 09 resolved: per-half frame and stored Split gap contract ([ADR-0037](../../adr/0037-split-half-frame-and-stored-gap.md)); legacy boards open unchanged, first matrix-geometry edit adopts, gap change is one Undo — see [09](issues/09-split-half-frame-contract.md).
+- 10 resolved: Core adaptive spacing ([ADR-0038](../../adr/0038-adaptive-split-spacing-on-commit.md)): every committed edit brings stored-gap pairs to `max(stored gap, minimum)` in the same Undo; newly adopted legacy pairs space only when touching; no-op commits and creation untouched. Inspector split section + status line are web follow-ups — see [10](issues/10-adaptive-spacing-on-commit.md).
 - 11 resolved: adaptive gap at creation stores `max(requested, 40 mm default, ticket-10 minimum)` and the setup previews it before placement; anchored matrices stay legacy; existing boards untouched — see [11](issues/11-adaptive-gap-at-creation.md).
-- 12 resolved: parts live in the half frame ([ADR-0037](../../adr/0037-half-frame-parts-mirrored-controller.md)); drags clamp at the axis and commit through 10's spacing, new controllers mirror by Part correspondence, either copy edits both, and the Inspector toggle makes parts local — see [12](issues/12-half-frame-parts-and-mirrored-controller.md).
-- 13 resolved: parts anchor to a column-vocabulary anchor key ([ADR-0038](../../adr/0038-part-anchoring-column-vocabulary.md)); Follow X/Y/rotation, Pick/Detach with pose-preserving re-solves, Spread/Stagger/Splay carried and Offset/Rotation local, mirrored partners share values through the mapped counterpart, and drops auto-anchor to the nearest key of their half — see [13](issues/13-part-anchoring-column-vocabulary.md).
+- 12 resolved: parts live in the half frame ([ADR-0039](../../adr/0039-half-frame-parts-mirrored-controller.md)); drags clamp at the axis and commit through 10's spacing, new controllers mirror by Part correspondence, either copy edits both, and the Inspector toggle makes parts local — see [12](issues/12-half-frame-parts-and-mirrored-controller.md).
+- 13 resolved: parts anchor to a column-vocabulary anchor key ([ADR-0040](../../adr/0040-part-anchoring-column-vocabulary.md)); Follow X/Y/rotation, Pick/Detach with pose-preserving re-solves, Spread/Stagger/Splay carried and Offset/Rotation local, mirrored partners share values through the mapped counterpart, and drops auto-anchor to the nearest key of their half — see [13](issues/13-part-anchoring-column-vocabulary.md).
 - 18 resolved: ghost of the previous spacing is view-only Editor state (pure tracker in ui-model, no Core/session changes): dashed grey pre-commit keys with a `+N mm` / `−N mm` axis note after widening and narrowing, retiring on next edit, undo/redo, or selection change; drag previews pre-empt it, and the view refit is proven by exact viewBox-vs-bounds equality — see [18](issues/18-spacing-change-ghost.md).
 
 ## Not yet specified (fog)

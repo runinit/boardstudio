@@ -2658,6 +2658,278 @@ pub(crate) fn move_pair_part(
     Ok(Some(vec![part_id.to_string(), partner_id]))
 }
 
+/// Ticket 07: set a detached independent part's board rotation, fanning out
+/// to a mirrored partner in the same Undo entry. Either copy is the
+/// authority: the partner takes the reflected half-frame heading per the
+/// shared mirrored-part rule. Locked, member/companion, anchored and
+/// constraint-driven parts refuse; the caller checks finiteness.
+pub(crate) fn set_detached_part_rotation(
+    doc: &mut ProjectDoc,
+    part_id: &str,
+    rotation: f64,
+) -> Result<Vec<String>, String> {
+    if !rotation.is_finite() {
+        return Err("Part rotation must be finite".into());
+    }
+    let Some(index) = doc.parts.iter().position(|part| part.id == part_id) else {
+        return Err(format!("Unknown part {part_id}"));
+    };
+    if doc.parts[index].locked == Some(true) {
+        return Err(format!("Part {part_id} is locked"));
+    }
+    if is_member_or_companion(doc, part_id) {
+        return Err(format!(
+            "Part {part_id} follows its matrix and cannot rotate"
+        ));
+    }
+    if doc.parts[index].anchor.is_some() {
+        return Err(format!(
+            "Part {part_id} is anchored; use SetPartAnchorValues"
+        ));
+    }
+    if doc.constraint_driving_part(part_id)?.is_some() {
+        return Err(format!(
+            "Part {part_id} is driven by a constraint and cannot rotate"
+        ));
+    }
+    // Board rotation is frame-free, so the stored rotation matches.
+    let current_board = evaluated_part_pose(doc, &doc.parts[index].clone()).rotation;
+    let turn = rotation - current_board;
+    // Correspondence-mirrored part on a stored-gap pair writes both copies,
+    // so either copy edits both.
+    if let Some((_, record)) = part_correspondence(doc, part_id) {
+        let layout_id = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.part_ids.iter().any(|id| id == part_id))
+            .map(|layout| layout.id.clone());
+        if let Some(layout_id) = layout_id
+            && let Some((_, _, _, gapped)) = pair_sides(doc, &layout_id)
+            && gapped
+        {
+            let partner_id = if record.source_id == part_id {
+                record.mirror_id.clone()
+            } else {
+                record.source_id.clone()
+            };
+            if doc.parts.iter().all(|part| part.id != partner_id) {
+                return Err("Mirrored part is missing".into());
+            }
+            let stored = stored_part_pose(
+                doc,
+                part_id,
+                Pose2 {
+                    at: evaluated_part_pose(doc, &doc.parts[index].clone()).at,
+                    rotation,
+                },
+            );
+            let partner_pose = reflect_half_part(doc, part_id, stored);
+            let partner_old = doc
+                .parts
+                .iter()
+                .find(|part| part.id == partner_id)
+                .map(|part| evaluated_part_pose(doc, part).rotation)
+                .unwrap_or(0.0);
+            retune_driven_constraint(
+                doc,
+                part_id,
+                Pose2 {
+                    at: evaluated_part_pose(doc, &doc.parts[index].clone()).at,
+                    rotation,
+                },
+                Some(turn),
+            )?;
+            let partner_at = evaluated_part_pose(
+                doc,
+                doc.parts
+                    .iter()
+                    .find(|part| part.id == partner_id)
+                    .expect("partner checked"),
+            )
+            .at;
+            retune_driven_constraint(
+                doc,
+                &partner_id,
+                Pose2 {
+                    at: partner_at,
+                    rotation: partner_pose.rotation,
+                },
+                Some(partner_pose.rotation - partner_old),
+            )?;
+            if let Some(part) = doc.parts.iter_mut().find(|part| part.id == part_id) {
+                part.pose = stored;
+            } else {
+                return Err(format!("Unknown part {part_id}"));
+            }
+            if let Some(partner) = doc.parts.iter_mut().find(|part| part.id == partner_id) {
+                partner.pose = partner_pose;
+            }
+            return Ok(vec![part_id.to_string(), partner_id]);
+        }
+    }
+    // Legacy property-linked copy: editing the mirror copy back-drives the
+    // source so the resolve sync keeps both. Editing the source relies on the
+    // post-apply component sync for the partner.
+    if let Some(target) = doc.parts.iter().find(|part| part.id == part_id).cloned()
+        && let Some(properties) = target.properties.as_ref()
+        && let Some(source_id) = properties
+            .get(MIRRORED_COMPONENT_SOURCE)
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string)
+        && !properties
+            .get(MIRRORED_COMPONENT_SUBSTITUTE)
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+    {
+        let Some(source_layout) = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.part_ids.contains(&source_id))
+            .cloned()
+        else {
+            // Orphaned link: write the edited copy alone; sync cleans up.
+            let board_at = evaluated_part_pose(
+                doc,
+                doc.parts
+                    .iter()
+                    .find(|part| part.id == part_id)
+                    .expect("edited part checked"),
+            )
+            .at;
+            let stored = stored_part_pose(
+                doc,
+                part_id,
+                Pose2 {
+                    at: board_at,
+                    rotation,
+                },
+            );
+            if let Some(part) = doc.parts.iter_mut().find(|part| part.id == part_id) {
+                part.pose = stored;
+            }
+            return Ok(vec![part_id.to_string()]);
+        };
+        let Some(target_layout) = doc.layouts.iter().find(|layout| {
+            layout
+                .mirror_link
+                .as_ref()
+                .is_some_and(|link| link.source_id == source_layout.id)
+        }) else {
+            let board_at = evaluated_part_pose(
+                doc,
+                doc.parts
+                    .iter()
+                    .find(|part| part.id == part_id)
+                    .expect("edited part checked"),
+            )
+            .at;
+            let stored = stored_part_pose(
+                doc,
+                part_id,
+                Pose2 {
+                    at: board_at,
+                    rotation,
+                },
+            );
+            if let Some(part) = doc.parts.iter_mut().find(|part| part.id == part_id) {
+                part.pose = stored;
+            }
+            return Ok(vec![part_id.to_string()]);
+        };
+        let axis_x = target_layout
+            .mirror_link
+            .as_ref()
+            .map(|link| link.axis_x)
+            .unwrap_or(0.0);
+        let is_controller = doc.definitions.iter().any(|definition| {
+            definition.id == target.definition_id && definition.kind == PartKind::Controller
+        });
+        let axis_mapping = Pose2 {
+            at: Vec2 {
+                x: 2.0 * axis_x,
+                y: 0.0,
+            },
+            rotation: 0.0,
+        };
+        let source_rotation =
+            crate::mechanical::pair::mirrored_part_heading(is_controller, axis_mapping, rotation);
+        let source_board = evaluated_part_pose(
+            doc,
+            doc.parts
+                .iter()
+                .find(|part| part.id == source_id)
+                .ok_or("Mirrored component source is missing")?,
+        );
+        retune_driven_constraint(
+            doc,
+            part_id,
+            Pose2 {
+                at: evaluated_part_pose(doc, &target).at,
+                rotation,
+            },
+            Some(turn),
+        )?;
+        retune_driven_constraint(
+            doc,
+            &source_id,
+            Pose2 {
+                at: source_board.at,
+                rotation: source_rotation,
+            },
+            Some(
+                source_rotation
+                    - doc
+                        .parts
+                        .iter()
+                        .find(|part| part.id == source_id)
+                        .map(|part| evaluated_part_pose(doc, part).rotation)
+                        .unwrap_or(source_rotation),
+            ),
+        )?;
+        set_component_pose(
+            doc,
+            &source_id,
+            Pose2 {
+                at: source_board.at,
+                rotation: source_rotation,
+            },
+        )?;
+        let edited_at = evaluated_part_pose(doc, &target).at;
+        let stored = stored_part_pose(
+            doc,
+            part_id,
+            Pose2 {
+                at: edited_at,
+                rotation,
+            },
+        );
+        if let Some(part) = doc.parts.iter_mut().find(|part| part.id == part_id) {
+            part.pose = stored;
+        }
+        return Ok(vec![part_id.to_string(), source_id]);
+    }
+    retune_driven_constraint(
+        doc,
+        part_id,
+        Pose2 {
+            at: evaluated_part_pose(doc, &doc.parts[index].clone()).at,
+            rotation,
+        },
+        Some(turn),
+    )?;
+    let board = evaluated_part_pose(doc, &doc.parts[index].clone());
+    let stored = stored_part_pose(
+        doc,
+        part_id,
+        Pose2 {
+            at: board.at,
+            rotation,
+        },
+    );
+    doc.parts[index].pose = stored;
+    Ok(vec![part_id.to_string()])
+}
+
 /// Ticket 12: drop Part correspondences naming any removed part, so removal
 /// of a mirrored copy (or its source) never leaves a dangling record behind.
 pub(crate) fn retire_part_correspondences(doc: &mut ProjectDoc, ids: &[String]) {
