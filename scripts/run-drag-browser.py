@@ -21,7 +21,6 @@ import browser_tools  # noqa: E402  (needs the scripts directory on sys.path)
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "web/target/site"
-SCRIPT = ROOT / "scripts/test-drag-interactions.cjs"
 RESULTS = ROOT / "web/target/test-results/drag-browser"
 
 
@@ -112,16 +111,25 @@ def build_harness() -> None:
 
 
 def main() -> int:
+    try:
+        browser_tools.validate_drag_driver()
+    except browser_tools.MissingBrowserTool as error:
+        raise SystemExit(str(error))
     index = SITE / "site-subpath/boardstudio/index.html"
     if not index.is_file():
         raise SystemExit(f"drag browser smoke needs a built site; run `python3 scripts/check.py build` first ({index} missing)")
     try:
+<<<<<<< HEAD
         if drag_driver() == "rust":
             chrome = browser_tools.locate_chrome()
             node = None
             build_harness()
         else:
             node, chrome = browser_tools.locate()
+=======
+        chrome = browser_tools.locate_chrome()
+        binary = browser_tools.build_drag_harness()
+>>>>>>> c1dbd3019 (tooling: default the drag smoke to the Rust harness, retire the Node path)
     except browser_tools.MissingBrowserTool as error:
         raise SystemExit(str(error))
 
@@ -151,17 +159,24 @@ def main() -> int:
         "BOARDSTUDIO_DRAG_SOURCE_SHA256": source_hash,
         "BOARDSTUDIO_DRAG_BUILD_SHA256": build_hash,
         "BOARDSTUDIO_DRAG_REPO_ROOT": str(ROOT),
+<<<<<<< HEAD
         "BOARDSTUDIO_DRAG_DRIVER": drag_driver(),
+=======
+>>>>>>> c1dbd3019 (tooling: default the drag smoke to the Rust harness, retire the Node path)
     })
     try:
         with urlopen(url, timeout=5) as response:
             if response.status != 200:
                 raise RuntimeError(f"preview returned HTTP {response.status}")
+<<<<<<< HEAD
         if drag_driver() == "rust":
             command = [str(HARNESS_BIN)]
         else:
             assert node is not None
             command = [node, str(SCRIPT)]
+=======
+        command = [str(binary)]
+>>>>>>> c1dbd3019 (tooling: default the drag smoke to the Rust harness, retire the Node path)
         run_log = run_dir / "run.log"
         with run_log.open("w") as output:
             process = subprocess.Popen(command, cwd=ROOT, env=environment, stdout=subprocess.PIPE,
