@@ -1077,7 +1077,10 @@ mod tests {
             "Page.loadEventFired",
             "Browser.downloadWillBegin",
         ] {
-            assert!(required_cdp_method(method), "{method} is used, must be required");
+            assert!(
+                required_cdp_method(method),
+                "{method} is used, must be required"
+            );
             assert_eq!(classify_invalid(method), InvalidKind::Required);
         }
         for method in [
@@ -1085,7 +1088,10 @@ mod tests {
             "Network.responseReceivedExtraInfo",
             "Audits.issueAdded",
         ] {
-            assert!(!required_cdp_method(method), "{method} is unused, must be benign");
+            assert!(
+                !required_cdp_method(method),
+                "{method} is unused, must be benign"
+            );
             assert_eq!(classify_invalid(method), InvalidKind::Benign);
         }
         // An event we cannot even name fails loud, never green.
