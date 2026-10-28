@@ -12,8 +12,7 @@ partner still reflects exactly. This is the saved-document contract that tickets
 10–13 build on; it decides storage and evaluation only, not spacing policy.
 
 On 2026-10-25 the user approved the split editing prototype
-([ticket 07](../plans/split-board-editing/issues/07-prototype-split-editing-view.md),
-variant B) whose document model stores parts and keys in half-local coordinates
+(ticket 07, variant B) whose document model stores parts and keys in half-local coordinates
 while a separate display offset positions each half. This ADR records the Core
 half of that model for matrices; independent parts stay board-absolute until
 ticket 12 moves them into the half frame.
@@ -22,7 +21,7 @@ ticket 12 moves them into the half frame.
   key-edge distance between the halves, measured at the half-origin column
   (`2 * (axisX - origin.x) - (pitch.x - edgeGap.x)`). It is set at mirrored-pair
   creation to `max(requested placement, 40 mm default, ticket-10 minimum)`
-  ([ticket 11](../plans/split-board-editing/issues/11-adaptive-gap-at-creation.md))
+  (ticket 11)
   and changes through one typed `set-split-gap` edit (or an equivalent
   `SetLayout`), each a single Undo entry.
   The edit refuses a non-finite or negative gap; storage itself only requires a

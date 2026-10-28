@@ -31,7 +31,7 @@ The first-build parity claim excludes aggregate anchors explicitly, not silently
 
 ## Notes
 
-- Decision record: [ADR-0034](../../adr/0034-matrices-follow-ergogen-point-layout.md). Earlier
+- Decision record: [ADR-0034](../../adr/0036-matrices-follow-ergogen-point-layout.md). Earlier
   contract: [ADR-0007](../../adr/0007-matrix-gestures-edit-named-parameters.md).
 - Evidence:
   - [Ergogen comparison](../../research/2026-10-22-ergogen-layout-engine-comparison.md), with
@@ -274,7 +274,7 @@ every UI wiring follow-up is integrated and no further tickets are planned.
 - **Aggregate anchors.** The user explicitly deferred average/intersection anchors on
   2026-10-23. This build covers accepted parameters and single-key anchors, not complete
   Ergogen points coverage. Future aggregate support needs its own representation,
-  evaluation/degenerate-case and UI decisions; see [ADR-0034](../../adr/0034-matrices-follow-ergogen-point-layout.md).
+  evaluation/degenerate-case and UI decisions; see [ADR-0034](../../adr/0036-matrices-follow-ergogen-point-layout.md).
 
 ## Out of scope
 

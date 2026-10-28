@@ -4,7 +4,7 @@ status: accepted
 
 # Parts anchor with the column vocabulary; mirrors share values through a mapped target
 
-Ticket 13 ([13-part-anchoring-column-vocabulary](../plans/split-board-editing/issues/13-part-anchoring-column-vocabulary.md))
+Ticket 13 (13-part-anchoring-column-vocabulary)
 gives independent parts the ticket-07 column vocabulary: an anchor key with a
 Follow subset, Spread/Stagger/Splay carried from that anchor, and Offset/
 Rotation for the part alone. A part whose anchor key belongs to its own
@@ -26,8 +26,7 @@ Detached parts keep ticket-12 behavior exactly.
   and local values from the current evaluated pose, each in one Undo entry.
   Pick (`SetPartAnchor`) instead keeps the stored carried and local values and
   places the part freshly from the new anchor key (target and Follow subset
-  come from the Pick), so the part moves — see the layout-controls-polish
-  [re-anchor decision](../plans/layout-controls-polish/issues/04-re-anchor-moves.md).
+  come from the Pick), so the part moves per the layout-controls-polish re-anchor decision (ticket 04).
   Typed value edits (`SetPartAnchorValues`), drops and drags move the part by
   design: a drag re-solves Spread/Stagger from the clamped drop, keeping
   rotation; typed X/Y edits start from the evaluated pose for anchored parts.

@@ -3,7 +3,7 @@
 Status: resolved
 Type: grilling
 Blocked by: [04](04-layout-kernel-order-of-operations.md), [07](07-matrix-anchors.md), [08](08-uniform-pitch-consumers.md), [09](09-inspector-and-toolbar-prototype.md), [11](11-mirrored-halves-rules.md), [12](12-relations-and-highlight.md), [13](13-format-reset-and-recovery.md)
-Map: [map.md](../map.md) · Decision: [ADR-0034](../../../adr/0034-matrices-follow-ergogen-point-layout.md)
+Map: [map.md](../map.md) · Decision: [ADR-0034](../../../adr/0036-matrices-follow-ergogen-point-layout.md)
 
 ## Question
 

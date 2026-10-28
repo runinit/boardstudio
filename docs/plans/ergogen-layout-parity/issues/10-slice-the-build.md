@@ -3,7 +3,7 @@
 Status: resolved
 Type: task
 Blocked by: [01](01-name-the-carried-parameters.md), [02](02-ergogen-anchor-and-mirror-semantics.md), [03](03-parity-fixture-pipeline.md), [04](04-layout-kernel-order-of-operations.md), [05](05-this-column-splay-representation.md), [06](06-origin-edits-hold-keys-still.md), [07](07-matrix-anchors.md), [08](08-uniform-pitch-consumers.md), [09](09-inspector-and-toolbar-prototype.md), [11](11-mirrored-halves-rules.md), [12](12-relations-and-highlight.md), [13](13-format-reset-and-recovery.md), [14](14-starters-and-demos.md)
-Map: [map.md](../map.md) · Decision: [ADR-0034](../../../adr/0034-matrices-follow-ergogen-point-layout.md)
+Map: [map.md](../map.md) · Decision: [ADR-0034](../../../adr/0036-matrices-follow-ergogen-point-layout.md)
 
 ## Question
 
