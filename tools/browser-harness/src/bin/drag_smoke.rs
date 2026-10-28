@@ -1,10 +1,13 @@
 //! Real-page drag smoke driven by the Rust browser harness.
 //!
-//! A faithful port of `scripts/test-drag-interactions.cjs`: trusted pointer
+//! A faithful port of the historical `docs/archive/playwright-runners/test-drag-interactions.cjs`: trusted pointer
 //! drags over Part, Column, Stagger and Ctrl+Offset handles, live preview,
 //! pointer capture, durable saves, exact Undo/reload, collision observations
 //! and receipt/provenance validation. The old runner stays available for
 //! same-build comparison until the parity gate passes.
+
+#[path = "../shutdown.rs"]
+mod shutdown;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -20,6 +23,32 @@ const STORAGE_DATABASE: &str = "boardstudio-m1-boardstudio";
 
 fn fail(message: impl Into<String>) -> Error {
     Error::new(message)
+}
+
+fn scenario_verdict(outcome: Result<()>, disposal: Result<()>) -> Result<()> {
+    match (outcome, disposal) {
+        (Err(scenario), Err(disposal)) => Err(fail(format!("{scenario}; {disposal}"))),
+        (Err(error), _) | (_, Err(error)) => Err(error),
+        (Ok(()), Ok(())) => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod scenario_verdict_tests {
+    use super::*;
+
+    #[test]
+    fn disposal_failure_fails_and_preserves_scenario_failure() {
+        assert!(scenario_verdict(Ok(()), Err(fail("disposal"))).is_err());
+        let error = scenario_verdict(Err(fail("scenario")), Err(fail("disposal")))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("scenario") && error.contains("disposal"),
+            "{error}"
+        );
+        assert!(scenario_verdict(Ok(()), Ok(())).is_ok());
+    }
 }
 
 fn signature_of(value: &Value) -> String {
@@ -989,8 +1018,8 @@ async fn collision_scenario(
     let scenario_started = Instant::now();
     let (context, page) = driver::new_isolated_page(browser, "about:blank", errors).await?;
     let outcome = collision_scenario_inner(&page, url, checks, scenario_started).await;
-    driver::dispose_isolated_page(browser, context).await.ok();
-    outcome
+    let disposal = driver::dispose_isolated_page(browser, Some(context), page, errors).await;
+    scenario_verdict(outcome, disposal)
 }
 
 async fn goto(page: &Page, url: &str, what: &str) -> Result<()> {
@@ -1008,7 +1037,7 @@ async fn collision_scenario_inner(
     scenario_started: Instant,
 ) -> Result<()> {
     goto(page, url, "opening the preview").await?;
-    driver::click_role(page, None, "button", "Create new keyboard").await?;
+    driver::create_new_keyboard(page).await?;
     driver::click_role(page, None, "button", "Continue to layout").await?;
     set_slider(page, "Rows", 2).await?;
     set_slider(page, "Columns", 2).await?;
@@ -1194,7 +1223,7 @@ async fn qualification_scenario(
     unavailable_pcb: bool,
 ) -> Result<()> {
     let (context, page) = driver::new_isolated_page(browser, "about:blank", errors).await?;
-    let outcome =
+    let mut outcome =
         qualification_scenario_inner(&page, url, repo_root, checks, unavailable_pcb).await;
     if let Err(error) = &outcome {
         if let Ok(Value::String(body)) = driver::eval(
@@ -1204,12 +1233,11 @@ async fn qualification_scenario(
         .await
         {
             let mounted: String = body.chars().take(4000).collect();
-            driver::dispose_isolated_page(browser, context).await.ok();
-            return Err(fail(format!("{error}\nMounted page: {mounted}")));
+            outcome = Err(fail(format!("{error}\nMounted page: {mounted}")));
         }
     }
-    driver::dispose_isolated_page(browser, context).await.ok();
-    outcome
+    let disposal = driver::dispose_isolated_page(browser, Some(context), page, errors).await;
+    scenario_verdict(outcome, disposal)
 }
 
 async fn qualification_scenario_inner(
@@ -1238,7 +1266,7 @@ async fn qualification_scenario_inner(
     .await
     .map_err(|error| fail(format!("cannot install the worker observer: {error}")))?;
     goto(page, url, "opening the preview").await?;
-    driver::click_role(page, None, "button", "Create new keyboard").await?;
+    driver::create_new_keyboard(page).await?;
     driver::click_role(page, None, "button", "Continue to layout").await?;
     saved(page).await?;
     let rewrite = format!(
@@ -1660,7 +1688,7 @@ async fn drag_scenarios(smoke: &mut Smoke) -> Result<()> {
         "opening the preview",
     )
     .await?;
-    driver::click_role(&page, None, "button", "Create new keyboard").await?;
+    driver::create_new_keyboard(&page).await?;
     driver::click_role(&page, None, "button", "Split keyboard").await?;
     driver::click_role(&page, None, "button", "Continue to layout").await?;
     set_slider(&page, "Rows", 10).await?;
@@ -1917,85 +1945,104 @@ async fn run() -> Result<usize> {
     })?;
     let (browser, handler) = driver::launch_chrome(&chrome, &dirs).await?;
     let handler_errors = Arc::new(HandlerErrors::new());
-    let drain = driver::spawn_handler_drain(handler, Arc::clone(&handler_errors));
     let page_errors = Arc::new(PageErrors::new());
-    let version = tokio::time::timeout(Duration::from_secs(60), browser.version())
-        .await
-        .map_err(|_| fail("cannot read the browser version: timed out after 60s"))?
-        .map_err(|error| fail(format!("cannot read the browser version: {error}")))?;
-    let product = version.product;
-    // Playwright reports the bare version; strip any `Chrome/` product prefix.
-    let browser_version = product.rsplit('/').next().unwrap_or(&product).to_owned();
-    println!("drag-smoke: browser {browser_version} (chromiumoxide 0.9.1)");
-
-    // Every launch-path await carries a bound: a wedged browser must fail
-    // loudly, never hang the smoke past its step timeout.
-    let page = tokio::time::timeout(Duration::from_secs(60), browser.new_page("about:blank"))
-        .await
-        .map_err(|_| fail("cannot open a page: timed out after 60s"))?
-        .map_err(|error| fail(format!("cannot open a page: {error}")))?;
-    tokio::time::timeout(
-        Duration::from_secs(60),
-        driver::spawn_page_error_listener(&page, Arc::clone(&page_errors)),
-    )
-    .await
-    .map_err(|_| fail("cannot listen for page errors: timed out after 60s"))??;
-    let mut smoke = Smoke {
-        page,
-        checks: Vec::new(),
-    };
-
+    let drain = driver::spawn_handler_drain(
+        handler,
+        Arc::clone(&handler_errors),
+        Arc::clone(&page_errors),
+    );
     let outcome = async {
-        drag_scenarios(&mut smoke).await?;
-        collision_scenario(&browser, &preview_url, &page_errors, &mut smoke.checks).await?;
-        qualification_scenario(
-            &browser,
-            &preview_url,
-            &repo_root,
-            &page_errors,
-            &mut smoke.checks,
-            false,
+        let version = tokio::time::timeout(Duration::from_secs(60), browser.version())
+            .await
+            .map_err(|_| fail("cannot read the browser version: timed out after 60s"))?
+            .map_err(|error| fail(format!("cannot read the browser version: {error}")))?;
+        let product = version.product;
+        // Playwright reports the bare version; strip any `Chrome/` product prefix.
+        let browser_version = product.rsplit('/').next().unwrap_or(&product).to_owned();
+        println!("drag-smoke: browser {browser_version} (chromiumoxide 0.9.1)");
+
+        // Every launch-path await carries a bound: a wedged browser must fail
+        // loudly, never hang the smoke past its step timeout.
+        let page = tokio::time::timeout(Duration::from_secs(60), browser.new_page("about:blank"))
+            .await
+            .map_err(|_| fail("cannot open a page: timed out after 60s"))?
+            .map_err(|error| fail(format!("cannot open a page: {error}")))?;
+        tokio::time::timeout(
+            Duration::from_secs(60),
+            driver::spawn_page_error_listener(&page, Arc::clone(&page_errors)),
         )
-        .await?;
-        qualification_scenario(
-            &browser,
-            &preview_url,
-            &repo_root,
-            &page_errors,
-            &mut smoke.checks,
-            true,
-        )
-        .await?;
-        Ok::<(), Error>(())
+        .await
+        .map_err(|_| fail("cannot listen for page errors: timed out after 60s"))??;
+        let mut smoke = Smoke {
+            page,
+            checks: Vec::new(),
+        };
+
+        let scenarios = async {
+            drag_scenarios(&mut smoke).await?;
+            collision_scenario(&browser, &preview_url, &page_errors, &mut smoke.checks).await?;
+            qualification_scenario(
+                &browser,
+                &preview_url,
+                &repo_root,
+                &page_errors,
+                &mut smoke.checks,
+                false,
+            )
+            .await?;
+            qualification_scenario(
+                &browser,
+                &preview_url,
+                &repo_root,
+                &page_errors,
+                &mut smoke.checks,
+                true,
+            )
+            .await?;
+            if smoke.checks.len() < 11 {
+                return Err(fail(format!(
+                    "smoke completed all drag, cancellation, Undo and collision checks: saw {}",
+                    smoke.checks.len()
+                )));
+            }
+            Ok::<_, Error>(())
+        }
+        .await;
+        let disposal =
+            driver::dispose_isolated_page(&browser, None, smoke.page, &page_errors).await;
+        scenario_verdict(scenarios, disposal)?;
+        Ok::<_, Error>((browser_version, smoke.checks))
     }
     .await;
-    if let Err(error) = outcome {
-        drain.abort();
-        // probe_dbg_panic: surface captured page errors alongside the failure.
-        for message in page_errors.messages().iter().take(5) {
-            println!(
-                "probe_dbg_panic: page error: {}",
-                message.chars().take(2000).collect::<String>()
-            );
-        }
-        // Protocol failures are never masked by the check failure they accompany.
-        handler_errors.fail_if_any()?;
-        return Err(error);
+    let (shutdown, confirmed) =
+        shutdown::finish_browser(browser, drain, &handler_errors, outcome.is_ok()).await;
+    let cleanup = if confirmed {
+        shutdown::remove_profile(&dirs)
+    } else {
+        Ok(())
+    };
+    if !confirmed {
+        eprintln!(
+            "browser termination unconfirmed; preserving profile at {}",
+            dirs.profile_dir.display()
+        );
+        std::mem::forget(dirs);
     }
-
-    if smoke.checks.len() < 11 {
-        drain.abort();
-        return Err(fail(format!(
-            "smoke completed all drag, cancellation, Undo and collision checks: saw {}",
-            smoke.checks.len()
-        )));
+    let page = page_errors.fail_if_any();
+    let errors: Vec<String> = [
+        outcome.as_ref().err(),
+        shutdown.as_ref().err(),
+        page.as_ref().err(),
+        cleanup.as_ref().err(),
+    ]
+    .into_iter()
+    .flatten()
+    .map(ToString::to_string)
+    .collect();
+    if !errors.is_empty() {
+        return Err(fail(errors.join("; ")));
     }
-    page_errors.fail_if_any()?;
-    handler_errors.fail_if_any()?;
-    drop(browser);
-    drain.abort();
-    // The profile is process-owned; remove what remains after the browser exits.
-    std::fs::remove_dir_all(&dirs.profile_dir).ok();
+    let (browser_version, checks) = outcome?;
 
     let receipt = Receipt {
         schema_version: 1,
@@ -2010,8 +2057,7 @@ async fn run() -> Result<usize> {
         source_head,
         source_sha256,
         build_sha256,
-        checks: smoke
-            .checks
+        checks: checks
             .into_iter()
             .map(|check| ReceiptCheck {
                 name: check.name,
