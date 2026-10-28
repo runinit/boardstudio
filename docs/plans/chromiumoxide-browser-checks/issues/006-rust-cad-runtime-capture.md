@@ -1340,3 +1340,19 @@ The user requested cutover to Rust. The CAD launcher defaults to Rust and admits
 startup runtime; U1:page remains validation-only because it has no runtime
 samples. Node remains explicitly selectable while final dependency retirement,
 full verification and review are outstanding.
+
+## 2026-10-27: verification and open parity gate
+
+The full supported check later passed on clean source
+`cca95c5d0709c4fe9ad0ba82ebaacef5e88e3743`; its receipt is
+`.evidence/full-check-cca95c5d-EZBJYe/receipt.json`. This is full-check evidence,
+not a new source-bound cache/service-worker comparison. The controlled fixture
+above remains diagnostic because its site digest did not match its build receipt.
+Independent Spec review flagged that distinction; a source-bound control or an
+explicit decision on the acceptance requirement remains necessary. Independent
+Standards review passed; closure review of this documentation follow-up and hosted
+CI remain unrun. This ticket remains claimed and no acceptance box is cleared.
+
+The later retirement decision supersedes the preceding statement that Node remains
+selectable: the user explicitly retired historical Cadrum reproduction, and the
+current CAD launcher accepts only Rust; historical runner sources are archived.

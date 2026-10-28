@@ -425,3 +425,31 @@ only a simulated worker would not establish reproducibility. A separate historic
 measurement checkout and source-bound old page/worker package, followed by real
 Rust/Node protocol and failure comparisons, are required before removing that last
 driver. It has not been deleted or relabeled as complete.
+
+## 2026-10-27: final local verification and review disposition
+
+On clean `fix/drag-save-undo` source `cca95c5d0709c4fe9ad0ba82ebaacef5e88e3743`,
+the full supported check passed: all 61 commands ran and were accepted, including
+repo, tooling, lint, build, native tests and browser. The receipt records 2,396
+native tests passed, 10 ignored, and the page suite 113/113 passed; drag and CAD
+provider/product smokes also passed. Evidence: `.evidence/full-check-cca95c5d-EZBJYe/receipt.json`
+and its adjacent summary and `check.log`. The run used Chrome for Testing 145,
+`NODE_PATH` unset, no Playwright, and two browser jobs. Its scope had a 400% CPU
+quota, 12 GiB memory limit and no swap; recorded memory events before and after
+show zero OOM and OOM kills (`scope.txt`). An earlier full run at `604adc8a` hit
+the 12 GiB limit and OOM; this successful run followed reduced browser concurrency,
+not a higher cap. The pass applies to the named source, not this later docs commit.
+
+Independent Standards review passed. Independent Spec review identified the missing
+final verification record, addressed here, and the unbound diagnostic status of
+ticket 006's cache/service-worker controls; that parity gate is not established by
+the full check. Ticket 006 remains claimed and this ticket remains open; these
+documentation updates have not themselves received a closure review. The user
+explicitly retired historical Cadrum reproduction; archived sources and historical
+evidence remain, not a supported reproduction path.
+
+Hosted CI has not run. Run the web job on a hosted PR or workflow dispatch and
+record its URL and verdict, including the no-Playwright preflight, pinned Chrome,
+Rust drag, mounted browser checks and failure artifacts. Also verify the native
+job retains Node tooling and the release-build job provisions its web tools, as
+in the CI verification plan above. Do not treat this local pass as hosted evidence.
