@@ -1,0 +1,28 @@
+# Minimal Rust browser harness for the real-page checks.
+#
+# Excluded from the main workspace (own manifest + lockfile) so browser tooling
+# never changes what the app builds against. See
+# docs/plans/cad-deepening/issues/016-rust-browser-harness.md.
+[package]
+name = "boardstudio-browser-harness"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+chromiumoxide = "=0.9.1"
+futures = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "io-util"] }
+
+[[bin]]
+name = "drag-smoke"
+path = "src/bin/drag_smoke.rs"
+
+[[bin]]
+name = "skew-probe"
+path = "src/bin/skew_probe.rs"
