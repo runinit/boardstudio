@@ -8,8 +8,10 @@ permissions:
   contents: read
 concurrency:
   # Serialize release validation, build and deploy together; unrelated checks keep their own group.
-  group: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && 'pages' || format('validation-{0}', github.run_id) }}
-  cancel-in-progress: false
+  group: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && 'pages' || (github.event_name == 'pull_request' && format('validation-pr-{0}', github.event.pull_request.number)) || format('validation-{0}', github.run_id) }}
+  # Only a newer push to the same pull request supersedes a run; dev pushes, main pushes and
+  # dispatches are never cancelled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 env:
   # Native test binaries link Core many times; full debuginfo made them (and the cache) several
   # times larger and slower to link. Line tables keep file:line in panics and backtraces.
