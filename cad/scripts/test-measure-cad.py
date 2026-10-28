@@ -151,7 +151,48 @@ class CaptureSelectionTests(unittest.TestCase):
                         process.return_value.wait.return_value = 0
                         self.assertEqual(PERF.main(), 1 if action == "build" else 0)
 
+class MemorySamplingTests(unittest.TestCase):
+    def test_owned_rust_and_legacy_browsers_and_descendants_are_attributed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            proc = Path(directory)
+            processes = {
+                100: (1, [b"cad-capture"]),
+                101: (100, [b"chrome", b"--remote-debugging-port=0", b"--user-data-dir=/profile"]),
+                102: (101, [b"chrome", b"--type=renderer"]),
+                103: (100, [b"helper", b"--remote-debugging-port=123", b"--user-data-dir=/helper"]),
+                104: (100, [b"chrome", b"--remote-debugging-pipe"]),
+                105: (104, [b"chrome", b"--type=gpu-process"]),
+                106: (1, [b"chrome", b"--remote-debugging-port=0", b"--user-data-dir=/other"]),
+                107: (100, [b"chrome --remote-debugging-port=0 --user-data-dir=/profile"]),
+            }
+            for pid, (parent, command) in processes.items():
+                path = proc / str(pid)
+                path.mkdir()
+                (path / "stat").write_text(f"{pid} (process) S {parent} 0\n")
+                (path / "cmdline").write_bytes(b"\0".join(command) + b"\0")
+                (path / "smaps_rollup").write_text("Rss: 20 kB\nPss: 10 kB\n")
+            with patch.object(PERF, "Path", side_effect=lambda path: proc if str(path) == "/proc"
+                              else proc / str(path).removeprefix("/proc/")), \
+                    patch.object(PERF.os.path, "samefile", side_effect=lambda path, chrome: path in ("/proc/101/exe", "/proc/107/exe")):
+                rows = PERF.sample_tree(100, "/chosen/chrome")
+            self.assertEqual(rows, [(100, "controller", 10, 20, "ok"),
+                                    (101, "browser", 10, 20, "ok"),
+                                    (102, "browser", 10, 20, "ok"),
+                                    (103, "controller", 10, 20, "ok"),
+                                    (104, "browser", 10, 20, "ok"),
+                                    (105, "browser", 10, 20, "ok"),
+                                    (107, "browser", 10, 20, "ok")])
+
+
 class CaptureLockTests(unittest.TestCase):
+    def test_browser_capture_without_verified_browser_memory_is_invalid(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(PERF, "sample_tree", return_value=[(1, "controller", 1, 1, "ok")]):
+            code, _ = PERF.capture([sys.executable, "-c", "import time; time.sleep(.1)"],
+                                   PERF.ROOT, Path(directory), 10, dict(PERF.os.environ, CHROME_BIN="/wrapper"))
+            self.assertNotEqual(code, 0)
+            self.assertIn("browser memory attribution unavailable", Path(directory, "command.log").read_text())
+
     def test_capture_inherits_build_lock_descriptor(self):
         with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryFile() as lock:
             with patch.object(PERF.browser_tools, "_inherited_build_lock", return_value=lock.fileno()):

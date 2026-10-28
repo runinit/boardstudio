@@ -470,7 +470,7 @@ def process_memory(pid):
     return values["Pss"], values["Rss"]
 
 
-def sample_tree(pid):
+def sample_tree(pid, chrome=None):
     parents, commands = {}, {}
     for path in Path("/proc").iterdir():
         if not path.name.isdigit():
@@ -487,8 +487,19 @@ def sample_tree(pid):
         if not children:
             break
         owned.update(children)
-    # Playwright's own browser descendant has this launch flag. Keep the Node controller separate.
     browsers = {p for p in owned if b"--remote-debugging-pipe" in commands.get(p, [])}
+    for process in owned:
+        # Chrome may rewrite its NUL-separated arguments into one space-separated title.
+        command = [word for arg in commands.get(process, []) for word in arg.split()]
+        if (chrome and parents.get(process) == pid
+                and any(arg.startswith(b"--remote-debugging-port=") for arg in command)
+                and any(arg.startswith(b"--user-data-dir=") for arg in command)
+                and not any(arg.startswith(b"--type=") for arg in command)):
+            try:
+                if os.path.samefile(f"/proc/{process}/exe", chrome):
+                    browsers.add(process)
+            except OSError:
+                pass
     browser_tree = set(browsers)
     while True:
         children = {p for p in owned if parents.get(p) in browser_tree} - browser_tree
@@ -531,12 +542,16 @@ def capture(command, root, out, timeout, env=None):
         reader = threading.Thread(target=drain, daemon=True)
         reader.start()
 
+        browser_seen = False
+
         def sample():
+            nonlocal browser_seen
             while not done.is_set():
                 now = time.monotonic()
                 unix = time.time()
-                for row in sample_tree(process.pid):
+                for row in sample_tree(process.pid, env.get("CHROME_BIN") if env else None):
                     writer.writerow((now, unix, *row))
+                    browser_seen |= row[1] == "browser" and row[4] == "ok"
                 memory.flush()
                 done.wait(max(0, .05 - (time.monotonic() - now)))
 
@@ -568,6 +583,9 @@ def capture(command, root, out, timeout, env=None):
                 log.write("stdout remained open after child exit; observation invalid\n")
         if not reader.is_alive():
             process.stdout.close()
+        if code == 0 and env and env.get("CHROME_BIN") and not browser_seen:
+            code = 1
+            log.write("browser memory attribution unavailable; use the actual Chrome executable, not a wrapper\n")
         elapsed = time.monotonic() - started
         log.write(f"\nexit={code}\nwall_seconds={elapsed}\n")
     (out / "environment-after.log").write_text(environment())

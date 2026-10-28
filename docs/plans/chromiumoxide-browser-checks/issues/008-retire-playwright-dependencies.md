@@ -286,9 +286,16 @@ RED/GREEN runs; launcher (27), browser-tools (9), scheduler (38), quick-selectio
 The first browser-tools invocation failed because the outer launch exported a lock
 descriptor its subprocess did not inherit; the corrected invocation passed using
 the shared lock without exporting that descriptor. No full check was run for this
-change. Existing process-memory classification still looks for the legacy browser
-pipe flag rather than Rust Chrome's debugging port; its measurements need separate
-verification before relying on browser/controller attribution.
+change.
+
+## 2026-10-27: Rust capture memory attribution
+
+The sampler now recognizes the owned Rust Chrome child by its selected executable,
+debugging-port and profile flags, and attributes its descendants as browser processes.
+Legacy pipe detection and recorded captures are unchanged. If no verified browser
+memory sample is obtained, a successful runtime capture is invalidated; use the actual
+Chrome executable rather than a wrapper. This also protects against short-lived or
+inaccessible processes silently producing a controller-only memory capture.
 
 ## 2026-10-27: Rust CAD consumer sequencing controls
 

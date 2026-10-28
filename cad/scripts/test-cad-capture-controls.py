@@ -2,6 +2,7 @@
 """Exercise Rust CAD capture sequencing against a controlled browser worker (not a benchmark)."""
 import argparse
 import csv
+import importlib.util
 import json
 import math
 import os
@@ -11,11 +12,15 @@ import subprocess
 import sys
 import tempfile
 import threading
+from types import SimpleNamespace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 import browser_tools  # noqa: E402
+SPEC = importlib.util.spec_from_file_location("measure_cad", ROOT / "cad/scripts/measure-cad.py")
+measure_cad = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(measure_cad)
 
 WORKER = r'''
 const id = crypto.randomUUID();
@@ -136,8 +141,19 @@ def main():
             directory.mkdir()
             command = [str(binary), f"http://127.0.0.1:{server.server_port}", "monstertruck", "checked",
                        f"{fixture}:{operation}", str(directory), "1", sequence]
-            result = subprocess.run(command, cwd=ROOT, env=dict(os.environ, CHROME_BIN=chrome),
-                                    capture_output=True, text=True, timeout=240)
+            if name == "preview-validation":
+                code, _ = measure_cad.capture(command, ROOT, directory, 240, dict(os.environ, CHROME_BIN=chrome))
+                log = (directory / "command.log").read_text()
+                result = SimpleNamespace(returncode=code, stdout=log, stderr=log)
+                with (directory / "memory.csv").open() as memory:
+                    samples = list(csv.DictReader(memory))
+                assert any(row["scope"] == "browser" and row["status"] == "ok"
+                           and int(row["pss_kib"]) > 0 and int(row["rss_kib"]) > 0 for row in samples), samples
+                assert any(row["scope"] == "controller" and row["status"] == "ok" for row in samples), samples
+                print("PASS memory.csv: real Rust browser and controller sampled", flush=True)
+            else:
+                result = subprocess.run(command, cwd=ROOT, env=dict(os.environ, CHROME_BIN=chrome),
+                                        capture_output=True, text=True, timeout=240)
             (directory / "process.log").write_text(f"exit={result.returncode}\n{result.stdout}\n{result.stderr}")
             (directory / "worker-observations.json").write_text(json.dumps(records, indent=2))
             events = [json.loads(line) for line in (directory / "events.log").read_text().splitlines()]
@@ -229,6 +245,24 @@ def main():
                     except FileNotFoundError:
                         continue
                 assert len(matches) == 1, matches
+                command_line = Path(f"/proc/{matches[0]}/cmdline").read_bytes().replace(b"\0", b" ").split()
+                assert any(arg.startswith(b"--remote-debugging-port=") for arg in command_line), command_line
+                assert os.path.samefile(f"/proc/{matches[0]}/exe", chrome)
+                samples = {row[0]: row for row in measure_cad.sample_tree(process.pid, chrome)}
+                assert samples[process.pid][1] == "controller", samples
+                assert samples[matches[0]][1] == "browser" and samples[matches[0]][4] == "ok", samples
+                assert samples[matches[0]][2] > 0 and samples[matches[0]][3] > 0, samples
+                children = []
+                for pid, row in samples.items():
+                    try:
+                        parent = int(Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[1])
+                    except FileNotFoundError:
+                        continue
+                    if parent == matches[0]:
+                        assert row[1] == "browser", row
+                        children.append(pid)
+                assert children, samples
+                print("PASS owned Chrome launch identity and live PSS/RSS attribution", flush=True)
                 fd = os.pidfd_open(matches[0])
                 try:
                     assert profile in Path(f"/proc/{matches[0]}/cmdline").read_bytes().replace(b"\0", b" ").split()
