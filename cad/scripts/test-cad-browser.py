@@ -21,10 +21,10 @@ PAGE = ("cad/scripts/browser-smoke/occurrence-budget.html" if "--occurrence-budg
 
 
 def chromium():
-    for name in (os.environ.get("CHROME"), "chromium", "chromium-browser", "google-chrome", "chrome"):
+    for name in (os.environ.get("CHROME_BIN"), os.environ.get("CHROME"), "chromium", "chromium-browser", "google-chrome", "chrome"):
         if name and shutil.which(name):
             return shutil.which(name)
-    raise RuntimeError("Chrome or Chromium is required (set CHROME to override)")
+    raise RuntimeError("Chrome or Chromium is required (set CHROME_BIN to override)")
 
 
 def chromedriver():

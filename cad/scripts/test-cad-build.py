@@ -296,6 +296,16 @@ class CadWorkspaceTests(unittest.TestCase):
 
 
 class BrowserSmokeParserTests(unittest.TestCase):
+    def test_chromium_prefers_pinned_chrome_bin(self):
+        with patch.dict(browser.os.environ, {"CHROME_BIN": "/pinned/chrome", "CHROME": "/legacy/chrome"}, clear=True), \
+                patch.object(browser.shutil, "which", side_effect=lambda name: name):
+            self.assertEqual(browser.chromium(), "/pinned/chrome")
+
+    def test_chromium_accepts_legacy_chrome_override(self):
+        with patch.dict(browser.os.environ, {"CHROME": "/legacy/chrome"}, clear=True), \
+                patch.object(browser.shutil, "which", side_effect=lambda name: name):
+            self.assertEqual(browser.chromium(), "/legacy/chrome")
+
     def test_result_is_read_from_the_rendered_page_and_unescaped(self):
         dom = '<html><pre id="result">{"ok":true,"error":null,"checks":[{"name":"a &amp; b","ok":true,"detail":"1 &lt; 2"}]}</pre></html>'
         result = browser.parse_result(dom)
