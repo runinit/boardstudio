@@ -57,8 +57,7 @@ class QuickSelectionTests(unittest.TestCase):
         self.assertFalse(selection.rust)
 
     def test_measurement_protocol_edits_keep_the_tooling_only_quick_selection(self):
-        for path in ("cad/scripts/test-measure-cad.py", "cad/scripts/test-measure-cad-runtime.cjs",
-                     "cad/scripts/test-measure-cad-worker.cjs"):
+        for path in ("cad/scripts/test-measure-cad.py", "cad/scripts/test-measure-cad-worker.cjs"):
             with self.subTest(path=path):
                 selection = quick.select([path], PACKAGES)
                 self.assertEqual(check.quick_plan(selection, PACKAGES),

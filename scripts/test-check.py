@@ -22,9 +22,6 @@ class CheckTests(unittest.TestCase):
         driver = mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": "rust"})
         driver.start()
         self.addCleanup(driver.stop)
-        locate = mock.patch.object(check.browser_tools, "locate", return_value=("node", "chrome"))
-        self.locate = locate.start()
-        self.addCleanup(locate.stop)
         chrome = mock.patch.object(check.browser_tools, "locate_chrome", return_value="chrome")
         self.chrome = chrome.start()
         self.addCleanup(chrome.stop)
@@ -46,7 +43,6 @@ class CheckTests(unittest.TestCase):
             "cad/scripts/test-startup-readiness.py": "Rust diagnostic requiring a packaged site and Chrome",
             "scripts/test-drag-browser-consumer-controls.py": "Linux CI consumer fault controls",
             "scripts/test-graphite-controls.py": "manual Graphite browser failure controls against a built site",
-            "scripts/test-drag-interactions.cjs": "historical source retained for linked migration evidence",
         }
         self.assertEqual(scripts, registered | opt_in.keys())
         self.assertTrue(all(opt_in.values()))
@@ -54,12 +50,9 @@ class CheckTests(unittest.TestCase):
     def test_measurement_protocols_run_in_tooling_with_node_prerequisite(self):
         commands = check.STEPS["tooling"][1]
         self.assertIn([check.PY, "-B", "cad/scripts/test-measure-cad.py"], commands)
-        self.assertIn(["node", "cad/scripts/test-measure-cad-runtime.cjs"], commands)
         self.assertIn(["node", "cad/scripts/test-measure-cad-worker.cjs"], commands)
         self.assertLess(commands.index(["node", "--version"]),
                         commands.index(["node", "cad/scripts/test-measure-cad-worker.cjs"]))
-        self.assertLess(commands.index(["node", "--version"]),
-                        commands.index(["node", "cad/scripts/test-measure-cad-runtime.cjs"]))
 
     def test_ci_web_tools_do_not_install_playwright(self):
         action = (ROOT / ".github/actions/web-tools/action.yml").read_text()
@@ -251,7 +244,6 @@ class CheckTests(unittest.TestCase):
             with mock.patch.object(check, "run_plan", return_value=0):
                 self.assertEqual(check.run(["drag-smoke"]), 0)
             self.chrome.assert_called_once_with()
-            self.locate.assert_not_called()
 
     def test_browser_tools_are_probed_once_before_the_unchanged_command_order(self):
         calls = []
@@ -265,7 +257,6 @@ class CheckTests(unittest.TestCase):
             self.assertEqual(check.run(list(check.DEFAULT)), 0)
         self.assertEqual(calls, ["probe", list(check.DEFAULT)])
         self.chrome.assert_called_once_with()
-        self.locate.assert_not_called()
 
     def test_scoped_browser_only_does_not_acquire_the_drag_smoke_prerequisites(self):
         self.chrome.side_effect = check.browser_tools.MissingBrowserTool("absent")

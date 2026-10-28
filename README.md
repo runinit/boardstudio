@@ -120,8 +120,7 @@ Part, Column, Stagger and Ctrl+Offset. It checks live preview, pointer capture, 
 and exact Undo. Its success receipt and failure log are kept under `web/target/test-results/drag-browser/`.
 The Rust driver needs Chrome or Chromium available as `CHROME_BIN`. The retired drag Node
 driver is no longer supported; unset `BOARDSTUDIO_DRAG_DRIVER` or set it to `rust`.
-CI does not install Playwright; optional legacy and comparison scripts require a separately
-installed Playwright package. Node remains required for the tooling checks.
+CI does not install Playwright. Node remains required for the tooling checks.
 
 The manual Graphite feedback check has a Rust entry point,
 `python3 scripts/run-graphite-feedback.py`, against `BOARDSTUDIO_PREVIEW_URL`
@@ -148,8 +147,8 @@ For controlled Rust CAD capture sequencing and failure checks, run
 `CHROME_BIN=/path/to/chrome python3 cad/scripts/test-cad-capture-controls.py /path/to/new-output-directory`.
 This Linux-only check uses a simulated worker, retains the capture logs and is not provider or benchmark evidence.
 The browser gate also runs this control and a real-provider cold-response control; their logs are under
-`web/target/test-results/`. For current CAD checkouts, `measure-cad.py` rejects `--driver node`;
-that option remains available only for historical Cadrum checkout reproduction.
+`web/target/test-results/`. CAD capture uses only the Rust driver; `--driver node` is rejected.
+Historical Cadrum benchmark reproduction is retired, but existing captures remain available for reporting.
 
 **Verification receipts.** Add `--receipt PATH` to any check invocation to write a JSON receipt at
 `PATH` and a reviewer summary at `PATH.md`, both derived only from the output that invocation

@@ -10,34 +10,6 @@ import threading
 import time
 
 
-NODE_PROBE = r"""
-const { chromium } = require('playwright-core');
-(async () => {
-  const browser = await chromium.launch({executablePath: process.env.CHROME_BIN, args: ['--no-sandbox']});
-  try {
-    const context = await browser.newContext({serviceWorkers: 'block'});
-    const responses = [];
-    context.on('response', r => {
-      let request = r.request();
-      while (request) {
-        if (request.url().endsWith('/favicon.ico')) return;
-        request = request.redirectedFrom();
-      }
-      responses.push({url: r.url(), status: r.status(), serviceWorker: r.fromServiceWorker()});
-    });
-    const page = await context.newPage();
-    await page.goto(process.argv[1] + '/host');
-    await page.evaluate(() => new Promise((resolve, reject) => {
-      const worker = new Worker('/boardstudio/assets/cad-worker/entry.js', {type: 'module'});
-      worker.onmessage = resolve;
-      worker.onerror = reject;
-    }));
-    console.log(JSON.stringify(responses));
-  } finally { await browser.close(); }
-})().catch(e => { console.error(e); process.exitCode = 1; });
-"""
-
-
 class Handler(http.server.BaseHTTPRequestHandler):
     mode = "responses"
 
@@ -106,12 +78,8 @@ def main():
                 assert result.returncode == 0, result.stderr
                 output = json.loads(result.stdout)
                 responses = {(r["url"].removeprefix(origin), r["status"], r["serviceWorker"]) for r in output["responses"]}
-                assert {("/host", 200, False), ("/boardstudio/assets/cad-worker/entry.js", 200, False), ("/redirect", 302, False), ("/created", 201, False), ("/missing", 404, False)} <= responses, responses
+                assert {("/host", 200, False), ("/boardstudio/assets/cad-worker/entry.js", 200, False), ("/redirect", 302, False), ("/created", 201, False), ("/missing", 404, False)} == responses, responses
                 assert not any(url == "/worker-final.js" or (url.endswith("/entry.js") and status == 302) for url, status, _ in responses), responses
-                node = run_probe(["node", "-e", NODE_PROBE, origin], timeout=180)
-                assert node.returncode == 0, node.stderr
-                node_responses = {(r["url"].removeprefix(origin), r["status"], r["serviceWorker"]) for r in json.loads(node.stdout)}
-                assert responses == node_responses, (responses, node_responses)
                 assert ("/favicon.ico", 302, False) not in responses, responses
                 assert sum(r["url"] == origin + "/created" for r in output["responses"]) == 1, responses
                 print("real worker response matrix: passed")

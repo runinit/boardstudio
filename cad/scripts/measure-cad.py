@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Finite 011 preparation/capture. No builds or browser launches without a run subcommand.
 
-The Cadrum paths are kept deliberately: they let the recorded old-versus-new baseline be
-reproduced from a historical checkout. Production code no longer uses Cadrum.
+Historical Cadrum captures remain readable; new Cadrum reproduction is retired.
 """
 
 from __future__ import annotations
@@ -32,7 +31,6 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 import browser_tools  # noqa: E402
 
-HISTORICAL = Path("/home/chris/.t3/worktrees/ts-boardstudio2/t3-2088b1aa")
 OLD_HEAD = "6c9c4867755bd2316f751783729a3ff9778fc04a"
 FIXTURES = ROOT / "cad/test/fixtures/performance"
 PROFILES = ("checked", "release")
@@ -507,12 +505,6 @@ def sample_tree(pid):
     return rows
 
 
-def capture_driver(driver, workload):
-    if driver == "rust" and workload not in (*PAIRED, *UNPAIRED, "startup:cold", "startup:warm", "U1:freeze", "U1:page"):
-        raise ValueError("Rust capture does not support this workload")
-    return driver
-
-
 def capture(command, root, out, timeout, env=None):
     (out / "environment-before.log").write_text(environment())
     started = time.monotonic()
@@ -589,7 +581,7 @@ def main():
     parser.add_argument("--source-head", help="root's frozen full source commit; required for execution")
     parser.add_argument("--profile", choices=PROFILES, default="checked")
     parser.add_argument("--output", type=Path, required=True, help="new directory under this lane's .evidence")
-    parser.add_argument("--driver", choices=("node", "rust"), default="rust")
+    parser.add_argument("--driver", choices=("rust",), default="rust", help="browser driver (Rust only)")
     parser.add_argument("--workload", choices=(*PAIRED, *UNPAIRED, "startup:cold", "startup:warm", "U1:freeze", "U1:page"))
     parser.add_argument("--pair", type=int, choices=range(0, 6), default=1)
     parser.add_argument("--growth", action="store_true")
@@ -603,12 +595,12 @@ def main():
     parser.add_argument("--build-cycles", type=int, choices=(1, 3), default=1,
                         help="one matched initial build cycle; three is the retained upper proposal, only after root requests it")
     args = parser.parse_args()
-    if args.action == "runtime" and args.driver == "rust":
+    if args.action == "runtime":
         if args.workload == "U1:page":
             parser.error("U1:page provides validation only, with no runtime samples; use validate for diagnostics")
     root, out = args.checkout.resolve(), args.output.resolve()
-    if args.driver == "node" and args.action in ("build", "runtime", "validate") and not (root / "cad/scripts/cadrum_build.py").is_file():
-        parser.error("--driver node is retained only for historical Cadrum checkouts; use --driver rust")
+    if args.action in ("build", "runtime", "validate") and (root / "cad/scripts/cadrum_build.py").is_file():
+        parser.error("historical Cadrum reproduction is retired; existing captures remain available for report")
     if not out.is_relative_to(ROOT / ".evidence"):
         parser.error("capture outputs must be under this lane's .evidence")
     if out.exists():
@@ -636,36 +628,20 @@ def main():
         parser.error("execution requires the exact root-cleared --source-head")
     if args.growth and args.pair != 0:
         parser.error("growth sequence is separate from the five pairs; pass --pair 0")
-    old = (root / "cad/scripts/cadrum_build.py").is_file()
-    backend = "cadrum" if old else "monstertruck"
+    backend = "monstertruck"
     if args.action == "build":
-        if root == HISTORICAL:
-            parser.error("historical baseline lane/artifacts are read-only; provision a measurement workspace")
         if not args.state:
             parser.error("build requires --state clean/noop/incremental")
         if args.state == "clean" and any((root / p).exists() for p in (
                 "target", "cad/wasm/target", "cad/wasm/pkg", "web/target", "renderer/pkg", "renderer/target")):
             parser.error("clean cycle requires fresh dedicated output directories; this tool never cleans")
-        if old and os.environ.get("CADRUM_IMAGE_READY") != "1":
-            parser.error("verify pinned image/archive first, then set CADRUM_IMAGE_READY=1")
-        if old and (not any(line.startswith("historical_image=") and
-                            "569918e5874f8908957a76e2b2df7518d9c7886f5d224c5536ec2ca9896fd2f0" in line for line in before)
-                    or not any(line.startswith("historical_prebuilt_archive=") and
-                               "actual=8149e781acdbd21507cfb29937e48e5fdbe628ee5c37007f720dcf5d4000e6ad" in line for line in before)):
-            parser.error("pinned historical image/archive provenance unavailable; no automatic provisioning fallback")
-        (browser_tools.locate if args.driver == "node" else browser_tools.locate_chrome)()
+        browser_tools.locate_chrome()
         command = [sys.executable, "scripts/build-web.py", *(["--fast"] if args.profile == "checked" else [])]
         code, elapsed = capture(command, root, out, 7200)
         sizes(root, out / "sizes.csv")
     else:
         if not args.workload or not current:
             parser.error("runtime requires --workload and the selected profile's current official CAD stamp")
-        if old and args.workload in UNPAIRED:
-            parser.error("historical Cadrum has no admitted refinement/owned-query counterpart")
-        try:
-            capture_driver(args.driver, args.workload)
-        except ValueError as error:
-            parser.error(str(error))
         validation = args.action == "validate"
         if args.workload == "U1:freeze" and not validation:
             parser.error("U1:freeze is validation-only; use the committed frozen archive")
@@ -697,10 +673,7 @@ def main():
         site = root / "web/target/site"
         if not (site / "site-subpath/boardstudio/assets/cad-worker/entry.js").is_file():
             parser.error("runtime requires a fresh source-bound full page/worker package; provider-only is insufficient")
-        if args.driver == "node":
-            node, chrome = browser_tools.locate()
-        else:
-            chrome = browser_tools.locate_chrome()
+        chrome = browser_tools.locate_chrome()
         serve = module_at(ROOT / "scripts/serve-web.py", "perf_serve")
         base_handler = serve.handler_for(site)
 
@@ -719,8 +692,7 @@ def main():
             def log_message(self, *args):
                 pass
 
-        executable = ([node, str(ROOT / "cad/scripts/measure-cad-runtime.cjs")]
-                      if args.driver == "node" else [str(browser_tools._build_harness("cad-capture"))])
+        executable = [str(browser_tools._build_harness("cad-capture"))]
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()

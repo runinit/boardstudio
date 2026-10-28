@@ -1,4 +1,4 @@
-"""The Node, playwright-core and Chrome the real-page browser smoke needs.
+"""Chrome and build tools the real-page browser smoke needs.
 
 `check.py` probes before it builds the page; `run-drag-browser.py` probes again before it launches.
 """
@@ -35,18 +35,6 @@ def locate_chrome() -> str:
     if not chrome:
         raise MissingBrowserTool("drag browser smoke needs Chrome or Chromium; set CHROME_BIN to its executable")
     return chrome
-
-
-def locate() -> tuple[str, str]:
-    """Returns the `node` and Chrome executables, or raises `MissingBrowserTool`."""
-    node = shutil.which("node")
-    if not node:
-        raise MissingBrowserTool("the Node browser runner needs Node.js")
-    probe = subprocess.run([node, "-e", "require('playwright-core')"], capture_output=True, text=True)
-    if probe.returncode:
-        raise MissingBrowserTool("the Node browser runner needs playwright-core; install it separately and "
-                                 "set NODE_PATH to its node_modules directory")
-    return node, locate_chrome()
 
 
 def _inherited_build_lock() -> int | None:

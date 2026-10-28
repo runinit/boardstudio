@@ -216,41 +216,6 @@ class BrowserToolsTests(unittest.TestCase):
         self.assertNotIn("FileNotFoundError", result.stderr)
         self.assertIn("install", result.stderr.lower())
 
-    def locate(self, *available, playwright=0, env=None):
-        with mock.patch.object(browser_tools.shutil, "which", side_effect=which(*available)), \
-                mock.patch.object(browser_tools.subprocess, "run",
-                                  return_value=mock.Mock(returncode=playwright)) as run, \
-                mock.patch.dict(browser_tools.os.environ, env or {}, clear=True):
-            return browser_tools.locate(), run
-
-    def test_all_tools_present_returns_node_and_chrome(self):
-        (node, chrome), run = self.locate("node", "chromium")
-        self.assertEqual((node, chrome), ("/usr/bin/node", "/usr/bin/chromium"))
-        self.assertEqual(run.call_args.args[0], ["/usr/bin/node", "-e", "require('playwright-core')"])
-
-    def test_chrome_bin_wins_over_a_discovered_browser(self):
-        (_, chrome), _ = self.locate("node", "chromium", env={"CHROME_BIN": "/opt/chrome"})
-        self.assertEqual(chrome, "/opt/chrome")
-
-    def test_each_absent_tool_is_named(self):
-        cases = (
-            (("chromium",), 0, "Node.js"),
-            (("node", "chromium"), 1, "playwright-core"),
-            (("node",), 0, "Chrome or Chromium"),
-        )
-        for available, playwright, expected in cases:
-            with self.subTest(expected=expected), self.assertRaises(browser_tools.MissingBrowserTool) as raised:
-                self.locate(*available, playwright=playwright)
-            self.assertIn(expected, str(raised.exception))
-
-    def test_missing_playwright_names_the_manual_prerequisite_not_ci(self):
-        with self.assertRaises(browser_tools.MissingBrowserTool) as raised:
-            self.locate("node", "chromium", playwright=1)
-        message = str(raised.exception)
-        self.assertIn("NODE_PATH", message)
-        self.assertIn("install", message.lower())
-        self.assertNotIn("CI web-tools action installs it", message)
-
     def locate_chrome(self, *available, env=None):
         with mock.patch.object(browser_tools.shutil, "which", side_effect=which(*available)), \
                 mock.patch.dict(browser_tools.os.environ, env or {}, clear=True):

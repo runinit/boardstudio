@@ -266,6 +266,30 @@ failure controls in a supported gate; replace the live Node/Rust response compar
 with equivalent retained same-run observation and failure checks; then update the
 launcher and prerequisite tests. The Node self-check and comparison remain intact.
 
+## 2026-10-27: Historical reproduction retired
+
+The user explicitly retired historical Cadrum benchmark reproduction, superseding
+the earlier prerequisite to preserve that execution path. `build`, `runtime`, and
+`validate` now reject historical Cadrum checkouts before creating output; existing
+captures remain readable for binding and reporting. CAD capture accepts only the
+Rust driver. The old Node CAD runner, its self-check, and the historical drag runner
+are retained as unsupported sources in `docs/archive/playwright-runners/`.
+
+The shared Node worker protocol and STL controls remain in the tooling gate. The
+manual Rust response fixture retains its literal response matrix and page-error and
+missing-worker controls, without requiring Playwright. CI's no-Playwright preflight
+remains in place. Historical documents and evidence are retained.
+
+Focused verification: the retirement guard and no-Playwright response fixture had
+RED/GREEN runs; launcher (27), browser-tools (9), scheduler (38), quick-selection
+(18), shared worker/STL, real browser response and CAD capture controls passed.
+The first browser-tools invocation failed because the outer launch exported a lock
+descriptor its subprocess did not inherit; the corrected invocation passed using
+the shared lock without exporting that descriptor. No full check was run for this
+change. Existing process-memory classification still looks for the legacy browser
+pipe flag rather than Rust Chrome's debugging port; its measurements need separate
+verification before relying on browser/controller attribution.
+
 ## 2026-10-27: Rust CAD consumer sequencing controls
 
 The opt-in `cad/scripts/test-cad-capture-controls.py OUTPUT` builds and runs the
