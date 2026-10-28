@@ -42,6 +42,19 @@ class ChromeForTestingPinTests(unittest.TestCase):
         self.assertNotIn(pin["version"], text,
                          "installer must not hardcode the pinned version")
 
+    def test_drag_installer_uses_shared_installer_and_destination(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            drag = directory / "install-drag-chrome.sh"
+            drag.write_bytes((REPO / "scripts/install-drag-chrome.sh").read_bytes())
+            shared = directory / "install-chrome-for-testing.sh"
+            shared.write_text('#!/bin/bash\nprintf "%s\\n" "$BOARDSTUDIO_CFT_DIR"\n')
+            shared.chmod(0o755)
+            destination = str(directory / "chosen destination")
+            result = subprocess.run(["bash", str(drag), destination], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), destination)
+
     def test_verify_rejects_tampered_archive(self):
         text = INSTALLER.read_text()
         self.assertIn("sha256sum -c", text,
