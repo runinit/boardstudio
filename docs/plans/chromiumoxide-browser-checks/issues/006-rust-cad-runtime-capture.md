@@ -1,6 +1,6 @@
 # 006: Rust CAD runtime capture
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [Rust drag smoke end to end](005-rust-drag-smoke.md)
 Parent: [Chromiumoxide browser checks](../map.md)
@@ -14,19 +14,19 @@ this consumer requires it; keep the old capture available until comparison passe
 
 ## Acceptance
 
-- [ ] Preserve launcher inputs, capture arguments, timeouts, exit codes, CSV columns/events
+- [x] Preserve launcher inputs, capture arguments, timeouts, exit codes, CSV columns/events
   log fields, source/build binding, readiness/currency checks and failed-capture semantics.
-- [ ] Old/new capture against the same packaged build and inputs proves equivalent events,
+- [x] Old/new capture against the same packaged build and inputs proves equivalent events,
   statuses and output schema. Compare nondeterministic timing fields by their documented
   meaning, not byte identity; do not claim a speed improvement from this port alone.
-- [ ] Cold/warm HTTP-cache and service-worker conditions match the old runner. Prove bypass
+- [x] Cold/warm HTTP-cache and service-worker conditions match the old runner. Prove bypass
   versus blocking explicitly, including a controlled worker fixture; retain response status
   and service-worker-origin metadata without dropped required events.
-- [ ] Preserve protocol self-check coverage without a browser. Keep any Node-based tooling
+- [x] Preserve protocol self-check coverage without a browser. Keep any Node-based tooling
   tests that still serve that contract; removing all Node is not this migration's goal.
-- [ ] Shared isolated browser launch/error handling is reused. Negative controls prove
+- [x] Shared isolated browser launch/error handling is reused. Negative controls prove
   malformed replies, page failures, capture identity drift and incomplete observations fail.
-- [ ] Run affected tooling tests and real old/new capture parity before switching the default;
+- [x] Run affected tooling tests and real old/new capture parity before switching the default;
   retain the old runner if any required proof is blocked. No production CAD behaviour changes.
 
 ## Verification and scope
@@ -1395,3 +1395,22 @@ The approved timing result remains the separate `f0b6904` observation above; the
 check passed on `cca95c5d0709c4fe9ad0ba82ebaacef5e88e3743`, not this source or
 documentation commit. Hosted CI and closure review remain unrun; other acceptance
 requirements remain open and the ticket stays claimed.
+
+## 2026-10-27: local closure
+
+Resolved for local scope. Earlier open-gate statements above describe their dated state.
+Launcher and schema comparisons, failure controls and tooling evidence are recorded above;
+the user accepted the one-sided timing criterion at `f0b6904`, not timing identity or a
+speed claim. The source-bound cache fixture at `8537778b` and separate service-worker
+semantics fixture establish the conditions described immediately above: cold cache bypass
+is page-scoped, and blocking registration is not bypass of an existing worker. Historical
+Cadrum reproduction was explicitly retired; its old driver is archived, not supported.
+
+The full supported local check passed on clean source `8cee115c2`
+(`.evidence/full-check-8cee115c-fVsvpT/receipt.json`): 2,396 native tests and 690
+browser tests, including 113 page tests. It used 400% CPU, 12 GiB, no swap and two
+concurrent browser launches, with zero OOM events. Independent final Spec and Standards
+reviews of `0b1ed972..8cee115c` passed; Spec found no actionable mismatch. These results
+apply to that source, not this documentation-only closure commit. Hosted CI has not run;
+the [CI verification plan](008-retire-playwright-dependencies.md#ci-verification-plan)
+requires actual run URLs and verdicts.

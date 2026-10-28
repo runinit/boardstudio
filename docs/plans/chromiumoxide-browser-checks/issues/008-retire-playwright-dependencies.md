@@ -1,6 +1,6 @@
 # 008: Retire Playwright browser dependencies
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: [Rust drag smoke end to end](005-rust-drag-smoke.md), [Rust CAD runtime capture](006-rust-cad-runtime-capture.md), [Rust Graphite acceptance checks](007-rust-graphite-acceptance.md)
 Parent: [Chromiumoxide browser checks](../map.md)
@@ -14,19 +14,19 @@ parity gate has passed. Keep this a dependency retirement, not a new test migrat
 
 ## Acceptance
 
-- [ ] Inventory all remaining browser consumers and runtime imports before deletion; no live
+- [x] Inventory all remaining browser consumers and runtime imports before deletion; no live
   workflow loses its runner, dependency or manual entry point. Preserve archived prototypes
   as evidence rather than deleting their historical dependency references.
-- [ ] Remove obsolete Playwright runners, personal-path workarounds, browser npm install and
+- [x] Remove obsolete Playwright runners, personal-path workarounds, browser npm install and
   NODE_PATH prerequisites from migrated workflows. Update CI caches, portable discovery,
   setup instructions and failure messages for the Rust path.
-- [ ] Retain Node tooling/self-check tests still in use and their CI prerequisite. Do not
+- [x] Retain Node tooling/self-check tests still in use and their CI prerequisite. Do not
   advertise the whole repository as Node-free or touch wasm-bindgen-test/ChromeDriver.
-- [ ] Clean-environment prerequisite tests and actual supported real-page checks work without
+- [x] Clean-environment prerequisite tests and actual supported real-page checks work without
   Playwright installed or NODE_PATH set. Missing Chrome/Cargo errors remain actionable.
-- [ ] Rust harness formatting/lint and the jointly pinned CI browser/library policy remain
+- [x] Rust harness formatting/lint and the jointly pinned CI browser/library policy remain
   enforced. Document the version-bump compatibility check and upgrade path.
-- [ ] Full supported verification passes on the final committed source; record any inaccessible
+- [x] Full supported verification passes on the final committed source; record any inaccessible
   CI gate explicitly rather than treating a local pass as a CI run. Existing app bugs are not
   waived and pending per-consumer parity is not grounds to retire the old dependency.
 
@@ -472,3 +472,26 @@ This does not resolve either ticket or change the approved timing result at `f0b
 The full check passed at `cca95c5d0709c4fe9ad0ba82ebaacef5e88e3743`, not at the
 fixture source or this documentation commit. Hosted CI and closure review remain
 unrun; remaining retirement and ticket 006 acceptance requirements stay open.
+
+## 2026-10-27: local closure
+
+Resolved for local scope. The preceding dated open-gate statements describe earlier
+states; [ticket 006](006-rust-cad-runtime-capture.md#2026-10-27-local-closure) and
+[ticket 007](007-rust-graphite-acceptance.md#2026-10-27-local-closure) record their
+local parity and review dispositions. Historical Cadrum reproduction was explicitly
+retired, with old sources archived. Node tooling remains; the supported browser paths
+and CI setup no longer require Playwright. The inventory, prerequisite controls,
+browser policy and individual cutover evidence are recorded above.
+
+The full supported local check passed on clean source `8cee115c2`
+(`.evidence/full-check-8cee115c-fVsvpT/receipt.json`): all 61 commands accepted,
+2,396 native tests and 690 browser tests, including 113 page tests. The run used
+400% CPU, 12 GiB, no swap and two concurrent browser launches, with zero OOM events.
+Independent final Spec and Standards reviews of `0b1ed972..8cee115c` passed; Spec
+found no actionable mismatch. The receipt applies to that source, not this later
+documentation-only closure commit.
+
+Hosted CI remains unrun and nothing has been pushed. Execute the
+[CI verification plan](#ci-verification-plan) on a hosted PR or dispatch and record
+the actual run URL and verdict, including web, native and release-build jobs; local
+verification is not a hosted-CI result.

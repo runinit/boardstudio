@@ -1,6 +1,6 @@
 # 007: Rust Graphite acceptance checks
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [Rust drag smoke end to end](005-rust-drag-smoke.md)
 Parent: [Chromiumoxide browser checks](../map.md)
@@ -15,16 +15,16 @@ Keep these manual against-server checks manual unless the current check already 
 
 ## Acceptance
 
-- [ ] Preserve existing assertions, environment/input contract, viewport, dark-scheme
+- [x] Preserve existing assertions, environment/input contract, viewport, dark-scheme
   emulation, optional screenshot behaviour, output labels and exit status for each consumer,
   except the three superseded design assertions explicitly reconciled below.
-- [ ] Run old/new against the same source/build/server state and compare the assertion inventory,
+- [x] Run old/new against the same source/build/server state and compare the assertion inventory,
   verdicts and screenshot conditions. Existing app failures stay failures; unrun checks do not pass.
-- [ ] Reuse the minimal harness's isolated launch, trusted input, bounded waits and fatal page
+- [x] Reuse the minimal harness's isolated launch, trusted input, bounded waits and fatal page
   error handling; add only helpers exercised by these consumers. No visual redesign in this slice.
-- [ ] Negative controls demonstrate failed assertions/page errors produce failure output and
+- [x] Negative controls demonstrate failed assertions/page errors produce failure output and
   nonzero exit. Preserve the supported check's explicit manual-exclusion list and entry-point docs.
-- [ ] Keep old entry points available until parity passes; verify browser consumer dependencies
+- [x] Keep old entry points available until parity passes; verify browser consumer dependencies
   remain installed for other unmigrated workflows.
 
 ## Verification and scope
@@ -754,3 +754,22 @@ Graphite binary was not changed by the retirement diff.
 This is consumer cutover evidence, not a full supported-check, hosted-CI, visual
 approval or combined closure-review verdict. Ticket 007 remains open for those
 outstanding gates.
+
+## 2026-10-27: local closure
+
+Resolved for local scope; earlier open-gate statements record their dated state. The
+[source-bound manual cutover](#2026-10-27-source-bound-manual-cutover) records both
+workflows' 88 matching ordered checks, screenshot filenames and dimensions, and failing
+assertion and page-error controls. Only the narrow Parts feedback screenshots were
+compared side by side; this is not a visual approval of every screenshot. The separately
+approved Snap accordion and three superseded design assertions are documented above.
+The old entry points were archived after parity, and remaining consumers were handled
+in [ticket 008](008-retire-playwright-dependencies.md).
+
+The full supported local check passed on clean source `8cee115c2`
+(`.evidence/full-check-8cee115c-fVsvpT/receipt.json`): 2,396 native tests and 690
+browser tests, including 113 page tests, under 400% CPU, 12 GiB, no swap and two
+concurrent browser launches, with zero OOM events. Independent final Spec and Standards
+reviews of `0b1ed972..8cee115c` passed; Spec found no actionable mismatch. This does
+not assert a full-check run on this documentation-only closure commit. Hosted CI has
+not run; see the [CI verification plan](008-retire-playwright-dependencies.md#ci-verification-plan).
