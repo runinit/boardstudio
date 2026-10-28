@@ -43,7 +43,8 @@ async function check(workload, incomplete = false, sequence = 'latency') {
     on() {}, async newPage() { return page; }, async newCDPSession() { return { async send() {} }; },
   }; }, async close() { closed = true; } };
   const context = vm.createContext({
-    require: name => name === 'playwright-core' ? { chromium: { async launch() { return browser; } } }
+    require: name => name === './measure-cad-worker.cjs' ? vm.runInContext(`(() => { const module = { exports: null }; ${fs.readFileSync(path.join(__dirname, 'measure-cad-worker.cjs'), 'utf8')} return module.exports; })()`, context)
+      : name === 'playwright-core' ? { chromium: { async launch() { return browser; } } }
       : name === 'node:fs' ? { ...fs, createWriteStream() { return { write(text) { metrics.push(text); }, end() {} }; } }
         : require(name),
     process: fakeProcess, console, Worker: ControlledWorker, window: {}, crypto: webcrypto,
