@@ -62,6 +62,8 @@ class Observation:
     exit_code: int | None = None
     elapsed: float | None = None
     output: str = ""
+    started_at: str | None = None
+    ended_at: str | None = None
 
 
 def script_name(command: list[str]) -> str:
@@ -287,7 +289,8 @@ def _command_record(step: str, command: list[str], observation: Observation | No
                        "problems": []})
         return record
     record.update({"status": observation.status, "exit_code": observation.exit_code,
-                   "elapsed_s": observation.elapsed})
+                   "elapsed_s": observation.elapsed, "started_at": observation.started_at,
+                   "ended_at": observation.ended_at})
     if scope == WASM_CRATE:
         record.update(crate_record(observation))
     elif scope == NATIVE:
@@ -557,13 +560,14 @@ class Collector:
         self.plan = [(step, list(command)) for step, commands in plan for command in commands]
 
     def observe(self, step: str, command: list[str], exit_code: int, elapsed: float,
-                output: str = "") -> None:
+                output: str = "", *, started_at: str | None = None,
+                ended_at: str | None = None) -> None:
         if scope_of(command) == PAGE_SUITE and (path := _result_json_path(command)):
             after = self._file_state(path)
             self.page_results[path] = (load_json(path) if after is not None
                                        and after != self.page_before.get(path) else None)
         self.observations.append(Observation(step, list(command), "ran", exit_code, float(elapsed),
-                                             output or ""))
+                                             output or "", started_at, ended_at))
 
     @staticmethod
     def _file_state(path: str) -> tuple | None:
