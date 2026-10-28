@@ -7727,6 +7727,7 @@ pub mod firmware_export_test_support {
                 rotation: 0.0,
             },
             side: Side::Front,
+            anchor: None,
             locked: None,
             keycap: None,
             outline: None,

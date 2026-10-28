@@ -358,6 +358,7 @@ mod mounted_layer_tests {
         document.parts.push(Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: "part".into(),
             definition_id: "definition".into(),
             reference: "U1".into(),

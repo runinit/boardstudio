@@ -570,6 +570,7 @@ mod tests {
             vias: vec![],
         });
         document.parts.push(Part {
+            anchor: None,
             keycap: None,
             outline: None,
             id: "part-1".into(),
@@ -741,6 +742,7 @@ mod tests {
             vias: vec![],
         });
         document.parts.push(Part {
+            anchor: None,
             id: "part-2".into(),
             reference: "U2".into(),
             ..document.parts[0].clone()
@@ -1010,6 +1012,7 @@ mod tests {
 
         let mut duplicate = snapshot.document.as_ref().clone();
         duplicate.parts.push(Part {
+            anchor: None,
             id: "part-2".into(),
             ..duplicate.parts[0].clone()
         });

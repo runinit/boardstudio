@@ -7,6 +7,7 @@
 
 #[path = "boundary_parity.rs"]
 mod boundary_parity;
+
 #[path = "case.rs"]
 mod case;
 #[path = "closure_generator_parameters.rs"]
@@ -128,3 +129,18 @@ mod matrix_aggregate_anchors;
 
 #[path = "matrix_aggregate_reflection.rs"]
 mod matrix_aggregate_reflection;
+
+#[path = "split_half_frame.rs"]
+mod split_half_frame;
+
+#[path = "split_adaptive_spacing.rs"]
+mod split_adaptive_spacing;
+
+#[path = "split_creation_gap.rs"]
+mod split_creation_gap;
+
+#[path = "split_half_frame_parts.rs"]
+mod split_half_frame_parts;
+
+#[path = "split_part_anchoring.rs"]
+mod split_part_anchoring;

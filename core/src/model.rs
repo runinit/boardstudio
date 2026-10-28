@@ -235,6 +235,12 @@ pub struct Part {
     pub reference: String,
     pub pose: Pose2,
     pub side: Side,
+    /// Ticket 13: column-vocabulary anchor for an independent part. `None` is
+    /// a detached part placed from the half origin; `Some` derives the
+    /// evaluated pose from the anchor key, so anchor edits move the part.
+    /// Ignored while the part is a matrix member or generated companion.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<PartAnchor>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locked: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -244,6 +250,38 @@ pub struct Part {
         skip_serializing_if = "Option::is_none"
     )]
     pub generator_parameters: Option<BTreeMap<String, serde_json::Value>>,
+}
+
+/// Ticket 13: an independent part's placement in the column vocabulary. The
+/// part follows the anchor key's pose through the Follow subset; Spread,
+/// Stagger and Splay carry in the anchor frame, then Offset and Rotation
+/// apply for the part alone. `matrix_id` names the anchor key's matrix, which
+/// must live in the part's own layout.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PartAnchor {
+    pub matrix_id: String,
+    pub row: u32,
+    pub column: u32,
+    pub follow: Follow,
+    pub spread: f64,
+    pub stagger: f64,
+    pub splay: f64,
+    pub offset: Vec2,
+    pub rotation: f64,
+}
+
+/// Ticket 13: one typed edit to an anchored part's carried or local values.
+/// Spread/Stagger/Splay carry from the anchor; Offset/Rotation are the part's
+/// own. Anchor retargets, Follow changes and Detach are separate operations
+/// because they re-solve the values to keep the pose.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum PartAnchorValueChange {
+    Spread(f64),
+    Stagger(f64),
+    Splay(f64),
+    Offset(Vec2),
+    Rotation(f64),
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Pin {
@@ -1153,6 +1191,19 @@ pub struct Layout {
 pub struct LayoutMirrorLink {
     pub source_id: String,
     pub axis_x: f64,
+    /// Stored Split gap: the key-edge to key-edge distance between the halves,
+    /// measured at the half-origin column. Absent on documents saved before the
+    /// half-frame contract; those keep board-coordinate placement until their
+    /// first committed geometry edit adopts the half frame.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub split_gap: Option<f64>,
+    /// Current spacing: the evaluated key-edge distance, always
+    /// `max(split_gap, minimum)` once a committed edit has run the adaptive
+    /// pass. Absent until the first committed edit after the half frame is
+    /// adopted; while absent, evaluation follows `split_gap` exactly so saved
+    /// boards open with byte-identical geometry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spacing: Option<f64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub correspondences: Vec<MirroredCorrespondence>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -2148,6 +2199,54 @@ pub enum EditOperation {
     },
     SetLayout {
         layout: Layout,
+    },
+    /// Sets the stored Split gap of a mirrored pair in one Undo entry. The
+    /// halves move apart symmetrically about the split axis; matrix origins
+    /// keep their half-frame values and the partner still reflects exactly.
+    SetSplitGap {
+        #[serde(rename = "layoutId")]
+        layout_id: String,
+        #[serde(rename = "splitGap")]
+        split_gap: f64,
+    },
+    /// Mirrors an independent part on both halves of a split pair, or makes
+    /// it local to its own half, in one Undo entry. Mirroring records a Part
+    /// correspondence on the mirror link and materializes the partner at the
+    /// reflected half-frame pose; making it local removes the partner. Either
+    /// copy edits both while the link lasts.
+    SetMirroredPart {
+        #[serde(rename = "partId")]
+        part_id: String,
+        mirrored: bool,
+    },
+    /// Ticket 13: retarget an independent part's anchor key (Pick). Core
+    /// re-solves the carried and local values so the evaluated pose is
+    /// unchanged, in one Undo entry.
+    SetPartAnchor {
+        #[serde(rename = "partId")]
+        part_id: String,
+        anchor: PartAnchor,
+    },
+    /// Ticket 13: change the Follow subset an anchored part follows (the
+    /// anchor key stays). Core re-solves the carried and local values so the
+    /// evaluated pose is unchanged, in one Undo entry.
+    SetPartAnchorFollow {
+        #[serde(rename = "partId")]
+        part_id: String,
+        follow: Follow,
+    },
+    /// Ticket 13: clear an independent part's anchor (Detach), keeping its
+    /// evaluated pose from the half origin, in one Undo entry.
+    DetachPartAnchor {
+        #[serde(rename = "partId")]
+        part_id: String,
+    },
+    /// Ticket 13: edit one carried (Spread/Stagger/Splay) or local
+    /// (Offset/Rotation) value of an anchored part, in one Undo entry.
+    SetPartAnchorValues {
+        #[serde(rename = "partId")]
+        part_id: String,
+        change: PartAnchorValueChange,
     },
     RemoveConstraint {
         id: String,

@@ -912,13 +912,16 @@ fn pad_positions(
     else {
         return Vec::new();
     };
+    // Ticket 12: omitted pads report the evaluated board pose of half-frame
+    // parts.
+    let pose = crate::matrix::layout::evaluated_part_pose(document, part);
     definition
         .pads
         .iter()
         .map(|pad| crate::model::OmittedPad {
             part_id: part.id.clone(),
             pad_id: pad.id.clone(),
-            at: crate::outline_controls::world(pad.at, part),
+            at: crate::outline_controls::world(pad.at, &pose, part.side.clone()),
         })
         .collect()
 }

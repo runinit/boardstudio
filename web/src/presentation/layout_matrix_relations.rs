@@ -1,5 +1,5 @@
-//! The matrix-context Relations tab: Structure, Local adjustments and Authored
-//! constraints, rendered from the pure `matrix_relations` projection.
+//! The matrix-context Relationships section: Structure, Local adjustments and
+//! Authored constraints, rendered from the pure `matrix_relations` projection.
 use super::RelationHighlight;
 use super::objects;
 use boardstudio_web_layout::matrix_relations::{
@@ -83,7 +83,7 @@ fn StructureRow(
     on_open_owner: EventHandler<objects::TreeContext>,
 ) -> Element {
     // Parameter entries open their owner's matching tool/editor; receiver
-    // references navigate while staying on the Relations tab.
+    // references navigate while staying beside the selection.
     let on_select = if item.opens_editor {
         on_open_owner
     } else {
@@ -232,6 +232,112 @@ struct RelationReferenceProps {
     on_select: EventHandler<()>,
 }
 
+/// Labels whose rows name what the selection carries downstream: later rows and
+/// columns inherit this selection's steps, or another matrix follows it.
+/// Variant B renders these after the chain as dashed "Carries …" chips.
+fn carries_label(label: &str) -> bool {
+    matches!(label, "Inherited by" | "Followed by")
+}
+
+/// Labels that name the anchor reference the selection is placed from.
+/// Variant B renders these as violet dashed chips, matching the hover outline.
+fn anchor_reference_label(label: &str) -> bool {
+    matches!(
+        label,
+        "Anchor frame" | "Anchor" | "Anchor part" | "Follows" | "Attached to"
+    )
+}
+
+#[derive(Props, Clone, PartialEq)]
+pub(super) struct PlacementBreadcrumbProps {
+    pub relations: MatrixRelations,
+    pub on_navigate: EventHandler<objects::TreeContext>,
+    pub on_open_owner: EventHandler<objects::TreeContext>,
+}
+
+/// Variant B "How it is placed" breadcrumb above the Inspector fields: the
+/// chain in kernel order, then dashed "Carries …" chips for what the
+/// selection carries. Chips navigate exactly like the Relationships rows
+/// (Replace selection, never a document write) and hover with the same violet
+/// reference highlight.
+#[component]
+pub(super) fn PlacementBreadcrumb(props: PlacementBreadcrumbProps) -> Element {
+    rsx! {
+        nav { class: "m1-placement-crumbs", aria_label: "How it is placed",
+            span { class: "m1-placement-title", "How it is placed" }
+            for (index, item) in props.relations.structure.iter().cloned().enumerate() {
+                if index > 0 {
+                    span { class: "m1-placement-sep", aria_hidden: "true", "›" }
+                }
+                BreadcrumbChip {
+                    item,
+                    on_navigate: props.on_navigate,
+                    on_open_owner: props.on_open_owner,
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn BreadcrumbChip(
+    item: RelationItem,
+    on_navigate: EventHandler<objects::TreeContext>,
+    on_open_owner: EventHandler<objects::TreeContext>,
+) -> Element {
+    // Parameter entries open their owner's matching tool/editor; receiver
+    // references navigate while staying beside the selection.
+    let on_select = if item.opens_editor {
+        on_open_owner
+    } else {
+        on_navigate
+    };
+    let carries = carries_label(&item.label);
+    let anchor = anchor_reference_label(&item.label);
+    let text = if carries {
+        format!("Carries {}", item.value)
+    } else {
+        item.value.clone()
+    };
+    let chip_class = if carries {
+        "m1-placement-chip is-after"
+    } else if anchor {
+        "m1-placement-chip is-ref"
+    } else {
+        "m1-placement-chip"
+    };
+    rsx! {
+        span { class: "{chip_class}", "data-crumb-label": "{item.label}",
+            if let Some(target) = item.target.clone() {
+                RelationReference {
+                    text: text.clone(),
+                    parts: item.highlight.clone(),
+                    what: format!("{} {}", item.label, item.value),
+                    on_select: EventHandler::new(move |()| on_select.call(target.clone())),
+                }
+            } else {
+                span { title: "{item.label} {item.value}", "{text}" }
+            }
+        }
+    }
+}
+
+/// Whether the amber at-rest field preview (ticket 16) currently marks
+/// `part_id`. Distinct from the violet dashed Relations reference: the
+/// preview names the keys one Inspector number field would move, and it
+/// wins ties so the hovered field reads through a reference.
+fn field_previews(part_id: Option<&String>) -> bool {
+    use super::FieldPreview;
+    let preview = try_use_context::<FieldPreview>();
+    part_id.is_some_and(|id| {
+        preview.is_some_and(|target| {
+            target.0()
+                .as_ref()
+                .is_some_and(|state| state.parts.contains(id))
+        })
+    })
+}
+
 /// A Relations reference button. Hover or keyboard focus marks `parts` on the Layout canvas;
 /// leaving, blurring or unmounting releases that highlight, and the button names it through
 /// `aria-describedby`. Selecting the reference is the button's own action.
@@ -313,6 +419,12 @@ fn RelationReference(props: RelationReferenceProps) -> Element {
 pub(super) fn RelationMatrixKey(
     part_id: Option<String>,
     selected: bool,
+    #[props(default)] dimmed: bool,
+    /// Ticket 17: the canvas anchor badge target. The violet dashed reference
+    /// stands while the selection does, so it wins over dimming like the
+    /// selection itself; the amber field preview still wins every tie.
+    #[props(default)]
+    anchor_target: bool,
     x: f64,
     y: f64,
     width: f64,
@@ -329,9 +441,26 @@ pub(super) fn RelationMatrixKey(
             .as_ref()
             .is_some_and(|part_ids| part_ids.contains(id))
     });
+    // Ticket 14: selection stays solid on the dimmed half; only unselected
+    // unfocused keys fade to the grey dashed outline. Ticket 16: the amber
+    // at-rest field preview wins ties so the hovered field reads through
+    // selection, dimming and violet references alike. Ticket 17: the badge
+    // target is selection chrome, so it wins over dimming like the selection.
+    let previewed = field_previews(part_id.as_ref());
+    let class = if previewed {
+        "m1-matrix-key is-field-preview"
+    } else if selected {
+        "m1-matrix-key is-selected"
+    } else if anchor_target || highlighted {
+        "m1-matrix-key is-relation-highlight"
+    } else if dimmed {
+        "m1-matrix-key is-dimmed"
+    } else {
+        "m1-matrix-key"
+    };
     rsx! {
         rect {
-            class: if selected { "m1-matrix-key is-selected" } else if highlighted { "m1-matrix-key is-relation-highlight" } else { "m1-matrix-key" },
+            class: "{class}",
             x: "{x}", y: "{y}", width: "{width}", height: "{height}", rx: "0.9",
             transform: "{transform}", "data-matrix-id": "{matrix_id}", "data-row": "{row}", "data-column": "{column}",
             onpointerdown: move |event| on_pointer_down.call(event)
@@ -340,15 +469,35 @@ pub(super) fn RelationMatrixKey(
 }
 
 #[component]
-pub(super) fn RelationPartOutline(part_id: String, selected: bool, points: String) -> Element {
+pub(super) fn RelationPartOutline(
+    part_id: String,
+    selected: bool,
+    points: String,
+    #[props(default)] dimmed: bool,
+    /// Ticket 17: the canvas anchor badge target, like the key rect above.
+    #[props(default)]
+    anchor_target: bool,
+) -> Element {
     let RelationHighlight(highlight) = use_context::<RelationHighlight>();
     let highlighted = highlight()
         .as_ref()
         .is_some_and(|part_ids| part_ids.contains(&part_id));
+    let previewed = field_previews(Some(&part_id));
+    let class = if previewed {
+        "m1-part is-field-preview"
+    } else if selected {
+        "m1-part selected"
+    } else if anchor_target || highlighted {
+        "m1-part is-relation-highlight"
+    } else if dimmed {
+        "m1-part is-dimmed"
+    } else {
+        "m1-part"
+    };
     rsx! {
         polygon {
             points: "{points}",
-            class: if selected { "m1-part selected" } else if highlighted { "m1-part is-relation-highlight" } else { "m1-part" }
+            class: "{class}"
         }
     }
 }

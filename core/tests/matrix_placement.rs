@@ -412,6 +412,7 @@ fn companion_fixture() -> (CoreEngine, ProjectDoc) {
     let mut doc = ProjectDoc::empty("companions", "Companions");
     doc.definitions = definitions();
     doc.parts.push(Part {
+        anchor: None,
         id: "anchor".into(),
         definition_id: "switch".into(),
         reference: "ANCHOR".into(),
@@ -679,6 +680,7 @@ fn changed_ids_are_precise() {
     let mut doc = ProjectDoc::empty("placement", "Placement");
     doc.definitions = definitions();
     doc.parts.push(Part {
+        anchor: None,
         id: "spare".into(),
         definition_id: "switch".into(),
         reference: "SPARE".into(),

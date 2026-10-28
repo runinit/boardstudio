@@ -1,13 +1,30 @@
 //! Persistent outline controls use component frames, never generated contour indices.
 use crate::model::*;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
-pub(crate) fn world(at: Vec2, part: &Part) -> Vec2 {
-    let x = if part.side == Side::Back { -at.x } else { at.x };
-    let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
+pub(crate) fn world(at: Vec2, pose: &Pose2, side: Side) -> Vec2 {
+    let x = if side == Side::Back { -at.x } else { at.x };
+    let (sin, cos) = pose.rotation.to_radians().sin_cos();
     Vec2 {
-        x: part.pose.at.x + x * cos - at.y * sin,
-        y: part.pose.at.y + x * sin + at.y * cos,
+        x: pose.at.x + x * cos - at.y * sin,
+        y: pose.at.y + x * sin + at.y * cos,
+    }
+}
+
+/// World pose of a part as stored before an edit: the stored half-frame pose
+/// plus the pair offset from the edited document, whose layouts keep their
+/// membership through part removal. Ticket 12: detaching a removed
+/// half-frame part preserves its last evaluated board pose.
+fn world_before(after: &ProjectDoc, part: &Part) -> Pose2 {
+    match crate::matrix::layout::part_half_offset(after, &part.id) {
+        Some(offset) => Pose2 {
+            at: Vec2 {
+                x: part.pose.at.x + offset.x,
+                y: part.pose.at.y + offset.y,
+            },
+            rotation: part.pose.rotation,
+        },
+        None => part.pose,
     }
 }
 
@@ -21,7 +38,12 @@ pub(crate) fn point(doc: &ProjectDoc, point: &OutlineControlPoint) -> Result<Vec
             .parts
             .iter()
             .find(|part| &part.id == id)
-            .map(|part| world(point.at, part))
+            .map(|part| {
+                // Ticket 12: half-frame parts resolve controls at their
+                // evaluated board pose.
+                let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
+                world(point.at, &pose, part.side.clone())
+            })
             .ok_or_else(|| {
                 format!("Outline attachment {id} is missing; reattach it or keep the point fixed")
             }),
@@ -144,6 +166,18 @@ pub(crate) fn attached_parts(doc: &ProjectDoc) -> Vec<Part> {
 /// Rectangles retain their dimensions, corner radius and world rotation.
 pub(crate) fn detach_removed(before: &[Part], after: &mut ProjectDoc) {
     let present: BTreeSet<_> = after.parts.iter().map(|part| part.id.as_str()).collect();
+    // Snapshot every removed part's last world pose before mutating the
+    // outline: the shared borrow of the layouts ends here.
+    let worlds: BTreeMap<String, (Pose2, Side)> = before
+        .iter()
+        .filter(|part| !present.contains(part.id.as_str()))
+        .map(|part| {
+            (
+                part.id.clone(),
+                (world_before(after, part), part.side.clone()),
+            )
+        })
+        .collect();
     for feature in &mut after.outline {
         let removed = |id: &str| !present.contains(id);
         match feature {
@@ -153,11 +187,10 @@ pub(crate) fn detach_removed(before: &[Part], after: &mut ProjectDoc) {
                     .flat_map(|connection| &mut connection.points)
                 {
                     if point.part_id.as_deref().is_some_and(removed)
-                        && let Some(part) = before
-                            .iter()
-                            .find(|part| Some(&part.id) == point.part_id.as_ref())
+                        && let Some(id) = point.part_id.as_deref()
+                        && let Some((pose, side)) = worlds.get(id)
                     {
-                        point.at = world(point.at, part);
+                        point.at = world(point.at, pose, side.clone());
                         point.part_id = None;
                     }
                 }
@@ -167,9 +200,9 @@ pub(crate) fn detach_removed(before: &[Part], after: &mut ProjectDoc) {
                 points,
                 ..
             } if removed(anchor) => {
-                if let Some(part) = before.iter().find(|part| part.id == *anchor) {
+                if let Some((pose, side)) = worlds.get(anchor) {
                     for point in points {
-                        *point = world(*point, part);
+                        *point = world(*point, pose, side.clone());
                     }
                     if let OutlineFeature::Polygon { anchor_part_id, .. } = feature {
                         *anchor_part_id = None;
@@ -182,11 +215,11 @@ pub(crate) fn detach_removed(before: &[Part], after: &mut ProjectDoc) {
                 rotation,
                 ..
             } if anchor_part_id.as_deref().is_some_and(removed) => {
-                if let Some(part) = before
-                    .iter()
-                    .find(|part| Some(&part.id) == anchor_part_id.as_ref())
+                if let Some(id) = anchor_part_id.as_deref()
+                    && let Some((pose, side)) = worlds.get(id)
+                    && let Some(part) = before.iter().find(|part| part.id == id)
                 {
-                    *center = world(*center, part);
+                    *center = world(*center, pose, side.clone());
                     *rotation = Some(
                         part.pose.rotation
                             + rotation.unwrap_or(0.0)
