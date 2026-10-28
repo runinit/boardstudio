@@ -1339,6 +1339,115 @@ mod tests {
         assert_eq!(basis.surface, (725.0, 455.0));
     }
 
+    /// Ticket 18: the Layout view basis follows the content both ways, so the
+    /// view grows and shrinks with the spacing after commits. Matrix cells 5
+    /// mm further out on each side widen the basis by exactly 10 mm; the
+    /// member-less cells here keep the bounds on the keys alone.
+    #[wasm_bindgen_test]
+    fn layout_bounds_follow_spacing_widening_and_narrowing() {
+        use boardstudio_core::model::{MatrixScene, MatrixSceneCell};
+        let mut document = ProjectDoc::empty("doc", "Project");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        for id in ["left", "right"] {
+            document.matrices.push(
+                serde_json::from_value(serde_json::json!({
+                    "id": id, "rows": 1, "columns": 1,
+                    "pitch": {"x": 19.05, "y": 19.05}, "origin": {"x": 0.0, "y": 0.0},
+                    "definitionId": "switch", "partIds": [], "boardId": "board",
+                    "cells": [{"row": 0, "column": 0, "enabled": true, "assemblies": []}]
+                }))
+                .unwrap(),
+            );
+        }
+        let scene_with = |half_gap: f64| SceneDelta {
+            module_scenes: vec![],
+            revision: 0,
+            transaction_id: "accepted".into(),
+            changed_ids: vec![],
+            transforms: vec![],
+            matrix_scenes: ["left", "right"]
+                .into_iter()
+                .map(|matrix_id| {
+                    let x = if matrix_id == "left" {
+                        -half_gap
+                    } else {
+                        half_gap
+                    };
+                    MatrixScene {
+                        matrix_id: matrix_id.into(),
+                        cells: vec![MatrixSceneCell {
+                            row: 0,
+                            column: 0,
+                            enabled: true,
+                            member_id: None,
+                            pose: Pose2 {
+                                at: Vec2 { x, y: 0.0 },
+                                rotation: 0.0,
+                            },
+                            shift_frame: Default::default(),
+                            offset_frame: Default::default(),
+                            row_shift: Vec2 { x: 0.0, y: 0.0 },
+                            key_shift: Vec2 { x: 0.0, y: 0.0 },
+                            row_bend: 0.0,
+                            key_bend: 0.0,
+                            cumulative_shift: Vec2 { x: 0.0, y: 0.0 },
+                            cumulative_bend: 0.0,
+                        }],
+                        columns: vec![],
+                        companions: vec![],
+                    }
+                })
+                .collect(),
+            contours: vec![],
+            board_contours: vec![],
+            board_readiness: vec![],
+            board_outline_scenes: vec![],
+            finding_markers: vec![],
+            findings: vec![],
+            readiness: Readiness {
+                layout: true,
+                outline: true,
+                pcb: true,
+                case_ready: false,
+            },
+        };
+        let narrow = layout_canvas_bounds(&document, &scene_with(30.0), "board")
+            .expect("narrow spacing has bounds");
+        let wide = layout_canvas_bounds(&document, &scene_with(35.0), "board")
+            .expect("wide spacing has bounds");
+        // Both halves move 5 mm out: the basis grows by exactly 10 mm,
+        // symmetrically, with identical height.
+        assert!((wide.1 - wide.0 - (narrow.1 - narrow.0) - 10.0).abs() < 1e-9);
+        assert!((wide.0 - (narrow.0 - 5.0)).abs() < 1e-9);
+        assert!((wide.1 - (narrow.1 + 5.0)).abs() < 1e-9);
+        assert!((wide.2 - narrow.2).abs() < 1e-9);
+        assert!((wide.3 - narrow.3).abs() < 1e-9);
+        // The camera basis carries the same growth, so the refit view shows
+        // the widened content instead of cropping it.
+        let narrow_basis =
+            layout_camera_basis(&document, &scene_with(30.0), "board", (725.0, 455.0))
+                .expect("narrow basis exists");
+        let wide_basis = layout_camera_basis(&document, &scene_with(35.0), "board", (725.0, 455.0))
+            .expect("wide basis exists");
+        assert!(
+            (wide_basis.bounds.1
+                - wide_basis.bounds.0
+                - (narrow_basis.bounds.1 - narrow_basis.bounds.0)
+                - 10.0)
+                .abs()
+                < 1e-6
+        );
+    }
+
     #[wasm_bindgen_test]
     fn findings_are_deduplicated_severity_sorted_and_grouped_like_react() {
         let mut document = ProjectDoc::empty("doc", "Project");
@@ -1443,6 +1552,7 @@ mod tests {
                 rotation: 0.0,
             },
             side: Side::Front,
+            anchor: None,
             locked: None,
             properties: None,
             generator_parameters: None,
@@ -1614,6 +1724,7 @@ mod tests {
                 rotation: 0.0,
             },
             side: Side::Front,
+            anchor: None,
             locked: None,
             properties: None,
             generator_parameters: None,

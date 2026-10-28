@@ -320,7 +320,9 @@ pub(crate) fn resolve(
             dish_depth,
             spherical,
             wall_thickness: settings.wall_thickness,
-            pose: part.pose,
+            // Ticket 12: keycaps render half-frame parts at their evaluated
+            // board pose.
+            pose: crate::matrix::layout::evaluated_part_pose(doc, part),
             side: part.side.clone(),
             z: if part.side == Side::Front {
                 board.thickness + base

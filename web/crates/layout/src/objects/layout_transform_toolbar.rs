@@ -5329,6 +5329,7 @@ mod tool_tests {
         document.parts.push(Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: key_id.into(),
             definition_id: "switch:base".into(),
             reference: "K3".into(),

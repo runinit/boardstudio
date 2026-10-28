@@ -1,0 +1,449 @@
+//! Ticket 13: parts anchored with the column vocabulary (anchor key + Follow,
+//! Spread/Stagger/Splay carried, Offset/Rotation local). All behavior runs
+//! through public Core routes (`Open` / `Edit` / `Undo`).
+use boardstudio_core::{CoreEngine, evaluated_part_pose, model::*};
+
+fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
+    match reply {
+        CoreReply::Scene {
+            scene, document, ..
+        } => (scene, *document),
+        other => panic!("expected scene: {other:?}"),
+    }
+}
+
+fn open(doc: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
+    let mut engine = CoreEngine::new();
+    let (scene, doc) = scene(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: doc,
+    }));
+    (engine, scene, doc)
+}
+
+fn edit(
+    engine: &mut CoreEngine,
+    doc: &ProjectDoc,
+    operation: EditOperation,
+) -> (SceneDelta, ProjectDoc) {
+    scene(engine.handle(CoreRequest::Edit {
+        id: "edit".into(),
+        command: EditCommand {
+            base_revision: doc.revision,
+            transaction_id: "edit".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation,
+        },
+    }))
+}
+
+fn undone(engine: &mut CoreEngine) -> ProjectDoc {
+    match engine.handle(CoreRequest::Undo { id: "undo".into() }) {
+        CoreReply::Scene { document, .. } => *document,
+        other => panic!("expected scene: {other:?}"),
+    }
+}
+
+fn definitions() -> Vec<PartDefinition> {
+    serde_json::from_value(serde_json::json!([
+        {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]},
+        {"id":"mcu","name":"Controller","kind":"controller",
+         "courtyard":[{"x":-9.0,"y":-16.5},{"x":9.0,"y":-16.5},{"x":9.0,"y":16.5},{"x":-9.0,"y":16.5}],
+         "pads":[]}
+    ]))
+    .unwrap()
+}
+
+fn member(matrix: &str, row: u32, column: u32) -> String {
+    format!("matrix/{matrix}/r{row}c{column}")
+}
+
+fn key_part(id: &str, x: f64, y: f64) -> Part {
+    Part {
+        id: id.into(),
+        definition_id: "switch".into(),
+        reference: id.into(),
+        pose: Pose2 {
+            at: Vec2 { x, y },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        keycap: None,
+        outline: None,
+        locked: None,
+        properties: None,
+        generator_parameters: None,
+        anchor: None,
+    }
+}
+
+fn controller_part(id: &str, stored_x: f64, y: f64) -> Part {
+    Part {
+        id: id.into(),
+        definition_id: "mcu".into(),
+        reference: id.into(),
+        pose: Pose2 {
+            at: Vec2 { x: stored_x, y },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        keycap: None,
+        outline: None,
+        locked: None,
+        properties: None,
+        generator_parameters: None,
+        anchor: None,
+    }
+}
+
+fn matrix_3x6(id: &str, origin_x: f64, mirror: Option<Mirror>) -> Matrix {
+    Matrix {
+        id: id.into(),
+        name: None,
+        rows: 3,
+        columns: 6,
+        pitch: Vec2 { x: 19.05, y: 19.05 },
+        origin: Vec2 {
+            x: origin_x,
+            y: 0.0,
+        },
+        definition_id: "switch".into(),
+        part_ids: (0..3)
+            .flat_map(|row| (0..6).map(move |column| member(id, row, column)))
+            .collect(),
+        board_id: Some("board".into()),
+        mirror,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
+        cells: vec![],
+    }
+}
+
+fn mirror_kind(source_id: &str, mirror_id: &str) -> MirroredCorrespondence {
+    MirroredCorrespondence {
+        kind: MirroredItemKind::Matrix,
+        source_id: source_id.into(),
+        mirror_id: mirror_id.into(),
+        companion_mode: None,
+        companion_tweak: None,
+    }
+}
+
+/// Stored-gap pair (gap 40 about axis 40): half offsets 20 (source) and 60
+/// (mirror). Main is 3x6; R3C6 sits at board (106.25, 38.1).
+fn pair_doc() -> ProjectDoc {
+    let mut doc = ProjectDoc::empty("part-anchor", "Part anchor");
+    doc.definitions = definitions();
+    let mut board_part_ids = vec![];
+    for matrix in ["main", "main-mirror"] {
+        for row in 0..3 {
+            for column in 0..6 {
+                board_part_ids.push(member(matrix, row, column));
+            }
+        }
+    }
+    doc.boards.push(Board {
+        id: "board".into(),
+        name: "Board".into(),
+        outline_ids: vec![],
+        part_ids: board_part_ids,
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    // Member key parts ride the matrix refresh at board-space poses.
+    for (matrix, offset) in [("main", 20.0), ("main-mirror", 60.0)] {
+        let origin_x = if matrix == "main" { -9.0 } else { 9.0 };
+        for row in 0..3 {
+            for column in 0..6 {
+                // Column base x steps by pitch; rows step by pitch; the mirror
+                // half reflects x through its own frame.
+                let half_x = origin_x + f64::from(column) * 19.05;
+                let half_y = f64::from(row) * 19.05;
+                let (board_x, board_y) = if matrix == "main" {
+                    (half_x + offset, half_y)
+                } else {
+                    // Mirror::X negates the local x before the half offset.
+                    (offset - half_x, half_y)
+                };
+                doc.parts
+                    .push(key_part(&member(matrix, row, column), board_x, board_y));
+            }
+        }
+    }
+    doc.matrices.push(matrix_3x6("main", -9.0, None));
+    doc.matrices
+        .push(matrix_3x6("main-mirror", 9.0, Some(Mirror::X)));
+    doc.layouts.push(Layout {
+        id: "left".into(),
+        name: "Left".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["main".into()],
+        part_ids: vec![],
+        mirror_link: None,
+    });
+    doc.layouts.push(Layout {
+        id: "right".into(),
+        name: "Right".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["main-mirror".into()],
+        part_ids: vec![],
+        mirror_link: Some(LayoutMirrorLink {
+            source_id: "left".into(),
+            axis_x: 40.0,
+            split_gap: Some(40.0),
+            spacing: None,
+            correspondences: vec![mirror_kind("main", "main-mirror")],
+            exceptions: vec![],
+        }),
+    });
+    doc
+}
+
+fn part_of(doc: &ProjectDoc, id: &str) -> Part {
+    doc.parts
+        .iter()
+        .find(|part| part.id == id)
+        .unwrap_or_else(|| panic!("missing part {id}"))
+        .clone()
+}
+
+/// Board-space pose of an independent part.
+fn board_pose(doc: &ProjectDoc, id: &str) -> Pose2 {
+    evaluated_part_pose(doc, &part_of(doc, id))
+}
+
+fn part_records(doc: &ProjectDoc) -> Vec<MirroredCorrespondence> {
+    doc.layouts
+        .iter()
+        .find(|layout| layout.id == "right")
+        .expect("mirror layout")
+        .mirror_link
+        .clone()
+        .expect("mirror link")
+        .correspondences
+        .into_iter()
+        .filter(|record| record.kind == MirroredItemKind::Part)
+        .collect()
+}
+
+/// Drop near Main R3C6 (board 106.25, 38.1): 10 mm above the key.
+fn drop_u1(engine: &mut CoreEngine, doc: &ProjectDoc) -> ProjectDoc {
+    edit(
+        engine,
+        doc,
+        EditOperation::AddPart {
+            part: controller_part("u1", 106.25, 48.1),
+            board_id: Some("board".into()),
+            definition: None,
+            layout_id: Some("left".into()),
+        },
+    )
+    .1
+}
+
+#[test]
+fn drop_anchors_to_the_nearest_key_and_keeps_the_drop_point_upright() {
+    let (mut engine, _, doc) = open(pair_doc());
+    let dropped = drop_u1(&mut engine, &doc);
+    let part = part_of(&dropped, "u1");
+    let anchor = part.anchor.clone().expect("dropped part anchors");
+    assert_eq!(anchor.matrix_id, "main");
+    assert_eq!((anchor.row, anchor.column), (2, 5));
+    assert!(anchor.follow.x && anchor.follow.y && anchor.follow.rotation);
+    // The evaluated board pose is the drop point, upright.
+    let pose = board_pose(&dropped, "u1");
+    assert_eq!(pose.at, Vec2 { x: 106.25, y: 48.1 });
+    assert_eq!(pose.rotation, 0.0);
+}
+
+#[test]
+fn pick_keeps_the_pose_and_is_one_undo_entry() {
+    let (mut engine, _, doc) = open(pair_doc());
+    let dropped = drop_u1(&mut engine, &doc);
+    let before = board_pose(&dropped, "u1");
+    let picked = edit(
+        &mut engine,
+        &dropped,
+        EditOperation::SetPartAnchor {
+            part_id: "u1".into(),
+            anchor: PartAnchor {
+                matrix_id: "main".into(),
+                row: 0,
+                column: 0,
+                follow: Follow {
+                    x: true,
+                    y: true,
+                    rotation: true,
+                },
+                spread: 0.0,
+                stagger: 0.0,
+                splay: 0.0,
+                offset: Vec2::default(),
+                rotation: 0.0,
+            },
+        },
+    )
+    .1;
+    assert_eq!(board_pose(&picked, "u1"), before);
+    assert_eq!(
+        part_of(&picked, "u1")
+            .anchor
+            .as_ref()
+            .expect("picked anchor")
+            .matrix_id,
+        "main"
+    );
+    assert_eq!(part_of(&picked, "u1").anchor.as_ref().expect("row").row, 0);
+    // One Undo entry returns the anchored pose and target.
+    let undone_doc = undone(&mut engine);
+    assert_eq!(board_pose(&undone_doc, "u1"), before);
+    let anchor = part_of(&undone_doc, "u1")
+        .anchor
+        .expect("undo restores the drop anchor");
+    assert_eq!((anchor.row, anchor.column), (2, 5));
+}
+
+#[test]
+fn carried_stagger_moves_the_part_by_the_transported_amount() {
+    let (mut engine, _, doc) = open(pair_doc());
+    let dropped = drop_u1(&mut engine, &doc);
+    let before = board_pose(&dropped, "u1");
+    let moved = edit(
+        &mut engine,
+        &dropped,
+        EditOperation::SetMatrixPlacement {
+            matrix_id: "main".into(),
+            change: MatrixPlacementChange::ColumnStagger {
+                column: 5,
+                value: 3.0,
+            },
+        },
+    )
+    .1;
+    let after = board_pose(&moved, "u1");
+    assert_eq!(after.at.x, before.at.x);
+    assert_eq!(after.at.y, before.at.y + 3.0);
+    assert_eq!(after.rotation, before.rotation);
+}
+
+#[test]
+fn detach_keeps_the_pose_from_the_half_origin() {
+    let (mut engine, _, doc) = open(pair_doc());
+    let dropped = drop_u1(&mut engine, &doc);
+    let before = board_pose(&dropped, "u1");
+    let detached = edit(
+        &mut engine,
+        &dropped,
+        EditOperation::DetachPartAnchor {
+            part_id: "u1".into(),
+        },
+    )
+    .1;
+    assert!(part_of(&detached, "u1").anchor.is_none());
+    assert_eq!(board_pose(&detached, "u1"), before);
+    let undone_doc = undone(&mut engine);
+    assert!(part_of(&undone_doc, "u1").anchor.is_some());
+    assert_eq!(board_pose(&undone_doc, "u1"), before);
+}
+
+#[test]
+fn follow_subset_change_keeps_the_pose() {
+    let (mut engine, _, doc) = open(pair_doc());
+    let dropped = drop_u1(&mut engine, &doc);
+    let before = board_pose(&dropped, "u1");
+    let changed = edit(
+        &mut engine,
+        &dropped,
+        EditOperation::SetPartAnchorFollow {
+            part_id: "u1".into(),
+            follow: Follow {
+                x: false,
+                y: true,
+                rotation: true,
+            },
+        },
+    )
+    .1;
+    assert_eq!(board_pose(&changed, "u1"), before);
+    assert!(
+        !part_of(&changed, "u1")
+            .anchor
+            .as_ref()
+            .expect("anchor")
+            .follow
+            .x
+    );
+}
+
+#[test]
+fn dragging_an_anchored_part_edits_spread_and_stagger() {
+    let (mut engine, _, doc) = open(pair_doc());
+    let dropped = drop_u1(&mut engine, &doc);
+    let before = part_of(&dropped, "u1").anchor.expect("anchor");
+    let dragged = edit(
+        &mut engine,
+        &dropped,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "u1".into(),
+                at: Vec2 { x: 111.25, y: 50.1 },
+            }],
+        },
+    )
+    .1;
+    let after = part_of(&dragged, "u1").anchor.expect("anchor");
+    assert_eq!(after.spread, before.spread + 5.0);
+    assert_eq!(after.stagger, before.stagger + 2.0);
+    assert_eq!(after.rotation, before.rotation);
+    assert_eq!(board_pose(&dragged, "u1").at, Vec2 { x: 111.25, y: 50.1 });
+}
+
+#[test]
+fn mirror_partners_share_half_frame_values_while_splay_mirrors() {
+    let (mut engine, _, doc) = open(pair_doc());
+    let dropped = drop_u1(&mut engine, &doc);
+    let records = part_records(&dropped);
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].source_id, "u1");
+    let partner_id = records[0].mirror_id.clone();
+    let source = part_of(&dropped, "u1");
+    let partner = part_of(&dropped, &partner_id);
+    let source_anchor = source.anchor.expect("source anchor");
+    let partner_anchor = partner.anchor.expect("partner anchor");
+    // The partner anchors to the counterpart key with mirrored values.
+    assert_eq!(partner_anchor.matrix_id, "main-mirror");
+    assert_eq!(
+        (partner_anchor.row, partner_anchor.column),
+        (source_anchor.row, source_anchor.column)
+    );
+    assert_eq!(partner_anchor.spread, -source_anchor.spread);
+    assert_eq!(partner_anchor.stagger, source_anchor.stagger);
+    // Board poses mirror across the split axis.
+    let source_pose = board_pose(&dropped, "u1");
+    let partner_pose = board_pose(&dropped, &partner_id);
+    assert_eq!(partner_pose.at.x, 2.0 * 40.0 - source_pose.at.x);
+    assert_eq!(partner_pose.at.y, source_pose.at.y);
+    // Splay mirrors: +20 on the source reads -20 on the partner.
+    let splayed = edit(
+        &mut engine,
+        &dropped,
+        EditOperation::SetPartAnchorValues {
+            part_id: "u1".into(),
+            change: PartAnchorValueChange::Splay(20.0),
+        },
+    )
+    .1;
+    assert_eq!(board_pose(&splayed, "u1").rotation, 20.0);
+    assert_eq!(board_pose(&splayed, &partner_id).rotation, -20.0);
+    let partner_anchor = part_of(&splayed, &partner_id)
+        .anchor
+        .expect("partner anchor");
+    assert_eq!(partner_anchor.splay, -20.0);
+}

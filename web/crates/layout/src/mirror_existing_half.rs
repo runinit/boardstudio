@@ -121,6 +121,8 @@ pub(crate) fn prepare_existing_half(
                 exceptions: vec![],
                 source_id: source_layout.id,
                 axis_x,
+                split_gap: None,
+                spacing: None,
             }),
         });
     }

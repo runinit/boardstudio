@@ -239,6 +239,7 @@ fn fixture() -> (ProjectDoc, TreeContext) {
     document.parts.push(Part {
         keycap: None,
         outline: None,
+        anchor: None,
         id: "key-part".into(),
         definition_id: "key-definition".into(),
         reference: "K1".into(),
@@ -326,6 +327,7 @@ fn two_key_fixture(include_standalone: bool) -> (ProjectDoc, TreeContext) {
     document.parts.push(Part {
         keycap: None,
         outline: None,
+        anchor: None,
         id: second_key.into(),
         definition_id: "key-definition".into(),
         reference: "K2".into(),
@@ -344,6 +346,7 @@ fn two_key_fixture(include_standalone: bool) -> (ProjectDoc, TreeContext) {
         document.parts.push(Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: "standalone-part".into(),
             definition_id: "key-definition".into(),
             reference: "U1".into(),
@@ -384,6 +387,7 @@ fn three_key_fixture() -> (ProjectDoc, TreeContext) {
     document.parts.push(Part {
         keycap: None,
         outline: None,
+        anchor: None,
         id: third_key.into(),
         definition_id: "key-definition".into(),
         reference: "K3".into(),
@@ -417,6 +421,7 @@ fn anchored_matrix_fixture(rotation_followed: bool) -> (ProjectDoc, TreeContext)
     document.parts.push(Part {
         keycap: None,
         outline: None,
+        anchor: None,
         id: key_id.into(),
         definition_id: "key-definition".into(),
         reference: "K2".into(),
@@ -502,6 +507,8 @@ fn linked_detach_fixture() -> (ProjectDoc, TreeContext) {
         mirror_link: Some(LayoutMirrorLink {
             source_id: "layout".into(),
             axis_x: 10.0,
+            split_gap: None,
+            spacing: None,
             correspondences: vec![
                 MirroredCorrespondence {
                     companion_mode: None,
@@ -533,6 +540,7 @@ fn linked_detach_fixture() -> (ProjectDoc, TreeContext) {
         document.parts.push(Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: id.into(),
             definition_id: "key-definition".into(),
             reference: reference.into(),
@@ -2198,6 +2206,7 @@ fn two_row_fixture() -> (ProjectDoc, TreeContext) {
     document.parts.push(Part {
         keycap: None,
         outline: None,
+        anchor: None,
         id: second_key.into(),
         definition_id: "key-definition".into(),
         reference: "K2".into(),
@@ -2225,6 +2234,7 @@ fn shift_grid_fixture() -> (ProjectDoc, TreeContext) {
         document.parts.push(Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: key.into(),
             definition_id: "key-definition".into(),
             reference: format!("K{key}"),
@@ -3326,6 +3336,7 @@ fn pick_anchor_fixture() -> (ProjectDoc, TreeContext) {
     document.parts.push(Part {
         keycap: None,
         outline: None,
+        anchor: None,
         id: key_id.into(),
         definition_id: "key-definition".into(),
         reference: "K3".into(),
@@ -3651,6 +3662,7 @@ fn aggregate_anchor_fixture() -> (ProjectDoc, TreeContext) {
     document.parts.push(Part {
         keycap: None,
         outline: None,
+        anchor: None,
         id: key_id.into(),
         definition_id: "key-definition".into(),
         reference: "K3".into(),
@@ -3746,6 +3758,7 @@ fn aggregate_anchor_three_key_fixture() -> (ProjectDoc, TreeContext) {
     document.parts.push(Part {
         keycap: None,
         outline: None,
+        anchor: None,
         id: key_id.into(),
         definition_id: "key-definition".into(),
         reference: "K3".into(),

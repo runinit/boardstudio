@@ -135,6 +135,8 @@ pub fn project_mirrored_pair(
             exceptions: vec![],
             source_id: left_layout.id.clone(),
             axis_x: center.x,
+            split_gap: None,
+            spacing: None,
         }),
     };
 
@@ -219,6 +221,63 @@ mod tests {
             left_layout_id: "left-layout".into(),
             right_layout_id: "right-layout".into(),
         }
+    }
+
+    fn creation_document() -> boardstudio_core::model::ProjectDoc {
+        let mut document =
+            boardstudio_core::model::ProjectDoc::empty("creation-proposal", "Creation proposal");
+        document.definitions = serde_json::from_value(serde_json::json!([
+            {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]}
+        ]))
+        .unwrap();
+        document.boards.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "board",
+                "name": "Board",
+                "outlineIds": [],
+                "partIds": [],
+                "netIds": [],
+                "thickness": 1.6,
+                "traces": [],
+                "vias": []
+            }))
+            .unwrap(),
+        );
+        document
+    }
+
+    fn creation_matrix(origin_x: f64, columns: u32) -> Matrix {
+        serde_json::from_value(serde_json::json!({
+            "id": "left-matrix",
+            "name": null,
+            "rows": 1,
+            "columns": columns,
+            "pitch": { "x": 19.0, "y": 19.0 },
+            "origin": { "x": origin_x, "y": 0.0 },
+            "definitionId": "switch",
+            "partIds": [],
+            "boardId": "board",
+            "cells": []
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn creation_proposal_matches_the_stored_creation_gap() {
+        // Ticket 11: the mirrored-pair setup proposes through this exact Core
+        // seam, so the preview and the placed pair share the adapted gap.
+        let document = creation_document();
+        // A single key at the requested 40 mm stays on the default.
+        let kept =
+            boardstudio_core::proposed_creation_gap(&document, &creation_matrix(71.0, 1), 100.0)
+                .unwrap();
+        assert!((kept - 40.0).abs() < 1e-9);
+        // Three inner columns overlap at the requested 40 mm, so the proposal
+        // rises to the 88 mm minimum, matching the Core commit path.
+        let adapted =
+            boardstudio_core::proposed_creation_gap(&document, &creation_matrix(71.0, 3), 100.0)
+                .unwrap();
+        assert!((adapted - 88.0).abs() < 1e-9);
     }
 
     #[test]

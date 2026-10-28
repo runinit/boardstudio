@@ -49,6 +49,7 @@ pub fn matrix_document() -> ProjectDoc {
         document.parts.push(Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: (*id).into(),
             definition_id: "switch:base".into(),
             reference: format!("SW{}", column + 1),
