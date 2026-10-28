@@ -1,6 +1,6 @@
 # Architecture decisions
 
-Accepted decisions, oldest first. Read one when you change the area in its last column. A new ADR
+Accepted decisions, in numerical order. Read one when you change the area in its last column. A new ADR
 gets the next number and a row here; `scripts/check-adr-index.py` (part of
 `python3 scripts/check.py repo`) fails for an ADR that is not listed.
 
