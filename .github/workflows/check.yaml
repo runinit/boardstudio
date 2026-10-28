@@ -14,6 +14,11 @@ env:
   # Native test binaries link Core many times; full debuginfo made them (and the cache) several
   # times larger and slower to link. Line tables keep file:line in panics and backtraces.
   CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  # rust-cache hashes `rustc -vV` of every installed toolchain, so the runner image's preinstalled
+  # stable would change every key. A job-private rustup home holds only the toolchain that
+  # rust-toolchain.toml auto-installs; nothing on the image is removed. Every step runs inside
+  # the repo, where that file selects the toolchain.
+  RUSTUP_HOME: /home/runner/.rustup-pinned
 jobs:
   # Native Rust tests (including KiCad and native CAD checks). Runs beside `web` so the KiCad
   # install is off the critical path.
@@ -34,7 +39,9 @@ jobs:
           workspaces: |
             . -> target
             cad/monstertruck -> target
+            cad/monstertruck-qualification -> target
             cad/wasm -> target
+          env-vars: ImageOS
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
       - run: python3 scripts/check.py repo tooling lint test
 
@@ -76,6 +83,7 @@ jobs:
             . -> target
             cad/wasm -> target
           shared-key: web
+          env-vars: ImageOS
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
       - run: python3 scripts/check.py build browser
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -119,6 +127,7 @@ jobs:
             . -> target
             cad/wasm -> target
           shared-key: web
+          env-vars: ImageOS
           save-if: false
       - name: Build the Dioxus release package (/boardstudio/ route)
         run: python3 scripts/build-web.py

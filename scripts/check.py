@@ -70,7 +70,7 @@ TOOLING_TESTS = (
     "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
     "scripts/test-model-lookup.cjs", "scripts/test-ergogen-parity.cjs", "scripts/test-verification-receipt.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
-    "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
+    "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-ci-workflow.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 ISOLATED = ("presentation::case_workspace::",)
