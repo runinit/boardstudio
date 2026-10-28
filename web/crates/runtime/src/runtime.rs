@@ -8792,6 +8792,7 @@ mod project_open_supersession_tests {
             snap_fraction: 0.0,
             geometry_snap: false,
             gap: None,
+            pixels_per_world: None,
             alt: false,
         });
         test_support::run_pending(&runtime).await;
