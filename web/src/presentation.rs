@@ -6472,6 +6472,7 @@ fn Editor() -> Element {
                     snap_fraction: snap.snap_fraction,
                     geometry_snap: snap.geometry_snap,
                     gap: snap.gap,
+                    pixels_per_world: None,
                     alt: pointer.alt_key(),
                 });
                 let fresh = runtime.model();
@@ -6495,6 +6496,7 @@ fn Editor() -> Element {
             runtime.submit(Event::GestureSample {
                 pointer_id: current.pointer,
                 positions: moved(&current, point),
+                pixels_per_world: None,
                 alt: pointer.alt_key(),
             });
         }
@@ -6646,6 +6648,7 @@ fn Editor() -> Element {
                 runtime.submit(Event::GestureEnd {
                     pointer_id: current.pointer,
                     final_positions: moved(&current, point),
+                    pixels_per_world: None,
                     alt: pointer.alt_key(),
                 });
             } else if current.active {
