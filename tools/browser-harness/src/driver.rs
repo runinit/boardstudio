@@ -44,16 +44,15 @@ pub const LAUNCH_ARGS: [&str; 2] = ["--use-angle=swiftshader", "--enable-unsafe-
 
 /// Ticket-001 policy for unparsable (`InvalidMessage`) CDP events: the harness
 /// launches with invalids surfaced so they can be counted, then classifies
-/// each one. Events outside the harness's used surface are tolerated and
-/// counted (surfaced in the run log, never silent); events on the used
-/// surface fail the run loudly because they may hide a real loss.
+/// each one. Only the observed unused Network.requestWillBeSentExtraInfo event
+/// is tolerated and counted; all other invalid messages fail the run.
 /// Classification of an unparsable (`InvalidMessage`) CDP event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvalidKind {
     /// The harness drives this domain; losing one of its events may hide a
     /// real failure, so any required invalid fails the run.
     Required,
-    /// Outside the harness's used surface; tolerated and counted.
+    /// The observed unused event; tolerated and counted.
     Benign,
 }
 
@@ -79,10 +78,10 @@ pub fn required_cdp_method(method: &str) -> bool {
 /// Classify an unparsable CDP event method. A missing method is Required:
 /// failing loud beats a green run on an event we could not even name.
 pub fn classify_invalid(method: &str) -> InvalidKind {
-    if method.is_empty() || required_cdp_method(method) {
-        InvalidKind::Required
-    } else {
+    if method == "Network.requestWillBeSentExtraInfo" {
         InvalidKind::Benign
+    } else {
+        InvalidKind::Required
     }
 }
 
@@ -144,9 +143,8 @@ pub fn invalid_method(raw: &str) -> String {
 
 /// Launch Chrome with the shared flags and viewport under an isolated profile.
 ///
-/// Invalid protocol messages are surfaced so the drain can count them: events
-/// outside the harness's used CDP surface are tolerated and counted in the
-/// run log, while events on the used surface fail the run (see
+/// Invalid protocol messages are surfaced so the drain can count the one
+/// tolerated event and fail on all others (see
 /// [`HandlerErrors`]). The child's
 /// `XDG_CONFIG_HOME` is isolated from the user's configuration.
 pub async fn launch_chrome(chrome: &str, dirs: &IsolatedDirs) -> Result<(Browser, Handler)> {
@@ -220,8 +218,8 @@ pub async fn launch_chrome_with_args(
 
 /// Handler errors observed while the run is active.
 ///
-/// Protocol and command-routing failures fail the run, except tolerated
-/// benign-domain invalids, which are counted (see [`InvalidCounts`]) and
+/// Protocol and command-routing failures fail the run, except for
+/// the observed unused event, which is counted (see [`InvalidCounts`]) and
 /// logged instead. The run log always prints [`HandlerErrors::invalid_report`],
 /// so tolerated invalids are never silent; required-domain invalid loss still
 /// fails loudly via [`HandlerErrors::fail_if_any`].
@@ -302,8 +300,8 @@ impl HandlerErrors {
 /// Drain the browser handler for the duration of the run.
 ///
 /// Unparsable protocol messages are classified per the ticket-001 policy:
-/// benign-domain invalids are counted and logged (never silent, never fatal),
-/// while required-domain invalids and all other handler errors are recorded
+/// the observed unused event is counted and logged (never silent, never fatal),
+/// while all other invalids and handler errors are recorded
 /// with full redacted payloads and fail the run. The task ends when the
 /// caller drops the browser or aborts the handle.
 pub fn spawn_handler_drain(
@@ -1936,6 +1934,8 @@ mod invalid_policy_tests {
             "Target.targetCreated",
             "Page.loadEventFired",
             "Accessibility.loadComplete",
+            "Network.responseReceived",
+            "Unknown.event",
             "",
         ] {
             assert_eq!(
@@ -2007,6 +2007,15 @@ mod invalid_policy_tests {
             report.contains("Network.requestWillBeSentExtraInfo"),
             "{report}"
         );
+    }
+
+    #[tokio::test]
+    async fn network_response_decode_failure_is_fatal_and_redacted() {
+        let errors = drain_one_invalid(r#"{"method":"Network.responseReceived","params":{"headers":{"Authorization":"secret-token"}}}"#).await;
+        let verdict = errors.fail_if_any().unwrap_err().to_string();
+        assert!(verdict.contains("Network.responseReceived"), "{verdict}");
+        assert!(!verdict.contains("secret-token"), "{verdict}");
+        assert_eq!(errors.tolerated_invalid_total(), 0);
     }
 
     #[tokio::test]

@@ -8815,6 +8815,7 @@ mod project_open_supersession_tests {
             pointer_id: 19,
             target_ids: Vec::new(),
             transaction_id: "retained-draft".into(),
+            pixels_per_world: None,
             start: Vec::new(),
             pitch: boardstudio_core::model::Vec2 { x: 19.05, y: 19.05 },
             snap_fraction: 0.0,
