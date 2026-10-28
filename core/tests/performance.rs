@@ -33,6 +33,7 @@ fn fixture(keys: usize) -> ProjectDoc {
     });
     for index in 0..keys {
         doc.parts.push(Part {
+            anchor: None,
             id: format!("key-{index}"),
             definition_id: "switch".into(),
             reference: format!("SW{}", index + 1),
