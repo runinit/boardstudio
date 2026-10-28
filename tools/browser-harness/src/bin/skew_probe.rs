@@ -268,7 +268,7 @@ async fn run(counters: Arc<Counters>) -> Result<()> {
     step!("dom round trip", driver::backend_of(&page, "#probe-btn"));
     // Runtime round trip.
     let sum = step!("runtime round trip", driver::eval(&page, "1 + 1"));
-    if sum != serde_json::Value::from(2) {
+    if sum.as_i64() != Some(2) {
         return Err(fail(format!(
             "skew probe runtime round trip saw {sum:?}, want 2"
         )));
