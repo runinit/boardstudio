@@ -355,6 +355,9 @@ decision. The old command failed without Playwright
 `NODE_PATH` on Chrome 145 (`.evidence/ticket008-cad-compare-green.log`). This is
 two diagnostic captures on an existing site, not source-bound or timing evidence.
 
+**Historical note, superseded by the explicit retirement decision and commit
+`731cef14`:** Cadrum reproduction and its Node driver are no longer supported.
+
 The current Monstertruck checkout rejects `--driver node` before creating output;
 the new launcher test went red before this restriction and green after. The
 historical Cadrum reproduction remains a live documented path in `measure-cad.py`:
@@ -382,7 +385,14 @@ The former Node source is preserved under `docs/archive/graphite/`, not as live
 entry points. Historical Cadrum remains a separate blocker to full Playwright
 retirement; full verification and hosted CI are still outstanding.
 
+**Superseded:** Cadrum is no longer a blocker because its reproduction was
+explicitly retired in `731cef14`; the preceding paragraph records the earlier state.
+
 ## 2026-10-27: review follow-up on observed core failures
+
+**Historical Cadrum follow-up superseded:** the user explicitly retired that
+reproduction path, and `731cef14` archived the driver. The final paragraph below
+records the earlier assessment, not a current requirement or blocker.
 
 The ticket 006 decision requires recording responses actually observed, not a
 fixed landing-asset inventory or a wait for missing responses. Earlier evidence

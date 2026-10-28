@@ -112,7 +112,8 @@ async fn main() {
 async fn main_run() -> Result<()> {
     let url =
         std::env::var("BOARDSTUDIO_PREVIEW_URL").map_err(|_| err("set BOARDSTUDIO_PREVIEW_URL"))?;
-    let chrome = std::env::var("CHROME_BIN").unwrap_or_else(|_| "/usr/bin/chromium".into());
+    let chrome =
+        std::env::var("CHROME_BIN").map_err(|_| err("set CHROME_BIN to Chrome or Chromium"))?;
     let tmp = std::env::var("TMPDIR").unwrap_or_else(|_| "/tmp".into());
     let dirs = IsolatedDirs::create(Path::new(&tmp)).map_err(err)?;
     let (browser, handler) = driver::launch_chrome(&chrome, &dirs).await?;

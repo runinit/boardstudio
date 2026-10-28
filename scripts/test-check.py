@@ -4,10 +4,12 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import io
+import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -69,6 +71,50 @@ class CheckTests(unittest.TestCase):
                                 env=env, capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("BOARDSTUDIO_PREVIEW_URL", result.stderr)
+
+    def test_parts_inspector_discovers_chrome_before_build_and_preserves_environment(self):
+        runner = """
+import json, os, runpy, sys
+from pathlib import Path
+sys.path.insert(0, 'scripts')
+import browser_tools
+def build(name):
+    print('BUILD', name)
+    return Path('/fake/parts-inspector-scroll')
+def launch(binary, args):
+    print('LAUNCH', json.dumps([binary, args, os.environ['CHROME_BIN'], os.environ['KEEP_ME'], os.environ['BOARDSTUDIO_PREVIEW_URL']]))
+browser_tools._build_harness = build
+os.execv = launch
+runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            chrome = Path(directory) / "chromium"
+            chrome.write_text("#!/bin/sh\nexit 0\n")
+            chrome.chmod(0o755)
+            env = dict(os.environ, PATH=directory, BOARDSTUDIO_PREVIEW_URL="http://example.test/", KEEP_ME="kept")
+            env.pop("CHROME_BIN", None)
+            env.pop("BOARDSTUDIO_DRAG_CHROME_BIN", None)
+            for override in (None, "/chosen/chrome"):
+                with self.subTest(override=override):
+                    selected = dict(env)
+                    if override:
+                        selected["CHROME_BIN"] = override
+                    result = subprocess.run([sys.executable, "-c", runner], cwd=ROOT, env=selected,
+                                            capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    lines = result.stdout.splitlines()
+                    self.assertEqual(lines[0], "BUILD parts-inspector-scroll")
+                    binary, args, actual, kept, url = json.loads(lines[1].removeprefix("LAUNCH "))
+                    self.assertEqual((binary, args), ("/fake/parts-inspector-scroll", ["/fake/parts-inspector-scroll"]))
+                    self.assertEqual((actual, kept, url), (override or str(chrome), "kept", "http://example.test/"))
+            chrome.unlink()
+            result = subprocess.run([sys.executable, "-c", runner], cwd=ROOT, env=env,
+                                    capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("CHROME_BIN", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertNotIn("BUILD", result.stdout)
+            self.assertNotIn("LAUNCH", result.stdout)
 
     def test_cad_capture_controls_have_a_human_runnable_entry_point(self):
         result = subprocess.run([sys.executable, "cad/scripts/test-cad-capture-controls.py", "--help"],
