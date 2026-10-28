@@ -26,15 +26,16 @@ def save_if(step: str, **context: str) -> bool:
     expr = raw.removeprefix("${{").removesuffix("}}").strip()
     # Longest names first: `github.ref` must not eat a prefix of `github.repository`.
     for name, var in (("github.event.pull_request.head.repo.full_name", "head_repo"),
-                      ("github.event_name", "event"), ("github.repository", "repo"), ("github.ref", "ref")):
+                      ("github.event_name", "event"), ("github.repository", "repo"),
+                      ("github.actor", "actor"), ("github.ref", "ref")):
         expr = expr.replace(name, var)
     expr = expr.replace("&&", " and ").replace("||", " or ")
     assert "github." not in expr, f"unmodelled context in save-if: {raw}"
     return bool(eval(expr, {"__builtins__": {}}, context))  # noqa: S307 - our own workflow text, no builtins
 
 
-def pull_request(head_repo: str) -> dict[str, str]:
-    return {"event": "pull_request", "ref": "refs/pull/9/merge", "head_repo": head_repo, "repo": MAIN_REPO}
+def pull_request(head_repo: str, actor: str = "runinit") -> dict[str, str]:
+    return {"event": "pull_request", "ref": "refs/pull/9/merge", "head_repo": head_repo, "repo": MAIN_REPO, "actor": actor}
 
 
 def push(ref: str) -> dict[str, str]:
@@ -62,6 +63,7 @@ class CachePolicyTests(unittest.TestCase):
                 ("push main", push("refs/heads/main"), True),
                 ("push dev", push("refs/heads/dev"), True),
                 ("same-repo pull request", pull_request(MAIN_REPO), True),
+                ("dependabot pull request", pull_request(MAIN_REPO, "dependabot[bot]"), False),
                 ("fork pull request", pull_request("someone/boardstudio"), False),
                 ("push to another branch", push("refs/heads/stack/02-split-board"), False),
                 ("dispatch on a feature branch", {**push("refs/heads/feature"), "event": "workflow_dispatch"}, False),
