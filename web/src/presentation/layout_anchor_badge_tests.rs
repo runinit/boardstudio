@@ -49,10 +49,15 @@ impl Probe {
             .revision
     }
 
+    /// Ticket 02 renamed the canvas label class: the badge text now reads
+    /// from the "Placed from" readout, stripping its prefix.
     fn badge_label(&self) -> String {
-        element(self.root_id, ".m1-anchor-badge-label")
+        element(self.root_id, ".m1-canvas-anchor-readout")
             .text_content()
             .unwrap_or_default()
+            .strip_prefix("Placed from ")
+            .unwrap_or_default()
+            .to_owned()
     }
 }
 

@@ -440,10 +440,12 @@ pub(super) fn canonicalize(
         // Ticket 13: part anchor edits name either copy and fan out inside
         // the apply (the source copy is the authority there), so no link
         // translation applies here; the canonical edit is the request.
+        // Ticket 07: detached rotation fans out the same way.
         Op::SetPartAnchor { .. }
         | Op::SetPartAnchorFollow { .. }
         | Op::DetachPartAnchor { .. }
-        | Op::SetPartAnchorValues { .. } => {}
+        | Op::SetPartAnchorValues { .. }
+        | Op::SetPartRotation { .. } => {}
         Op::SetLayout { layout } => match layout::translate(&links, layout)? {
             layout::Outcome::Translated(source) => {
                 canonical.operation = Op::SetLayout { layout: source };
