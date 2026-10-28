@@ -60,5 +60,18 @@ class CachePolicyTests(unittest.TestCase):
         self.assertLessEqual(built, cached, "cad_build.py builds into a target dir the CI cache skips")
 
 
+class ConcurrencyTests(unittest.TestCase):
+    block = WORKFLOW.split("\nenv:\n")[0].split("\nconcurrency:\n", 1)[1]
+
+    def test_only_pull_request_runs_are_cancelled(self):
+        self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", self.block)
+
+    def test_each_pull_request_has_its_own_group(self):
+        # A stack's PRs must not cancel each other; release runs keep the `pages` group.
+        self.assertIn("format('validation-pr-{0}', github.event.pull_request.number)", self.block)
+        self.assertRegex(self.block, r"&& 'pages' \|\|")
+        self.assertIn("format('validation-{0}', github.run_id)", self.block)
+
+
 if __name__ == "__main__":
     unittest.main()
