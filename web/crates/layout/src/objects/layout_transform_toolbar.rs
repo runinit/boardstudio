@@ -3398,6 +3398,7 @@ pub fn LayoutPartToolOverlay(
                         snap_fraction: snap.snap_fraction,
                         geometry_snap: snap.geometry_snap,
                         gap: snap.gap,
+                        pixels_per_world: None,
                         alt,
                     });
                     let fresh = runtime_for_move.model();
@@ -3419,6 +3420,7 @@ pub fn LayoutPartToolOverlay(
                     runtime_for_move.submit(Event::GestureSample {
                         pointer_id: active.pointer_id,
                         positions: positions.clone(),
+                        pixels_per_world: None,
                         alt,
                     });
                 }
@@ -3686,6 +3688,7 @@ pub fn LayoutPartToolOverlay(
                     runtime_for_end.submit(Event::GestureEnd {
                         pointer_id: active.pointer_id,
                         final_positions: positions.clone(),
+                        pixels_per_world: None,
                         alt,
                     });
                     let at = &positions[0].at;
