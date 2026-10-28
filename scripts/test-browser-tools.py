@@ -175,8 +175,6 @@ class BrowserToolsTests(unittest.TestCase):
                     for secret in secrets:
                         self.assertFalse(secret in output, "sensitive value reached build diagnostics")
 
-<<<<<<< HEAD
-=======
     def test_build_lock_across_scheduler_and_standalone(self):
         import fcntl
         import os
@@ -248,7 +246,6 @@ class BrowserToolsTests(unittest.TestCase):
         self.assertNotIn("FileNotFoundError", result.stderr)
         self.assertIn("install", result.stderr.lower())
 
->>>>>>> c1dbd3019 (tooling: default the drag smoke to the Rust harness, retire the Node path)
     def locate_chrome(self, *available, env=None):
         with mock.patch.object(browser_tools.shutil, "which", side_effect=which(*available)), \
                 mock.patch.dict(browser_tools.os.environ, env or {}, clear=True):
@@ -260,22 +257,15 @@ class BrowserToolsTests(unittest.TestCase):
     def test_chrome_only_probe_honours_chrome_bin(self):
         self.assertEqual(self.locate_chrome(env={"CHROME_BIN": "/opt/chrome"}), "/opt/chrome")
 
-<<<<<<< HEAD
-=======
     def test_drag_browser_override_and_chrome_bin_precedence(self):
         self.assertEqual(self.locate_chrome(env={"BOARDSTUDIO_DRAG_CHROME_BIN": "/drag/chrome"}), "/drag/chrome")
         self.assertEqual(self.locate_chrome(env={"CHROME_BIN": "/chosen/chrome",
                                                  "BOARDSTUDIO_DRAG_CHROME_BIN": "/drag/chrome"}), "/chosen/chrome")
 
->>>>>>> c1dbd3019 (tooling: default the drag smoke to the Rust harness, retire the Node path)
     def test_chrome_only_probe_names_chrome_bin(self):
         with self.assertRaises(browser_tools.MissingBrowserTool) as raised:
             self.locate_chrome()
         self.assertIn("CHROME_BIN", str(raised.exception))
-<<<<<<< HEAD
-
-=======
->>>>>>> c1dbd3019 (tooling: default the drag smoke to the Rust harness, retire the Node path)
 
 if __name__ == "__main__":
     unittest.main()

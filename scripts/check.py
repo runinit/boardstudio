@@ -70,11 +70,7 @@ TOOLING_TESTS = (
     "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
     "scripts/test-model-lookup.cjs", "scripts/test-ergogen-parity.cjs", "scripts/test-verification-receipt.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
-<<<<<<< HEAD
-    "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py",
-=======
-    "scripts/test-install-drag-chrome.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
->>>>>>> c1dbd3019 (tooling: default the drag smoke to the Rust harness, retire the Node path)
+    "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 ISOLATED = ("presentation::case_workspace::",)
@@ -152,11 +148,7 @@ LINT: list[list[str]] = [
     # The browser harness lives outside the workspace with its own lockfile, so
     # it gets its own manifest-scoped format and lint commands.
     ["cargo", "fmt", "--manifest-path", HARNESS_MANIFEST, "--", "--check"],
-<<<<<<< HEAD
-    ["cargo", "clippy", "--manifest-path", HARNESS_MANIFEST, "--all-targets", "--locked", "--", "-D", "warnings"],
-=======
     ["cargo", "clippy", "--manifest-path", HARNESS_MANIFEST, "--all-targets", "--locked", "--no-deps", "--", "-D", "warnings"],
->>>>>>> c1dbd3019 (tooling: default the drag smoke to the Rust harness, retire the Node path)
 ]
 
 STEPS: dict[str, tuple[bool, list[Command]]] = {
@@ -605,15 +597,8 @@ def run(names: list[str], update_native_baseline: bool = False,
         # Fail before the page build, which is minutes of work the smoke cannot use without these.
         # The opt-in Rust driver needs only Chrome; the default Node runner also needs its client.
         try:
-<<<<<<< HEAD
-            if os.environ.get("BOARDSTUDIO_DRAG_DRIVER", "node") == "rust":
-                browser_tools.locate_chrome()
-            else:
-                browser_tools.locate()
-=======
             browser_tools.validate_drag_driver()
             browser_tools.locate_chrome()
->>>>>>> c1dbd3019 (tooling: default the drag smoke to the Rust harness, retire the Node path)
         except browser_tools.MissingBrowserTool as error:
             print(f"check: {error}", file=sys.stderr)
             return 1
