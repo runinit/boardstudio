@@ -630,6 +630,7 @@ fn owned_gesture_commit_finishes_before_project_open() {
             snap_fraction: 0.0,
             geometry_snap: false,
             gap: None,
+            pixels_per_world: None,
             alt: false,
         });
         let preview = if preview_first {
@@ -639,6 +640,7 @@ fn owned_gesture_commit_finishes_before_project_open() {
                     id: "key".into(),
                     at: Vec2 { x: 4.0, y: 0.0 },
                 }],
+                pixels_per_world: None,
                 alt: false,
             });
             let generation = session.read_model().gesture.as_ref().unwrap().generation;
@@ -652,6 +654,7 @@ fn owned_gesture_commit_finishes_before_project_open() {
                 id: "key".into(),
                 at: Vec2 { x: 4.0, y: 0.0 },
             }],
+            pixels_per_world: None,
             alt: false,
         });
         let (request_id, executor_epoch, request) =
@@ -739,6 +742,7 @@ fn invalid_open_preserves_the_current_gesture_and_accepted_session() {
         snap_fraction: 0.0,
         geometry_snap: false,
         gap: None,
+        pixels_per_world: None,
         alt: false,
     });
     let before = session.read_model().clone();
