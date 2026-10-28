@@ -20,9 +20,10 @@ use chromiumoxide::cdp::browser_protocol::input::{
 };
 use chromiumoxide::cdp::browser_protocol::target::CreateTargetParams;
 use chromiumoxide::cdp::browser_protocol::target::{
-    CreateBrowserContextParams, DisposeBrowserContextParams,
+    CreateBrowserContextParams, DisposeBrowserContextParams, EventTargetDestroyed,
 };
 use chromiumoxide::cdp::js_protocol::runtime::{EvaluateParams, EventExceptionThrown};
+use chromiumoxide::error::CdpError;
 use chromiumoxide::handler::viewport::Viewport;
 use chromiumoxide::{Browser, BrowserConfig, Handler, Page};
 use futures::StreamExt;
@@ -41,6 +42,9 @@ pub const CTRL_MODIFIER: i64 = 2;
 /// Launch flags every real-page check uses.
 pub const LAUNCH_ARGS: [&str; 2] = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"];
 
+/// Retained from the pre-migration tree for the `skew-probe` diagnostic
+/// (decoupled Chrome-pin protocol-skew probe): the migration's shared driver
+/// surfaces invalid messages and fails, so it no longer needs these counters.
 /// Classification of an unparsable (`InvalidMessage`) CDP event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvalidKind {
@@ -138,21 +142,41 @@ pub fn invalid_method(raw: &str) -> String {
 
 /// Launch Chrome with the shared flags and viewport under an isolated profile.
 ///
-/// Uses the default invalid-message handling: unsolicited experimental events
-/// degrade to a warning plus single-event loss, exactly as Playwright tolerates
-/// protocol additions. Command and subscription failures stay fatal at their
-/// call sites. The child's `XDG_CONFIG_HOME` is overridden so a broken user
-/// config can never crash the launch.
+/// Invalid protocol messages are surfaced and fail the run. The child's
+/// `XDG_CONFIG_HOME` is isolated from the user's configuration.
 pub async fn launch_chrome(chrome: &str, dirs: &IsolatedDirs) -> Result<(Browser, Handler)> {
+    launch_chrome_with_args(chrome, dirs, &[]).await
+}
+
+/// Launch Chrome with additional arguments for this run.
+pub async fn launch_chrome_with_args(
+    chrome: &str,
+    dirs: &IsolatedDirs,
+    args: &[&str],
+) -> Result<(Browser, Handler)> {
+    for arg in args {
+        let Some(value) = arg.strip_prefix("--blink-settings=") else {
+            return Err(Error(format!(
+                "unsupported additional Chrome argument: {arg}"
+            )));
+        };
+        if value.is_empty()
+            || value
+                .chars()
+                .any(|c| !c.is_ascii_alphanumeric() && c != '=' && c != ',' && c != '_')
+        {
+            return Err(Error(format!(
+                "unsupported additional Chrome argument: {arg}"
+            )));
+        }
+    }
     let config = BrowserConfig::builder()
         .chrome_executable(chrome)
         .user_data_dir(&dirs.profile_dir)
         .no_sandbox()
-        // Chrome floats on CfT Stable; unknown unsolicited experimental
-        // events are tolerated and counted, never fatal. Command, handler
-        // and Runtime.exceptionThrown failures stay fatal; surfacing
-        // invalids is probe-only and must never gate production runs.
+        .surface_invalid_messages()
         .args(LAUNCH_ARGS)
+        .args(args.iter().map(|arg| arg.strip_prefix("--").unwrap_or(arg)))
         .viewport(Viewport {
             width: VIEWPORT_WIDTH,
             height: VIEWPORT_HEIGHT,
@@ -169,16 +193,29 @@ pub async fn launch_chrome(chrome: &str, dirs: &IsolatedDirs) -> Result<(Browser
                 "drag browser smoke cannot build a browser config: {error}"
             ))
         })?;
-    Browser::launch(config)
-        .await
-        .map_err(|error| Error(format!("drag browser smoke cannot start Chrome: {error}")))
+    // The vendored launch path uses ChromeMessage when child cleanup is unconfirmed.
+    dirs.preserve.set(true);
+    match Browser::launch(config).await {
+        Ok(browser) => Ok(browser),
+        Err(error) => {
+            if !matches!(error, CdpError::ChromeMessage(_)) {
+                dirs.preserve.set(false);
+            } else {
+                eprintln!(
+                    "browser termination unconfirmed; preserving profile at {}",
+                    dirs.profile_dir.display()
+                );
+            }
+            Err(Error(format!(
+                "drag browser smoke cannot start Chrome: {error}"
+            )))
+        }
+    }
 }
 
 /// Handler errors observed while the run is active.
 ///
-/// Any error here is a protocol or command-routing failure, never an expected
-/// event: the default config already absorbs unsolicited experimental events.
-/// A nonzero count fails the run at teardown.
+/// Protocol and command-routing failures, including invalid events, fail the run.
 #[derive(Debug, Default)]
 pub struct HandlerErrors {
     count: AtomicUsize,
@@ -202,9 +239,7 @@ impl HandlerErrors {
             .first
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if first.len() < 5 {
-            first.push(message);
-        }
+        first.push(message);
     }
 
     /// Fail the run when any handler error was recorded.
@@ -217,9 +252,9 @@ impl HandlerErrors {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         Err(Error(format!(
-            "drag browser smoke saw {} browser handler error(s); first: {}",
+            "drag browser smoke saw {} browser handler error(s): {}",
             self.count(),
-            first.first().cloned().unwrap_or_default()
+            first.join("; ")
         )))
     }
 }
@@ -231,45 +266,87 @@ impl HandlerErrors {
 pub fn spawn_handler_drain(
     handler: Handler,
     errors: Arc<HandlerErrors>,
+    page_errors: Arc<PageErrors>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut handler = handler;
         while let Some(event) = handler.next().await {
             if let Err(error) = event {
-                errors.record(redact(&error.to_string()));
+                let message = match error {
+                    CdpError::InvalidMessage(payload, cause) => {
+                        format!(
+                            "invalid protocol message: {cause}; payload: {}",
+                            redact(&payload)
+                        )
+                    }
+                    CdpError::Ws(error)
+                        if format!("{error:?}") == "Protocol(ResetWithoutClosingHandshake)" =>
+                    {
+                        "WebSocket protocol reset without closing handshake".to_owned()
+                    }
+                    other => other.to_string(),
+                };
+                eprintln!("browser handler error: {message}");
+                errors.record(message);
+            }
+        }
+        let mut listeners = {
+            let mut state = page_errors
+                .listeners
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            state.0 = true;
+            std::mem::take(&mut state.1)
+        };
+        while let Some(result) = listeners.join_next().await {
+            if let Err(error) = result {
+                errors.record(format!("page error listener failed: {error}"));
             }
         }
     })
 }
 
-/// Redact secret-bearing headers from a raw protocol message, then cap its
-/// length so one event cannot flood the run log.
+/// Redact secret-bearing headers without truncating the protocol event.
+///
+/// `pub` for the retained `skew-probe` diagnostic; the shared driver also
+/// uses it internally.
 pub fn redact(message: &str) -> String {
-    const LIMIT: usize = 8192;
-    let scrubbed = match serde_json::from_str::<Value>(message) {
+    match serde_json::from_str::<Value>(message) {
         Ok(mut value) => {
             scrub_json(&mut value);
-            serde_json::to_string(&value).unwrap_or_else(|_| message.to_owned())
+            value.to_string()
         }
-        Err(_) => message.to_owned(),
-    };
-    if scrubbed.len() > LIMIT {
-        format!(
-            "{}…[truncated {} bytes]",
-            &scrubbed[..LIMIT],
-            scrubbed.len() - LIMIT
-        )
-    } else {
-        scrubbed
+        Err(_) => "[unparseable protocol message redacted]".to_owned(),
     }
 }
 
 fn scrub_json(value: &mut Value) {
     match value {
         Value::Object(map) => {
+            let sensitive_header = map.get("name").and_then(Value::as_str).is_some_and(|name| {
+                let name = name.to_lowercase();
+                name.contains("cookie") || name.contains("authoriz")
+            });
+            if sensitive_header {
+                if let Some(value) = map.get_mut("value") {
+                    *value = Value::String("[redacted]".to_owned());
+                }
+            }
             for (key, entry) in map.iter_mut() {
                 let lower = key.to_lowercase();
-                if (lower == "headers" || lower == "responseheaders" || lower == "requestheaders")
+                if matches!(
+                    lower.as_str(),
+                    "headerstext"
+                        | "postdata"
+                        | "postdataentries"
+                        | "cookie"
+                        | "cookies"
+                        | "cookieline"
+                ) {
+                    *entry = Value::String("[redacted]".to_owned());
+                } else if (lower == "headers"
+                    || lower == "responseheaders"
+                    || lower == "requestheaders")
                     && entry.is_object()
                 {
                     if let Value::Object(headers) = entry {
@@ -304,6 +381,9 @@ fn scrub_json(value: &mut Value) {
 #[derive(Debug, Default)]
 pub struct PageErrors {
     messages: std::sync::Mutex<Vec<String>>,
+    listeners: std::sync::Mutex<(bool, tokio::task::JoinSet<()>)>,
+    completions:
+        std::sync::Mutex<std::collections::HashMap<String, tokio::sync::oneshot::Receiver<()>>>,
 }
 
 impl PageErrors {
@@ -327,9 +407,9 @@ impl PageErrors {
             return Ok(());
         }
         Err(Error(format!(
-            "page raised {} uncaught browser error(s); first: {}",
+            "page raised {} uncaught browser error(s): {}",
             messages.len(),
-            messages.first().cloned().unwrap_or_default()
+            messages.join("; ")
         )))
     }
 }
@@ -344,7 +424,23 @@ pub async fn spawn_page_error_listener(page: &Page, errors: Arc<PageErrors>) -> 
                 "drag browser smoke cannot listen for page errors: {error}"
             ))
         })?;
-    tokio::spawn(async move {
+    let mut listeners = errors
+        .listeners
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if listeners.0 {
+        return Err(Error(
+            "cannot listen for page errors after handler termination".to_owned(),
+        ));
+    }
+    let listener_errors = Arc::clone(&errors);
+    let (complete, completion) = tokio::sync::oneshot::channel();
+    errors
+        .completions
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .insert(page.target_id().inner().clone(), completion);
+    listeners.1.spawn(async move {
         while let Some(event) = exceptions.next().await {
             let detail = &event.exception_details;
             let text = detail
@@ -352,12 +448,13 @@ pub async fn spawn_page_error_listener(page: &Page, errors: Arc<PageErrors>) -> 
                 .as_ref()
                 .and_then(|exception| exception.description.clone())
                 .unwrap_or_else(|| detail.text.clone());
-            let mut messages = errors
+            let mut messages = listener_errors
                 .messages
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             messages.push(text);
         }
+        let _ = complete.send(());
     });
     Ok(())
 }
@@ -393,15 +490,17 @@ pub async fn eval(page: &Page, expression: &str) -> Result<Value> {
 /// states (like an Undo revert) are observed, not stepped over.
 pub async fn wait_for(page: &Page, expression: &str, what: &str, timeout: Duration) -> Result<()> {
     let deadline = Instant::now() + timeout;
-    loop {
-        if eval(page, expression).await? == Value::Bool(true) {
-            return Ok(());
+    let operation = async {
+        loop {
+            if eval(page, expression).await? == Value::Bool(true) {
+                return Ok(());
+            }
+            tokio::time::sleep(Duration::from_millis(30)).await;
         }
-        if Instant::now() >= deadline {
-            return Err(Error(format!("timed out waiting for {what}: {expression}")));
-        }
-        tokio::time::sleep(Duration::from_millis(30)).await;
-    }
+    };
+    tokio::time::timeout_at(deadline.into(), operation)
+        .await
+        .unwrap_or_else(|_| Err(Error(format!("timed out waiting for {what}: {expression}"))))
 }
 
 /// Nodes matching `role` with exactly `name`, optionally scoped to a subtree.
@@ -514,17 +613,25 @@ pub async fn backend_of_wait(
     timeout: Duration,
 ) -> Result<BackendNodeId> {
     let deadline = Instant::now() + timeout;
-    loop {
-        match backend_of(page, selector).await {
-            Ok(id) => return Ok(id),
-            Err(error) => {
-                if !error.0.starts_with("no match for selector") || Instant::now() >= deadline {
-                    return Err(error);
+    let operation = async {
+        loop {
+            match backend_of(page, selector).await {
+                Ok(id) => return Ok(id),
+                Err(error) if error.0 != format!("no match for selector {selector:?}") => {
+                    return Err(error)
                 }
+                Err(_) => {}
             }
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
+    };
+    tokio::time::timeout_at(deadline.into(), operation)
+        .await
+        .unwrap_or_else(|_| {
+            Err(Error(format!(
+                "no match for selector {selector:?} (timed out)"
+            )))
+        })
 }
 
 /// Center of a backend node in CSS pixels, scrolled into view.
@@ -545,6 +652,22 @@ pub async fn center(page: &Page, id: BackendNodeId) -> Result<(f64, f64)> {
     Ok((x + width / 2.0, y + height / 2.0))
 }
 
+enum MouseError {
+    Timeout,
+    Other(Error),
+}
+
+impl From<MouseError> for Error {
+    fn from(error: MouseError) -> Self {
+        match error {
+            MouseError::Timeout => {
+                Error(format!("trusted mouse event failed: {}", CdpError::Timeout))
+            }
+            MouseError::Other(error) => error,
+        }
+    }
+}
+
 async fn dispatch_mouse(
     page: &Page,
     kind: DispatchMouseEventType,
@@ -552,7 +675,7 @@ async fn dispatch_mouse(
     y: f64,
     buttons: i64,
     modifiers: i64,
-) -> Result<()> {
+) -> std::result::Result<(), MouseError> {
     let pressed_or_released = matches!(
         kind,
         DispatchMouseEventType::MousePressed | DispatchMouseEventType::MouseReleased
@@ -582,13 +705,16 @@ async fn dispatch_mouse(
     if pressed_or_released {
         params = params.click_count(1);
     }
-    page.execute(
-        params
-            .build()
-            .map_err(|error| Error(format!("cannot build a trusted mouse event: {error}")))?,
-    )
+    page.execute(params.build().map_err(|error| {
+        MouseError::Other(Error(format!(
+            "cannot build a trusted mouse event: {error}"
+        )))
+    })?)
     .await
-    .map_err(|error| Error(format!("trusted mouse event failed: {error}")))?;
+    .map_err(|error| match error {
+        CdpError::Timeout => MouseError::Timeout,
+        other => MouseError::Other(Error(format!("trusted mouse event failed: {other}"))),
+    })?;
     Ok(())
 }
 
@@ -674,38 +800,116 @@ pub async fn click_backend(page: &Page, id: BackendNodeId) -> Result<()> {
 /// reported when the bound expires.
 pub async fn click_actionable(page: &Page, id: BackendNodeId, timeout: Duration) -> Result<()> {
     let deadline = Instant::now() + timeout;
-    loop {
-        match try_click_once(page, id).await {
-            Ok(()) => return Ok(()),
-            Err(error) => {
-                if Instant::now() >= deadline {
-                    return Err(error);
-                }
-                tokio::time::sleep(Duration::from_millis(100)).await;
+    let mut last = None;
+    let operation = async {
+        loop {
+            match try_click_once(page, id).await {
+                Ok(center) => return Ok(center),
+                Err(ClickError::Fatal(error)) => return Err(error),
+                Err(ClickError::Transient(error)) => last = Some(error),
             }
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
+    };
+    match tokio::time::timeout_at(deadline.into(), operation).await {
+        Ok(Ok((x, y))) => dispatch_click(page, x, y, deadline, timeout).await,
+        Ok(Err(error)) => Err(error),
+        Err(_) => Err(Error(format!(
+            "timed out waiting for target actionability{}",
+            last.map(|error| format!(": {error}")).unwrap_or_default()
+        ))),
     }
 }
 
-async fn try_click_once(page: &Page, id: BackendNodeId) -> Result<()> {
-    let (x, y) = center(page, id).await?;
-    tokio::time::sleep(Duration::from_millis(50)).await;
-    let (again_x, again_y) = center(page, id).await?;
-    if (again_x - x).abs() > 1.0 || (again_y - y).abs() > 1.0 {
-        return Err(Error("target is still moving".to_owned()));
+enum ClickError {
+    Transient(Error),
+    Fatal(Error),
+}
+
+impl From<Error> for ClickError {
+    fn from(error: Error) -> Self {
+        Self::Fatal(error)
     }
-    let hit = receives_pointer_events(page, id).await?;
-    if hit != "ok" {
-        return Err(Error(format!(
-            "target does not receive pointer events yet ({hit})"
+}
+
+async fn try_click_once(
+    page: &Page,
+    id: BackendNodeId,
+) -> std::result::Result<(f64, f64), ClickError> {
+    async fn actionable_center(
+        page: &Page,
+        id: BackendNodeId,
+    ) -> std::result::Result<(f64, f64), ClickError> {
+        center(page, id).await.map_err(|error| {
+            if error.0 == "target has no visible geometry"
+                || error.0 == "target has no visible geometry: target is not shown"
+            {
+                ClickError::Transient(error)
+            } else {
+                ClickError::Fatal(error)
+            }
+        })
+    }
+    let (x, y) = actionable_center(page, id).await?;
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let (again_x, again_y) = actionable_center(page, id).await?;
+    if (again_x - x).abs() > 1.0 || (again_y - y).abs() > 1.0 {
+        return Err(ClickError::Transient(Error(
+            "target is still moving".to_owned(),
         )));
     }
-    if is_disabled_button(page, id).await? {
-        return Err(Error("target is disabled".to_owned()));
+    let hit = receives_pointer_events(page, id).await?;
+    if hit == "unreadable hit verdict" {
+        return Err(ClickError::Fatal(Error(hit)));
     }
-    dispatch_mouse(page, DispatchMouseEventType::MouseMoved, x, y, 0, 0).await?;
-    dispatch_mouse(page, DispatchMouseEventType::MousePressed, x, y, 1, 0).await?;
-    dispatch_mouse(page, DispatchMouseEventType::MouseReleased, x, y, 0, 0).await
+    if hit != "ok" {
+        return Err(ClickError::Transient(Error(format!(
+            "target does not receive pointer events yet ({hit})"
+        ))));
+    }
+    if is_disabled_button(page, id).await? {
+        return Err(ClickError::Transient(Error(
+            "target is disabled".to_owned(),
+        )));
+    }
+    Ok((x, y))
+}
+
+async fn dispatch_click(
+    page: &Page,
+    x: f64,
+    y: f64,
+    deadline: Instant,
+    timeout: Duration,
+) -> Result<()> {
+    if Instant::now() >= deadline {
+        return Err(Error("timed out waiting for target actionability".into()));
+    }
+    let input = async {
+        dispatch_mouse(page, DispatchMouseEventType::MouseMoved, x, y, 0, 0).await?;
+        dispatch_mouse(page, DispatchMouseEventType::MousePressed, x, y, 1, 0).await?;
+        dispatch_mouse(page, DispatchMouseEventType::MouseReleased, x, y, 0, 0).await
+    };
+    match tokio::time::timeout_at(deadline.into(), input).await {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(MouseError::Other(error))) => Err(error),
+        Ok(Err(MouseError::Timeout)) | Err(_) => {
+            use chromiumoxide::cdp::browser_protocol::target::CloseTargetParams;
+            let close = tokio::time::timeout(
+                timeout,
+                page.execute(CloseTargetParams::new(page.target_id().clone())),
+            )
+            .await;
+            let status = match close {
+                Ok(Ok(_)) => "closed".to_owned(),
+                Ok(Err(error)) => format!("close failed: {error}"),
+                Err(_) => "close timed out".to_owned(),
+            };
+            Err(Error(format!(
+                "ambiguous input outcome: input deadline expired; target termination: {status}"
+            )))
+        }
+    }
 }
 
 /// Whether the topmost element at the node's center is the node itself or a
@@ -807,6 +1011,33 @@ async fn check_app_panic(page: &Page) -> Result<()> {
     Ok(())
 }
 
+/// Create from the landing page only after its Import control reports storage ready.
+pub async fn create_new_keyboard(page: &Page) -> Result<()> {
+    let readiness = async {
+        loop {
+            check_app_panic(page).await?;
+            let state = eval(page, r#"(() => {
+  const landing = document.querySelector('#m1-library-landing-content');
+  const failure = [...(landing?.querySelectorAll('[role="alert"].m1-status') || [])]
+    .map(node => node.textContent.trim())
+    .find(text => text.startsWith('Storage could not be initialized safely.'));
+  return { failure: failure || '', ready: landing?.querySelector('.m1-library-import-action')?.getAttribute('aria-disabled') === 'false' };
+})()"#).await?;
+            if let Some(failure) = state["failure"].as_str().filter(|text| !text.is_empty()) {
+                return Err(Error(failure.to_owned()));
+            }
+            if state["ready"] == Value::Bool(true) {
+                return Ok(());
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(60), readiness)
+        .await
+        .map_err(|_| Error("timed out waiting for project storage to initialize".into()))??;
+    click_role(page, None, "button", "Create new keyboard").await
+}
+
 /// Click the single `role`/`name` control, waiting for it to exist.
 ///
 /// Fails on timeout, on ambiguity (more than one exact match is a caller bug
@@ -831,35 +1062,35 @@ pub async fn click_role_timeout(
     timeout: Duration,
 ) -> Result<()> {
     let deadline = Instant::now() + timeout;
-    loop {
-        check_app_panic(page).await?;
-        let matches = find_role(page, root, role, name).await?;
-        match matches.as_slice() {
-            [single] => {
-                // A found control may not be clickable yet; keep polling for
-                // actionability inside the same bound instead of failing fast.
-                match try_click_once(page, single.0).await {
-                    Ok(()) => return Ok(()),
-                    Err(error) => {
-                        if Instant::now() >= deadline {
-                            return Err(error);
-                        }
-                    }
+    let mut last = None;
+    let operation = async {
+        loop {
+            check_app_panic(page).await?;
+            let matches = find_role(page, root, role, name).await?;
+            match matches.as_slice() {
+                [single] => match try_click_once(page, single.0).await {
+                    Ok(center) => return Ok(center),
+                    Err(ClickError::Fatal(error)) => return Err(error),
+                    Err(ClickError::Transient(error)) => last = Some(error),
+                },
+                [] => {}
+                many => {
+                    return Err(Error(format!(
+                        "ambiguous role lookup: {role} {name:?} matched {} nodes",
+                        many.len()
+                    )))
                 }
             }
-            [] => {
-                if Instant::now() >= deadline {
-                    return Err(Error(format!("timed out waiting for {role} {name:?}")));
-                }
-            }
-            many => {
-                return Err(Error(format!(
-                    "ambiguous role lookup: {role} {name:?} matched {} nodes",
-                    many.len()
-                )));
-            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
-        tokio::time::sleep(Duration::from_millis(100)).await;
+    };
+    match tokio::time::timeout_at(deadline.into(), operation).await {
+        Ok(Ok((x, y))) => dispatch_click(page, x, y, deadline, timeout).await,
+        Ok(Err(error)) => Err(error),
+        Err(_) => Err(Error(format!(
+            "timed out waiting for {role} {name:?}{}",
+            last.map(|error| format!(": {error}")).unwrap_or_default()
+        ))),
     }
 }
 
@@ -1052,57 +1283,565 @@ pub async fn new_isolated_page(
     Ok((context, page))
 }
 
-/// Dispose a scenario context created by [`new_isolated_page`].
-pub async fn dispose_isolated_page(browser: &Browser, context: BrowserContextId) -> Result<()> {
-    browser
-        .execute(DisposeBrowserContextParams::new(context))
+/// Close an observed page and dispose its context after its listener drains.
+pub async fn dispose_isolated_page(
+    browser: &Browser,
+    context: Option<BrowserContextId>,
+    page: Page,
+    errors: &PageErrors,
+) -> Result<()> {
+    let target = page.target_id().clone();
+    let boundary = async {
+        let mut markers = browser
+            .event_listener::<EventTargetDestroyed>()
+            .await
+            .map_err(|error| Error(format!("cannot listen for target destruction: {error}")))?;
+        page.close()
+            .await
+            .map_err(|error| Error(format!("cannot close target {target:?}: {error}")))?;
+        loop {
+            match markers.next().await {
+                Some(marker) if marker.target_id == target => break,
+                Some(_) => {}
+                None => {
+                    return Err(Error(format!(
+                        "transport ended before target {target:?} destruction"
+                    )))
+                }
+            }
+        }
+        let completion = errors
+            .completions
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .remove(target.inner())
+            .ok_or_else(|| Error(format!("missing listener for target {target:?}")))?;
+        completion.await.map_err(|error| {
+            Error(format!(
+                "page error listener for target {target:?} failed: {error}"
+            ))
+        })?;
+        Ok(())
+    };
+    let boundary = tokio::time::timeout(Duration::from_secs(60), boundary)
         .await
-        .map_err(|error| Error(format!("cannot dispose a browser context: {error}")))?;
-    Ok(())
+        .unwrap_or_else(|_| {
+            Err(Error(format!(
+                "target {target:?} boundary timed out after 60s"
+            )))
+        });
+    let disposal = if let Some(context) = context {
+        tokio::time::timeout(
+            Duration::from_secs(60),
+            browser.execute(DisposeBrowserContextParams::new(context)),
+        )
+        .await
+        .map_err(|_| Error("browser context disposal timed out after 60s".to_owned()))
+        .and_then(|result| {
+            result
+                .map(|_| ())
+                .map_err(|error| Error(format!("cannot dispose a browser context: {error}")))
+        })
+    } else {
+        Ok(())
+    };
+    match (boundary, disposal) {
+        (Err(boundary), Err(disposal)) => Err(Error(format!("{boundary}; {disposal}"))),
+        (Err(error), _) | (_, Err(error)) => Err(error),
+        _ => Ok(()),
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{classify_invalid, required_cdp_method, InvalidKind};
+mod redaction_tests {
+    #[tokio::test]
+    async fn additional_args_reject_harness_switches_and_allow_blink_settings() {
+        let dirs = crate::IsolatedDirs::create(std::path::Path::new("/tmp")).unwrap();
+        for arg in [
+            "--user-data-dir=/tmp/other",
+            "user-data-dir=/tmp/other",
+            "--user-data-dir",
+            "--remote-debugging-port=9222",
+            "--window-size=1,1",
+            "--no-sandbox",
+            "--use-angle=gl",
+            "--",
+            "--blink-settings",
+            "----user-data-dir=/tmp/other",
+            "--blink-settings=x --user-data-dir=/tmp/other",
+        ] {
+            let error = match super::launch_chrome_with_args("/bin/false", &dirs, &[arg]).await {
+                Err(error) => error.to_string(),
+                Ok(_) => panic!("unexpected browser launch"),
+            };
+            assert!(
+                error.contains("unsupported additional Chrome argument"),
+                "{arg}: {error}"
+            );
+        }
+        let error = match super::launch_chrome_with_args(
+            "/bin/false",
+            &dirs,
+            &["--blink-settings=primaryPointerType=4"],
+        )
+        .await
+        {
+            Err(error) => error.to_string(),
+            Ok(_) => panic!("unexpected browser launch"),
+        };
+        assert!(
+            !error.contains("unsupported additional Chrome argument"),
+            "{error}"
+        );
+    }
 
-    #[test]
-    fn used_surface_is_required_and_everything_else_is_benign() {
-        for method in [
-            "Accessibility.loadComplete",
-            "DOM.documentUpdated",
-            "Input.dispatchMouseEvent",
-            "Runtime.exceptionThrown",
-            "Runtime.consoleAPICalled",
-            "Target.targetCreated",
-            "Page.loadEventFired",
-            "Browser.downloadWillBegin",
+    #[tokio::test]
+    #[ignore = "requires CHROME_BIN; run explicitly for the real CDP failure control"]
+    async fn dispatch_failure_is_not_retried_or_masked() {
+        use futures::StreamExt;
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        use std::time::Duration;
+
+        let dirs = crate::IsolatedDirs::create(std::path::Path::new("/tmp")).unwrap();
+        let (mut chrome, handler) =
+            super::launch_chrome(&std::env::var("CHROME_BIN").unwrap(), &dirs)
+                .await
+                .unwrap();
+        let drain = super::spawn_handler_drain(
+            handler,
+            Arc::new(super::HandlerErrors::new()),
+            Arc::new(super::PageErrors::new()),
+        );
+        let mut outcomes = Vec::new();
+        for (kind, role) in [
+            ("mousePressed", false),
+            ("mouseReleased", false),
+            ("mousePressed", true),
+            ("mouseReleased", true),
         ] {
-            assert!(required_cdp_method(method), "{method} is used, must be required");
-            assert_eq!(classify_invalid(method), InvalidKind::Required);
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let upstream = chrome.websocket_address().clone();
+            let attempts = Arc::new(AtomicUsize::new(0));
+            let count = attempts.clone();
+            let relay = tokio::spawn(async move {
+                let (socket, _) = listener.accept().await.unwrap();
+                let mut client = async_tungstenite::tokio::accept_async(socket)
+                    .await
+                    .unwrap();
+                let (mut server, _) = async_tungstenite::tokio::connect_async(upstream)
+                    .await
+                    .unwrap();
+                loop {
+                    tokio::select! {
+                        message = client.next() => {
+                            let Some(Ok(message)) = message else { break };
+                            if let Ok(command) = serde_json::from_str::<serde_json::Value>(message.to_text().unwrap_or("")) {
+                                if command["method"] == "Input.dispatchMouseEvent" && command["params"]["type"] == kind
+                                    && count.fetch_add(1, Ordering::SeqCst) == 0 {
+                                    let response = serde_json::json!({"id": command["id"], "sessionId": command["sessionId"], "error": {"code": -32000, "message": "controlled dispatch failure"}});
+                                    client.send(response.to_string().into()).await.unwrap();
+                                    continue;
+                                }
+                            }
+                            if server.send(message).await.is_err() { break; }
+                        }
+                        message = server.next() => {
+                            let Some(Ok(message)) = message else { break };
+                            if client.send(message).await.is_err() { break; }
+                        }
+                    }
+                }
+            });
+            let (browser, handler) = chromiumoxide::Browser::connect(format!("ws://{address}"))
+                .await
+                .unwrap();
+            let proxy_drain = super::spawn_handler_drain(
+                handler,
+                Arc::new(super::HandlerErrors::new()),
+                Arc::new(super::PageErrors::new()),
+            );
+            let page = browser.new_page("about:blank").await.unwrap();
+            super::eval(&page, "document.body.innerHTML = '<button>Probe</button>'; window.clicks = 0; document.querySelector('button').onclick = () => window.clicks++;").await.unwrap();
+            let result = if role {
+                super::click_role_timeout(&page, None, "button", "Probe", Duration::from_secs(2))
+                    .await
+            } else {
+                let id = super::backend_of(&page, "button").await.unwrap();
+                super::click_actionable(&page, id, Duration::from_secs(2)).await
+            };
+            let clicks = super::eval(&page, "window.clicks").await.unwrap();
+            outcomes.push((
+                kind,
+                role,
+                attempts.load(Ordering::SeqCst),
+                result.map_err(|error| error.to_string()),
+                clicks,
+            ));
+            drop(page);
+            drop(browser);
+            proxy_drain.abort();
+            relay.abort();
         }
-        for method in [
-            "Network.requestWillBeSentExtraInfo",
-            "Network.responseReceivedExtraInfo",
-            "Audits.issueAdded",
+        chrome.close().await.unwrap();
+        chrome.wait().await.unwrap().unwrap();
+        drop(chrome);
+        drain.await.unwrap();
+        dirs.preserve.set(false);
+        for (kind, role, count, result, clicks) in &outcomes {
+            eprintln!("{kind} role={role}: attempts={count}, result={result:?}, clicks={clicks}");
+        }
+        for (kind, role, count, result, clicks) in outcomes {
+            assert_eq!(count, 1, "{kind} role={role} retried dispatch");
+            assert!(
+                matches!(result, Err(ref message) if message.contains("trusted mouse event failed") && message.contains("controlled dispatch failure")),
+                "{result:?}"
+            );
+            assert_eq!(clicks, 0, "failed dispatch produced a click receipt");
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "requires CHROME_BIN; run explicitly for the real CDP failure control"]
+    async fn inflight_dispatch_timeout_closes_target() {
+        use futures::StreamExt;
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        use std::time::Duration;
+
+        let dirs = crate::IsolatedDirs::create(std::path::Path::new("/tmp")).unwrap();
+        let (mut chrome, handler) =
+            super::launch_chrome(&std::env::var("CHROME_BIN").unwrap(), &dirs)
+                .await
+                .unwrap();
+        let drain = super::spawn_handler_drain(
+            handler,
+            Arc::new(super::HandlerErrors::new()),
+            Arc::new(super::PageErrors::new()),
+        );
+        let mut outcomes = Vec::new();
+        for (kind, role) in [
+            ("mousePressed", false),
+            ("mouseReleased", false),
+            ("mousePressed", true),
+            ("mouseReleased", true),
         ] {
-            assert!(!required_cdp_method(method), "{method} is unused, must be benign");
-            assert_eq!(classify_invalid(method), InvalidKind::Benign);
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let upstream = chrome.websocket_address().clone();
+            let attempts = Arc::new(AtomicUsize::new(0));
+            let count = attempts.clone();
+            let responses = Arc::new(AtomicUsize::new(0));
+            let response_count = responses.clone();
+            let relay = tokio::spawn(async move {
+                let mut withheld = None;
+                let (socket, _) = listener.accept().await.unwrap();
+                let mut client = async_tungstenite::tokio::accept_async(socket)
+                    .await
+                    .unwrap();
+                let (mut server, _) = async_tungstenite::tokio::connect_async(upstream)
+                    .await
+                    .unwrap();
+                loop {
+                    tokio::select! {
+                        message = client.next() => {
+                            let Some(Ok(message)) = message else { break };
+                            if let Ok(command) = serde_json::from_str::<serde_json::Value>(message.to_text().unwrap_or("")) {
+                                if command["method"] == "Input.dispatchMouseEvent" && command["params"]["type"] == kind
+                                    && count.fetch_add(1, Ordering::SeqCst) == 0 {
+                                    withheld = Some(command["id"].clone());
+                                }
+                            }
+                            if server.send(message).await.is_err() { break; }
+                        }
+                        message = server.next() => {
+                            let Some(Ok(message)) = message else { break };
+                            if let Ok(response) = serde_json::from_str::<serde_json::Value>(message.to_text().unwrap_or("")) {
+                                if withheld.as_ref() == Some(&response["id"]) {
+                                    response_count.fetch_add(1, Ordering::SeqCst);
+                                    continue;
+                                }
+                            }
+                            if client.send(message).await.is_err() { break; }
+                        }
+                    }
+                }
+            });
+            let (browser, handler) = chromiumoxide::Browser::connect(format!("ws://{address}"))
+                .await
+                .unwrap();
+            let proxy_drain = super::spawn_handler_drain(
+                handler,
+                Arc::new(super::HandlerErrors::new()),
+                Arc::new(super::PageErrors::new()),
+            );
+            let page = browser.new_page("about:blank").await.unwrap();
+            super::eval(&page, "document.body.innerHTML = '<button>Probe</button>'; window.clicks = 0; document.querySelector('button').onclick = () => window.clicks++;").await.unwrap();
+            let result = if role {
+                super::click_role_timeout(&page, None, "button", "Probe", Duration::from_secs(2))
+                    .await
+            } else {
+                let id = super::backend_of(&page, "button").await.unwrap();
+                super::click_actionable(&page, id, Duration::from_secs(2)).await
+            };
+            let closed = super::eval(&page, "window.clicks").await.is_err();
+            outcomes.push((
+                kind,
+                role,
+                attempts.load(Ordering::SeqCst),
+                responses.load(Ordering::SeqCst),
+                result.map_err(|error| error.to_string()),
+                closed,
+            ));
+            drop(page);
+            drop(browser);
+            proxy_drain.abort();
+            relay.abort();
         }
-        // An event we cannot even name fails loud, never green.
-        assert_eq!(classify_invalid(""), InvalidKind::Required);
+        chrome.close().await.unwrap();
+        chrome.wait().await.unwrap().unwrap();
+        drop(chrome);
+        drain.await.unwrap();
+        dirs.preserve.set(false);
+        for (kind, role, count, responses, result, closed) in &outcomes {
+            eprintln!("{kind} role={role}: attempts={count}, responses={responses}, result={result:?}, closed={closed}");
+        }
+        for (kind, role, count, responses, result, closed) in outcomes {
+            assert_eq!(count, 1, "{kind} role={role} retried dispatch");
+            assert_eq!(responses, 1, "{kind} role={role} did not reach Chrome");
+            assert!(
+                matches!(result, Err(ref message) if message.contains("ambiguous input outcome")),
+                "{result:?}"
+            );
+            assert!(closed, "ambiguous input left the target usable");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn failed_initialization_reaps_spawned_child() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = std::env::temp_dir().join(format!("bs-launch-control-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let script = root.join("browser");
+        std::fs::write(&script, "#!/bin/sh\necho $$ > \"$XDG_CONFIG_HOME/pid\"\necho 'DevTools listening on ws://127.0.0.1:1/devtools/browser/test' >&2\nexec /usr/bin/tail -f /dev/null\n").unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let dirs = crate::IsolatedDirs::create(&root).unwrap();
+        let result = super::launch_chrome(script.to_str().unwrap(), &dirs).await;
+        assert!(result.is_err());
+        let pid = std::fs::read_to_string(dirs.xdg_config_home().join("pid")).unwrap();
+        assert!(
+            !std::path::Path::new(&format!("/proc/{}", pid.trim())).exists(),
+            "child must be reaped"
+        );
+        let profile = dirs.profile_dir.clone();
+        drop(dirs);
+        assert!(
+            !profile.exists(),
+            "confirmed launch cleanup removes the profile"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn stalled_handshake_times_out_and_reaps_child() {
+        use std::os::unix::fs::PermissionsExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (_socket, _) = listener.accept().await.unwrap();
+            std::future::pending::<()>().await;
+        });
+        let root = std::env::temp_dir().join(format!("bs-stall-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let script = root.join("browser");
+        std::fs::write(&script, format!("#!/bin/sh\necho $$ > {}/pid\necho 'DevTools listening on ws://{address}/devtools/browser/test' >&2\nexec /usr/bin/tail -f /dev/null\n", root.display())).unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let config = chromiumoxide::BrowserConfig::builder()
+            .chrome_executable(&script)
+            .launch_timeout(std::time::Duration::from_millis(100))
+            .build()
+            .unwrap();
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            chromiumoxide::Browser::launch(config),
+        )
+        .await;
+        assert!(
+            matches!(
+                result,
+                Ok(Err(chromiumoxide::error::CdpError::LaunchTimeout(_)))
+            ),
+            "launch must time out during handshake"
+        );
+        let pid = std::fs::read_to_string(root.join("pid")).unwrap();
+        assert!(!std::path::Path::new(&format!("/proc/{}", pid.trim())).exists());
+        server.abort();
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn cancellation_after_launch_preserves_profile() {
+        use std::os::unix::fs::PermissionsExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let _ws = async_tungstenite::tokio::accept_async(socket)
+                .await
+                .unwrap();
+            std::future::pending::<()>().await;
+        });
+        let root = std::env::temp_dir().join(format!("bs-cancel-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let script = root.join("browser");
+        std::fs::write(&script, format!("#!/bin/sh\necho $$ > {}/pid\necho 'DevTools listening on ws://{address}/devtools/browser/test' >&2\nexec /usr/bin/tail -f /dev/null\n", root.display())).unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let dirs = crate::IsolatedDirs::create(&root).unwrap();
+        let profile = dirs.profile_dir.clone();
+        let (mut browser, handler) = super::launch_chrome(script.to_str().unwrap(), &dirs)
+            .await
+            .unwrap();
+        drop(handler);
+        drop(dirs);
+        let preserved = profile.exists();
+        browser.kill().await.unwrap().unwrap();
+        server.abort();
+        std::fs::remove_dir_all(root).unwrap();
+        assert!(
+            preserved,
+            "profile must survive cancellation before child termination"
+        );
+    }
+
+    #[tokio::test]
+    async fn transport_loss_fails_consumer_verdict() {
+        use futures::StreamExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut ws = async_tungstenite::tokio::accept_async(socket)
+                .await
+                .unwrap();
+            while let Some(message) = ws.next().await {
+                let command: serde_json::Value =
+                    serde_json::from_str(message.unwrap().to_text().unwrap()).unwrap();
+                if command["method"] == "Browser.close" {
+                    ws.send(format!(r#"{{"id":{},"result":{{}}}}"#, command["id"]).into())
+                        .await
+                        .unwrap();
+                    break;
+                }
+            }
+            drop(ws);
+        });
+        let (mut browser, handler) = chromiumoxide::Browser::connect(format!("ws://{address}"))
+            .await
+            .unwrap();
+        let handler_errors = std::sync::Arc::new(super::HandlerErrors::new());
+        let page_errors = std::sync::Arc::new(super::PageErrors::new());
+        let drain = super::spawn_handler_drain(handler, handler_errors.clone(), page_errors);
+        browser.close().await.unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(5), drain)
+            .await
+            .unwrap()
+            .unwrap();
+        let verdict = handler_errors.fail_if_any().unwrap_err().to_string();
+        assert!(
+            verdict.contains("WebSocket protocol reset without closing handshake"),
+            "{verdict}"
+        );
+        server.await.unwrap();
+        drop(browser);
+    }
+
+    #[tokio::test]
+    async fn late_invalid_event_fails_consumer_after_close_response() {
+        use futures::StreamExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut ws = async_tungstenite::tokio::accept_async(socket)
+                .await
+                .unwrap();
+            while let Some(message) = ws.next().await {
+                let message = message.unwrap();
+                let command: serde_json::Value =
+                    serde_json::from_str(message.to_text().unwrap()).unwrap();
+                if command["method"] == "Browser.close" {
+                    ws.send(format!(r#"{{"id":{},"result":{{}}}}"#, command["id"]).into())
+                        .await
+                        .unwrap();
+                    ws.send(r#"{"method":"Runtime.exceptionThrown","params":{}}"#.into())
+                        .await
+                        .unwrap();
+                    ws.close(None).await.unwrap();
+                    break;
+                }
+            }
+        });
+        let config = chromiumoxide::handler::HandlerConfig {
+            ignore_invalid_messages: false,
+            ..Default::default()
+        };
+        let (mut browser, handler) =
+            chromiumoxide::Browser::connect_with_config(format!("ws://{address}"), config)
+                .await
+                .unwrap();
+        let handler_errors = std::sync::Arc::new(super::HandlerErrors::new());
+        let page_errors = std::sync::Arc::new(super::PageErrors::new());
+        let drain = super::spawn_handler_drain(handler, handler_errors.clone(), page_errors);
+        browser.close().await.unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(5), drain)
+            .await
+            .unwrap()
+            .unwrap();
+        let verdict = handler_errors.fail_if_any().unwrap_err().to_string();
+        assert!(
+            verdict.contains("invalid protocol message")
+                && verdict.contains("Runtime.exceptionThrown"),
+            "{verdict}"
+        );
+        server.await.unwrap();
     }
 
     #[test]
-    fn invalid_counts_separate_required_from_benign() {
-        use super::InvalidCounts;
-        let mut counts = InvalidCounts::new();
-        counts.record("Network.requestWillBeSentExtraInfo");
-        counts.record("Network.requestWillBeSentExtraInfo");
-        counts.record("Runtime.exceptionThrown");
-        assert_eq!(counts.total(), 3);
-        assert_eq!(counts.required_total(), 1);
-        let rows = counts.sorted();
-        assert_eq!(rows.len(), 2);
-        assert!(rows[0].0 < rows[1].0, "rows sort by method");
+    fn redacts_nested_header_arrays() {
+        let input = r#"{"params":{"nested":[{"headers":[{"name":"Authorization","value":"bearer-secret"},{"name":"Set-Cookie","value":"cookie-secret"},{"name":"Accept","value":"safe"}]}]}}"#;
+        let output = super::redact(input);
+        assert!(!output.contains("bearer-secret"));
+        assert!(!output.contains("cookie-secret"));
+        assert!(output.contains("safe"));
+    }
+
+    #[test]
+    fn reports_all_page_errors() {
+        let errors = super::PageErrors::new();
+        errors
+            .messages
+            .lock()
+            .unwrap()
+            .extend(["first".into(), "second".into()]);
+        let message = errors.fail_if_any().unwrap_err().to_string();
+        assert!(message.contains("first") && message.contains("second"));
+    }
+
+    #[test]
+    fn redacts_request_body_entries_and_cookie_lines() {
+        let input = r#"{"params":{"postDataEntries":[{"bytes":"body-secret"}],"cookieLine":"cookie-secret","url":"safe"}}"#;
+        let output = super::redact(input);
+        assert!(!output.contains("body-secret"));
+        assert!(!output.contains("cookie-secret"));
+        assert!(output.contains("safe"));
     }
 }

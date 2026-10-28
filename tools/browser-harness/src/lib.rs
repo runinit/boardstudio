@@ -80,38 +80,52 @@ pub fn discover_chrome(
 ///
 /// The profile lives under a shallow `TMPDIR` (deep paths exceed Unix socket
 /// limits); the child also gets a process-local `XDG_CONFIG_HOME` so a broken
-/// user config can never crash the launch. Dropping removes the profile; two
+/// user config can never crash the launch. Dropping removes the profile after confirmed termination; two
 /// runs never share IndexedDB state.
 pub struct IsolatedDirs {
     /// Directory passed as the browser `--user-data-dir`.
     pub profile_dir: std::path::PathBuf,
     config_dir: std::path::PathBuf,
     run_dir: std::path::PathBuf,
+    preserve: std::cell::Cell<bool>,
 }
-
-static NEXT_RUN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 impl IsolatedDirs {
     /// Create a process-owned run directory with a profile and a child
     /// config dir inside `tmp_root`. `tmp_root` must be shallow: deep paths
     /// exceed the browser's Unix socket limits.
     pub fn create(tmp_root: &std::path::Path) -> std::result::Result<Self, String> {
-        let run = NEXT_RUN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let run_dir = tmp_root.join(format!("bs-drag-{}-{run}", std::process::id()));
-        let profile_dir = run_dir.join("profile");
-        let config_dir = run_dir.join("config");
-        for dir in [&profile_dir, &config_dir] {
-            std::fs::create_dir_all(dir).map_err(|error| {
+        let temp = tempfile::Builder::new()
+            .prefix("bs-drag-")
+            .tempdir_in(tmp_root)
+            .map_err(|error| {
                 format!(
                     "drag browser smoke needs a writable profile under '{}': {error}",
                     tmp_root.display()
                 )
             })?;
+        let profile_dir = temp.path().join("profile");
+        let config_dir = temp.path().join("config");
+        for dir in [&profile_dir, &config_dir] {
+            if let Err(error) = std::fs::create_dir(dir) {
+                let message = format!(
+                    "drag browser smoke needs a writable profile under '{}': {error}",
+                    tmp_root.display()
+                );
+                return Err(match temp.close() {
+                    Ok(()) => message,
+                    Err(cleanup) => {
+                        format!("{message}; cannot remove partial browser directory: {cleanup}")
+                    }
+                });
+            }
         }
+        let run_dir = temp.keep();
         Ok(Self {
             profile_dir,
             config_dir,
             run_dir,
+            preserve: std::cell::Cell::new(false),
         })
     }
 
@@ -125,7 +139,9 @@ impl Drop for IsolatedDirs {
     fn drop(&mut self) {
         // The whole run directory is process-owned: remove profile and child
         // config together so no run ever leaks state.
-        std::fs::remove_dir_all(&self.run_dir).ok();
+        if !self.preserve.get() {
+            std::fs::remove_dir_all(&self.run_dir).ok();
+        }
     }
 }
 
@@ -187,6 +203,20 @@ mod tests {
         assert_ne!(dirs.profile_dir, dirs.xdg_config_home());
         assert!(dirs.profile_dir.starts_with(&root));
         assert!(dirs.xdg_config_home().starts_with(&root));
+    }
+
+    #[test]
+    fn isolated_dirs_do_not_adopt_abandoned_run() {
+        let root = std::env::temp_dir().join(format!("bs-collision-test-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let abandoned = root.join(format!("bs-drag-{}-0", std::process::id()));
+        std::fs::create_dir(&abandoned).unwrap();
+        std::fs::write(abandoned.join("marker"), b"keep").unwrap();
+        let dirs = IsolatedDirs::create(&root).unwrap();
+        assert_ne!(dirs.run_dir, abandoned);
+        drop(dirs);
+        assert_eq!(std::fs::read(abandoned.join("marker")).unwrap(), b"keep");
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

@@ -7,13 +7,14 @@
 //! absent/ambiguous/non-actionable targets. IndexedDB isolation between
 //! browser contexts is verified on a local page, never in `cargo test`.
 
+#[path = "../shutdown.rs"]
+mod shutdown;
+
 use std::sync::Arc;
 use std::time::Duration;
 
 use boardstudio_browser_harness::driver::{self, HandlerErrors, PageErrors};
 use boardstudio_browser_harness::{IsolatedDirs, Result};
-use chromiumoxide::cdp::js_protocol::runtime::EventExceptionThrown;
-use futures::StreamExt;
 
 use boardstudio_browser_harness::Error;
 
@@ -121,9 +122,14 @@ async fn run() -> Result<()> {
     let (url, server) = serve_fixture().await?;
     let (browser, handler) = driver::launch_chrome(&chrome, &dirs).await?;
     let handler_errors = Arc::new(HandlerErrors::new());
-    let drain = driver::spawn_handler_drain(handler, Arc::clone(&handler_errors));
     let page_errors = Arc::new(PageErrors::new());
+    let drain = driver::spawn_handler_drain(
+        handler,
+        Arc::clone(&handler_errors),
+        Arc::clone(&page_errors),
+    );
 
+    let outcome = async {
     // Startup failure: an executable that is not Chrome cannot launch.
     let bad_dirs = IsolatedDirs::create(std::path::Path::new(&tmp_root)).map_err(|error| {
         fail(format!(
@@ -164,34 +170,21 @@ async fn run() -> Result<()> {
     )
     .await?;
 
-    // Unhandled rejection: rejected promises surface through the same listener.
-    {
-        let mut rejections = page
-            .event_listener::<EventExceptionThrown>()
-            .await
-            .map_err(|error| fail(format!("negative probe cannot listen: {error}")))?;
-        driver::eval(&page, "Promise.reject(new Error('probe rejection')); 0;").await?;
-        let found = tokio::time::timeout(Duration::from_secs(10), async {
-            while let Some(event) = rejections.next().await {
-                let detail = &event.exception_details;
-                let text = detail
-                    .exception
-                    .as_ref()
-                    .and_then(|exception| exception.description.clone())
-                    .unwrap_or_else(|| detail.text.clone());
-                if text.contains("probe rejection") {
-                    return true;
-                }
-            }
-            false
-        })
-        .await
-        .map_err(|_| fail("negative probe timed out waiting for the rejection"))?;
-        if !found {
-            return Err(fail("negative probe unhandled rejection: no event arrived"));
+    // Exercise the same collector and fatal verdict used by the drag consumer.
+    driver::eval(&page, "Promise.reject(new Error('probe rejection')); 0;").await?;
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !page_errors.messages().iter().any(|message| message.contains("probe rejection")) {
+            tokio::task::yield_now().await;
         }
-        println!("negative probe unhandled rejection: failed as expected (probe rejection)");
-    }
+    })
+    .await
+    .map_err(|_| fail("negative probe timed out waiting for the rejection"))?;
+    expect_error(
+        "unhandled rejection",
+        page_errors.fail_if_any(),
+        "probe rejection",
+    )
+    .await?;
 
     // Protocol command failure: evaluating throwing JS is a fatal Err.
     expect_error(
@@ -216,6 +209,13 @@ async fn run() -> Result<()> {
         "the impossible condition",
     )
     .await?;
+
+    // A pending page promise must obey the wait's own deadline.
+    let stalled = tokio::time::timeout(
+        Duration::from_secs(3),
+        driver::wait_for(&page, "new Promise(() => {})", "stalled evaluation", Duration::from_millis(200)),
+    ).await.map_err(|_| fail("pending evaluation exceeded its deadline"))?;
+    expect_error("stalled evaluation", stalled, "stalled evaluation").await?;
 
     // Exact names: `Fit` matches nothing, `Fit board` matches once.
     if !driver::find_role(&page, None, "button", "Fit")
@@ -308,7 +308,7 @@ async fn run() -> Result<()> {
     })"#,
     )
     .await?;
-    driver::dispose_isolated_page(&browser, first.0).await?;
+    driver::dispose_isolated_page(&browser, Some(first.0), first.1, &page_errors).await?;
     let second = driver::new_isolated_page(&browser, &url, &page_errors).await?;
     let marker = driver::eval(
         &second.1,
@@ -325,7 +325,7 @@ async fn run() -> Result<()> {
     })"#,
     )
     .await?;
-    driver::dispose_isolated_page(&browser, second.0).await?;
+    driver::dispose_isolated_page(&browser, Some(second.0), second.1, &page_errors).await?;
     if marker != serde_json::Value::String("absent".to_owned()) {
         return Err(fail(format!(
             "negative probe isolation: second context saw {marker:?}, want absent"
@@ -333,23 +333,59 @@ async fn run() -> Result<()> {
     }
     println!("negative probe isolation: contexts do not share IndexedDB");
 
+    // Do not wait for the listener: the final verdict must join it.
+    driver::eval(&page, "Promise.reject(new Error('probe late rejection')); 0;").await?;
+    driver::dispose_isolated_page(&browser, None, page, &page_errors).await?;
+    Ok(())
+    }.await;
+    let (result, confirmed) =
+        shutdown::finish_browser(browser, drain, &handler_errors, outcome.is_ok()).await;
+    let cleanup = if confirmed {
+        shutdown::remove_profile(&dirs)
+    } else {
+        Ok(())
+    };
+    if !confirmed {
+        eprintln!(
+            "browser termination unconfirmed; preserving profile at {}",
+            dirs.profile_dir.display()
+        );
+        std::mem::forget(dirs);
+    }
+    server.abort();
     // The fixture page itself stayed clean apart from the deliberate errors.
-    handler_errors.fail_if_any()?;
     let unexpected: Vec<String> = page_errors
         .messages()
         .into_iter()
         .filter(|message| {
-            !message.contains("probe page error") && !message.contains("probe rejection")
+            !message.contains("probe page error")
+                && !message.contains("probe rejection")
+                && !message.contains("probe late rejection")
         })
         .collect();
-    if !unexpected.is_empty() {
-        return Err(fail(format!(
-            "negative probe page errors: unexpected {unexpected:?}"
-        )));
+    let mut errors: Vec<String> = [outcome.err(), result.err(), cleanup.err()]
+        .into_iter()
+        .flatten()
+        .map(|error| error.to_string())
+        .collect();
+    if !page_errors
+        .messages()
+        .iter()
+        .any(|message| message.contains("probe late rejection"))
+    {
+        errors
+            .push("negative probe: late rejection was not collected before the verdict".to_owned());
+    } else {
+        println!("negative probe late rejection: collected before the verdict");
     }
-    drop(browser);
-    drain.abort();
-    std::fs::remove_dir_all(&dirs.profile_dir).ok();
-    server.abort();
-    Ok(())
+    if !unexpected.is_empty() {
+        errors.push(format!(
+            "negative probe page errors: unexpected {unexpected:?}"
+        ));
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(fail(errors.join("; ")))
+    }
 }

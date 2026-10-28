@@ -194,11 +194,7 @@ async fn run(counters: Arc<Counters>) -> Result<()> {
         };
     }
 
-    let chrome = discover_chrome(
-        &|name| std::env::var(name).ok(),
-        &is_executable,
-    )
-    .map_err(fail)?;
+    let chrome = discover_chrome(&|name| std::env::var(name).ok(), &is_executable).map_err(fail)?;
     let chrome_version = std::process::Command::new(&chrome)
         .arg("--version")
         .output()
@@ -261,24 +257,21 @@ async fn run(counters: Arc<Counters>) -> Result<()> {
     );
 
     let (url, server) = serve_fixture().await?;
-    step!(
-        "open fixture",
-        async {
-            tokio::time::timeout(Duration::from_secs(60), page.goto(url.as_str()))
-                .await
-                .map_err(|_| fail("skew probe timed out opening the fixture"))?
-                .map_err(|error| fail(format!(
-                    "skew probe cannot open the fixture: {error}"
-                )))
-        }
-    );
+    step!("open fixture", async {
+        tokio::time::timeout(Duration::from_secs(60), page.goto(url.as_str()))
+            .await
+            .map_err(|_| fail("skew probe timed out opening the fixture"))?
+            .map_err(|error| fail(format!("skew probe cannot open the fixture: {error}")))
+    });
 
     // DOM round trip: document, query, describe.
     step!("dom round trip", driver::backend_of(&page, "#probe-btn"));
     // Runtime round trip.
     let sum = step!("runtime round trip", driver::eval(&page, "1 + 1"));
-    if sum != serde_json::Value::from(2) {
-        return Err(fail(format!("skew probe runtime round trip saw {sum:?}, want 2")));
+    if sum.as_i64() != Some(2) {
+        return Err(fail(format!(
+            "skew probe runtime round trip saw {sum:?}, want 2"
+        )));
     }
     // Accessibility round trip.
     let nodes = step!(
@@ -308,9 +301,8 @@ async fn run(counters: Arc<Counters>) -> Result<()> {
     );
     step!(
         "target dispose",
-        driver::dispose_isolated_page(&browser, context)
+        driver::dispose_isolated_page(&browser, Some(context), isolated, &isolated_errors)
     );
-    drop(isolated);
     isolated_errors
         .fail_if_any()
         .map_err(|error| fail(error.to_string()))?;
@@ -357,7 +349,9 @@ async fn run(counters: Arc<Counters>) -> Result<()> {
 
     // Verdicts, all fatal on nonzero.
     if command_errors != 0 {
-        return Err(fail(format!("skew probe saw {command_errors} command error(s)")));
+        return Err(fail(format!(
+            "skew probe saw {command_errors} command error(s)"
+        )));
     }
     let handler_errors = counters.handler_errors.load(Ordering::Relaxed);
     if handler_errors != 0 {
