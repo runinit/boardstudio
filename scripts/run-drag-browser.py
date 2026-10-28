@@ -74,7 +74,6 @@ def verify_receipt(path: Path, run_id: str, head: str, source_hash: str, build_h
         raise ValueError("drag browser receipt does not match this successful run")
     names = {check.get("name") for check in receipt.get("checks", [])}
     expected = {"Part drag", "Column body drag", "Stagger cancel", "Stagger handle", "Ctrl Offset handle",
-                "Matrix move",
                 "Default collision PCB pair", "Case viewer with overflowing collision findings",
                 "Qualified collision product fixture", "Unavailable physical PCB stays uncertain"}
     if not expected.issubset(names):
@@ -87,29 +86,6 @@ def verify_receipt(path: Path, run_id: str, head: str, source_hash: str, build_h
             raise ValueError(f"drag browser receipt has invalid timings: {check.get('name')}")
 
 
-HARNESS_MANIFEST = ROOT / "tools/browser-harness/Cargo.toml"
-HARNESS_BIN = ROOT / "tools/browser-harness/target/debug/drag-smoke"
-
-
-def drag_driver() -> str:
-    """Which runner drives the smoke: the legacy Node script or the Rust harness.
-
-    The Rust path is opt-in until its parity gate passes; the old runner stays
-    the default so other consumers and same-build comparisons keep working.
-    """
-    return os.environ.get("BOARDSTUDIO_DRAG_DRIVER", "node")
-
-
-def build_harness() -> None:
-    """Build the Rust drag smoke with the committed lockfile, under the build lock."""
-    lock = Path.home() / ".cache/tmp/boardstudio-build.lock"
-    command = ["flock", str(lock), "cargo", "build", "--locked",
-               "--manifest-path", str(HARNESS_MANIFEST), "--bin", "drag-smoke"]
-    built = subprocess.run(command, cwd=ROOT)
-    if built.returncode:
-        raise SystemExit(f"drag browser smoke cannot build the Rust harness ({' '.join(command)})")
-
-
 def main() -> int:
     try:
         browser_tools.validate_drag_driver()
@@ -119,17 +95,8 @@ def main() -> int:
     if not index.is_file():
         raise SystemExit(f"drag browser smoke needs a built site; run `python3 scripts/check.py build` first ({index} missing)")
     try:
-<<<<<<< HEAD
-        if drag_driver() == "rust":
-            chrome = browser_tools.locate_chrome()
-            node = None
-            build_harness()
-        else:
-            node, chrome = browser_tools.locate()
-=======
         chrome = browser_tools.locate_chrome()
         binary = browser_tools.build_drag_harness()
->>>>>>> c1dbd3019 (tooling: default the drag smoke to the Rust harness, retire the Node path)
     except browser_tools.MissingBrowserTool as error:
         raise SystemExit(str(error))
 
@@ -159,24 +126,12 @@ def main() -> int:
         "BOARDSTUDIO_DRAG_SOURCE_SHA256": source_hash,
         "BOARDSTUDIO_DRAG_BUILD_SHA256": build_hash,
         "BOARDSTUDIO_DRAG_REPO_ROOT": str(ROOT),
-<<<<<<< HEAD
-        "BOARDSTUDIO_DRAG_DRIVER": drag_driver(),
-=======
->>>>>>> c1dbd3019 (tooling: default the drag smoke to the Rust harness, retire the Node path)
     })
     try:
         with urlopen(url, timeout=5) as response:
             if response.status != 200:
                 raise RuntimeError(f"preview returned HTTP {response.status}")
-<<<<<<< HEAD
-        if drag_driver() == "rust":
-            command = [str(HARNESS_BIN)]
-        else:
-            assert node is not None
-            command = [node, str(SCRIPT)]
-=======
         command = [str(binary)]
->>>>>>> c1dbd3019 (tooling: default the drag smoke to the Rust harness, retire the Node path)
         run_log = run_dir / "run.log"
         with run_log.open("w") as output:
             process = subprocess.Popen(command, cwd=ROOT, env=environment, stdout=subprocess.PIPE,

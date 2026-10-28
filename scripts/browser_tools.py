@@ -17,15 +17,6 @@ class MissingBrowserTool(Exception):
     """A prerequisite of the real-page smoke is absent; the message says how to supply it."""
 
 
-<<<<<<< HEAD
-def locate_chrome() -> str:
-    """Returns the Chrome executable for the Rust harness, or raises `MissingBrowserTool`.
-
-    The Rust driver needs no Node runtime: only `CHROME_BIN` (first) and the
-    usual executable names are probed.
-    """
-    chrome = os.environ.get("CHROME_BIN") or next(
-=======
 def validate_drag_driver() -> None:
     if os.environ.get("BOARDSTUDIO_DRAG_DRIVER", "rust") != "rust":
         raise MissingBrowserTool("BOARDSTUDIO_DRAG_DRIVER only supports rust; unset it or set it to rust")
@@ -38,7 +29,6 @@ def locate_chrome() -> str:
     and the usual executable names. The Rust driver needs no Node runtime.
     """
     chrome = os.environ.get("CHROME_BIN") or os.environ.get("BOARDSTUDIO_DRAG_CHROME_BIN") or next(
->>>>>>> c1dbd3019 (tooling: default the drag smoke to the Rust harness, retire the Node path)
         (shutil.which(name) for name in ("google-chrome", "chromium", "chromium-browser") if shutil.which(name)),
         None,
     )
@@ -47,18 +37,6 @@ def locate_chrome() -> str:
     return chrome
 
 
-<<<<<<< HEAD
-def locate() -> tuple[str, str]:
-    """Returns the `node` and Chrome executables, or raises `MissingBrowserTool`."""
-    node = shutil.which("node")
-    if not node:
-        raise MissingBrowserTool("drag browser smoke needs Node.js")
-    probe = subprocess.run([node, "-e", "require('playwright-core')"], capture_output=True, text=True)
-    if probe.returncode:
-        raise MissingBrowserTool("drag browser smoke needs playwright-core (the CI web-tools action installs it); "
-                                 "set NODE_PATH to its node_modules directory")
-    return node, locate_chrome()
-=======
 def _inherited_build_lock() -> int | None:
     """Validate and hold the explicitly inherited shared build lock, if supplied."""
     value = os.environ.get("BOARDSTUDIO_BUILD_LOCK_FD")
@@ -136,4 +114,3 @@ def _build_harness(binary: str) -> Path:
     if len(artifacts) != 1:
         raise SystemExit(f"{binary} cannot identify its executable in Cargo build output")
     return Path(artifacts[0])
->>>>>>> c1dbd3019 (tooling: default the drag smoke to the Rust harness, retire the Node path)

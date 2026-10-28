@@ -124,7 +124,8 @@ class QuickPlanTests(unittest.TestCase):
                     plan = dict(check.quick_plan(selection, PACKAGES))
                     self.assertEqual(plan["test"], check.CARGO_TESTS)
                     self.assertEqual(plan["browser"], [command for command in check.browser()
-                                                     if "run-drag-browser.py" not in " ".join(command)])
+                                                     if "run-drag-browser.py" not in " ".join(command)
+                                                     and "test-cold-responses.py" not in " ".join(command)])
                     runner = [command for command in plan["browser"]
                               if "scripts/run-wasm-tests.py" in command]
                     self.assertEqual(len(runner), 1)
