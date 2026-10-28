@@ -453,3 +453,22 @@ record its URL and verdict, including the no-Playwright preflight, pinned Chrome
 Rust drag, mounted browser checks and failure artifacts. Also verify the native
 job retains Node tooling and the release-build job provisions its web tools, as
 in the CI verification plan above. Do not treat this local pass as hosted evidence.
+
+## 2026-10-27: source-bound CAD fixture follow-up
+
+The cache/service-worker fixture at clean source
+`8537778b63bcae6e3c68f6b6ee302fe850af0546` now has an official build binding and
+per-driver cold, warm and missing-worker observations; see
+[ticket 006](006-rust-cad-runtime-capture.md#2026-10-27-source-bound-cache-and-service-worker-fixture).
+It used the archived Node driver only as an isolated reference; the supported current
+CAD launcher remains Rust-only and does not require Playwright. Both drivers bypassed
+the page HTTP cache in cold mode and blocked registration, but neither bypassed the
+dedicated-worker cache; warm workers controlled the page. Failure records are from
+each failing run. A separate CDP semantics fixture, including an initially failed
+controller expectation and corrected check, is not a capture or proof of generic
+service-worker bypass in capture.
+
+This does not resolve either ticket or change the approved timing result at `f0b6904`.
+The full check passed at `cca95c5d0709c4fe9ad0ba82ebaacef5e88e3743`, not at the
+fixture source or this documentation commit. Hosted CI and closure review remain
+unrun; remaining retirement and ticket 006 acceptance requirements stay open.

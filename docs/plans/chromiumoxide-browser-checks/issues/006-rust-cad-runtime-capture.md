@@ -1356,3 +1356,42 @@ CI remain unrun. This ticket remains claimed and no acceptance box is cleared.
 The later retirement decision supersedes the preceding statement that Node remains
 selectable: the user explicitly retired historical Cadrum reproduction, and the
 current CAD launcher accepts only Rust; historical runner sources are archived.
+
+## 2026-10-27: source-bound cache and service-worker fixture
+
+The official checked build at clean source `8537778b63bcae6e3c68f6b6ee302fe850af0546`
+is retained in `.evidence/ticket006-cache-bound-853-build-full/`. The fixture's
+before/after bindings matched that build receipt. Sequential Chrome for Testing
+145.0.7622.0 runs used the archived Node driver solely as an isolated reference
+and the current Rust capture against the same packaged CAD assets and controlled
+landing (`.evidence/ticket006-reference-853/receipt.json` and `comparison.json`).
+The current supported launcher is Rust-only; the archived Node driver is not a
+supported workflow.
+
+For each driver, cold page fetches reached the origin twice and service-worker
+registration was blocked; warm page fetches reached it once and the active worker
+controlled the page, with 200 responses marked service-worker-origin. In both cold
+and warm runs, the dedicated worker's two cacheable fetches reached the origin only
+once: cold page HTTP-cache bypass did not bypass that worker's cache. Each successful
+capture retained a C1 reply (492 triangles, 35424 buffer bytes, zero STEP bytes).
+Each missing-CAD-worker control exited 1, recorded its own non-service-worker 404,
+failure, resources and failed result, and retained no reply. Response multiplicities
+were recorded, not asserted equal between runs; these are same-run observations.
+
+A separate CDP semantics fixture, not either capture, distinguishes blocking
+registration from bypassing an installed worker. Fresh blocking had no registration
+or controller and used the origin; blocking registration with an installed controller
+still served page and worker requests from the service worker. CDP bypass with an
+installed registration served both from the origin and reported no controller. The
+first live bypass check incorrectly expected a controller and failed
+(`.evidence/ticket006-sw-semantics-853.log`); the corrected live check passed all
+three cases, and the retained-observation offline check agreed
+(`.evidence/ticket006-sw-semantics-853-corrected.log`,
+`.evidence/ticket006-sw-semantics-853-offline-check.log`). This fixture does not
+establish generic service-worker bypass in the captures.
+
+This strengthens the previously unbound cache control, not complete ticket closure.
+The approved timing result remains the separate `f0b6904` observation above; the full
+check passed on `cca95c5d0709c4fe9ad0ba82ebaacef5e88e3743`, not this source or
+documentation commit. Hosted CI and closure review remain unrun; other acceptance
+requirements remain open and the ticket stays claimed.
