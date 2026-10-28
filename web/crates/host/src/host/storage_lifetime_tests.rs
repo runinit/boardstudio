@@ -227,7 +227,7 @@ async fn explicit_abort_preserves_caller_reason_and_rolls_back() {
 }
 
 #[wasm_bindgen_test]
-async fn version_3_closure_project_with_saved_strings_migrates_and_is_written_back() {
+async fn version_3_closure_project_is_refused_without_rewriting_saved_strings() {
     let database_name = format!("boardstudio-idb-v3-closure-{}", js_sys::Date::now());
     let store = BrowserStore::new(&database_name).unwrap();
     let mut document = ProjectDoc::empty("closure", "Version 3 closure");
@@ -270,66 +270,23 @@ async fn version_3_closure_project_with_saved_strings_migrates_and_is_written_ba
         "6.6"
     );
 
-    let loaded = store
-        .load_document("closure".into())
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(loaded.format_version, CURRENT_VERSION);
-    let loaded_parameters = &loaded.definitions[0].generator.as_ref().unwrap().parameters;
-    assert_eq!(loaded_parameters["hole_drill"], 6.6);
-    assert_eq!(loaded_parameters["hole_size"], 6.6);
-    assert_eq!(
-        loaded.parts[0].generator_parameters.as_ref().unwrap()["hole_size"],
-        6.6
+    let error = store.load_document("closure".into()).await.unwrap_err();
+    assert!(
+        error.0.contains("format 3") && error.0.contains("No conversion"),
+        "{error:?}"
     );
-    boardstudio_core::generators::render_forms(&loaded.definitions[0], Some(&loaded.parts[0]))
-        .unwrap();
+    assert_eq!(store.list_projects().await.unwrap().unreadable.len(), 1);
+    let after = stored(
+        load_value(&database_name, PROJECT_STORE, "closure".into())
+            .await
+            .unwrap()
+            .unwrap(),
+    );
+    assert_eq!(
+        after, before,
+        "list/load must not convert or stamp the record"
+    );
 
-    let unmigrated = stored(
-        load_value(&database_name, PROJECT_STORE, "closure".into())
-            .await
-            .unwrap()
-            .unwrap(),
-    );
-    assert_eq!(
-        unmigrated["formatVersion"], 3,
-        "loading never overwrites storage"
-    );
-    store
-        .save_document(&loaded, &Default::default())
-        .await
-        .unwrap();
-    let raw = stored(
-        load_value(&database_name, PROJECT_STORE, "closure".into())
-            .await
-            .unwrap()
-            .unwrap(),
-    );
-    assert_eq!(
-        raw["formatVersion"], CURRENT_VERSION,
-        "migration persists through a guarded save"
-    );
-    assert_eq!(
-        raw["definitions"][0]["generator"]["parameters"]["hole_drill"],
-        6.6
-    );
-    assert!(raw["definitions"][0]["generator"]["parameters"]["hole_drill"].is_number());
-
-    // A second load finds current data: the same document, and nothing rewritten.
-    let reloaded = store
-        .load_document("closure".into())
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(reloaded, loaded);
-    let again = stored(
-        load_value(&database_name, PROJECT_STORE, "closure".into())
-            .await
-            .unwrap()
-            .unwrap(),
-    );
-    assert_eq!(again, raw);
     window()
         .unwrap()
         .indexed_db()
@@ -340,7 +297,7 @@ async fn version_3_closure_project_with_saved_strings_migrates_and_is_written_ba
 }
 
 #[wasm_bindgen_test]
-async fn legacy_generator_project_migrates_and_is_written_back_with_assets_intact() {
+async fn legacy_generator_project_is_refused_with_saved_data_and_assets_intact() {
     let database_name = format!("boardstudio-idb-migration-{}", js_sys::Date::now());
     let store = BrowserStore::new(&database_name).unwrap();
     let mut document = ProjectDoc::empty("legacy", "Legacy generator");
@@ -381,38 +338,26 @@ async fn legacy_generator_project_migrates_and_is_written_back_with_assets_intac
         )
         .await
         .unwrap();
-    let listed = store.list_documents().await.unwrap();
-    assert_eq!(listed[0].format_version, CURRENT_VERSION);
-    let loaded = store.load_document("legacy".into()).await.unwrap().unwrap();
-    assert_eq!(loaded.format_version, CURRENT_VERSION);
-    assert_eq!(
-        loaded.parts[0].definition_id,
-        "generator:ceoloide/mounting_hole_npth"
-    );
-    assert_eq!(
-        loaded.parts[0].generator_parameters.as_ref().unwrap()["side"],
-        "B"
-    );
-    assert_eq!(
-        loaded.definitions[0].generator.as_ref().unwrap().parameters["hole_size"],
-        3.5
-    );
-    boardstudio_core::generators::render_forms(&loaded.definitions[0], Some(&loaded.parts[0]))
-        .unwrap();
-    store
-        .save_document(&loaded, &Default::default())
-        .await
-        .unwrap();
-    let raw = load_value(&database_name, PROJECT_STORE, "legacy".into())
-        .await
-        .unwrap()
-        .unwrap();
-    let raw: serde_json::Value = serde_wasm_bindgen::from_value(raw).unwrap();
-    assert_eq!(
-        raw["formatVersion"], CURRENT_VERSION,
-        "migration persists through a guarded save"
-    );
-    assert!(!raw.to_string().contains("ergogen"));
+    let before = serde_wasm_bindgen::from_value::<serde_json::Value>(
+        load_value(&database_name, PROJECT_STORE, "legacy".into())
+            .await
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    let listing = store.list_projects().await.unwrap();
+    assert!(listing.documents.is_empty());
+    assert_eq!(listing.unreadable.len(), 1);
+    let error = store.load_document("legacy".into()).await.unwrap_err();
+    assert!(error.0.contains("No conversion"), "{error:?}");
+    let after = serde_wasm_bindgen::from_value::<serde_json::Value>(
+        load_value(&database_name, PROJECT_STORE, "legacy".into())
+            .await
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(after, before);
     assert_eq!(
         store.load_asset(hash).await.unwrap().unwrap().to_vec(),
         bytes
@@ -820,7 +765,7 @@ async fn a_disabled_pairs_identity_reservation_survives_indexeddb() {
 }
 
 #[wasm_bindgen_test]
-async fn stored_v5_mirrored_halves_migrate_and_survive_browser_storage() {
+async fn stored_v5_mirrored_halves_are_refused_without_mutating_browser_storage() {
     let database_name = format!("boardstudio-idb-halves-{}", js_sys::Date::now());
     let store = BrowserStore::new(&database_name).unwrap();
     let mut document = ProjectDoc::empty("halves", "Mirrored halves");
@@ -857,13 +802,14 @@ async fn stored_v5_mirrored_halves_migrate_and_survive_browser_storage() {
     .unwrap();
     assert_eq!(raw_before_load["formatVersion"], 5);
 
-    let loaded = store.load_document("halves".into()).await.unwrap().unwrap();
-    assert_eq!(loaded.format_version, CURRENT_VERSION);
-    assert_eq!(loaded.hardware, document.hardware);
-    store
-        .save_document(&loaded, &Default::default())
-        .await
-        .unwrap();
+    let error = store.load_document("halves".into()).await.unwrap_err();
+    assert!(
+        error.0.contains("format 5") && error.0.contains("No conversion"),
+        "{error:?}"
+    );
+    let listing = store.list_projects().await.unwrap();
+    assert!(listing.documents.is_empty());
+    assert_eq!(listing.unreadable.len(), 1);
     let raw = serde_wasm_bindgen::from_value::<serde_json::Value>(
         load_value(&database_name, PROJECT_STORE, "halves".into())
             .await
@@ -872,14 +818,9 @@ async fn stored_v5_mirrored_halves_migrate_and_survive_browser_storage() {
     )
     .unwrap();
     assert_eq!(
-        raw["hardware"]["pairs"][0]["halves"]["sourceBoardId"],
-        "left-board"
+        raw, raw_before_load,
+        "unsupported mirrored halves remain byte-for-value intact"
     );
-    assert_eq!(
-        raw["formatVersion"], CURRENT_VERSION,
-        "migration persists through a guarded save"
-    );
-    assert_eq!(raw["hardware"]["pairs"][0]["constructionSource"], "left");
 }
 
 #[wasm_bindgen_test]
@@ -952,6 +893,124 @@ async fn stale_tab_save_preserves_the_other_tabs_document() {
             .unwrap()
             .name,
         "First tab"
+    );
+}
+
+#[wasm_bindgen_test]
+async fn mixed_format_records_are_listed_without_conversion_and_raw_json_is_preserved() {
+    use serde_json::json;
+    let name = format!("boardstudio-format-gate-{}", js_sys::Date::now());
+    let store = BrowserStore::new(&name).unwrap();
+    let healthy = ProjectDoc::empty("healthy", "Healthy");
+    store
+        .save_document(&healthy, &Default::default())
+        .await
+        .unwrap();
+    let mut cases = Vec::new();
+    for version in 0..CURRENT_VERSION {
+        cases.push((
+            Some(json!(version)),
+            if version == 0 {
+                "invalid formatVersion"
+            } else {
+                "No conversion"
+            },
+        ));
+    }
+    cases.extend([
+        (None, "legacy"),
+        (Some(json!(CURRENT_VERSION + 1)), "compatible newer build"),
+        (Some(json!("7")), "invalid formatVersion"),
+        (Some(json!(null)), "invalid formatVersion"),
+        (Some(json!(-1)), "invalid formatVersion"),
+        (Some(json!(7.5)), "invalid formatVersion"),
+    ]);
+    let database = open_database(&name).await.unwrap();
+    let transaction = database
+        .transaction_with_str_and_mode(PROJECT_STORE, IdbTransactionMode::Readwrite)
+        .unwrap();
+    let completion = transaction_completion(&transaction, Rc::default());
+    let object_store = transaction.object_store(PROJECT_STORE).unwrap();
+    let mut originals = Vec::new();
+    for (index, (version, explanation)) in cases.into_iter().enumerate() {
+        let id = format!("unsupported-{index}");
+        let mut value = serde_json::to_value(ProjectDoc::empty(&id, "Unsupported")).unwrap();
+        match version {
+            Some(version) => value["formatVersion"] = version,
+            None => {
+                value.as_object_mut().unwrap().remove("formatVersion");
+            }
+        }
+        object_store
+            .put(&js_sys::JSON::parse(&value.to_string()).unwrap())
+            .unwrap();
+        originals.push((id, value, explanation));
+    }
+    completion.await.unwrap();
+    database.close();
+    let listing = store.list_projects().await.unwrap();
+    assert_eq!(listing.documents, vec![healthy]);
+    assert_eq!(listing.unreadable.len(), originals.len());
+    for (id, original, explanation) in originals {
+        let error = store.load_document(id.clone()).await.unwrap_err();
+        assert!(error.0.contains(explanation), "{id}: {error:?}");
+        let (raw, _) = store
+            .raw_project(&id.clone().into())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&raw).unwrap(),
+            original
+        );
+        let stored = load_value(&name, PROJECT_STORE, id).await.unwrap().unwrap();
+        assert_eq!(
+            serde_wasm_bindgen::from_value::<serde_json::Value>(stored).unwrap(),
+            original
+        );
+    }
+}
+
+#[wasm_bindgen_test]
+async fn foreign_format_identifier_is_unsupported_and_preserved_on_list_and_load() {
+    let name = format!("boardstudio-foreign-format-{}", js_sys::Date::now());
+    let store = BrowserStore::new(&name).unwrap();
+    let healthy = ProjectDoc::empty("healthy", "Healthy");
+    store
+        .save_document(&healthy, &Default::default())
+        .await
+        .unwrap();
+    let mut value = serde_json::to_value(ProjectDoc::empty("foreign", "Foreign")).unwrap();
+    value["format"] = serde_json::json!("boardstudio/v1");
+    let database = open_database(&name).await.unwrap();
+    let transaction = database
+        .transaction_with_str_and_mode(PROJECT_STORE, IdbTransactionMode::Readwrite)
+        .unwrap();
+    let completion = transaction_completion(&transaction, Rc::default());
+    transaction
+        .object_store(PROJECT_STORE)
+        .unwrap()
+        .put(&js_sys::JSON::parse(&value.to_string()).unwrap())
+        .unwrap();
+    completion.await.unwrap();
+    database.close();
+    let listing = store.list_projects().await.unwrap();
+    assert_eq!(listing.documents, vec![healthy]);
+    assert_eq!(listing.unreadable.len(), 1);
+    assert!(
+        listing.unreadable[0]
+            .error
+            .contains("Unsupported document format")
+    );
+    let error = store.load_document("foreign".into()).await.unwrap_err();
+    assert!(error.0.contains("Unsupported document format"), "{error:?}");
+    let stored = load_value(&name, PROJECT_STORE, "foreign".into())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        serde_wasm_bindgen::from_value::<serde_json::Value>(stored).unwrap(),
+        value
     );
 }
 
@@ -1349,4 +1408,122 @@ async fn storage_tokens_survive_javascript_integer_float_normalization() {
             .name,
         "Renamed"
     );
+}
+
+/// Quota-recovery RED: an unreadable record whose value JSON cannot represent
+/// (out-of-range BigInt) leaves no comparable token, so the guarded delete
+/// refuses it. The token-independent single-key delete must remove it anyway.
+#[wasm_bindgen_test]
+async fn tokenless_unreadable_record_deletes_by_key_where_guarded_delete_refuses() {
+    let database_name = format!("boardstudio-idb-tokenless-{}", js_sys::Date::now());
+    let database = open_database(&database_name).await.unwrap();
+    let raw = js_sys::Object::new();
+    Reflect::set(
+        &raw,
+        &"id".into(),
+        &JsValue::from_str("unreadable-tokenless"),
+    )
+    .unwrap();
+    let huge = js_sys::BigInt::new(&JsValue::from_str("1267650600228229401496703205376")).unwrap();
+    Reflect::set(&raw, &"marker".into(), &huge).unwrap();
+    let transaction = database
+        .transaction_with_str_and_mode(PROJECT_STORE, IdbTransactionMode::Readwrite)
+        .map_err(js_error)
+        .unwrap();
+    let completion = transaction_completion(&transaction, Rc::new(RefCell::new(None)));
+    let projects = transaction
+        .object_store(PROJECT_STORE)
+        .map_err(js_error)
+        .unwrap();
+    request_result(projects.put(&raw.into()).map_err(js_error).unwrap())
+        .await
+        .unwrap();
+    completion.await.unwrap();
+    database.close();
+
+    let store = BrowserStore::new(database_name.clone()).unwrap();
+    let listing = store.list_projects().await.unwrap();
+    assert!(listing.documents.is_empty());
+    assert_eq!(listing.unreadable.len(), 1);
+    let record = &listing.unreadable[0];
+    assert_eq!(record.label, "unreadable-tokenless");
+    assert!(
+        record.token.is_none(),
+        "an out-of-range BigInt leaves no comparable token"
+    );
+    assert!(
+        store.delete_unreadable(record).await.is_err(),
+        "the guarded delete refuses tokenless records; that refusal is why the bypass exists"
+    );
+    store
+        .delete_unreadable_by_key(record)
+        .await
+        .expect("token-independent single-key delete must remove the unreadable record");
+    let listing = store.list_projects().await.unwrap();
+    assert!(listing.documents.is_empty());
+    assert!(
+        listing.unreadable.is_empty(),
+        "the unreadable record is gone after the by-key delete"
+    );
+    let _ = window()
+        .unwrap()
+        .indexed_db()
+        .unwrap()
+        .unwrap()
+        .delete_database(&database_name)
+        .unwrap();
+}
+
+/// The quota-recovery single-key project delete removes exactly one record,
+/// needs no observed token, and is idempotent for missing keys.
+#[wasm_bindgen_test]
+async fn delete_project_by_key_removes_one_record_without_a_token() {
+    let database_name = format!("boardstudio-idb-by-key-{}", js_sys::Date::now());
+    let store = BrowserStore::new(database_name.clone()).unwrap();
+    let kept = boardstudio_core::model::ProjectDoc::empty("by-key-kept", "Kept board");
+    let removed = boardstudio_core::model::ProjectDoc::empty("by-key-removed", "Removed board");
+    store
+        .save_document(&kept, &Default::default())
+        .await
+        .unwrap();
+    store
+        .save_document(&removed, &Default::default())
+        .await
+        .unwrap();
+    store
+        .delete_project_by_key(removed.id.clone())
+        .await
+        .unwrap();
+    assert!(
+        store
+            .load_document(removed.id.clone())
+            .await
+            .unwrap()
+            .is_none(),
+        "the deleted key is gone"
+    );
+    assert_eq!(
+        store
+            .load_document(kept.id.clone())
+            .await
+            .unwrap()
+            .unwrap()
+            .name,
+        "Kept board"
+    );
+    assert!(
+        store.observed_token(&removed.id).is_none(),
+        "the observed token is dropped with the record"
+    );
+    store
+        .delete_project_by_key("missing-key".into())
+        .await
+        .expect("deleting a missing key stays a no-op");
+    let _ = window()
+        .unwrap()
+        .indexed_db()
+        .unwrap()
+        .unwrap()
+        .delete_database(&database_name)
+        .unwrap();
 }

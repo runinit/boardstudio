@@ -127,18 +127,49 @@ fn preview_does_not_commit_and_stale_edit_fails() {
 #[test]
 fn undo_redo_increments_revision() {
     let mut engine = CoreEngine::new();
-    let feature = rect("outer", 0.0, 0.0, 20.0, 20.0, Operation::Add);
-    scene(engine.handle(edit(
-        0,
-        EditPhase::Commit,
-        EditOperation::SetOutline { feature },
-    )));
+    // Ticket 37: raw SetOutline is deleted; the typed case write is the live
+    // op for this undo/redo accounting.
+    let mut doc = ProjectDoc::empty("p", "Project");
+    doc.boards.push(Board {
+        id: "board".into(),
+        name: "Board".into(),
+        outline_ids: vec![],
+        part_ids: vec![],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    scene(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: doc,
+    }));
+    let add = || EditOperation::SetCase {
+        body: CaseBody {
+            features: None,
+            openings: None,
+            id: "case".into(),
+            name: "Case".into(),
+            board_id: "board".into(),
+            kind: CaseKind::Plate,
+            thickness: 2.0,
+            clearance: 0.0,
+            material_id: None,
+            z: None,
+            wall_height: None,
+            wall_thickness: None,
+            mounts: None,
+            pcb_source: None,
+            gasket: None,
+        },
+    };
+    scene(engine.handle(edit(0, EditPhase::Commit, add())));
     let (undo, doc) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
     assert_eq!(undo.revision, 2);
-    assert!(doc.outline.is_empty());
+    assert!(doc.case_bodies.is_empty());
     let (redo, doc) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
     assert_eq!(redo.revision, 3);
-    assert_eq!(doc.outline.len(), 1);
+    assert_eq!(doc.case_bodies.len(), 1);
 }
 
 #[test]
@@ -1357,8 +1388,8 @@ fn mirrored_pair_request(base: u64, phase: &str) -> String {
             "operation": {"kind": "create-mirrored-pair",
                 "matrix": {"id": "left-matrix", "rows": 2, "columns": 3, "pitch": {"x": 19, "y": 19},
                     "origin": {"x": -20, "y": 5}, "mirror": "x", "definitionId": "switch", "boardId": "board", "partIds": []},
-                "left": {"id": "left-layout", "name": "Left half", "boardId": "board", "matrixId": "left-matrix", "partIds": []},
-                "right": {"id": "right-layout", "name": "Right half", "boardId": "board", "matrixId": "right-matrix", "partIds": [],
+                "left": {"id": "left-layout", "name": "Left half", "boardId": "board", "matrixIds": ["left-matrix"], "partIds": []},
+                "right": {"id": "right-layout", "name": "Right half", "boardId": "board", "matrixIds": ["right-matrix"], "partIds": [],
                     "mirrorLink": {"sourceId": "left-layout", "axisX": 10}}
             }
         }
@@ -2307,6 +2338,8 @@ fn mirrored_pair_links_geometry_bidirectionally_and_keeps_hardware_local() {
     let (mut engine, mut doc) = linked_pair();
     let mut right = doc.matrices[1].clone();
     right.cells.push(MatrixCell {
+        shift: None,
+        bend: None,
         deleted: false,
         assemblies_local: Some(true),
         row: 0,
@@ -2338,18 +2371,59 @@ fn mirrored_pair_links_geometry_bidirectionally_and_keeps_hardware_local() {
         let mut matrix = doc.matrices[side].clone();
         matrix.rows = 3;
         matrix.pitch = Vec2 { x: 20.0, y: 18.0 };
-        matrix.column_staggers = vec![2.0, -3.0, 7.0];
-        matrix.column_splays = vec![5.0, 12.0, -8.0];
-        matrix.column_origins = vec![
-            Some(Vec2 { x: -9.0, y: 17.0 }),
-            None,
-            Some(Vec2 { x: 25.0, y: -12.0 }),
-        ];
+        {
+            let values = vec![2.0, -3.0, 7.0];
+            matrix.column_layout.resize_with(
+                values.len().max(matrix.column_layout.len()),
+                Default::default,
+            );
+            for record in &mut matrix.column_layout {
+                record.stagger = 0.0;
+            }
+            for (record, value) in matrix.column_layout.iter_mut().zip(values) {
+                record.stagger = value;
+            }
+        }
+        {
+            let values = vec![5.0, 12.0, -8.0];
+            matrix.column_layout.resize_with(
+                values.len().max(matrix.column_layout.len()),
+                Default::default,
+            );
+            for record in &mut matrix.column_layout {
+                record.splay = 0.0;
+            }
+            for (record, value) in matrix.column_layout.iter_mut().zip(values) {
+                record.splay = value;
+            }
+        }
+        {
+            let values = (vec![
+                Some(Vec2 { x: -9.0, y: 17.0 }),
+                None,
+                Some(Vec2 { x: 25.0, y: -12.0 }),
+            ])
+            .into_iter()
+            .map(|value| value.unwrap_or_default())
+            .collect::<Vec<_>>();
+            matrix.column_layout.resize_with(
+                values.len().max(matrix.column_layout.len()),
+                Default::default,
+            );
+            for record in &mut matrix.column_layout {
+                record.splay_origin = Vec2::default();
+            }
+            for (record, value) in matrix.column_layout.iter_mut().zip(values) {
+                record.splay_origin = value;
+            }
+        }
         matrix.rotation = Some(13.0);
         matrix
             .cells
             .retain(|cell| cell.row != 1 || cell.column != 2);
         matrix.cells.push(MatrixCell {
+            shift: None,
+            bend: None,
             deleted: false,
             assemblies_local: None,
             row: 1,
@@ -2488,7 +2562,17 @@ fn mirrored_pair_links_extra_components_and_unlink_preserves_poses() {
     )))
     .1;
     let mut right = doc.matrices[1].clone();
-    right.column_staggers = vec![7.0];
+    {
+        let values = vec![7.0];
+        let count = values.len().max(right.column_layout.len());
+        right.column_layout.resize_with(count, Default::default);
+        for record in &mut right.column_layout {
+            record.stagger = 0.0;
+        }
+        for (record, value) in right.column_layout.iter_mut().zip(values) {
+            record.stagger = value;
+        }
+    }
     doc = scene(engine.handle(edit(
         doc.revision,
         EditPhase::Commit,
@@ -2550,6 +2634,11 @@ fn mirrored_pair_links_extra_components_and_unlink_preserves_poses() {
 
 #[test]
 fn mirrored_pair_deletion_keeps_surviving_half_and_cleans_membership() {
+    // Ticket 21 supersedes the old linked survival: a plain linked
+    // counterpart follows the source deletion, while a Local counterpart
+    // survives complete and its layout turns independent. Name kept for the
+    // native baseline; the linked follow-deletion itself is proven in
+    // `matrix_anchors::linked_source_removal_deletes_linked_partner_and_keeps_unrelated_pair`.
     let (mut engine, doc) = linked_pair();
     let removed = scene(engine.handle(edit(
         doc.revision,
@@ -2561,6 +2650,29 @@ fn mirrored_pair_deletion_keeps_surviving_half_and_cleans_membership() {
     .1;
     assert_eq!(removed.parts.len(), 10);
     assert_reflected_keys(&removed);
+    // The surviving half goes Local before the source is deleted.
+    let mut right_layout = removed.layouts[1].clone();
+    right_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: MirroredItemKind::Matrix,
+            mirror_id: "right-matrix".into(),
+            state: MirroredExceptionState::Local,
+            removed_copper: None,
+        });
+    let removed = scene(engine.handle(edit(
+        removed.revision,
+        EditPhase::Commit,
+        EditOperation::SetLayout {
+            layout: right_layout,
+        },
+    )))
+    .1;
     let surviving = removed.matrices[1].clone();
     let removed = scene(engine.handle(edit(
         removed.revision,
@@ -2601,6 +2713,8 @@ fn mirrored_pair_invalid_links_and_failed_previews_do_not_change_document() {
     );
     let mut cycle = doc.layouts[0].clone();
     cycle.mirror_link = Some(LayoutMirrorLink {
+        correspondences: vec![],
+        exceptions: vec![],
         source_id: "right-layout".into(),
         axis_x: 10.0,
     });
@@ -2637,11 +2751,9 @@ fn matrix(rows: u32, columns: u32) -> Matrix {
         edge_gap: None,
 
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: vec![],
     }
 }
@@ -2654,9 +2766,34 @@ fn matrix_shrink_discards_out_of_bounds_edits() {
         document: matrix_doc(),
     });
     let mut value = matrix(6, 7);
-    value.row_offsets = vec![Vec2 { x: 0.0, y: 0.0 }; 6];
-    value.column_offsets = vec![Vec2 { x: 0.0, y: 0.0 }; 7];
+    {
+        let values = vec![Vec2 { x: 0.0, y: 0.0 }; 6];
+        value
+            .row_layout
+            .resize_with(values.len().max(value.row_layout.len()), Default::default);
+        for record in &mut value.row_layout {
+            record.offset = Vec2::default();
+        }
+        for (record, value) in value.row_layout.iter_mut().zip(values) {
+            record.offset = value;
+        }
+    }
+    {
+        let values = vec![Vec2 { x: 0.0, y: 0.0 }; 7];
+        value.column_layout.resize_with(
+            values.len().max(value.column_layout.len()),
+            Default::default,
+        );
+        for record in &mut value.column_layout {
+            record.offset = Vec2::default();
+        }
+        for (record, value) in value.column_layout.iter_mut().zip(values) {
+            record.offset = value;
+        }
+    }
     value.cells = vec![MatrixCell {
+        shift: None,
+        bend: None,
         deleted: false,
         assemblies_local: None,
         row: 5,
@@ -2687,8 +2824,8 @@ fn matrix_shrink_discards_out_of_bounds_edits() {
             definitions: None,
         },
     )));
-    assert_eq!(shrunk.matrices[0].row_offsets.len(), 5);
-    assert_eq!(shrunk.matrices[0].column_offsets.len(), 6);
+    assert_eq!(shrunk.matrices[0].row_layout.len(), 5);
+    assert_eq!(shrunk.matrices[0].column_layout.len(), 6);
     assert!(shrunk.matrices[0].cells.is_empty());
     assert!(
         !shrunk
@@ -2706,12 +2843,25 @@ fn new_matrix_rejects_out_of_bounds_edits() {
         document: matrix_doc(),
     });
     let mut value = matrix(1, 1);
-    value.row_offsets = vec![Vec2::default(); 2];
+    {
+        let values = vec![Vec2::default(); 2];
+        value
+            .row_layout
+            .resize_with(values.len().max(value.row_layout.len()), Default::default);
+        for record in &mut value.row_layout {
+            record.offset = Vec2::default();
+        }
+        for (record, value) in value.row_layout.iter_mut().zip(values) {
+            record.offset = value;
+        }
+    }
     assert!(
-        matches!(engine.handle(edit(0, EditPhase::Commit, EditOperation::SetMatrix { matrix: value.clone(), definitions: None })), CoreReply::Error { message, .. } if message == "Matrix offsets exceed dimensions")
+        matches!(engine.handle(edit(0, EditPhase::Commit, EditOperation::SetMatrix { matrix: value.clone(), definitions: None })), CoreReply::Error { message, .. } if message == "layout list exceeds axis count")
     );
-    value.row_offsets.clear();
+    value.row_layout.clear();
     value.cells = vec![MatrixCell {
+        shift: None,
+        bend: None,
         deleted: false,
         assemblies_local: None,
         row: 1,
@@ -2725,7 +2875,7 @@ fn new_matrix_rejects_out_of_bounds_edits() {
         assemblies: vec![],
     }];
     assert!(
-        matches!(engine.handle(edit(0, EditPhase::Commit, EditOperation::SetMatrix { matrix: value, definitions: None })), CoreReply::Error { message, .. } if message == "Matrix cell coordinate is invalid or duplicated")
+        matches!(engine.handle(edit(0, EditPhase::Commit, EditOperation::SetMatrix { matrix: value, definitions: None })), CoreReply::Error { message, .. } if message == "invalid or duplicate cell coordinate")
     );
 }
 
@@ -2737,9 +2887,22 @@ fn matrix_cells_preserve_survivors_and_companions() {
         document: matrix_doc(),
     });
     let mut value = matrix(2, 2);
-    value.row_offsets = vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 3.0, y: 0.0 }];
+    {
+        let values = vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 3.0, y: 0.0 }];
+        value
+            .row_layout
+            .resize_with(values.len().max(value.row_layout.len()), Default::default);
+        for record in &mut value.row_layout {
+            record.offset = Vec2::default();
+        }
+        for (record, value) in value.row_layout.iter_mut().zip(values) {
+            record.offset = value;
+        }
+    }
     value.cells = vec![
         MatrixCell {
+            shift: None,
+            bend: None,
             deleted: false,
             assemblies_local: None,
             row: 0,
@@ -2753,6 +2916,8 @@ fn matrix_cells_preserve_survivors_and_companions() {
             assemblies: vec![],
         },
         MatrixCell {
+            shift: None,
+            bend: None,
             deleted: false,
             assemblies_local: None,
             row: 1,
@@ -3357,8 +3522,32 @@ fn matrix_cumulative_stagger_splay_survive_growth_and_serialization() {
     });
     let mut value = matrix(2, 3);
     value.pitch = Vec2 { x: 20.0, y: 20.0 };
-    value.column_staggers = vec![0.0, 5.0];
-    value.column_splays = vec![0.0, 90.0];
+    {
+        let values = vec![0.0, 5.0];
+        value.column_layout.resize_with(
+            values.len().max(value.column_layout.len()),
+            Default::default,
+        );
+        for record in &mut value.column_layout {
+            record.stagger = 0.0;
+        }
+        for (record, value) in value.column_layout.iter_mut().zip(values) {
+            record.stagger = value;
+        }
+    }
+    {
+        let values = vec![0.0, 90.0];
+        value.column_layout.resize_with(
+            values.len().max(value.column_layout.len()),
+            Default::default,
+        );
+        for record in &mut value.column_layout {
+            record.splay = 0.0;
+        }
+        for (record, value) in value.column_layout.iter_mut().zip(values) {
+            record.splay = value;
+        }
+    }
     let (_, doc) = scene(engine.handle(edit(
         0,
         EditPhase::Commit,
@@ -3376,7 +3565,14 @@ fn matrix_cumulative_stagger_splay_survive_growth_and_serialization() {
     assert!((key.pose.at.y - 5.0).abs() < 1e-9);
     assert_eq!(key.pose.rotation, 90.0);
     let reopened: ProjectDoc = serde_json::from_str(&serde_json::to_string(&doc).unwrap()).unwrap();
-    assert_eq!(reopened.matrices[0].column_splays, vec![0.0, 90.0]);
+    assert_eq!(
+        reopened.matrices[0]
+            .column_layout
+            .iter()
+            .map(|record| record.splay)
+            .collect::<Vec<_>>(),
+        vec![0.0, 90.0]
+    );
     let mut value = reopened.matrices[0].clone();
     value.columns = 4;
     value.mirror = Some(Mirror::Y);
@@ -3406,8 +3602,22 @@ fn matrix_cumulative_stagger_splay_survive_growth_and_serialization() {
             definitions: None,
         },
     )));
-    assert_eq!(shrunk.matrices[0].column_staggers, vec![0.0]);
-    assert_eq!(shrunk.matrices[0].column_splays, vec![0.0]);
+    assert_eq!(
+        shrunk.matrices[0]
+            .column_layout
+            .iter()
+            .map(|record| record.stagger)
+            .collect::<Vec<_>>(),
+        vec![0.0]
+    );
+    assert_eq!(
+        shrunk.matrices[0]
+            .column_layout
+            .iter()
+            .map(|record| record.splay)
+            .collect::<Vec<_>>(),
+        vec![0.0]
+    );
 }
 
 #[test]
@@ -3505,8 +3715,35 @@ fn matrix_custom_splay_origin_survives_export_and_resize() {
     });
     let mut value = matrix(2, 3);
     value.pitch = Vec2 { x: 20.0, y: 20.0 };
-    value.column_splays = vec![0.0, 90.0];
-    value.column_origins = vec![None, Some(Vec2 { x: 0.0, y: -20.0 })];
+    {
+        let values = vec![0.0, 90.0];
+        value.column_layout.resize_with(
+            values.len().max(value.column_layout.len()),
+            Default::default,
+        );
+        for record in &mut value.column_layout {
+            record.splay = 0.0;
+        }
+        for (record, value) in value.column_layout.iter_mut().zip(values) {
+            record.splay = value;
+        }
+    }
+    {
+        let values = (vec![None, Some(Vec2 { x: -20.0, y: -20.0 })])
+            .into_iter()
+            .map(|value| value.unwrap_or_default())
+            .collect::<Vec<_>>();
+        value.column_layout.resize_with(
+            values.len().max(value.column_layout.len()),
+            Default::default,
+        );
+        for record in &mut value.column_layout {
+            record.splay_origin = Vec2::default();
+        }
+        for (record, value) in value.column_layout.iter_mut().zip(values) {
+            record.splay_origin = value;
+        }
+    }
     let (_, doc) = scene(engine.handle(edit(
         0,
         EditPhase::Commit,
@@ -3525,8 +3762,8 @@ fn matrix_custom_splay_origin_survives_export_and_resize() {
     assert_eq!(key.pose.rotation, 90.0);
     let reopened: ProjectDoc = serde_json::from_str(&serde_json::to_string(&doc).unwrap()).unwrap();
     assert_eq!(
-        reopened.matrices[0].column_origins[1],
-        Some(Vec2 { x: 0.0, y: -20.0 })
+        reopened.matrices[0].column_layout[1].splay_origin,
+        Vec2 { x: -20.0, y: -20.0 }
     );
     let mut value = reopened.matrices[0].clone();
     value.columns = 1;
@@ -3538,11 +3775,26 @@ fn matrix_custom_splay_origin_survives_export_and_resize() {
             definitions: None,
         },
     )));
-    assert_eq!(shrunk.matrices[0].column_origins, vec![None]);
+    assert_eq!(
+        shrunk.matrices[0]
+            .column_layout
+            .iter()
+            .map(|record| record.splay_origin)
+            .collect::<Vec<_>>(),
+        vec![Vec2::default()]
+    );
     let (_, restored) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
     assert_eq!(
-        restored.matrices[0].column_origins,
-        reopened.matrices[0].column_origins
+        restored.matrices[0]
+            .column_layout
+            .iter()
+            .map(|record| record.splay_origin)
+            .collect::<Vec<_>>(),
+        reopened.matrices[0]
+            .column_layout
+            .iter()
+            .map(|record| record.splay_origin)
+            .collect::<Vec<_>>()
     );
 }
 
@@ -3651,6 +3903,8 @@ fn mirrored_resize_keeps_each_halves_local_preset_companions() {
             matrix.cells = (0..matrix.rows)
                 .flat_map(|row| {
                     (0..matrix.columns).map(move |column| MatrixCell {
+                        shift: None,
+                        bend: None,
                         deleted: false,
                         row,
                         column,
@@ -3819,6 +4073,49 @@ fn deleting_matrix_row_preserves_surviving_part_and_binding_identity() {
 }
 
 #[test]
+fn linked_matrix_resize_retires_out_of_bounds_correspondences_and_reopens() {
+    let (mut engine, mut doc) = linked_pair();
+    for columns in [2, 4] {
+        let mut matrix = doc.matrices[0].clone();
+        matrix.columns = columns;
+        doc = scene(engine.handle(edit(
+            doc.revision,
+            EditPhase::Commit,
+            EditOperation::SetMatrix {
+                matrix,
+                definitions: None,
+            },
+        )))
+        .1;
+        let link = doc.layouts[1].mirror_link.as_ref().unwrap();
+        for row in 0..doc.matrices[0].rows {
+            for column in 0..columns {
+                assert!(
+                    link.correspondences.iter().any(|record| {
+                        record.source_id == format!("matrix/left-matrix/r{row}c{column}")
+                            && record.mirror_id == format!("matrix/right-matrix/r{row}c{column}")
+                    }),
+                    "missing r{row}c{column} after resizing to {columns} columns"
+                );
+            }
+        }
+        if columns == 2 {
+            assert!(
+                link.correspondences.iter().all(|record| {
+                    !record.source_id.ends_with("r0c2") && !record.mirror_id.ends_with("r0c2")
+                }),
+                "the retired r0c2 pair must stay gone: {link:?}"
+            );
+        }
+        let (_, reopened) = scene(CoreEngine::new().handle(CoreRequest::Open {
+            id: "reopen-resized".into(),
+            document: doc.clone(),
+        }));
+        assert_eq!(reopened.layouts, doc.layouts);
+    }
+}
+
+#[test]
 fn deleting_matrix_column_compacts_both_halves_and_preserves_local_assemblies() {
     let (mut engine, mut doc) = linked_pair();
     let mut right = doc.matrices[1].clone();
@@ -3871,6 +4168,26 @@ fn deleting_matrix_column_compacts_both_halves_and_preserves_local_assemblies() 
             .iter()
             .any(|cell| cell.column == 1 && cell.variant.as_deref() == Some("right-only"))
     );
+    let link = compacted.layouts[1].mirror_link.as_ref().unwrap();
+    let mut pairs: Vec<_> = link
+        .correspondences
+        .iter()
+        .filter(|record| record.kind == MirroredItemKind::Part)
+        .map(|record| (record.source_id.clone(), record.mirror_id.clone()))
+        .collect();
+    pairs.sort();
+    let mut expected: Vec<_> = (0..compacted.matrices[0].rows)
+        .flat_map(|row| {
+            (0..compacted.matrices[0].columns).map(move |column| {
+                (
+                    format!("matrix/left-matrix/r{row}c{column}"),
+                    format!("matrix/right-matrix/r{row}c{column}"),
+                )
+            })
+        })
+        .collect();
+    expected.sort();
+    assert_eq!(pairs, expected, "only the surviving pairs may remain");
     let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
     assert_eq!(undone.parts, before.parts);
     assert_eq!(undone.matrices, before.matrices);
@@ -3927,6 +4244,83 @@ fn deleting_matrix_cells_propagates_tombstones_and_survives_reopen() {
             .matrix_scenes
             .iter()
             .all(|matrix| matrix.cells.len() == 4)
+    );
+}
+
+#[test]
+fn unrelated_matrix_edit_never_resurrects_a_tombstoned_member_correspondence() {
+    let (mut engine, doc) = linked_pair();
+    let (_, deleted) = scene(engine.handle(edit(
+        doc.revision,
+        EditPhase::Commit,
+        EditOperation::RemoveMatrixCells {
+            matrix_id: "left-matrix".into(),
+            cells: vec![(0, 1)],
+        },
+    )));
+    let retired = |link: &LayoutMirrorLink| {
+        link.correspondences.iter().any(|record| {
+            record.kind == MirroredItemKind::Part
+                && (record.source_id.ends_with("left-matrix/r0c1")
+                    || record.mirror_id.ends_with("right-matrix/r0c1"))
+        })
+    };
+    let link = deleted.layouts[1].mirror_link.as_ref().unwrap();
+    assert!(!retired(link), "delete must retire the pair: {link:?}");
+    let mut left = deleted.matrices[0].clone();
+    left.edge_gap = Some(Vec2 { x: 6.0, y: 6.0 });
+    let (_, edited) = scene(engine.handle(edit(
+        deleted.revision,
+        EditPhase::Commit,
+        EditOperation::SetMatrix {
+            matrix: left,
+            definitions: None,
+        },
+    )));
+    let link = edited.layouts[1].mirror_link.as_ref().unwrap();
+    assert!(
+        !retired(link),
+        "an unrelated edit must not resurrect the tombstoned pair: {link:?}"
+    );
+}
+
+#[test]
+fn unrelated_matrix_edit_keeps_a_local_exception_unassociated() {
+    let (mut engine, mut doc) = linked_pair();
+    let link = doc.layouts[1].mirror_link.as_mut().unwrap();
+    link.correspondences.retain(|record| {
+        !(record.kind == MirroredItemKind::Part && record.mirror_id == "matrix/right-matrix/r0c1")
+    });
+    link.exceptions.push(MirroredException {
+        companion_mode: None,
+        companion_tweak: None,
+        kind: MirroredItemKind::Part,
+        mirror_id: "matrix/right-matrix/r0c1".into(),
+        state: MirroredExceptionState::Local,
+        removed_copper: None,
+    });
+    let (_, opened) = scene(engine.handle(CoreRequest::Open {
+        id: "open-unassociated".into(),
+        document: doc,
+    }));
+    let mut left = opened.matrices[0].clone();
+    left.edge_gap = Some(Vec2 { x: 6.0, y: 6.0 });
+    let (_, edited) = scene(engine.handle(edit(
+        opened.revision,
+        EditPhase::Commit,
+        EditOperation::SetMatrix {
+            matrix: left,
+            definitions: None,
+        },
+    )));
+    let link = edited.layouts[1].mirror_link.as_ref().unwrap();
+    assert!(
+        !link.correspondences.iter().any(|record| {
+            record.kind == MirroredItemKind::Part
+                && (record.source_id.ends_with("left-matrix/r0c1")
+                    || record.mirror_id.ends_with("right-matrix/r0c1"))
+        }),
+        "pairing must not infer a source for a local exception: {link:?}"
     );
 }
 
@@ -4464,4 +4858,39 @@ fn undo_retains_only_the_latest_hundred_commits() {
         engine.handle(CoreRequest::Undo { id: "empty".into() }),
         CoreReply::Error { .. }
     ));
+}
+
+#[test]
+fn adding_a_link_never_recreates_a_pair_excused_by_a_local_exception() {
+    let (mut engine, mut doc) = linked_pair();
+    let mut link = doc.layouts[1].mirror_link.take().unwrap();
+    let (_, opened) = scene(engine.handle(CoreRequest::Open {
+        id: "open-unlinked".into(),
+        document: doc.clone(),
+    }));
+    link.correspondences.clear();
+    link.exceptions.push(MirroredException {
+        companion_mode: None,
+        companion_tweak: None,
+        kind: MirroredItemKind::Part,
+        mirror_id: "matrix/right-matrix/r0c1".into(),
+        state: MirroredExceptionState::Local,
+        removed_copper: None,
+    });
+    let mut layout = opened.layouts[1].clone();
+    layout.mirror_link = Some(link);
+    let (_, linked) = scene(engine.handle(edit(
+        opened.revision,
+        EditPhase::Commit,
+        EditOperation::SetLayout { layout },
+    )));
+    let link = linked.layouts[1].mirror_link.as_ref().unwrap();
+    assert!(
+        !link.correspondences.iter().any(|record| {
+            record.kind == MirroredItemKind::Part
+                && (record.source_id.ends_with("left-matrix/r0c1")
+                    || record.mirror_id.ends_with("right-matrix/r0c1"))
+        }),
+        "adding a link must not recreate an excused pair: {link:?}"
+    );
 }

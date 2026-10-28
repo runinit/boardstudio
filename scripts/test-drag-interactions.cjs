@@ -123,15 +123,14 @@ async function setSlider(page, name, target) {
         : value;
     return JSON.stringify(canonical(project)) === expected;
   }, { expected: signature, database: STORAGE_DATABASE }, { timeout: 20000 });
-  const vectorAt = (values, index) => values?.[index] || { x: 0, y: 0 };
   const matrixState = (project, matrixId, row, column) => {
     const matrix = project.matrices.find(item => item.id === matrixId);
     assert.ok(matrix, `matrix ${matrixId} exists in the saved document`);
     const cells = matrix.cells || [];
     const cell = cells.find(item => item.row === row && item.column === column);
     return {
-      offset: vectorAt(matrix.columnOffsets, column),
-      stagger: matrix.columnStaggers?.[column] || 0,
+      offset: matrix.columnLayout?.[column]?.offset || { x: 0, y: 0 },
+      stagger: matrix.columnLayout?.[column]?.stagger || 0,
       cellOffset: cell?.offset || { x: 0, y: 0 },
       columnCellOffsets: Array.from({ length: matrix.rows }, (_, cellRow) =>
         cells.find(item => item.row === cellRow && item.column === column)?.offset || { x: 0, y: 0 }),
@@ -238,11 +237,12 @@ async function setSlider(page, name, target) {
       const cells = matrix.cells || [];
       const cell = cells.find(item => item.row === row && item.column === column);
       const state = {
-        offset: matrix.columnOffsets?.[column] || { x: 0, y: 0 },
-        stagger: matrix.columnStaggers?.[column] || 0,
+        offset: matrix.columnLayout?.[column]?.offset || { x: 0, y: 0 },
+        stagger: matrix.columnLayout?.[column]?.stagger || 0,
         cellOffset: cell?.offset || { x: 0, y: 0 },
         columnCellOffsets: Array.from({ length: matrix.rows }, (_, cellRow) =>
           cells.find(item => item.row === cellRow && item.column === column)?.offset || { x: 0, y: 0 }),
+        origin: matrix.origin || { x: 0, y: 0 },
       };
       return fields.every(field => JSON.stringify(state[field]) !== JSON.stringify(expected[field]));
     }, { database: STORAGE_DATABASE, ...identity, expected, fields: expectedFields }, { timeout: 20000 });
@@ -410,6 +410,16 @@ async function setSlider(page, name, target) {
       columnRead, ['stagger'], { matrixId, row, column });
     await runDrag({ name: 'Ctrl Offset handle', selector: '[aria-label="Drag to offset column"]',
       label: 'Drag to offset column', control: true }, columnRead, ['offset'], { matrixId, row, column });
+
+    await selectScope('Matrix');
+    await firstKey.click();
+    const matrixOriginRead = project => {
+      const matrix = project.matrices.find(item => item.id === matrixId);
+      assert.ok(matrix, `matrix ${matrixId} exists in the saved document`);
+      return { origin: matrix.origin };
+    };
+    await runDrag({ name: 'Matrix move', selector: '[aria-label="Drag to move matrix"]',
+      label: 'Drag to move matrix', dx: 40 }, matrixOriginRead, ['origin'], { matrixId, row, column });
 
     await collisionScenario(await browser.newContext({ viewport: { width: 1513, height: 1043 } }));
 

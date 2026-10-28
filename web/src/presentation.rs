@@ -993,15 +993,28 @@ fn pcb_bounds(snapshot: &AcceptedSnapshot, scope: &Scope) -> Option<(f64, f64, f
     bounds
 }
 
+/// A pending splay-origin pick and the pointer state that fires it: with Ctrl
+/// held the pick swings the keys instead of holding them still.
+struct PendingSplayOriginPick<'a> {
+    pending: &'a mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
+    inspector: &'a objects::MatrixTransformInspectorMount,
+    point: Vec2,
+    swing: bool,
+}
+
 fn apply_pending_splay_origin_pick(
     runtime: &Runtime,
     workspace: Signal<&'static str>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
-    pending: &mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
-    inspector: &objects::MatrixTransformInspectorMount,
-    point: Vec2,
+    pick: PendingSplayOriginPick<'_>,
 ) -> bool {
+    let PendingSplayOriginPick {
+        pending,
+        inspector,
+        point,
+        swing,
+    } = pick;
     let Some(picked_owner) = pending.peek().clone() else {
         return false;
     };
@@ -1027,7 +1040,7 @@ fn apply_pending_splay_origin_pick(
     if !layout_owner_is_current(runtime, workspace, adapter, owner)
         || !selected_is_current
         || !inspector_is_current
-        || !inspector.pick_splay_origin(point)
+        || !inspector.pick_splay_origin(point, swing)
     {
         runtime.report("Column selection changed. Pick the splay origin again.");
     }
@@ -1433,7 +1446,7 @@ fn layout_component_inspector_projection(
         layout.board_id == board.id
             && (layout.part_ids.contains(part_id)
                 || document.matrices.iter().any(|matrix| {
-                    matrix.id == layout.matrix_id && matrix.part_ids.contains(part_id)
+                    layout.matrix_ids.contains(&matrix.id) && matrix.part_ids.contains(part_id)
                 }))
     });
     let mut active_constraint = None;
@@ -1886,11 +1899,18 @@ fn matrix_context_relations(
         .matrix_scenes
         .iter()
         .find(|scene| scene.matrix_id == *matrix_id)?;
-    boardstudio_web_layout::matrix_relations::matrix_relations(
+    let mut relations = boardstudio_web_layout::matrix_relations::matrix_relations(
         &snapshot.document,
         scene,
         &selected.context,
-    )
+        &snapshot.scene.matrix_scenes,
+    )?;
+    relations.selection_note = boardstudio_web_layout::matrix_relations::cross_matrix_note(
+        &snapshot.scene.matrix_scenes,
+        &selected.context,
+        &model.selected_part_ids,
+    );
+    Some(relations)
 }
 
 fn layout_relationship_summary(
@@ -2962,6 +2982,7 @@ fn Editor() -> Element {
         "Layout",
     );
     let pending_splay_origin_pick = layout_state.pending_splay_origin_pick();
+    let pending_anchor_pick = layout_state.pending_anchor_pick();
     let layout_align = objects::use_canvas_align(
         runtime.clone(),
         version,
@@ -5865,6 +5886,13 @@ fn Editor() -> Element {
                                     geometry_snap: settings.geometry_snap,
                                     gap: part_placement::placement_gap(&settings),
                                     free: pointer.alt_key(),
+                                    pitch: matrix_snap_parameters(
+                                        &model,
+                                        &active.owner.scope,
+                                        &adapter,
+                                        None,
+                                    )
+                                    .0,
                                 }
                             },
                         )
@@ -6076,6 +6104,13 @@ fn Editor() -> Element {
                                             geometry_snap: settings.geometry_snap,
                                             gap: part_placement::placement_gap(&settings),
                                             free: pointer.alt_key(),
+                                            pitch: matrix_snap_parameters(
+                                                &runtime.model(),
+                                                &active.owner.scope,
+                                                &adapter,
+                                                None,
+                                            )
+                                            .0,
                                         }
                                     },
                                 )
@@ -6494,9 +6529,12 @@ fn Editor() -> Element {
                         workspace,
                         &adapter,
                         &layout_owner_for_pick,
-                        &mut pending_splay_pick,
-                        &transform_inspector,
-                        point,
+                        PendingSplayOriginPick {
+                            pending: &mut pending_splay_pick,
+                            inspector: &transform_inspector,
+                            point,
+                            swing: pointer.ctrl_key(),
+                        },
                     );
                 }
             }
@@ -7049,7 +7087,6 @@ fn Editor() -> Element {
                 pcb_workspace::ObjectsInput {
                     shared: pcb_shared_objects,
                     matrix_setup: pcb_matrix_setup,
-                    mirrored_pair: pcb_mirrored_pair,
                     on_place_component: part_placement.on_place_component,
                     layout_target,
                     parts_query,
@@ -7115,7 +7152,6 @@ fn Editor() -> Element {
                 shared: shared_objects,
                 matrix_setup: matrix_setup.clone(),
                 matrix_inspector: matrix_inspector.clone(),
-                mirrored_pair: mirrored_pair.clone(),
                 pair_created: pair_created_selection,
                 on_place_component: part_placement.on_place_component,
                 layout_target,
@@ -7298,6 +7334,17 @@ fn Editor() -> Element {
                     }
                 }
             });
+            let matrix_rotate_followed =
+                matrix_transform_inspector
+                    .projection
+                    .as_ref()
+                    .and_then(|projection| match &projection.fields {
+                        boardstudio_web_layout::matrix_transform_operation::MatrixTransformFields::Matrix {
+                            rotation_followed,
+                            ..
+                        } => Some(*rotation_followed),
+                        _ => None,
+                    });
             let transform = objects::LayoutTransformMenuMount {
                 properties_available,
                 column_available: toolbar_selection_availability.0,
@@ -7305,6 +7352,7 @@ fn Editor() -> Element {
                 pointer_tools_visible: true,
                 pointer_tools_available,
                 active_tool: layout_transform_tool(),
+                matrix_rotate_followed,
                 on_selection_kind: on_layout_selection_kind_handler,
                 on_show_properties,
                 on_transform_tool,
@@ -7384,6 +7432,7 @@ fn Editor() -> Element {
                 pointer_tools_visible: false,
                 pointer_tools_available: false,
                 active_tool: None,
+                matrix_rotate_followed: None,
                 on_selection_kind: pcb_selection_kind,
                 on_show_properties: EventHandler::new(on_show_properties),
                 on_transform_tool: EventHandler::new(|_| {}),
@@ -7825,6 +7874,7 @@ fn Editor() -> Element {
                 on_pick_splay_origin: {
                     let mount = matrix_transform_inspector.clone();
                     let mut pending = pending_splay_origin_pick;
+                    let mut anchor_pending = pending_anchor_pick;
                     EventHandler::new(move |()| {
                         let Some(projection) = mount.projection.as_ref() else {
                             return;
@@ -7834,6 +7884,7 @@ fn Editor() -> Element {
                             objects::TreeContext::Column { .. }
                         ) && mount.editable
                         {
+                            anchor_pending.set(None);
                             pending.set(Some(projection.owner.clone()));
                         }
                     })
@@ -7842,6 +7893,34 @@ fn Editor() -> Element {
                 on_cancel_splay_origin_pick: {
                     let mut pending = pending_splay_origin_pick;
                     EventHandler::new(move |()| pending.set(None))
+                },
+                on_pick_anchor: {
+                    let mount = matrix_transform_inspector.clone();
+                    let mut pending = pending_anchor_pick;
+                    let mut splay_pending = pending_splay_origin_pick;
+                    EventHandler::new(move |()| {
+                        let Some(projection) = mount.projection.as_ref() else {
+                            return;
+                        };
+                        if matches!(
+                            &projection.owner.context,
+                            objects::TreeContext::Matrix { .. }
+                        ) && mount.editable
+                        {
+                            splay_pending.set(None);
+                            mount.clear_aggregate_pick();
+                            pending.set(Some(projection.owner.clone()));
+                        }
+                    })
+                },
+                anchor_pick_pending: pending_anchor_pick().is_some(),
+                on_cancel_anchor_pick: {
+                    let mount = matrix_transform_inspector.clone();
+                    let mut pending = pending_anchor_pick;
+                    EventHandler::new(move |()| {
+                        mount.clear_aggregate_pick();
+                        pending.set(None);
+                    })
                 },
                 inspector_tab: layout_context_tab,
                 matrix_relations: matrix_context_relations(&model, selected_tree_context.as_ref()),
@@ -7852,6 +7931,28 @@ fn Editor() -> Element {
                 relation_scope: selected_tree_context
                     .as_ref()
                     .map(|selected| selected.scope.clone()),
+                on_navigate_anchor_part: {
+                    let runtime = runtime.clone();
+                    let scope = selected_tree_context
+                        .as_ref()
+                        .map(|selected| selected.scope.clone());
+                    let select = workspace_routing.select_tree;
+                    EventHandler::new(move |context: objects::TreeContext| {
+                        let Some(scope) = scope.clone() else {
+                            return;
+                        };
+                        let request = objects::TreeSelectRequest {
+                            scope,
+                            context,
+                            mode: boardstudio_application::SelectionMode::Replace,
+                            outline_action: None,
+                        };
+                        let Some(request) = relation_target_request(&runtime, request) else {
+                            return;
+                        };
+                        select.call(request);
+                    })
+                },
                 on_select_context: workspace_routing.select_tree,
                 outline_inspector: outline_inspector.clone().map(Box::new),
                 findings_return_available: (layout_findings.return_target)().as_ref().is_some_and(
@@ -8348,9 +8449,12 @@ fn Editor() -> Element {
                     workspace,
                     &adapter,
                     &owner,
-                    &mut pending_splay_pick,
-                    &transform_inspector,
-                    point,
+                    PendingSplayOriginPick {
+                        pending: &mut pending_splay_pick,
+                        inspector: &transform_inspector,
+                        point,
+                        swing: pointer.ctrl_key(),
+                    },
                 );
                 return;
             }
@@ -8470,9 +8574,12 @@ fn Editor() -> Element {
                     workspace,
                     &adapter,
                     &owner,
-                    &mut pending_splay_pick,
-                    &transform_inspector,
-                    point,
+                    PendingSplayOriginPick {
+                        pending: &mut pending_splay_pick,
+                        inspector: &transform_inspector,
+                        point,
+                        swing: pointer.ctrl_key(),
+                    },
                 );
                 return;
             }
@@ -8718,6 +8825,10 @@ fn Editor() -> Element {
                             settings: layout_snap_settings.read().clone(),
                             open_menu: layout_command_menu,
                             on_snap_intent: layout_snap_intent,
+                            handles_visible: layout_state.transform_handles()(),
+                            on_toggle_handles: EventHandler::new(move |visible| {
+                                layout_state.transform_handles().set(visible);
+                            }),
                         }
                     }
                 }
@@ -8858,6 +8969,11 @@ fn Editor() -> Element {
                         }
                         layout_canvas::Scene {
                             source: canvas_source,
+                            preview_active: model.display_preview.is_some(),
+                            accepted_scene: model
+                                .display_preview
+                                .as_ref()
+                                .map(|_| snapshot.scene.clone()),
                             selected_ids: model.selected_part_ids.clone(),
                             selected_context: selected_tree_context.clone(),
                             keys_visible: !(layer_visibility.hidden)().contains("Keys"),
@@ -8923,7 +9039,7 @@ fn Editor() -> Element {
                             && !layout_assembly_3d()
                             && let Some((matrix, projection, context)) = layout_transform_target.clone()
                         {
-                            for tool in layout_canvas::transform_tools(&context, layout_transform_tool()) {
+                            for tool in layout_canvas::transform_tools(&context, layout_transform_tool(), layout_state.transform_handles()()) {
                             objects::LayoutTransformToolOverlay {
                                 key: "{tool:?}",
                                 runtime: objects::LayoutTransformRuntime(runtime.clone()),

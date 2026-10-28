@@ -274,8 +274,11 @@ def active_owner_mapping(source, entry, root):
     return base_hash == entry["base_sha256"] and current_hash == entry["current_sha256"]
 
 
-def selection_for_listed_files(files, env, root=ROOT, owners_path=None):
-    """Resolve files only to their declared wasm modules or exact reviewed owner tests."""
+def selection_for_listed_files(files, env, root=ROOT, owners_path=None, depth=None, isolated=()):
+    """Resolve files only to their declared wasm modules or exact reviewed owner tests.
+
+    With `depth`, direct modules group by their first `depth` segments (fewer, faster
+    runs; less isolation), mirroring --all; reviewed owner tests stay exact."""
     path_modules = path_attr_modules(root)
     owner_map = load_test_owners(owners_path)
     pairs = sorted({(file.replace("\\", "/"), module_filter(file, path_modules)) for file in files})
@@ -311,14 +314,51 @@ def selection_for_listed_files(files, env, root=ROOT, owners_path=None):
             diagnostics.append(f"{source} -> no direct module or reviewed owner mapping; fail closed")
     modules = sorted(module for module in selected_modules
                      if not any(other != module and module.startswith(other) for other in selected_modules))
-    # A selected owner test already covered by a direct module is executed once under that module.
-    owner_tests = sorted(test for test in selected_owner_tests
-                         if not any(test.startswith(module) for module in modules))
-    filters = sorted([*modules, *owner_tests])
+    if depth is None:
+        # A selected owner test already covered by a direct module is executed once under that module.
+        owner_tests = sorted(test for test in selected_owner_tests
+                             if not any(test.startswith(module) for module in modules))
+        filters = sorted([*modules, *owner_tests])
+        expected = {
+            filter_: ([name for name in names if name.startswith(filter_)]
+                      if filter_ in modules else [filter_])
+            for filter_ in filters
+        }
+        return filters, expected, unmatched, names, diagnostics
+    if depth <= 0:
+        raise RunnerError("--depth must be a positive integer")
+    grouped = sorted({test_module_filter(module, depth) for module in modules})
+    grouped = [group for group in grouped
+               if not any(other != group and group.startswith(other) for other in grouped)]
+    isolated = sorted(set(isolated))
+    if any(not prefix.endswith("::") for prefix in isolated):
+        raise RunnerError("isolated modules must end with '::'")
+    for index, prefix in enumerate(isolated):
+        if any(other != prefix and (other.startswith(prefix) or prefix.startswith(other))
+               for other in isolated[:index]):
+            raise RunnerError(f"isolated module filters overlap: {prefix}")
+    # An isolate outside this selection is inapplicable, not an error: the same isolate
+    # list serves every --files run, but only selected subtrees run separately.
+    applicable = [prefix for prefix in isolated
+                  if any(name.startswith(prefix) for name in names
+                         if any(name.startswith(group) for group in grouped))]
+    owner_exact = sorted(selected_owner_tests)
+    owner_set = set(owner_exact)
+    run_modules = [group for group in grouped
+                   if not any(group.startswith(prefix) for prefix in applicable)]
     expected = {
-        filter_: ([name for name in names if name.startswith(filter_)] if filter_ in modules else [filter_])
-        for filter_ in filters
+        group: [name for name in names if name.startswith(group)
+                and not any(name.startswith(prefix) for prefix in applicable)
+                and name not in owner_set]
+        for group in run_modules
     }
+    for prefix in applicable:
+        expected[prefix] = [name for name in names if name.startswith(prefix)
+                            and any(name.startswith(group) for group in grouped)
+                            and name not in owner_set]
+    for test in owner_exact:
+        expected[test] = [test]
+    filters = sorted([*run_modules, *applicable, *owner_exact])
     return filters, expected, unmatched, names, diagnostics
 
 
@@ -525,10 +565,11 @@ def main(argv=None):
     group.add_argument("--files", nargs="+", metavar="FILE")
     group.add_argument("--all", action="store_true")
     parser.add_argument("--depth", type=int, default=None, metavar="N",
-                        help="with --all: group tests by their first N module segments instead of one run per module "
-                             "(fewer, faster runs; less isolation)")
+                        help="with --all or --files: group tests by their first N module segments instead of "
+                             "one run per module (fewer, faster runs; less isolation)")
     parser.add_argument("--isolate", action="append", default=[], metavar="MODULE",
-                        help="with --all --depth: run this module prefix separately, e.g. presentation::setup_guide::")
+                        help="with --depth: run this module prefix separately, e.g. presentation::setup_guide:: "
+                             "(--files ignores isolates outside its selection)")
     parser.add_argument("--root", default=str(ROOT))
     parser.add_argument("--result-json", metavar="PATH",
                         help="write the exact listed, selected and terminal outcomes as JSON")
@@ -542,8 +583,10 @@ def main(argv=None):
         with (desktop_webdriver_config(env, root) if browser_setup else nullcontext(env)) as env:
             if args.files:
                 filters, expected_tests, unmatched_filters, listed_tests, diagnostics = \
-                    selection_for_listed_files(args.files, env, root)
+                    selection_for_listed_files(args.files, env, root, depth=args.depth,
+                                               isolated=args.isolate)
                 selection = {"mode": "files", "requested_files": args.files,
+                             "depth": args.depth, "isolated": args.isolate,
                              "resolved_filters": filters, "diagnostics": diagnostics}
             else:
                 filters, expected_tests = all_module_selection(env, root, args.depth, args.isolate)

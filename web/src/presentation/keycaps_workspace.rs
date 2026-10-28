@@ -270,7 +270,6 @@ pub(super) fn objects(input: NavigationInput) -> Element {
             on_open_geometry_scripts: shared.on_open_geometry_scripts,
             board_setup: Some(shared.board_setup),
             matrix_setup: None,
-            mirrored_pair: None,
             pair_created: None,
             on_place_component: None,
             layout_target: None,

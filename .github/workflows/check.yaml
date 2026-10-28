@@ -18,7 +18,8 @@ jobs:
   # Native Rust tests (including KiCad and native CAD checks). Runs beside `web` so the KiCad
   # install is off the critical path.
   native:
-    runs-on: ubuntu-latest
+    # Pinned to noble: the KiCad 10 PPA install on `ubuntu-latest` (resolute) fell back to the distro's 9.0.8.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install KiCad 10

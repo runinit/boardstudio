@@ -1,0 +1,8 @@
+{
+  "name": "boardstudio-ergogen-parity-tooling",
+  "private": true,
+  "dependencies": {
+    "makerjs": "0.18.2",
+    "mathjs": "15.2.0"
+  }
+}

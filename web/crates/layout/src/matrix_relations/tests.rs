@@ -11,6 +11,7 @@ const MATRIX: &str = "main";
 struct World {
     document: ProjectDoc,
     scene: MatrixScene,
+    scenes: Vec<MatrixScene>,
 }
 
 fn definition(id: &str, kind: &str) -> serde_json::Value {
@@ -74,13 +75,18 @@ fn apply(
     }))
 }
 
-fn world_of(scene: SceneDelta, document: ProjectDoc, matrix_id: &str) -> World {
-    let scene = scene
+fn world_of(delta: SceneDelta, document: ProjectDoc, matrix_id: &str) -> World {
+    let scene = delta
         .matrix_scenes
-        .into_iter()
+        .iter()
         .find(|scene| scene.matrix_id == matrix_id)
-        .expect("the matrix has a scene");
-    World { document, scene }
+        .expect("the matrix has a scene")
+        .clone();
+    World {
+        document,
+        scene,
+        scenes: delta.matrix_scenes,
+    }
 }
 
 fn world(matrix_json: serde_json::Value) -> World {
@@ -89,12 +95,12 @@ fn world(matrix_json: serde_json::Value) -> World {
         id: "open".into(),
         document: base(),
     }));
-    let (scene, document) = apply(
+    let (delta, document) = apply(
         &mut engine,
         opened.revision,
         json!({ "kind": "set-matrix", "matrix": matrix_json }),
     );
-    world_of(scene, document, MATRIX)
+    world_of(delta, document, MATRIX)
 }
 
 fn reopen(document: ProjectDoc, matrix_id: &str) -> World {
@@ -107,12 +113,352 @@ fn reopen(document: ProjectDoc, matrix_id: &str) -> World {
 }
 
 fn relations(world: &World, context: TreeContext) -> Option<MatrixRelations> {
-    matrix_relations(&world.document, &world.scene, &context)
+    matrix_relations(&world.document, &world.scene, &context, &world.scenes)
+}
+
+fn mirrored_pair_with_exception(kind: &str, state: &str) -> (World, World) {
+    let mut engine = CoreEngine::new();
+    let (opened, _) = scene_of(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: base(),
+    }));
+    let (scene, document) = apply(
+        &mut engine,
+        opened.revision,
+        json!({ "kind": "create-mirrored-pair",
+            "matrix": matrix(1, 1, json!({ "id": "left-matrix",
+                "origin": { "x": -20.0, "y": 5.0 }, "mirror": "x" })),
+            "left": { "id": "left-layout", "name": "Left half", "boardId": "board",
+                      "matrixIds": ["left-matrix"], "partIds": [] },
+            "right": { "id": "right-layout", "name": "Right half", "boardId": "board",
+                       "matrixIds": ["right-matrix"], "partIds": [],
+                       "mirrorLink": { "sourceId": "left-layout", "axisX": 10.0 } } }),
+    );
+    let mut mirror: serde_json::Value = serde_json::to_value(
+        document
+            .layouts
+            .iter()
+            .find(|layout| layout.id == "right-layout")
+            .expect("mirror layout"),
+    )
+    .unwrap();
+    mirror["mirrorLink"]["exceptions"] = json!([
+        {"kind": "matrix", "mirrorId": "right-matrix", "state": state},
+        {"kind": kind, "mirrorId": "matrix/right-matrix/r0c0", "state": state},
+    ]);
+    let (scene, document) = apply(
+        &mut engine,
+        scene.revision,
+        json!({ "kind": "set-layout", "layout": mirror }),
+    );
+    (
+        world_of(scene.clone(), document.clone(), "left-matrix"),
+        world_of(scene, document, "right-matrix"),
+    )
+}
+
+#[test]
+fn a_local_overlay_explains_pose_pinning_on_its_key_and_matrix() {
+    let (_, right) = mirrored_pair_with_exception("part", "local");
+
+    let key = relations(&right, key_in("right-matrix", 0, 0)).unwrap();
+    assert_eq!(
+        value(&key.structure, "Local key"),
+        "holds its final pose; carried fields stay shared"
+    );
+
+    let matrix = relations(&right, matrix_in("right-matrix")).unwrap();
+    assert_eq!(
+        value(&matrix.structure, "Local matrix"),
+        "keeps its own dimensions and layout; its anchor stays detached"
+    );
+}
+
+#[test]
+fn an_omitted_key_keeps_a_logical_pose_without_resurrecting_parts() {
+    let (_, right) = mirrored_pair_with_exception("part", "omitted");
+
+    let key = relations(&right, key_in("right-matrix", 0, 0))
+        .expect("logical inspection still projects an Omitted key");
+    assert_eq!(
+        value(&key.structure, "Omitted key"),
+        "live logical pose only; inherited parts stay suppressed. Clear the omission in the Key inspector to rejoin."
+    );
+    let suppressed = "matrix/right-matrix/r0c0";
+    let names_suppressed = |ids: &[String]| ids.iter().any(|id| id == suppressed);
+    assert!(
+        key.structure
+            .iter()
+            .all(|item| !names_suppressed(&item.highlight)),
+        "the suppressed part is never highlighted"
+    );
+    assert!(
+        key.departures
+            .iter()
+            .all(|departure| !names_suppressed(&departure.highlight)),
+        "the suppressed part is never highlighted"
+    );
+
+    let matrix = relations(&right, matrix_in("right-matrix")).unwrap();
+    assert_eq!(
+        value(&matrix.structure, "Omitted matrix"),
+        "live logical poses only; inherited parts stay suppressed"
+    );
+}
+
+fn anchored_pair() -> (World, World) {
+    let mut engine = CoreEngine::new();
+    let main = matrix(2, 2, json!({}));
+    let thumb = matrix(
+        1,
+        2,
+        json!({"id": "thumb",
+               "anchor": {"matrixId": "main", "row": 1, "column": 1,
+                          "follow": ["x", "y"]}}),
+    );
+    let mut document = serde_json::to_value(base()).unwrap();
+    document["matrices"] = json!([main, thumb]);
+    document["layouts"] = json!([{ "id": "layout", "name": "Layout",
+        "boardId": "board", "matrixIds": ["main", "thumb"], "partIds": [] }]);
+    let (scene, document) = scene_of(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: serde_json::from_value(document).unwrap(),
+    }));
+    (
+        world_of(scene.clone(), document.clone(), MATRIX),
+        world_of(scene, document, "thumb"),
+    )
+}
+
+#[test]
+fn following_a_local_anchor_key_says_it_holds_its_pose() {
+    let mut engine = CoreEngine::new();
+    let (opened, _) = scene_of(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: base(),
+    }));
+    let (scene, document) = apply(
+        &mut engine,
+        opened.revision,
+        json!({ "kind": "create-mirrored-pair",
+            "matrix": matrix(1, 1, json!({ "id": "left-matrix",
+                "origin": { "x": -20.0, "y": 5.0 }, "mirror": "x" })),
+            "left": { "id": "left-layout", "name": "Left half", "boardId": "board",
+                      "matrixIds": ["left-matrix"], "partIds": [] },
+            "right": { "id": "right-layout", "name": "Right half", "boardId": "board",
+                       "matrixIds": ["right-matrix"], "partIds": [],
+                       "mirrorLink": { "sourceId": "left-layout", "axisX": 10.0 } } }),
+    );
+    let mut mirror: serde_json::Value = serde_json::to_value(
+        document
+            .layouts
+            .iter()
+            .find(|layout| layout.id == "right-layout")
+            .expect("mirror layout"),
+    )
+    .unwrap();
+    mirror["mirrorLink"]["exceptions"] = json!([
+        {"kind": "part", "mirrorId": "matrix/right-matrix/r0c0", "state": "local"},
+    ]);
+    let (scene, _) = apply(
+        &mut engine,
+        scene.revision,
+        json!({ "kind": "set-layout", "layout": mirror }),
+    );
+    let (scene, document) = apply(
+        &mut engine,
+        scene.revision,
+        json!({ "kind": "add-anchored-matrix", "id": "follower",
+                "anchor": {"matrixId": "right-matrix", "row": 0, "column": 0,
+                           "follow": ["x", "y", "rotation"]} }),
+    );
+    let follower = world_of(scene, document, "follower");
+    let relations = relations(&follower, matrix_in("follower")).unwrap();
+    let item = relations
+        .structure
+        .iter()
+        .find(|item| item.label == "Follows")
+        .expect("the follower names its Local anchor key");
+    assert_eq!(
+        item.value,
+        "row 1, column 1 of matrix right-matrix (follows X, Y, rotation); \
+         the anchor key is Local and holds its final pose"
+    );
+}
+
+#[test]
+fn anchored_matrices_name_their_follow_key_subset_and_dependants() {
+    let (main, thumb) = anchored_pair();
+    let thumb_matrix = TreeContext::Matrix {
+        matrix_id: "thumb".into(),
+    };
+    let follows = relations(&thumb, thumb_matrix).unwrap();
+    let item = follows
+        .structure
+        .iter()
+        .find(|item| item.label == "Follows")
+        .expect("an anchored matrix follows its anchor key");
+    assert_eq!(item.value, "row 2, column 2 of matrix main (follows X, Y)");
+    assert_eq!(
+        item.target,
+        Some(TreeContext::Key {
+            matrix_id: MATRIX.into(),
+            row: 1,
+            column: 1,
+        })
+    );
+
+    let main_matrix = TreeContext::Matrix {
+        matrix_id: MATRIX.into(),
+    };
+    let followed = relations(&main, main_matrix).unwrap();
+    let item = followed
+        .structure
+        .iter()
+        .find(|item| item.label == "Followed by")
+        .expect("an anchor matrix names its dependants");
+    assert_eq!(item.value, "Matrix thumb");
+    assert_eq!(
+        item.target,
+        Some(TreeContext::Matrix {
+            matrix_id: "thumb".into(),
+        })
+    );
+
+    let anchor_key = relations(&main, key(1, 1)).unwrap();
+    let item = anchor_key
+        .structure
+        .iter()
+        .find(|item| item.label == "Followed by")
+        .expect("an anchor key names the matrices it moves");
+    assert_eq!(item.value, "Matrix thumb");
 }
 
 fn matrix_context() -> TreeContext {
     TreeContext::Matrix {
         matrix_id: MATRIX.into(),
+    }
+}
+
+/// Ticket 32 slice, RED: an aggregate anchor renders one chain entry per part
+/// from Core facts; part entries navigate to their key and hovering one
+/// highlights exactly that part key. The pair is built through Core edits so
+/// member parts materialize the way the canvas sees them.
+fn aggregate_pair() -> (World, World) {
+    let main = matrix(1, 3, json!({}));
+    let thumb = matrix(
+        1,
+        1,
+        json!({"id": "thumb",
+               "anchor": {"follow": ["x", "y", "rotation"],
+                          "aggregate": {"method": "average",
+                              "parts": [{"matrixId": "main", "row": 0, "column": 0},
+                                        {"matrixId": "main", "row": 0, "column": 2}]}}}),
+    );
+    // Member parts materialize the scene identities the chain highlights.
+    let parts: Vec<serde_json::Value> = ["main/r0c0", "main/r0c1", "main/r0c2", "thumb/r0c0"]
+        .iter()
+        .enumerate()
+        .map(|(index, key)| {
+            json!({ "id": format!("matrix/{key}"), "definitionId": "switch",
+                    "reference": format!("K{}", index + 1),
+                    "pose": { "at": { "x": 0.0, "y": 0.0 }, "rotation": 0.0 },
+                    "side": "front" })
+        })
+        .collect();
+    let part_ids: Vec<serde_json::Value> = parts.iter().map(|part| part["id"].clone()).collect();
+    let mut document = serde_json::to_value(base()).unwrap();
+    document["matrices"] = json!([main, thumb]);
+    document["matrices"][0]["partIds"] =
+        json!(["matrix/main/r0c0", "matrix/main/r0c1", "matrix/main/r0c2"]);
+    document["matrices"][1]["partIds"] = json!(["matrix/thumb/r0c0"]);
+    document["boards"][0]["partIds"] = serde_json::Value::Array(part_ids);
+    document["parts"] = serde_json::Value::Array(parts);
+    document["layouts"] = json!([{ "id": "layout", "name": "Layout",
+        "boardId": "board", "matrixIds": ["main", "thumb"], "partIds": [] }]);
+    let mut engine = CoreEngine::new();
+    let (scene, document) = scene_of(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: serde_json::from_value(document).unwrap(),
+    }));
+    (
+        world_of(scene.clone(), document.clone(), MATRIX),
+        world_of(scene, document, "thumb"),
+    )
+}
+
+#[test]
+fn aggregate_anchors_render_one_chain_entry_per_part() {
+    let (main, thumb) = aggregate_pair();
+    let chain = relations(&thumb, matrix_in("thumb")).unwrap();
+    assert_eq!(value(&chain.structure, "Anchor"), "Average of 2 keys");
+    let anchor = chain
+        .structure
+        .iter()
+        .find(|item| item.label == "Anchor")
+        .expect("the aggregate names its method");
+    assert!(anchor.opens_editor, "the Anchor entry opens the Inspector");
+    let parts: Vec<&RelationItem> = chain
+        .structure
+        .iter()
+        .filter(|item| item.label == "Anchor part")
+        .collect();
+    assert_eq!(parts.len(), 2, "one chain entry per part");
+    assert_eq!(parts[0].value, "row 1, column 1 of matrix main");
+    assert_eq!(parts[0].target, Some(key_in(MATRIX, 0, 0)));
+    assert_eq!(parts[0].highlight, vec!["matrix/main/r0c0"]);
+    assert!(!parts[0].opens_editor, "part entries navigate");
+    assert_eq!(parts[1].value, "row 1, column 3 of matrix main");
+    assert_eq!(parts[1].target, Some(key_in(MATRIX, 0, 2)));
+    assert_eq!(parts[1].highlight, vec!["matrix/main/r0c2"]);
+    let follows = chain
+        .structure
+        .iter()
+        .find(|item| item.label == "Follows")
+        .expect("the aggregate names its Follow subset");
+    assert_eq!(follows.value, "X, Y, rotation");
+    assert_eq!(follows.target, None, "no single key to navigate to");
+    assert_eq!(
+        follows.highlight,
+        vec!["matrix/main/r0c0", "matrix/main/r0c2"],
+        "the Follow subset highlights every part"
+    );
+
+    let followed = relations(&main, matrix_context()).unwrap();
+    assert!(
+        followed
+            .structure
+            .iter()
+            .any(|item| item.label == "Followed by" && item.value == "Matrix thumb"),
+        "a matrix depended on through a part names its dependant"
+    );
+    let key_chain = relations(&main, key(0, 0)).unwrap();
+    assert!(
+        key_chain
+            .structure
+            .iter()
+            .any(|item| item.label == "Followed by" && item.value == "Matrix thumb"),
+        "a part key names the aggregate depending on it"
+    );
+    let row_chain = relations(&thumb, row_in("thumb", 0)).unwrap();
+    let frames: Vec<&RelationItem> = row_chain
+        .structure
+        .iter()
+        .filter(|item| item.label == "Anchor frame")
+        .collect();
+    assert_eq!(frames.len(), 2, "the row chain carries one frame per part");
+    assert_eq!(
+        frames[0].value,
+        "row 1, column 1 of matrix main (follows X, Y, rotation)"
+    );
+    assert_eq!(frames[0].target, Some(key_in(MATRIX, 0, 0)));
+    assert_eq!(frames[0].highlight, vec!["matrix/main/r0c0"]);
+}
+
+fn row_in(matrix_id: &str, row: u32) -> TreeContext {
+    TreeContext::Row {
+        matrix_id: matrix_id.into(),
+        row,
     }
 }
 
@@ -123,11 +469,28 @@ fn column(column: u32) -> TreeContext {
     }
 }
 
-fn key(row: u32, column: u32) -> TreeContext {
-    TreeContext::Key {
+fn row(row: u32) -> TreeContext {
+    TreeContext::Row {
         matrix_id: MATRIX.into(),
         row,
+    }
+}
+
+fn key(row: u32, column: u32) -> TreeContext {
+    key_in(MATRIX, row, column)
+}
+
+fn key_in(matrix_id: &str, row: u32, column: u32) -> TreeContext {
+    TreeContext::Key {
+        matrix_id: matrix_id.into(),
+        row,
         column,
+    }
+}
+
+fn matrix_in(matrix_id: &str) -> TreeContext {
+    TreeContext::Matrix {
+        matrix_id: matrix_id.into(),
     }
 }
 
@@ -156,7 +519,10 @@ fn a_blank_matrix_shows_structure_at_once_and_no_departures_or_constraints() {
     );
 
     let third = relations(&world, column(2)).unwrap();
-    assert_eq!(value(&third.structure, "Stagger"), "0 mm from Column 2");
+    assert_eq!(
+        value(&third.structure, "Stagger"),
+        "0 mm from Column 2, before turns"
+    );
     let inherited: Vec<_> = third
         .structure
         .iter()
@@ -173,22 +539,197 @@ fn a_blank_matrix_shows_structure_at_once_and_no_departures_or_constraints() {
 
 #[test]
 fn staggers_read_relative_to_the_previous_column_with_a_cumulative_value() {
-    let world = world(matrix(1, 3, json!({ "columnStaggers": [0.0, 2.0, -1.0] })));
+    let world = world(matrix(
+        1,
+        3,
+        json!({ "columnLayout": [{"stagger": 0.0}, {"stagger": 2.0}, {"stagger": -1.0}]
+        }),
+    ));
 
     let first = relations(&world, column(0)).unwrap();
     assert_eq!(
         value(&first.structure, "Stagger"),
-        "0 mm from the matrix origin"
+        "0 mm from the matrix origin, before turns"
     );
     let second = relations(&world, column(1)).unwrap();
     assert_eq!(
         value(&second.structure, "Stagger"),
-        "2 mm from Column 1, cumulative 2 mm"
+        "2 mm from Column 1, cumulative 2 mm, before turns"
     );
     let third = relations(&world, column(2)).unwrap();
     assert_eq!(
         value(&third.structure, "Stagger"),
-        "\u{2212}1 mm from Column 2, cumulative 1 mm"
+        "\u{2212}1 mm from Column 2, cumulative 1 mm, before turns"
+    );
+}
+
+#[test]
+fn a_bent_key_reports_its_transported_cumulative_shift_from_core_facts() {
+    // Row 0 shifts (10, 0) then bends 90; row 1 shifts (10, 0) into the turned
+    // heading. A raw sum would read (20, 0); the kernel transports the second
+    // shift through the carried bend, so the matrix-axes cumulative shift at
+    // row 1 is (10, 10).
+    let world = world(matrix(
+        2,
+        1,
+        json!({ "rowLayout": [{ "shift": { "x": 10.0, "y": 0.0 }, "bend": 90.0 },
+                              { "shift": { "x": 10.0, "y": 0.0 } }] }),
+    ));
+
+    let first = relations(&world, key(0, 0)).unwrap();
+    assert_eq!(
+        value(&first.structure, "Cumulative shift"),
+        "10, 0 mm in matrix axes"
+    );
+    assert_eq!(
+        value(&first.structure, "Cumulative bend"),
+        "90° (row and key only)"
+    );
+
+    let key = relations(&world, key(1, 0)).unwrap();
+    assert_eq!(value(&key.structure, "Row shift"), "10, 0 mm");
+    assert_eq!(value(&key.structure, "Key shift"), "none");
+    assert_eq!(value(&key.structure, "Row bend"), "none");
+    assert_eq!(
+        value(&key.structure, "Cumulative shift"),
+        "10, 10 mm in matrix axes"
+    );
+    assert_eq!(
+        value(&key.structure, "Cumulative bend"),
+        "90° (row and key only)"
+    );
+    assert_eq!(
+        key.structure
+            .iter()
+            .find(|item| item.label == "Row shift")
+            .and_then(|item| item.target.clone()),
+        Some(TreeContext::Row {
+            matrix_id: MATRIX.into(),
+            row: 1,
+        }),
+        "a carried contribution navigates to the row that authors it"
+    );
+}
+
+#[test]
+fn a_row_chain_shows_its_padding_and_mixed_key_shifts_as_varies() {
+    let world = world(matrix(
+        3,
+        2,
+        json!({
+            "rowLayout": [{}, {"padding": 5.0, "shift": {"x": 1.0, "y": 0.0}}, {}],
+            "cells": [
+                {"row": 1, "column": 0, "enabled": true, "shift": {"x": 3.0, "y": 0.0}},
+                {"row": 1, "column": 1, "enabled": true, "shift": {"x": 4.0, "y": 0.0}},
+            ],
+        }),
+    ));
+
+    let row = relations(&world, row(1)).unwrap();
+    assert_eq!(value(&row.structure, "Padding"), "5 mm");
+    assert_eq!(value(&row.structure, "Row shift"), "1, 0 mm");
+    assert_eq!(value(&row.structure, "Key shift"), "Varies");
+    assert_eq!(value(&row.structure, "Cumulative shift"), "Varies");
+    assert_eq!(
+        value(&row.structure, "Cumulative bend"),
+        "0° (row and key only)"
+    );
+    let inherited: Vec<_> = row
+        .structure
+        .iter()
+        .filter(|item| item.label == "Inherited by")
+        .map(|item| item.value.as_str())
+        .collect();
+    assert_eq!(inherited, ["Row 3"]);
+}
+
+#[test]
+fn a_column_chain_marks_before_turns_totals_and_mixed_shifts_as_varies() {
+    let world = world(matrix(
+        2,
+        2,
+        json!({
+            "columnLayout": [{}, {"spread": 20.0, "stagger": 2.0, "splay": 15.0,
+                                 "rotation": 5.0}],
+            "cells": [
+                {"row": 0, "column": 1, "enabled": true, "shift": {"x": 3.0, "y": 0.0}},
+            ],
+        }),
+    ));
+
+    let col = relations(&world, column(1)).unwrap();
+    assert_eq!(
+        value(&col.structure, "Stagger"),
+        "2 mm from Column 1, cumulative 2 mm, before turns"
+    );
+    assert_eq!(value(&col.structure, "Column spread"), "20 mm");
+    assert_eq!(
+        value(&col.structure, "Column turn"),
+        "splay 15°, column rotation 5° (this column only)"
+    );
+    assert_eq!(value(&col.structure, "Key shift"), "Varies");
+    let first = relations(&world, column(0)).unwrap();
+    assert_eq!(
+        value(&first.structure, "Column spread"),
+        "no spread on column 1"
+    );
+}
+
+#[test]
+fn a_matrix_chain_shows_common_values_or_varies() {
+    let world = world(matrix(
+        2,
+        2,
+        json!({
+            "columnLayout": [{}, {"stagger": 2.0}],
+            "rowLayout": [{}, {"shift": {"x": 1.0, "y": 0.0}}],
+        }),
+    ));
+
+    let summary = relations(&world, matrix_context()).unwrap();
+    assert_eq!(value(&summary.structure, "Column stagger"), "Varies");
+    assert_eq!(value(&summary.structure, "Column spread"), "19 mm (pitch)");
+    assert_eq!(value(&summary.structure, "Row shift"), "Varies");
+    assert_eq!(value(&summary.structure, "Key shift"), "none");
+}
+
+#[test]
+fn selected_parts_in_two_matrices_yield_a_single_context_note() {
+    let mut engine = CoreEngine::new();
+    let (opened, _) = scene_of(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: base(),
+    }));
+    let (first, _) = apply(
+        &mut engine,
+        opened.revision,
+        json!({ "kind": "set-matrix", "matrix": matrix(1, 1, json!({"id": "left"})) }),
+    );
+    let (scene, _document) = apply(
+        &mut engine,
+        first.revision,
+        json!({ "kind": "set-matrix", "matrix": matrix(1, 1, json!({"id": "right"})) }),
+    );
+    let members: Vec<String> = scene
+        .matrix_scenes
+        .iter()
+        .flat_map(|scene| scene.cells.iter().filter_map(|cell| cell.member_id.clone()))
+        .collect();
+    assert_eq!(members.len(), 2, "one live member per matrix");
+    let context = TreeContext::Key {
+        matrix_id: "left".into(),
+        row: 0,
+        column: 0,
+    };
+    let note = cross_matrix_note(&scene.matrix_scenes, &context, &members).expect("two matrices");
+    assert!(note.contains("Parts in 2 matrices are selected"), "{note}");
+    assert!(
+        note.contains("select one matrix context for detail"),
+        "{note}"
+    );
+    assert!(
+        cross_matrix_note(&scene.matrix_scenes, &context, &members[..1]).is_none(),
+        "one matrix stays note-free"
     );
 }
 
@@ -197,7 +738,8 @@ fn a_column_offset_is_one_departure_on_that_column_only() {
     let world = world(matrix(
         2,
         3,
-        json!({ "columnOffsets": [{ "x": 0.0, "y": 0.0 }, { "x": 1.5, "y": 2.0 }] }),
+        json!({ "columnLayout": [{"offset": {"x": 0.0, "y": 0.0}}, {"offset": {"x": 1.5, "y": 2.0}}]
+        }),
     ));
 
     let offset = relations(&world, column(1)).unwrap();
@@ -223,7 +765,8 @@ fn an_x_only_column_offset_can_reset_but_not_convert() {
     let world = world(matrix(
         2,
         3,
-        json!({ "columnOffsets": [{ "x": 0.0, "y": 0.0 }, { "x": 1.5, "y": 0.0 }] }),
+        json!({ "columnLayout": [{"offset": {"x": 0.0, "y": 0.0}}, {"offset": {"x": 1.5, "y": 0.0}}]
+        }),
     ));
     let offset = relations(&world, column(1)).unwrap();
     assert_eq!(offset.departures.len(), 1);
@@ -414,9 +957,9 @@ fn each_half_of_a_linked_pair_names_its_partner() {
         json!({ "kind": "create-mirrored-pair",
             "matrix": matrix(2, 3, json!({ "id": "left-matrix", "origin": { "x": -20.0, "y": 5.0 }, "mirror": "x" })),
             "left": { "id": "left-layout", "name": "Left half", "boardId": "board",
-                      "matrixId": "left-matrix", "partIds": [] },
+                      "matrixIds": ["left-matrix"], "partIds": [] },
             "right": { "id": "right-layout", "name": "Right half", "boardId": "board",
-                       "matrixId": "right-matrix", "partIds": [],
+                       "matrixIds": ["right-matrix"], "partIds": [],
                        "mirrorLink": { "sourceId": "left-layout", "axisX": 10.0 } } }),
     );
 

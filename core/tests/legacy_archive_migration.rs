@@ -1,4 +1,4 @@
-//! The archive boundary migrates a small authored version 1 project and its asset.
+//! Strict archive admission and deliberately authored current-schema assets.
 use boardstudio_core::model::{ArchiveReply, CoreReply, CoreRequest, ProjectDoc};
 use boardstudio_core::{CoreEngine, archive, generators, migrate};
 use serde_json::json;
@@ -8,7 +8,7 @@ use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
 const ASSET: &[u8] = b"synthetic model bytes";
 
-fn archive_bytes() -> Vec<u8> {
+fn archive_bytes(current: bool) -> Vec<u8> {
     let hash = Sha256::digest(ASSET)
         .iter()
         .map(|byte| format!("{byte:02x}"))
@@ -50,6 +50,17 @@ fn archive_bytes() -> Vec<u8> {
         "source": "bundled Ergogen library"
     }]);
 
+    if current {
+        // Rebuilt current fixture: identities and back-side placement are authored, not migrated.
+        document["formatVersion"] = json!(migrate::CURRENT_VERSION);
+        document["definitions"][0]["id"] = json!("generator:ceoloide/switch_mx");
+        document["definitions"][0]["models"][0]["assetId"] =
+            json!("bundled-model:synthetic/switch.step");
+        document["parts"][0]["definitionId"] = json!("generator:ceoloide/switch_mx");
+        document["parts"][0]["generatorParameters"] = json!({"side": "B"});
+        document["assets"][0]["id"] = json!("bundled-model:synthetic/switch.step");
+        document["assets"][0]["source"] = json!("Synthetic test asset");
+    }
     let project = serde_json::to_vec(&document).unwrap();
     let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
     let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
@@ -63,7 +74,7 @@ fn archive_bytes() -> Vec<u8> {
 }
 
 fn unpacked() -> String {
-    let (reply, buffers) = archive::request(r#"{"kind":"unpack-project"}"#, &[archive_bytes()]);
+    let (reply, buffers) = archive::request(r#"{"kind":"unpack-project"}"#, &[archive_bytes(true)]);
     assert_eq!(
         buffers,
         vec![ASSET.to_vec()],
@@ -76,16 +87,20 @@ fn unpacked() -> String {
 }
 
 #[test]
-fn a_version_1_archive_unpacks_as_version_2_without_the_old_name() {
-    let json = unpacked();
-    let document: ProjectDoc = serde_json::from_str(&json).expect("migrated project decodes");
-    assert_eq!(document.format_version, migrate::CURRENT_VERSION);
+fn an_unversioned_archive_is_refused_without_releasing_assets() {
+    let input = archive_bytes(false);
+    let (reply, buffers) = archive::request(r#"{"kind":"unpack-project"}"#, &[input]);
     assert!(
-        !json.contains("ergogen"),
-        "no persisted identifier keeps the old name"
+        buffers.is_empty(),
+        "refused import must release no asset buffers"
     );
-    assert!(json.contains("bundled-model:synthetic/switch.step"));
-    assert_eq!(migrate::migrate_json(&json).unwrap(), (json, false));
+    match serde_json::from_str(&reply).unwrap() {
+        ArchiveReply::Error { message } => assert!(
+            message.contains("legacy") && message.contains("No conversion"),
+            "{message}"
+        ),
+        other => panic!("expected refusal, got {other:?}"),
+    }
 }
 
 #[test]
@@ -106,7 +121,7 @@ fn back_side_generator_parts_keep_their_layer() {
 }
 
 #[test]
-fn the_migrated_project_opens_and_every_generated_part_renders() {
+fn the_rebuilt_current_project_opens_and_every_generated_part_renders() {
     let document: ProjectDoc = serde_json::from_str(&unpacked()).unwrap();
     for part in &document.parts {
         let definition = document
@@ -124,7 +139,7 @@ fn the_migrated_project_opens_and_every_generated_part_renders() {
         document,
     }) {
         CoreReply::Scene { .. } => {}
-        other => panic!("migrated project must open: {other:?}"),
+        other => panic!("current project must open: {other:?}"),
     }
 }
 
@@ -136,7 +151,9 @@ fn an_unmigrated_document_is_refused_by_open() {
         id: "synthetic-legacy".into(),
         document,
     }) {
-        CoreReply::Error { message, .. } => assert!(message.contains("migrated"), "{message}"),
+        CoreReply::Error { message, .. } => {
+            assert!(message.contains("No conversion is available"), "{message}")
+        }
         other => panic!("expected a refusal, got {other:?}"),
     }
 }

@@ -75,6 +75,7 @@ def verify_receipt(path: Path, run_id: str, head: str, source_hash: str, build_h
         raise ValueError("drag browser receipt does not match this successful run")
     names = {check.get("name") for check in receipt.get("checks", [])}
     expected = {"Part drag", "Column body drag", "Stagger cancel", "Stagger handle", "Ctrl Offset handle",
+                "Matrix move",
                 "Default collision PCB pair", "Case viewer with overflowing collision findings",
                 "Qualified collision product fixture", "Unavailable physical PCB stays uncertain"}
     if not expected.issubset(names):

@@ -1,5 +1,8 @@
 //! Private geometry for projecting a mirrored pair before Core commits the source matrix.
-use boardstudio_core::model::{Layout, LayoutMirrorLink, Matrix, MatrixScene, Mirror, Vec2};
+use boardstudio_core::model::{
+    Layout, LayoutMirrorLink, Matrix, MatrixScene, Mirror, MirroredCorrespondence,
+    MirroredItemKind, Vec2,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MirroredPairProjection {
@@ -56,6 +59,23 @@ pub fn preview_cells(scene: &MatrixScene, matrix: &Matrix) -> Vec<PairPreviewCel
         .collect()
 }
 
+/// One explicit per-matrix correspondence for a mirrored matrix pair.
+///
+/// Shared by mirrored-pair creation and mirror-existing-half so every linked
+/// pair carries its source-to-mirror matrix identity instead of an empty vec.
+pub fn matrix_pair_correspondences(
+    source_matrix_id: &str,
+    mirror_matrix_id: &str,
+) -> Vec<MirroredCorrespondence> {
+    vec![MirroredCorrespondence {
+        companion_mode: None,
+        companion_tweak: None,
+        kind: MirroredItemKind::Matrix,
+        source_id: source_matrix_id.to_owned(),
+        mirror_id: mirror_matrix_id.to_owned(),
+    }]
+}
+
 /// Matches React `pairAt`: inset both halves from the shared axis by half the requested key-edge
 /// gap plus half the pitch, minus half the matrix edge gap.
 pub fn project_mirrored_pair(
@@ -100,7 +120,7 @@ pub fn project_mirrored_pair(
         id: ids.left_layout_id.clone(),
         name: left_name.to_owned(),
         board_id: board_id.clone(),
-        matrix_id: matrix.id.clone(),
+        matrix_ids: vec![matrix.id.clone()],
         part_ids: Vec::new(),
         mirror_link: None,
     };
@@ -108,9 +128,11 @@ pub fn project_mirrored_pair(
         id: ids.right_layout_id.clone(),
         name: right_name.to_owned(),
         board_id,
-        matrix_id: ids.right_matrix_id.clone(),
+        matrix_ids: vec![ids.right_matrix_id.clone()],
         part_ids: Vec::new(),
         mirror_link: Some(LayoutMirrorLink {
+            correspondences: matrix_pair_correspondences(&matrix.id, &ids.right_matrix_id),
+            exceptions: vec![],
             source_id: left_layout.id.clone(),
             axis_x: center.x,
         }),
@@ -158,12 +180,8 @@ mod tests {
             "partIds": [],
             "boardId": "board",
             "edgeGap": { "x": 1.0, "y": 1.0 },
-            "rowOffsets": [{ "x": 2.0, "y": 3.0 }, { "x": -1.0, "y": 4.0 }, { "x": 0.0, "y": -2.0 }],
-            "columnOffsets": [{ "x": 0.0, "y": 0.0 }, { "x": 1.5, "y": -0.5 }, { "x": 0.0, "y": 0.0 }],
-            "columnStaggers": [0.5, 1.25],
-            "columnSplays": [0.0, 12.0],
-            "columnOrigins": [null, { "x": 20.0, "y": 3.0 }],
-            "rotation": 8.0,
+            "rowLayout": [{"offset": {"x": 2.0, "y": 3.0}}, {"offset": {"x": -1.0, "y": 4.0}}, {"offset": {"x": 0.0, "y": -2.0}}], "columnLayout": [{"offset": {"x": 0.0, "y": 0.0}, "stagger": 0.5, "splay": 0.0}, {"offset": {"x": 1.5, "y": -0.5}, "stagger": 1.25, "splay": 12.0, "splayOrigin": {"x": 20.0, "y": 3.0}}, {"offset": {"x": 0.0, "y": 0.0}}],
+"rotation": 8.0,
             "cells": [
                 { "row": 0, "column": 1, "enabled": true, "offset": { "x": 0.25, "y": 0.75 }, "rotation": 2.0, "assemblies": [] },
                 { "row": 1, "column": 3, "enabled": false, "assemblies": [] }
@@ -209,8 +227,8 @@ mod tests {
             .unwrap();
 
         assert_eq!(pair.left.name, "Left half");
-        assert_eq!(pair.left.matrix_id, "left-matrix");
-        assert_eq!(pair.right.matrix_id, "right-matrix");
+        assert_eq!(pair.left.matrix_ids, ["left-matrix"]);
+        assert_eq!(pair.right.matrix_ids, ["right-matrix"]);
         assert_eq!(
             pair.right.mirror_link.as_ref().unwrap().source_id,
             "left-layout"
@@ -279,6 +297,29 @@ mod tests {
                 Vec2 { x: 0.0, y: 0.0 }
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn projection_emits_one_explicit_matrix_correspondence_for_the_pair() {
+        let pair = project_mirrored_pair(matrix(), &ids(), &request(), Vec2 { x: 100.0, y: 50.0 })
+            .unwrap();
+
+        let link = pair
+            .right
+            .mirror_link
+            .as_ref()
+            .expect("the mirrored pair carries a link");
+        assert_eq!(
+            link.correspondences,
+            vec![boardstudio_core::model::MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: boardstudio_core::model::MirroredItemKind::Matrix,
+                source_id: "left-matrix".into(),
+                mirror_id: "right-matrix".into(),
+            }],
+            "pair creation must emit one explicit per-matrix correspondence"
         );
     }
 

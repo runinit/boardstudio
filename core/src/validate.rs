@@ -276,12 +276,7 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
                 vec![matrix.id.clone(), board_id.clone()],
             ));
         }
-        if matrix.rows == 0
-            || matrix.columns == 0
-            || matrix
-                .rows
-                .checked_mul(matrix.columns)
-                .is_none_or(|count| count > crate::matrix::MAX_MATRIX_PARTS)
+        if crate::matrix::valid_dimensions(matrix).is_err()
             || !matrix.pitch.x.is_finite()
             || !matrix.pitch.y.is_finite()
             || matrix.pitch.x <= 0.0

@@ -249,27 +249,90 @@ sharing and may be a local feature or an omission on that half.
 
 ### Matrix layout
 
+**Layout**:
+A group of one or more matrices on one board, together with the independent components placed
+among them. Matrix anchors stay inside one layout, and linked halves on one board mirror whole
+layouts.
+_Avoid_: zone, matrix (when the whole group is meant)
+
 **Column stagger**:
 The vertical step of a matrix column from the previous column, in matrix
 coordinates. The first column steps from the matrix origin. The column and every
 later column inherit it.
 _Avoid_: column offset (when the inherited step is meant)
 
+**Column spread**:
+The horizontal step of a matrix column from the previous column. The column and every later
+column inherit it.
+_Avoid_: column offset (when the inherited step is meant)
+
 **Column offset**:
-An independent adjustment of one column only. Later columns do not inherit it.
-_Avoid_: stagger (when the independent adjustment is meant)
+An independent adjustment of one column only. Later columns do not inherit it, and it does not
+move the column's splay origin.
+_Avoid_: stagger, spread, shift (when the independent adjustment is meant)
+
+**Splay origin**:
+The point a column's splay turns about, measured from the column's base: its first key's
+position after spread and stagger.
+_Avoid_: pivot (in user-facing text)
+
+**Column rotation**:
+A turn of one column about its splay origin. No later column inherits it.
+_Avoid_: splay (when only this column turns), bend
+
+**Matrix pitch**:
+A matrix's key unit. Key and keycap size are the pitch minus the edge gap. Columns and rows with
+no spread or padding of their own step by one pitch, and snapping steps in fractions of it.
+_Avoid_: spacing (when the step between particular keys is meant)
+
+**Row padding**:
+The step from one row of a matrix column to the next.
+_Avoid_: row offset, pitch (when a single row's step is meant)
+
+**Matrix anchor**:
+A key of another matrix in the same layout whose final pose a matrix's frame follows, such as
+a thumb cluster following the main matrix — or the average or intersection of several such
+keys, whose combined pose the frame follows instead. The matrix may follow the target's X, Y
+and rotation, or only some of them.
+_Avoid_: parent, reference (unqualified)
 
 **Row offset**:
 An independent adjustment of one matrix row only.
+_Avoid_: shift (when the independent adjustment is meant)
 
 **Key local offset**:
 An adjustment of one key within its matrix. The key's attached companions move
 with it.
+_Avoid_: shift (when the independent adjustment is meant)
+
+**Local key**:
+A counterpart of a linked key with an explicit exception giving it an independent world
+pose. Shared matrix layout changes do not move it, and neighbouring keys remain linked.
+_Avoid_: key local offset (when the linked-half exception is meant)
+
+**Local matrix**:
+A counterpart of a linked matrix with its own independently editable layout and dimensions.
+Making it Local keeps its pose and removes its inherited anchor; it may be explicitly
+anchored again.
+
+**Shift**:
+A move of one row (row shift) or one key (key shift) that carries to every later row of its
+column, along the key's heading.
+_Avoid_: offset (when the carried move is meant), nudge
+
+**Bend**:
+A turn of one row (row bend) or one key (key bend) that carries to every later row of its
+column. The later rows swing about it, so the column curves.
+_Avoid_: rotate, rotation (when the carried turn is meant), curve
+
+**Key rotation**:
+A turn of one key about its centre. No other key inherits it.
+_Avoid_: bend
 
 **Structural relationship**:
-Placement a selection inherits from its matrix (pitch, offsets, stagger, splay,
-matrix frame) and from key assemblies. It is read from the accepted document;
-there is no separate relationship record.
+Placement a selection inherits from matrix steps, carried transforms, independent
+adjustments, its matrix frame and anchors, and key assemblies. It is read from the
+accepted document; there is no separate relationship record.
 
 **Explicit constraint**:
 A separately authored placement relationship from a source part to a target part.
@@ -289,6 +352,11 @@ companion moves with its key.
 _Avoid_: attach constraint (an attached companion is one that follows its key)
 
 ### Editing
+
+**Format reset**:
+A project-format change that refuses older project data instead of converting it.
+It does not delete existing saved projects; starting fresh creates a separate project.
+_Avoid_: factory reset (when the format compatibility change is meant)
 
 **Editor session**:
 One opening of a project for editing. Reopening the same project starts a new
@@ -339,3 +407,31 @@ the direct Session preview event carries only the operation, targets and transac
 identity. It has no commit phase. Committing submits a pending edit intent through
 `ResolveEdit`, which resolves against the accepted document when it runs.
 _Avoid_: live edit, uncommitted edit
+
+**Theme**:
+The visual style of the whole workbench: Original (the established Board Studio look)
+or shadcn. It sets colours and component styling, never what a control does, and is
+chosen independently of Appearance.
+_Avoid_: skin, palette
+
+**Appearance**:
+Whether the workbench is shown light, dark, or following the system setting. Every
+Theme has both a light and a dark form.
+_Avoid_: theme (for light/dark), color mode
+
+**Workspace**:
+One of the main working views of a project: Layout, PCB, Keymap, Keycaps, Case or Parts. It is chosen
+from the header and shows its own canvas with the Objects and Inspector docks. Export is a separate
+page, not a workspace.
+_Avoid_: stage, mode, Design (the former name of Layout)
+
+**Dock**:
+One of the two side panels beside the canvas: Objects on the left and Inspector on the right. A dock is
+either shown beside the canvas or collapsed, and on narrow screens both appear as one sheet over the
+lower part of the screen so the canvas stays visible.
+_Avoid_: sidebar, drawer, pane
+
+**Command palette**:
+A searchable list, opened with Ctrl/Cmd+K, of the workbench's existing actions and of the project's objects by name. Choosing an
+entry navigates, opens a tool or selects an object; it never performs a destructive or numeric edit itself.
+_Avoid_: command bar, quick open

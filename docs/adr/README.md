@@ -38,6 +38,13 @@ gets the next number and a row here; `scripts/check-adr-index.py` (part of
 | [0031](0031-preserve-pcb-handoff-protection-across-undo.md) | Preserve established PCB handoff pin-assignment protection across Undo/Redo; require explicit reviewed remapping. | PCB handoff protection, pin remapping and edit history |
 | [0032](0032-recreated-inputs-start-unassigned.md) | Recreated inputs do not inherit removed inputs' bindings, even when coordinates or IDs are reused. | key deletion/recreation, matrix shrink/regrow and binding cleanup |
 | [0033](0033-include-license-information-in-exported-packages.md) | Include `license.md` in exported packages so known licence and attribution information travels with their contents. | package export/import, attribution and source notices |
+| [0034](0034-adopt-rust-ui-components-with-two-themes.md) | Take workbench control styling from copied rust-ui source with Original and shadcn Themes, keep `dioxus-primitives` for behaviour, and drop the `Board*` wrappers. | shared controls, theming, frontend migration |
+| [0035](0035-rebuild-the-workbench-shell-on-rust-ui-patterns.md) | Rebuild the header, docks, menus and narrow-screen behaviour on rust-ui patterns; drop dock auto-hide. | workbench shell, docks, header, command palette |
+| [0036](0036-matrices-follow-ergogen-point-layout.md) | Matrices follow ergogen's point-layout model with deliberate exceptions; saved projects are not migrated. | matrix layout parameters, ergogen parity, format version |
+| [0037](0037-split-half-frame-and-stored-gap.md) | Split halves share one stored gap and each half keeps its own frame; legacy boards open unchanged and adopt on first edit. | mirrored pair links, split gap, half-frame origins |
+| [0038](0038-adaptive-split-spacing-on-commit.md) | After every committed edit each stored-gap pair spaces to max(stored gap, minimum) in the same Undo; touching legacy pairs space on first edit. | adaptive spacing, current spacing, split minimum |
+| [0039](0039-half-frame-parts-mirrored-controller.md) | Parts on a stored-gap half store half-frame poses; new controllers mirror by Part correspondence, either copy edits both, and the toggle pins locals. | mirrored part, local part, half-frame part, split clamp |
+| [0040](0040-part-anchoring-column-vocabulary.md) | Independent parts anchor to a key of their own layout with Follow plus carried Spread/Stagger/Splay and local Offset/Rotation; mirrors share values through a mapped target. | part anchor, anchored part, counterpart key, carried values |
 
 ## Deprecated records
 

@@ -1,10 +1,15 @@
 //! Private, source-parity projection for the new mirrored-pair placement.
+use super::matrix_setup_fields::{
+    MatrixAssemblyPicker, MatrixDimensionSliders, MatrixPreview, matrix_setup_preset,
+    parse_matrix_dimensions,
+};
 use crate::matrix_setup_operation::MatrixSetupPreset;
 use crate::mirrored_pair_geometry::MirroredPairProjection;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::Vec2;
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardSelectField};
+use boardstudio_web_ui_shared::controls::BoardButton;
 use dioxus::prelude::*;
+use std::collections::HashSet;
 
 mod canvas_overlay;
 pub use canvas_overlay::MirroredPairCanvasOverlay;
@@ -116,28 +121,43 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
     let values = props.projection.values.clone();
     let mut left_name = use_signal(|| values.left_name);
     let mut right_name = use_signal(|| values.right_name);
-    let mut rows = use_signal(|| values.rows);
-    let mut columns = use_signal(|| values.columns);
+    let rows = use_signal(|| values.rows);
+    let columns = use_signal(|| values.columns);
     let mut gap = use_signal(|| values.gap_mm);
-    let mut preset = use_signal(|| values.preset);
+    let (choc_default, hotswap_default, rgb_default) = preset_choices(values.preset);
+    let family = use_signal(|| Some(HashSet::from([usize::from(choc_default)])));
+    let mounting = use_signal(|| Some(HashSet::from([usize::from(hotswap_default)])));
+    let lighting = use_signal(|| Some(HashSet::from([usize::from(rgb_default)])));
+    let row_slider = use_signal(|| {
+        Some(
+            rows()
+                .trim()
+                .parse::<f64>()
+                .ok()
+                .filter(|value| (1.0..=12.0).contains(value))
+                .unwrap_or(3.0),
+        )
+    });
+    let column_slider = use_signal(|| {
+        Some(
+            columns()
+                .trim()
+                .parse::<f64>()
+                .ok()
+                .filter(|value| (1.0..=18.0).contains(value))
+                .unwrap_or(5.0),
+        )
+    });
     let left_name_value = left_name();
     let right_name_value = right_name();
     let rows_value = rows();
     let columns_value = columns();
     let gap_value = gap();
-    let preset_value = preset();
-    let dimensions = rows_value
-        .trim()
-        .parse::<u32>()
-        .ok()
-        .zip(columns_value.trim().parse::<u32>().ok())
-        .filter(|(rows, columns)| {
-            *rows > 0
-                && *columns > 0
-                && rows
-                    .checked_mul(*columns)
-                    .is_some_and(|cells| cells <= 4096)
-        });
+    let choc = family().is_some_and(|choice| choice.contains(&1));
+    let hotswap = mounting().is_some_and(|choice| choice.contains(&1));
+    let rgb = lighting().is_some_and(|choice| choice.contains(&1));
+    let selected_preset = matrix_setup_preset(choc, hotswap, rgb);
+    let dimensions = parse_matrix_dimensions(&rows_value, &columns_value);
     let gap_mm = gap_value
         .trim()
         .parse::<f64>()
@@ -152,7 +172,7 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
     let on_preview = props.on_preview;
     let left_submit = left_name_value.clone();
     let right_submit = right_name_value.clone();
-    let preset_submit = preset_value;
+    let preset_submit = selected_preset;
     let gap_submit = gap_value.clone();
     let owner_submit = owner.clone();
     let submit = move |event: FormEvent| {
@@ -199,28 +219,23 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                     label { "Right layout"
                         input { aria_label: "Right layout name", required: true, value: "{right_name_value}", disabled: !props.projection.editable, oninput: move |event| right_name.set(event.value()) }
                     }
-                    label { "Rows per half"
-                        input { aria_label: "Rows per half", r#type: "number", min: "1", max: "4096", step: "1", required: true, value: "{rows_value}", disabled: !props.projection.editable, oninput: move |event| rows.set(event.value()) }
-                    }
-                    label { "Columns per half"
-                        input { aria_label: "Columns per half", r#type: "number", min: "1", max: "4096", step: "1", required: true, value: "{columns_value}", disabled: !props.projection.editable, oninput: move |event| columns.set(event.value()) }
-                    }
                 }
-                BoardSelectField {
-                    label: "Key assembly",
-                    aria_label: "Key assembly",
-                    value: (preset_value.as_str()).to_string(),
-                    disabled: !props.projection.editable,
-                    onchange: move |event: FormEvent| if let Some(next) = parse_preset(&event.value()) { preset.set(next); },
-                    option { value: "mx-solder", "MX Solder" }
-                        option { value: "mx-hotswap", "MX Hotswap" }
-                        option { value: "choc-solder", "Choc V1 Solder" }
-                        option { value: "choc-hotswap", "Choc V1 Hotswap" }
-                        option { value: "mx-rgb", "MX RGB" }
-                        option { value: "choc-rgb", "Choc V1 RGB" }
-                        option { value: "mx-hotswap-rgb", "MX Hotswap RGB" }
-                        option { value: "choc-hotswap-rgb", "Choc V1 Hotswap RGB" }
+                MatrixDimensionSliders {
+                    rows: rows,
+                    columns: columns,
+                    row_slider: row_slider,
+                    column_slider: column_slider,
+                    rows_label: "Rows per half",
+                    columns_label: "Columns per half",
+                    editable: props.projection.editable,
                 }
+                MatrixAssemblyPicker {
+                    family: family,
+                    mounting: mounting,
+                    lighting: lighting,
+                    editable: props.projection.editable,
+                }
+                MatrixPreview { rows: rows_value.clone(), columns: columns_value.clone() }
                 label { "Gap between key edges (mm)"
                     input { aria_label: "Gap between key edges (mm)", r#type: "number", min: "0", step: "any", required: true, value: "{gap_value}", disabled: !props.projection.editable, oninput: move |event| gap.set(event.value()) }
                 }
@@ -236,18 +251,17 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
     }
 }
 
-fn parse_preset(value: &str) -> Option<MatrixSetupPreset> {
-    Some(match value {
-        "mx-solder" => MatrixSetupPreset::MxSolder,
-        "mx-hotswap" => MatrixSetupPreset::MxHotswap,
-        "choc-solder" => MatrixSetupPreset::ChocSolder,
-        "choc-hotswap" => MatrixSetupPreset::ChocHotswap,
-        "mx-rgb" => MatrixSetupPreset::MxRgb,
-        "choc-rgb" => MatrixSetupPreset::ChocRgb,
-        "mx-hotswap-rgb" => MatrixSetupPreset::MxHotswapRgb,
-        "choc-hotswap-rgb" => MatrixSetupPreset::ChocHotswapRgb,
-        _ => return None,
-    })
+fn preset_choices(preset: MatrixSetupPreset) -> (bool, bool, bool) {
+    match preset {
+        MatrixSetupPreset::MxSolder => (false, false, false),
+        MatrixSetupPreset::MxHotswap => (false, true, false),
+        MatrixSetupPreset::ChocSolder => (true, false, false),
+        MatrixSetupPreset::ChocHotswap => (true, true, false),
+        MatrixSetupPreset::MxRgb => (false, false, true),
+        MatrixSetupPreset::ChocRgb => (true, false, true),
+        MatrixSetupPreset::MxHotswapRgb => (false, true, true),
+        MatrixSetupPreset::ChocHotswapRgb => (true, true, true),
+    }
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]

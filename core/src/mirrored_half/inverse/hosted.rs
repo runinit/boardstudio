@@ -36,8 +36,7 @@ mod tests;
 use super::{Canonical, Coverage, Link, Links, PairView, PartAddition, Target};
 use crate::mechanical::pair;
 use crate::model::{
-    EditOperation, MirroredExceptionState, MirroredItemKind, Net, PartDefinition, Pin, Pose2, Side,
-    Vec2,
+    EditOperation, MirroredExceptionState, MirroredItemKind, PartDefinition, Pose2, Side, Vec2,
 };
 use crate::modules::{ModuleConnection, ModuleDefinition, MountedModule};
 use std::collections::{BTreeMap, BTreeSet};
@@ -125,7 +124,6 @@ pub(super) fn translate(
             canonical,
         )?,
         Op::RemoveEmbeddedCircuit { id } => remove_circuit(links, id, canonical)?,
-        Op::SetNet { net } => set_net(links, net, canonical)?,
         Op::SetInputScanMode { part_id, mode } => {
             if let Some(link) = links.linked_part(part_id)? {
                 canonical.operation = Op::SetInputScanMode {
@@ -182,22 +180,21 @@ pub(super) fn translate(
         | Op::RemoveSelectedMatrixCells { .. }
         | Op::SetMatrixSplay { .. }
         | Op::SetMatrixPlacement { .. }
+        | Op::AddAnchoredMatrix { .. }
+        | Op::SetMatrixAnchor { .. }
+        | Op::DetachMatrixAnchor { .. }
+        | Op::DetachMatrixAnchorConfirmed { .. }
         | Op::SetMatrix { .. }
         | Op::EditKeymap { .. }
         | Op::SetKeyBinding { .. }
         | Op::ApplyMechanicalEdit { .. }
-        | Op::SetOutline { .. }
-        | Op::CopyOutline { .. }
-        | Op::SelectOutline { .. }
-        | Op::RenameOutline { .. }
-        | Op::RemoveOutline { .. }
+        | Op::SetKeycapSize { .. }
         | Op::ApplyOutlineEdit { .. }
         | Op::SetLayout { .. }
         | Op::CreateMirroredPair { .. }
         | Op::SetConstraint { .. }
         | Op::RemoveConstraint { .. }
         | Op::ConvertOffsetConstraint { .. }
-        | Op::SetMechanical { .. }
         | Op::SetCase { .. }
         | Op::SetHalfException { .. }
         | Op::SetCompanionPlacement { .. }
@@ -244,11 +241,12 @@ fn followed(
 }
 
 /// The pose the source takes so that the independent-part rule lands the mirror on `at` and
-/// `rotation`: the exact inverse of `derive::pose` (the heading rule is its own inverse).
-fn source_pose(mapping: Pose2, at: Vec2, rotation: f64) -> Pose2 {
+/// `rotation`: the exact inverse of `derive::pose` (each heading rule is its own inverse).
+/// Controllers keep the reflected heading without the half turn, like the forward rule.
+fn source_pose(mapping: Pose2, at: Vec2, rotation: f64, is_controller: bool) -> Pose2 {
     Pose2 {
         at: pair::inverse(mapping, at),
-        rotation: (pair::inverse_angle(mapping, rotation) + 180.0).rem_euclid(360.0),
+        rotation: pair::mirrored_part_heading(is_controller, mapping, rotation),
     }
 }
 
@@ -428,7 +426,8 @@ fn source_module(
     source.host_board_id = pair.halves.source_board_id.clone();
     source.host_instance_id =
         source_instance_pin(links, pair, &payload.id, payload.host_instance_id.as_ref())?;
-    let pose = source_pose(pair.mapping, payload.at, payload.rotation);
+    // Mounted modules take the full heading rule, like every non-controller independent part.
+    let pose = source_pose(pair.mapping, payload.at, payload.rotation, false);
     source.at = pose.at;
     source.rotation = pose.rotation;
     source.connection = payload
@@ -807,8 +806,9 @@ fn embed_circuit(
         source_joins.insert(port.clone(), source_net);
     }
 
+    // The circuit record itself is not a part, so the embed pose takes the full heading rule.
     let source_embed_pose = if mirror_authored {
-        source_pose(pair.mapping, pose.at, pose.rotation)
+        source_pose(pair.mapping, pose.at, pose.rotation, false)
     } else {
         pose
     };
@@ -882,6 +882,7 @@ fn embed_circuit(
     // exactly when the source member sits at the inverse image of its typed world pose. Typed
     // poses are what `modules::embed` gives the members on the mirror board: the back side
     // negates the member's x and heading (and flips its side, which the source embed repeats).
+    // Controller members keep the reflected heading, matching the forward part rule.
     let member_poses = if mirror_authored {
         let back = *side == Side::Back;
         let (sin, cos) = pose.rotation.to_radians().sin_cos();
@@ -904,9 +905,13 @@ fn embed_circuit(
                     } else {
                         member.pose.rotation
                     };
+                let is_controller = circuit.definitions.iter().any(|definition| {
+                    definition.id == member.definition_id
+                        && definition.kind == crate::model::PartKind::Controller
+                });
                 (
                     format!("{source_prefix}{}", member.id),
-                    source_pose(pair.mapping, typed_at, typed_rotation),
+                    source_pose(pair.mapping, typed_at, typed_rotation, is_controller),
                 )
             })
             .collect()
@@ -1039,108 +1044,4 @@ pub(super) fn member_is_linked(
         MemberState::Local => Ok(false),
         MemberState::Omitted => Err(Links::omitted(id)),
     }
-}
-
-// ---- nets -----------------------------------------------------------------------------------
-
-/// A net's target state, following its owning circuit's exception for a private net.
-fn net_target<'a>(links: &'a Links<'_>, id: &str) -> Result<Target<'a>, String> {
-    let target = links.target(MirroredItemKind::Net, id)?;
-    let Target::Linked(link) = target else {
-        return Ok(target);
-    };
-    for owner in &link.pair.halves.correspondences {
-        if owner.kind != MirroredItemKind::EmbeddedCircuit
-            || !id.starts_with(&format!("embedded/{}/", owner.mirror_id))
-        {
-            continue;
-        }
-        if let Some(overlay) = link.pair.halves.overlay_of(owner) {
-            return Ok(match overlay.state {
-                MirroredExceptionState::Local => Target::Local,
-                MirroredExceptionState::Omitted => Target::Omitted,
-            });
-        }
-    }
-    Ok(Target::Linked(link))
-}
-
-/// A mirror net edit is a source net edit of the pins that moved. Pins on the mirror's own parts
-/// (no source counterpart) are not reflected, so the request must leave them as they are.
-fn set_net(links: &Links<'_>, net: &Net, canonical: &mut Canonical) -> Result<(), String> {
-    let link = match net_target(links, &net.id)? {
-        Target::NotMirror | Target::Local => return Ok(()),
-        Target::Omitted => return Err(Links::omitted(&net.id)),
-        Target::Linked(link) => link,
-    };
-    let find = |id: &str| {
-        links
-            .document
-            .nets
-            .iter()
-            .find(|candidate| candidate.id == id)
-            .ok_or_else(|| format!("The net {id:?} is unavailable"))
-    };
-    let current_mirror = find(&net.id)?;
-    let current_source = find(&link.correspondence.source_id)?;
-
-    // A pin splits into the pin it is on the source half, or the mirror's own pin.
-    let split = |pins: &[Pin]| -> Result<(Vec<Pin>, Vec<Pin>), String> {
-        let (mut mapped, mut own) = (Vec::new(), Vec::new());
-        for pin in pins {
-            // A pin is the source's only where its part is a linked mirror: a part kept Local, an
-            // Omitted part, and a member of a Local or Omitted circuit are the mirror's own.
-            match links.target(MirroredItemKind::Part, &pin.part_id)? {
-                Target::Linked(owner)
-                    if matches!(
-                        member_state(links, &pin.part_id, owner)?,
-                        MemberState::Linked
-                    ) =>
-                {
-                    mapped.push(Pin {
-                        part_id: owner.correspondence.source_id.clone(),
-                        pad_id: pin.pad_id.clone(),
-                    });
-                }
-                _ => own.push(pin.clone()),
-            }
-        }
-        Ok((mapped, own))
-    };
-    let (payload_mapped, payload_own) = split(&net.pins)?;
-    let (current_mapped, current_own) = split(&current_mirror.pins)?;
-    let same_own = payload_own.len() == current_own.len()
-        && payload_own.iter().all(|pin| current_own.contains(pin));
-    if !same_own {
-        return Err(format!(
-            "The net {:?} changes pins on parts that have no source on the other half; those \
-             pins are not reflected, so the edit cannot travel through the source net",
-            net.id
-        ));
-    }
-
-    let mut pins: Vec<Pin> = current_source
-        .pins
-        .iter()
-        .filter(|pin| !current_mapped.contains(pin) || payload_mapped.contains(pin))
-        .cloned()
-        .collect();
-    for pin in payload_mapped {
-        if !pins.contains(&pin) {
-            pins.push(pin);
-        }
-    }
-    let name = if net.name == current_mirror.name {
-        current_source.name.clone()
-    } else {
-        net.name.clone()
-    };
-    canonical.operation = EditOperation::SetNet {
-        net: Net {
-            id: link.correspondence.source_id.clone(),
-            name,
-            pins,
-        },
-    };
-    Ok(())
 }

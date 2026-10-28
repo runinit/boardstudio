@@ -63,17 +63,17 @@ fn matrix(id: &str, rows: u32, columns: u32) -> Matrix {
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: vec![],
     }
 }
 
 fn cell(assemblies: Vec<MatrixAssembly>) -> MatrixCell {
     MatrixCell {
+        shift: None,
+        bend: None,
         deleted: false,
         row: 0,
         column: 0,
@@ -501,7 +501,7 @@ fn linked_halves_list_their_own_companions() {
                 id: "left-layout".into(),
                 name: "Left".into(),
                 board_id: "board".into(),
-                matrix_id: "left-matrix".into(),
+                matrix_ids: vec!["left-matrix".into()],
                 part_ids: vec![],
                 mirror_link: None,
             },
@@ -509,9 +509,11 @@ fn linked_halves_list_their_own_companions() {
                 id: "right-layout".into(),
                 name: "Right".into(),
                 board_id: "board".into(),
-                matrix_id: "right-matrix".into(),
+                matrix_ids: vec!["right-matrix".into()],
                 part_ids: vec![],
                 mirror_link: Some(LayoutMirrorLink {
+                    correspondences: vec![],
+                    exceptions: vec![],
                     source_id: "left-layout".into(),
                     axis_x: 10.0,
                 }),

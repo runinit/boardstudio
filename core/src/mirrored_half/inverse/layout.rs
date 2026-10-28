@@ -96,7 +96,7 @@ pub(super) fn translate(links: &Links<'_>, requested: &Layout) -> Result<Outcome
         ));
     }
 
-    if requested.board_id != mirror.board_id || requested.matrix_id != mirror.matrix_id {
+    if requested.board_id != mirror.board_id || requested.matrix_ids != mirror.matrix_ids {
         return Err(format!(
             "The ownership of native mirror layout {:?} cannot be reassigned",
             requested.id
@@ -116,12 +116,14 @@ pub(super) fn translate(links: &Links<'_>, requested: &Layout) -> Result<Outcome
             requested.id
         ));
     }
-    let (source_matrix_id, mapping) = links.matrix_frame(&mirror.matrix_id)?;
-    if source_matrix_id != source.matrix_id || mapping != Some(link.pair.mapping) {
-        return Err(format!(
-            "Native layout {:?} does not follow its paired matrix correspondence",
-            requested.id
-        ));
+    for id in &mirror.matrix_ids {
+        let (source_matrix_id, mapping) = links.matrix_frame(id)?;
+        if !source.matrix_ids.contains(&source_matrix_id) || mapping != Some(link.pair.mapping) {
+            return Err(format!(
+                "Native layout {:?} does not follow its paired matrix correspondence",
+                requested.id
+            ));
+        }
     }
 
     let (current_source_ids, omitted_source_ids) = source_membership(link, source)?;
@@ -386,9 +388,15 @@ fn overlaps_legacy_link(
             .is_some_and(|legacy| ids.contains(&&layout.id) || ids.contains(&&legacy.source_id))
     });
     layout_overlap
-        || crate::matrix::layout::partner(links.document, &source.matrix_id).is_some()
+        || source
+            .matrix_ids
+            .iter()
+            .any(|id| crate::matrix::layout::has_link(links.document, id))
         || mirror.is_some_and(|mirror| {
-            crate::matrix::layout::partner(links.document, &mirror.matrix_id).is_some()
+            mirror
+                .matrix_ids
+                .iter()
+                .any(|id| crate::matrix::layout::has_link(links.document, id))
         })
 }
 
@@ -409,7 +417,8 @@ fn introduces_native_legacy_overlap(links: &Links<'_>, requested: &Layout) -> bo
                         correspondence.source_id.as_str(),
                         correspondence.mirror_id.as_str(),
                     ]
-                    .contains(&requested.matrix_id.as_str()))
+                    .iter()
+                    .any(|id| requested.matrix_ids.iter().any(|matrix| matrix == id)))
         })
     })
 }

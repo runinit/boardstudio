@@ -1,4 +1,5 @@
 use super::*;
+use crate::matrix_transform_operation::key_half_exception_at_resolver;
 use crate::presentation::objects::{
     ScopedTreeContext, TreeContext, use_workspace_matrix_transform,
 };
@@ -6,7 +7,9 @@ use crate::runtime::Runtime;
 use crate::runtime::project_name_test_support as support;
 use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::{
-    Board, Matrix, MatrixAssembly, MatrixCell, Part, PartDefinition, PartKind, Pose2, ProjectDoc,
+    AggregateAnchor, AggregateMethod, AnchorPart, Board, Follow, Layout, LayoutMirrorLink, Matrix,
+    MatrixAnchor, MatrixAssembly, MatrixCell, MirroredCorrespondence, MirroredException,
+    MirroredExceptionState, MirroredItemKind, Part, PartDefinition, PartKind, Pose2, ProjectDoc,
     Side, Vec2,
 };
 use boardstudio_web_ui_shared::test_wait::wait_until;
@@ -17,7 +20,7 @@ use std::{
 };
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
-use web_sys::{Event as DomEvent, HtmlInputElement};
+use web_sys::{Event as DomEvent, HtmlInputElement, HtmlSelectElement};
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
@@ -32,6 +35,7 @@ struct Probe {
     adapter: Rc<RefCell<Option<crate::presentation::selection::SelectionAdapter>>>,
     mount: Rc<RefCell<Option<MatrixTransformInspectorMount>>>,
     render_count: Rc<Cell<u64>>,
+    navigated: Rc<RefCell<Vec<TreeContext>>>,
 }
 
 #[component]
@@ -61,6 +65,29 @@ fn matrix_transform_host() -> Element {
         "Layout",
     );
     *probe.mount.borrow_mut() = Some(mount.clone());
+    // The ticket-23 armed-pick pattern, mirrored for the test host: arming is
+    // host state, the draft lives on the mount, and Esc clears both.
+    let mut armed = use_signal(|| false);
+    let mut esc_armed = armed;
+    let esc_probe = probe.clone();
+    use_hook(move || {
+        let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+            return;
+        };
+        let callback =
+            wasm_bindgen::closure::Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
+                if event.key() == "Escape" && esc_armed() {
+                    esc_armed.set(false);
+                    if let Some(mount) = esc_probe.mount.borrow().as_ref() {
+                        mount.clear_aggregate_pick();
+                    }
+                }
+            })
+                as Box<dyn FnMut(web_sys::KeyboardEvent)>);
+        let _ =
+            document.add_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref());
+        std::mem::forget(callback);
+    });
     let mut canvas_tool = use_signal(|| Some(super::super::LayoutTransformTool::Stagger));
     let matrix_id = "matrix".to_owned();
     let canvas_adapter = probe.adapter.borrow().as_ref().unwrap().clone();
@@ -75,10 +102,18 @@ fn matrix_transform_host() -> Element {
                     let scope = canvas_scope.clone();
                     let adapter = canvas_adapter.clone();
                     let runtime = canvas_runtime.clone();
+                    let pick_armed = armed;
+                    let pick_probe = probe.clone();
                     rsx! {
                         g {
                             "data-part-id": "{target_part_id}",
                             onpointerdown: move |event: PointerEvent| {
+                                if pick_armed() {
+                                    if let Some(mount) = pick_probe.mount.borrow().as_ref() {
+                                        mount.pick_aggregate_part(target_matrix.clone(), 0, column);
+                                    }
+                                    return;
+                                }
                                 let Some(pointer) = event.data().try_as_web_event() else { return; };
                                 let model = runtime.model();
                                 let hit_context = TreeContext::Key {
@@ -126,7 +161,8 @@ fn matrix_transform_host() -> Element {
                     tools: super::super::LayoutTransformMenuMount {
                         properties_available: true, column_available: true, row_available: true,
                         pointer_tools_visible: true, pointer_tools_available: true,
-                        active_tool: canvas_tool(), on_selection_kind: EventHandler::new(|_| {}),
+                        active_tool: canvas_tool(), matrix_rotate_followed: None,
+                        on_selection_kind: EventHandler::new(|_| {}),
                         on_show_properties: EventHandler::new(|_| {}),
                         on_transform_tool: EventHandler::new(move |tool| canvas_tool.set(Some(tool))),
                     },
@@ -134,7 +170,27 @@ fn matrix_transform_host() -> Element {
             }
         }
         div { id: "inspector-geometry-test",
-            MatrixTransformInspector { mount, on_pick_splay_origin: |_| {} }
+            MatrixTransformInspector {
+                mount,
+                on_pick_splay_origin: |_| {},
+                on_pick_anchor: EventHandler::new(move |()| armed.set(true)),
+                anchor_pick_pending: armed(),
+                on_cancel_anchor_pick: {
+                    let probe = probe.clone();
+                    EventHandler::new(move |_| {
+                        if let Some(mount) = probe.mount.borrow().as_ref() {
+                            mount.clear_aggregate_pick();
+                        }
+                        armed.set(false);
+                    })
+                },
+                on_navigate_anchor_part: EventHandler::new(move |context: TreeContext| {
+                    probe
+                        .navigated
+                        .borrow_mut()
+                        .push(context);
+                }),
+            }
         }
     }
 }
@@ -209,12 +265,12 @@ fn fixture() -> (ProjectDoc, TreeContext) {
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
             deleted: false,
             row: 0,
             column: 0,
@@ -254,6 +310,8 @@ fn two_key_fixture(include_standalone: bool) -> (ProjectDoc, TreeContext) {
     matrix.part_ids[0] = first_key.into();
     matrix.part_ids.push(second_key.into());
     matrix.cells.push(MatrixCell {
+        shift: None,
+        bend: None,
         deleted: false,
         row: 0,
         column: 1,
@@ -310,6 +368,8 @@ fn three_key_fixture() -> (ProjectDoc, TreeContext) {
     matrix.columns = 3;
     matrix.part_ids.push(third_key.into());
     matrix.cells.push(MatrixCell {
+        shift: None,
+        bend: None,
         deleted: false,
         row: 0,
         column: 2,
@@ -337,6 +397,253 @@ fn three_key_fixture() -> (ProjectDoc, TreeContext) {
         generator_parameters: None,
     });
     (document, selected)
+}
+
+/// A second 1-key matrix anchored to the first key, with rotation Follow on or
+/// off. The anchor target is the fixture's own first key. Both matrices join
+/// one Layout, which anchor validation requires.
+fn anchored_matrix_fixture(rotation_followed: bool) -> (ProjectDoc, TreeContext) {
+    let (mut document, _) = fixture();
+    document.layouts.push(Layout {
+        id: "layout".into(),
+        name: "Main".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["matrix".into(), "matrix-b".into()],
+        part_ids: vec![],
+        mirror_link: None,
+    });
+    let key_id = "matrix/matrix-b/r0c0";
+    document.boards[0].part_ids.push(key_id.into());
+    document.parts.push(Part {
+        keycap: None,
+        outline: None,
+        id: key_id.into(),
+        definition_id: "key-definition".into(),
+        reference: "K2".into(),
+        pose: Pose2 {
+            at: Vec2 { x: 60.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: Some(false),
+        properties: None,
+        generator_parameters: None,
+    });
+    document.matrices.push(Matrix {
+        id: "matrix-b".into(),
+        name: Some("Anchored".into()),
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "key-definition".into(),
+        part_ids: vec![key_id.into()],
+        board_id: Some("board".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: Some(MatrixAnchor {
+            matrix_id: "matrix".into(),
+            row: 0,
+            column: 0,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: rotation_followed,
+            },
+            aggregate: None,
+        }),
+        cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
+            deleted: false,
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: Some("key-definition".into()),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        }],
+    });
+    (
+        document,
+        TreeContext::Matrix {
+            matrix_id: "matrix-b".into(),
+        },
+    )
+}
+
+/// A linked pair with an asymmetric Local exception: `thumb` is anchored to
+/// `main`, `thumb2` to the mirrored `main2`, and the mirror anchor key is
+/// Local with a moved pose. Detaching `thumb` would move its linked partner,
+/// so Core refuses naming `thumb2` — the confirmed-detach proposal case.
+fn linked_detach_fixture() -> (ProjectDoc, TreeContext) {
+    let (mut document, _) = fixture();
+    document.layouts.push(Layout {
+        id: "layout".into(),
+        name: "Main".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["main".into(), "thumb".into()],
+        part_ids: vec![],
+        mirror_link: None,
+    });
+    document.layouts.push(Layout {
+        id: "mirror-layout".into(),
+        name: "Mirror".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["main2".into(), "thumb2".into()],
+        part_ids: vec![],
+        mirror_link: Some(LayoutMirrorLink {
+            source_id: "layout".into(),
+            axis_x: 10.0,
+            correspondences: vec![
+                MirroredCorrespondence {
+                    companion_mode: None,
+                    companion_tweak: None,
+                    kind: MirroredItemKind::Matrix,
+                    source_id: "main".into(),
+                    mirror_id: "main2".into(),
+                },
+                MirroredCorrespondence {
+                    companion_mode: None,
+                    companion_tweak: None,
+                    kind: MirroredItemKind::Matrix,
+                    source_id: "thumb".into(),
+                    mirror_id: "thumb2".into(),
+                },
+            ],
+            exceptions: vec![MirroredException {
+                kind: MirroredItemKind::Part,
+                mirror_id: "matrix/main2/r0c0".into(),
+                state: MirroredExceptionState::Local,
+                companion_mode: None,
+                companion_tweak: None,
+                removed_copper: None,
+            }],
+        }),
+    });
+    let mut key = |id: &str, reference: &str, x: f64, y: f64| {
+        document.boards[0].part_ids.push(id.into());
+        document.parts.push(Part {
+            keycap: None,
+            outline: None,
+            id: id.into(),
+            definition_id: "key-definition".into(),
+            reference: reference.into(),
+            pose: Pose2 {
+                at: Vec2 { x, y },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: Some(false),
+            properties: None,
+            generator_parameters: None,
+        });
+    };
+    key("matrix/main/r0c0", "K1", 0.0, 0.0);
+    key("matrix/main2/r0c0", "K2", 12.0, 5.0);
+    key("matrix/thumb/r0c0", "K3", 0.0, -19.0);
+    key("matrix/thumb2/r0c0", "K4", 12.0, -14.0);
+    // The mirror anchor key is Local with a moved pose. The layout-override
+    // mark is what MoveParts writes: without it Open recomputes the stored
+    // pose from the mirror source.
+    document
+        .parts
+        .iter_mut()
+        .find(|part| part.id == "matrix/main2/r0c0")
+        .expect("the moved key exists")
+        .properties
+        .get_or_insert_with(std::collections::BTreeMap::new)
+        .insert("layoutOverride".into(), serde_json::json!(1));
+    let matrix = |id: &str,
+                  key_id: &str,
+                  mirror: Option<boardstudio_core::model::Mirror>,
+                  origin: Vec2,
+                  anchor_target: &str| Matrix {
+        id: id.into(),
+        name: None,
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin,
+        definition_id: "key-definition".into(),
+        part_ids: vec![key_id.into()],
+        board_id: Some("board".into()),
+        mirror,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: Some(MatrixAnchor {
+            matrix_id: anchor_target.into(),
+            row: 0,
+            column: 0,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            },
+            aggregate: None,
+        }),
+        cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
+            deleted: false,
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: Some("key-definition".into()),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        }],
+    };
+    document.matrices.push(matrix(
+        "main",
+        "matrix/main/r0c0",
+        None,
+        Vec2::default(),
+        "main",
+    ));
+    document.matrices.push(matrix(
+        "main2",
+        "matrix/main2/r0c0",
+        Some(boardstudio_core::model::Mirror::X),
+        Vec2 { x: 20.0, y: 0.0 },
+        "main2",
+    ));
+    document.matrices.push(matrix(
+        "thumb",
+        "matrix/thumb/r0c0",
+        None,
+        Vec2 { x: 0.0, y: -19.0 },
+        "main",
+    ));
+    document.matrices.push(matrix(
+        "thumb2",
+        "matrix/thumb2/r0c0",
+        Some(boardstudio_core::model::Mirror::X),
+        Vec2 { x: 20.0, y: -19.0 },
+        "main2",
+    ));
+    // `main` carries no anchor: it places itself.
+    document.matrices[1].anchor = None;
+    document.matrices[2].anchor = None;
+    (
+        document,
+        TreeContext::Matrix {
+            matrix_id: "thumb".into(),
+        },
+    )
 }
 
 /// Open `document` through the real Session and Core, select `selected_ids` the way the
@@ -377,6 +684,7 @@ async fn mount_selection_probe_with_canvas(
         adapter: Rc::default(),
         mount: Rc::default(),
         render_count: Rc::default(),
+        navigated: Rc::default(),
     };
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
@@ -1368,6 +1676,96 @@ fn column_context(column: u32) -> TreeContext {
     }
 }
 
+#[wasm_bindgen_test]
+async fn column_angle_scope_switches_display_and_discards_the_other_fields_draft() {
+    let (mut document, _) = two_key_fixture(false);
+    document.matrices[0]
+        .column_layout
+        .resize_with(1, Default::default);
+    document.matrices[0].column_layout[0].splay = 7.0;
+    document.matrices[0].column_layout[0].rotation = 10.0;
+    let (probe, root) =
+        mount_selection_probe("column-angle-scope-test", document, column_context(0), &[]).await;
+    settle(&probe).await;
+    let input = root
+        .query_selector("input[aria-label='Splay']")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert_eq!(input.value(), "10", "This column displays Column rotation");
+    let before = probe.runtime.model().accepted.unwrap().document;
+    input.set_value("99");
+    let typed = DomEvent::new("input").unwrap();
+    typed.init_event_with_bubbles("input", true);
+    input.dispatch_event(&typed).unwrap();
+    settle(&probe).await;
+    let mut affect = probe.mount.borrow().as_ref().unwrap().splay_affect;
+    affect.set(boardstudio_core::model::MatrixSplayAffect::Following);
+    settle(&probe).await;
+    assert_eq!(
+        input.value(),
+        "7",
+        "switching fields resets the dirty draft"
+    );
+    assert_eq!(probe.runtime.model().accepted.unwrap().document, before);
+    affect.set(boardstudio_core::model::MatrixSplayAffect::Column);
+    settle(&probe).await;
+    assert_eq!(input.value(), "10");
+    set_numeric_field(&root, "Splay", "0");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let accepted = probe.runtime.model().accepted.unwrap();
+    assert_eq!(accepted.document.matrices[0].column_layout[0].rotation, 0.0);
+    assert_eq!(accepted.document.matrices[0].column_layout[0].splay, 7.0);
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn column_angle_equality_uses_the_requested_field_in_the_accepted_snapshot() {
+    use super::super::matrix_transform_controller::transform_edit_resolver;
+    use boardstudio_application::Resolution;
+    use boardstudio_core::model::MatrixSplayAffect;
+    let (mut document, _) = two_key_fixture(false);
+    document.matrices[0]
+        .column_layout
+        .resize_with(1, Default::default);
+    document.matrices[0].column_layout[0].rotation = 10.0;
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, document).await;
+    let accepted = runtime.model().accepted.unwrap();
+    let resolve = |value, affect| {
+        transform_edit_resolver(
+            "matrix".into(),
+            "board".into(),
+            column_context(0),
+            MatrixTransformField::ColumnSplay,
+            MatrixTransformValue::Number(value),
+            affect,
+            vec![],
+        )
+        .resolve(&accepted)
+    };
+    assert!(
+        matches!(
+            resolve(10.0, MatrixSplayAffect::Column),
+            Resolution::Unchanged
+        ),
+        "requesting the current rotation is a no-op even when Splay differs"
+    );
+    assert!(
+        matches!(
+            resolve(0.0, MatrixSplayAffect::Column),
+            Resolution::Submit(_)
+        ),
+        "zero Splay must not retire a request to clear nonzero rotation"
+    );
+    assert!(matches!(
+        resolve(0.0, MatrixSplayAffect::Following),
+        Resolution::Unchanged
+    ));
+}
+
 fn set_numeric_field(root: &web_sys::Element, label: &str, value: &str) {
     let input = root
         .query_selector(&format!("input[aria-label='{label}']"))
@@ -1411,11 +1809,13 @@ async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_wi
     )
     .await;
     settle(&probe).await;
-    let label = root
-        .query_selector(".m1-matrix-field-context")
-        .unwrap()
-        .expect("the column context label is mounted")
-        .text_content();
+    let contexts = root.query_selector_all(".m1-matrix-field-context").unwrap();
+    let label = (0..contexts.length())
+        .filter_map(|index| contexts.item(index))
+        .find_map(|node| {
+            let text = node.text_content()?;
+            text.starts_with("Column").then_some(text)
+        });
     assert_eq!(label.as_deref(), Some("Column 1"));
     // The fixture's key poses were never laid out by Core; the first edit syncs them, so
     // measure the second change from that synced state.
@@ -1432,8 +1832,9 @@ async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_wi
     let accepted = probe.runtime.model().accepted.unwrap();
     assert_eq!(
         accepted.document.matrices[0]
-            .column_staggers
+            .column_layout
             .first()
+            .map(|record| &record.stagger)
             .copied(),
         Some(4.0),
         "the Inspector value is the matrix's column stagger"
@@ -1458,7 +1859,11 @@ async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_wi
     settle(&probe).await;
     let undone = probe.runtime.model().accepted.unwrap();
     assert_eq!(
-        undone.document.matrices[0].column_staggers.first().copied(),
+        undone.document.matrices[0]
+            .column_layout
+            .first()
+            .map(|record| &record.stagger)
+            .copied(),
         Some(1.0),
         "one Undo reverts the whole second stagger edit"
     );
@@ -1501,7 +1906,17 @@ async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_
     root.remove();
 
     let (mut document, _) = two_key_fixture(false);
-    document.matrices[0].column_offsets = vec![Vec2 { x: 0.0, y: -9.525 }];
+    {
+        let values = vec![Vec2 { x: 0.0, y: -9.525 }];
+        let column_layout = &mut document.matrices[0].column_layout;
+        column_layout.resize_with(values.len().max(column_layout.len()), Default::default);
+        for record in &mut document.matrices[0].column_layout {
+            record.offset = Vec2::default();
+        }
+        for (record, value) in document.matrices[0].column_layout.iter_mut().zip(values) {
+            record.offset = value;
+        }
+    }
     let (probe, root) = mount_selection_probe(
         "matrix-transform-convert-test",
         document,
@@ -1524,8 +1939,15 @@ async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_
         revision + 1,
         "one accepted edit"
     );
-    assert_eq!(matrix.column_staggers, vec![-9.525, 9.525]);
-    assert_eq!(matrix.column_offsets[0].y, 0.0);
+    assert_eq!(
+        matrix
+            .column_layout
+            .iter()
+            .map(|record| record.stagger)
+            .collect::<Vec<_>>(),
+        vec![-9.525, 9.525]
+    );
+    assert_eq!(matrix.column_layout[0].offset.y, 0.0);
     // The probe host re-renders only when its version signal moves.
     let mut version = probe.version.borrow().expect("Editor version signal");
     let next = version.peek().saturating_add(1);
@@ -1544,11 +1966,15 @@ async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;
     let undone = probe.runtime.model().accepted.unwrap();
-    assert_eq!(undone.document.matrices[0].column_offsets[0].y, -9.525);
+    assert_eq!(
+        undone.document.matrices[0].column_layout[0].offset.y,
+        -9.525
+    );
     assert!(
         undone.document.matrices[0]
-            .column_staggers
+            .column_layout
             .iter()
+            .map(|record| &record.stagger)
             .all(|value| *value == 0.0)
     );
     root.remove();
@@ -1557,8 +1983,28 @@ async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_
 #[wasm_bindgen_test]
 async fn convert_to_stagger_is_disabled_with_core_reason_on_a_splayed_column() {
     let (mut document, _) = two_key_fixture(false);
-    document.matrices[0].column_offsets = vec![Vec2 { x: 0.0, y: -9.525 }];
-    document.matrices[0].column_splays = vec![10.0];
+    {
+        let values = vec![Vec2 { x: 0.0, y: -9.525 }];
+        let column_layout = &mut document.matrices[0].column_layout;
+        column_layout.resize_with(values.len().max(column_layout.len()), Default::default);
+        for record in &mut document.matrices[0].column_layout {
+            record.offset = Vec2::default();
+        }
+        for (record, value) in document.matrices[0].column_layout.iter_mut().zip(values) {
+            record.offset = value;
+        }
+    }
+    {
+        let values = vec![10.0];
+        let column_layout = &mut document.matrices[0].column_layout;
+        column_layout.resize_with(values.len().max(column_layout.len()), Default::default);
+        for record in &mut document.matrices[0].column_layout {
+            record.splay = 0.0;
+        }
+        for (record, value) in document.matrices[0].column_layout.iter_mut().zip(values) {
+            record.splay = value;
+        }
+    }
     let (probe, root) = mount_selection_probe(
         "matrix-transform-convert-splayed-test",
         document,
@@ -1585,7 +2031,7 @@ async fn convert_to_stagger_is_disabled_with_core_reason_on_a_splayed_column() {
     assert_eq!(shown.as_deref(), Some(reason.as_str()));
     assert_eq!(
         reason,
-        "Converting would move this column: its splay pivots with the stagger."
+        "Converting requires zero Splay, Column rotation and carried Bend"
     );
     root.remove();
 }
@@ -1714,7 +2160,7 @@ async fn canvas_dimensions_preserve_inspector_drafts_and_share_undo() {
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;
     let accepted = probe.runtime.model().accepted.unwrap();
-    assert_eq!(accepted.document.matrices[0].column_staggers[0], 4.0);
+    assert_eq!(accepted.document.matrices[0].column_layout[0].stagger, 4.0);
     assert_eq!(accepted.document.revision, before + 1);
     assert_eq!(
         draft.value(),
@@ -1728,12 +2174,2890 @@ async fn canvas_dimensions_preserve_inspector_drafts_and_share_undo() {
     settle(&probe).await;
     assert_eq!(
         probe.runtime.model().accepted.unwrap().document.matrices[0]
-            .column_staggers
+            .column_layout
             .first()
+            .map(|record| &record.stagger)
             .copied()
             .unwrap_or(0.0),
         0.0
     );
     assert_eq!(draft.value(), "");
+    root.remove();
+}
+
+/// A second row under the default 1x1 key fixture, so carried row edits have a
+/// later key to move. The matrix frame stays identity: no splay, no mirror,
+/// origin zero, so world deltas equal matrix deltas exactly.
+fn two_row_fixture() -> (ProjectDoc, TreeContext) {
+    let (mut document, selected) = fixture();
+    let second_key = "matrix/matrix/r1c0";
+    let matrix = &mut document.matrices[0];
+    matrix.rows = 2;
+    matrix.part_ids.push(second_key.into());
+    document.boards[0].part_ids.push(second_key.into());
+    document.parts.push(Part {
+        keycap: None,
+        outline: None,
+        id: second_key.into(),
+        definition_id: "key-definition".into(),
+        reference: "K2".into(),
+        pose: Pose2 {
+            at: Vec2::default(),
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: Some(false),
+        properties: None,
+        generator_parameters: None,
+    });
+    (document, selected)
+}
+
+/// A second column over the two-row fixture, so a key Shift has a same-column
+/// later key to carry to and a neighbouring column that must stay still.
+fn shift_grid_fixture() -> (ProjectDoc, TreeContext) {
+    let (mut document, selected) = two_row_fixture();
+    let matrix = &mut document.matrices[0];
+    matrix.columns = 2;
+    for key in ["matrix/matrix/r0c1", "matrix/matrix/r1c1"] {
+        matrix.part_ids.push(key.into());
+        document.boards[0].part_ids.push(key.into());
+        document.parts.push(Part {
+            keycap: None,
+            outline: None,
+            id: key.into(),
+            definition_id: "key-definition".into(),
+            reference: format!("K{key}"),
+            pose: Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: Some(false),
+            properties: None,
+            generator_parameters: None,
+        });
+    }
+    (document, selected)
+}
+
+fn row_context(row: u32) -> TreeContext {
+    TreeContext::Row {
+        matrix_id: "matrix".into(),
+        row,
+    }
+}
+
+fn scene_key_at(probe: &Probe, row: u32, column: u32) -> Vec2 {
+    probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .scene
+        .matrix_scenes
+        .iter()
+        .find(|scene| scene.matrix_id == "matrix")
+        .and_then(|scene| {
+            scene
+                .cells
+                .iter()
+                .find(|cell| cell.row == row && cell.column == column)
+        })
+        .expect("the key is laid out")
+        .pose
+        .at
+}
+
+/// Ticket 23 first slice: the Row Inspector names the carried Shift fields.
+/// Setting Shift X moves the later-row key through Core's running frame as one
+/// accepted edit, and one Undo restores both rows exactly.
+#[wasm_bindgen_test]
+async fn inspector_row_shift_moves_later_row_keys_with_one_undo() {
+    let (document, _) = two_row_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-row-shift-test",
+        document,
+        row_context(0),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let before_later = scene_key_at(&probe, 1, 0);
+    let before_own = scene_key_at(&probe, 0, 0);
+    let revision = probe.runtime.model().accepted.unwrap().document.revision;
+
+    set_numeric_field(&root, "Shift X", "4");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+
+    let accepted = probe.runtime.model().accepted.unwrap();
+    assert_eq!(
+        accepted.document.matrices[0]
+            .row_layout
+            .first()
+            .map(|record| &record.shift)
+            .copied()
+            .unwrap_or_default(),
+        Vec2 { x: 4.0, y: 0.0 },
+        "the Inspector value is the matrix row's carried Shift"
+    );
+    assert_eq!(
+        accepted.document.revision,
+        revision + 1,
+        "one accepted edit"
+    );
+    let later = scene_key_at(&probe, 1, 0);
+    assert!(
+        (later.x - before_later.x - 4.0).abs() < 1e-9 && (later.y - before_later.y).abs() < 1e-9,
+        "the later-row key moves the full Shift through Core's running frame"
+    );
+    let own = scene_key_at(&probe, 0, 0);
+    assert!(
+        (own.x - before_own.x - 4.0).abs() < 1e-9 && (own.y - before_own.y).abs() < 1e-9,
+        "the edited row's own key carries its Shift too"
+    );
+
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let undone = probe.runtime.model().accepted.unwrap();
+    assert_eq!(
+        undone.document.matrices[0]
+            .row_layout
+            .first()
+            .map(|record| &record.shift)
+            .copied()
+            .unwrap_or_default(),
+        Vec2::default()
+    );
+    let restored_later = scene_key_at(&probe, 1, 0);
+    let restored_own = scene_key_at(&probe, 0, 0);
+    assert!(
+        (restored_later.x - before_later.x).abs() < 1e-9
+            && (restored_later.y - before_later.y).abs() < 1e-9
+            && (restored_own.x - before_own.x).abs() < 1e-9
+            && (restored_own.y - before_own.y).abs() < 1e-9,
+        "one Undo restores both rows exactly"
+    );
+    root.remove();
+}
+
+/// Ticket 23 first slice: the Key Inspector names this-column Shift fields.
+/// Setting Shift X moves the edited key and carries down its own column through
+/// Core's running frame as one accepted edit; the neighbouring column stays
+/// still, and one Undo restores all four keys exactly.
+#[wasm_bindgen_test]
+async fn inspector_key_shift_carries_down_its_column_with_one_undo() {
+    let (document, selected) = shift_grid_fixture();
+    let (probe, root) =
+        mount_selection_probe("matrix-transform-key-shift-test", document, selected, &[]).await;
+    settle(&probe).await;
+    let before_moved = scene_key_at(&probe, 0, 0);
+    let before_carried = scene_key_at(&probe, 1, 0);
+    let before_next_own = scene_key_at(&probe, 0, 1);
+    let before_next_later = scene_key_at(&probe, 1, 1);
+    let revision = probe.runtime.model().accepted.unwrap().document.revision;
+
+    set_numeric_field(&root, "Shift X", "3");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+
+    let accepted = probe.runtime.model().accepted.unwrap();
+    let cell = accepted.document.matrices[0]
+        .cells
+        .iter()
+        .find(|cell| cell.row == 0 && cell.column == 0)
+        .expect("the edited key keeps its cell");
+    assert_eq!(
+        cell.shift.unwrap_or_default(),
+        Vec2 { x: 3.0, y: 0.0 },
+        "the Inspector value is the key's own Shift"
+    );
+    assert_eq!(
+        accepted.document.revision,
+        revision + 1,
+        "one accepted edit"
+    );
+    let moved = scene_key_at(&probe, 0, 0);
+    assert!(
+        (moved.x - before_moved.x - 3.0).abs() < 1e-9 && (moved.y - before_moved.y).abs() < 1e-9,
+        "the edited key moves its Shift through Core's frame"
+    );
+    let carried = scene_key_at(&probe, 1, 0);
+    assert!(
+        (carried.x - before_carried.x - 3.0).abs() < 1e-9
+            && (carried.y - before_carried.y).abs() < 1e-9,
+        "a key Shift carries down its own column"
+    );
+    let next_own = scene_key_at(&probe, 0, 1);
+    let next_later = scene_key_at(&probe, 1, 1);
+    assert!(
+        (next_own.x - before_next_own.x).abs() < 1e-9
+            && (next_own.y - before_next_own.y).abs() < 1e-9
+            && (next_later.x - before_next_later.x).abs() < 1e-9
+            && (next_later.y - before_next_later.y).abs() < 1e-9,
+        "the neighbouring column does not follow a key Shift"
+    );
+
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    for (row, column, before) in [
+        (0, 0, before_moved),
+        (1, 0, before_carried),
+        (0, 1, before_next_own),
+        (1, 1, before_next_later),
+    ] {
+        let restored = scene_key_at(&probe, row, column);
+        assert!(
+            (restored.x - before.x).abs() < 1e-9 && (restored.y - before.y).abs() < 1e-9,
+            "one Undo restores key ({row}, {column}) exactly"
+        );
+    }
+    root.remove();
+}
+
+fn scene_key_rotation(probe: &Probe, row: u32, column: u32) -> f64 {
+    probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .scene
+        .matrix_scenes
+        .iter()
+        .find(|scene| scene.matrix_id == "matrix")
+        .and_then(|scene| {
+            scene
+                .cells
+                .iter()
+                .find(|cell| cell.row == row && cell.column == column)
+        })
+        .expect("the key is laid out")
+        .pose
+        .rotation
+}
+
+/// Ticket 23, RED: the Row Inspector names the carried Bend field. Setting
+/// Bend turns the later-row keys through Core's running frame as one accepted
+/// edit, and one Undo restores both rows exactly.
+#[wasm_bindgen_test]
+async fn inspector_row_bend_turns_later_row_keys_with_one_undo() {
+    let (document, _) = two_row_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-row-bend-test",
+        document,
+        row_context(0),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let revision = probe.runtime.model().accepted.unwrap().document.revision;
+
+    set_numeric_field(&root, "Bend", "10");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+
+    let accepted = probe.runtime.model().accepted.unwrap();
+    assert_eq!(
+        accepted.document.matrices[0]
+            .row_layout
+            .first()
+            .map(|record| &record.bend)
+            .copied()
+            .unwrap_or_default(),
+        10.0,
+        "the Inspector value is the matrix row's carried Bend"
+    );
+    assert_eq!(
+        accepted.document.revision,
+        revision + 1,
+        "one accepted edit"
+    );
+    assert!(
+        (scene_key_rotation(&probe, 0, 0) - 10.0).abs() < 1e-9
+            && (scene_key_rotation(&probe, 1, 0) - 10.0).abs() < 1e-9,
+        "the edited row and its later row turn the full Bend"
+    );
+
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert!(
+        scene_key_rotation(&probe, 0, 0).abs() < 1e-9
+            && scene_key_rotation(&probe, 1, 0).abs() < 1e-9,
+        "one Undo restores both rows exactly"
+    );
+    root.remove();
+}
+
+/// Ticket 23, RED: the Key Inspector names this-column Bend. Setting Bend
+/// turns the edited key and carries down its own column as one accepted edit;
+/// the neighbouring column stays still, and one Undo restores all four keys.
+#[wasm_bindgen_test]
+async fn inspector_key_bend_carries_down_its_column_with_one_undo() {
+    let (document, selected) = shift_grid_fixture();
+    let (probe, root) =
+        mount_selection_probe("matrix-transform-key-bend-test", document, selected, &[]).await;
+    settle(&probe).await;
+    let revision = probe.runtime.model().accepted.unwrap().document.revision;
+
+    set_numeric_field(&root, "Bend", "10");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+
+    let accepted = probe.runtime.model().accepted.unwrap();
+    let cell = accepted.document.matrices[0]
+        .cells
+        .iter()
+        .find(|cell| cell.row == 0 && cell.column == 0)
+        .expect("the edited key keeps its cell");
+    assert_eq!(
+        cell.bend.unwrap_or_default(),
+        10.0,
+        "the Inspector value is the key's own Bend"
+    );
+    assert_eq!(
+        accepted.document.revision,
+        revision + 1,
+        "one accepted edit"
+    );
+    assert!(
+        (scene_key_rotation(&probe, 0, 0) - 10.0).abs() < 1e-9
+            && (scene_key_rotation(&probe, 1, 0) - 10.0).abs() < 1e-9,
+        "a key Bend turns its key and carries down its column"
+    );
+    assert!(
+        scene_key_rotation(&probe, 0, 1).abs() < 1e-9
+            && scene_key_rotation(&probe, 1, 1).abs() < 1e-9,
+        "the neighbouring column does not follow a key Bend"
+    );
+
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    for (row, column) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+        assert!(
+            scene_key_rotation(&probe, row, column).abs() < 1e-9,
+            "one Undo restores key ({row}, {column}) exactly"
+        );
+    }
+    root.remove();
+}
+
+/// Ticket 23, RED: the Column Inspector names the inherited Spread field.
+/// Setting Spread moves the later columns through Core as one accepted edit,
+/// and one Undo restores both columns exactly.
+#[wasm_bindgen_test]
+async fn inspector_spread_moves_later_columns_with_one_undo() {
+    let (document, _) = two_key_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-spread-test",
+        document,
+        column_context(1),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let before_moved = scene_key_at(&probe, 0, 1);
+    let before_still = scene_key_at(&probe, 0, 0);
+    let revision = probe.runtime.model().accepted.unwrap().document.revision;
+
+    set_numeric_field(&root, "Spread", "24");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+
+    let accepted = probe.runtime.model().accepted.unwrap();
+    assert_eq!(
+        accepted.document.matrices[0]
+            .column_layout
+            .get(1)
+            .and_then(|record| record.spread),
+        Some(24.0),
+        "the Inspector value is the column's explicit Spread"
+    );
+    assert_eq!(
+        accepted.document.revision,
+        revision + 1,
+        "one accepted edit"
+    );
+    let moved = scene_key_at(&probe, 0, 1);
+    assert!(
+        (moved.x - before_moved.x - 5.0).abs() < 1e-9 && (moved.y - before_moved.y).abs() < 1e-9,
+        "column 1 steps out the full Spread past the 19 mm pitch"
+    );
+    let still = scene_key_at(&probe, 0, 0);
+    assert!(
+        (still.x - before_still.x).abs() < 1e-9 && (still.y - before_still.y).abs() < 1e-9,
+        "column 0 does not follow a later Spread"
+    );
+
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let restored_moved = scene_key_at(&probe, 0, 1);
+    let restored_still = scene_key_at(&probe, 0, 0);
+    assert!(
+        (restored_moved.x - before_moved.x).abs() < 1e-9
+            && (restored_moved.y - before_moved.y).abs() < 1e-9
+            && (restored_still.x - before_still.x).abs() < 1e-9
+            && (restored_still.y - before_still.y).abs() < 1e-9,
+        "one Undo restores both columns exactly"
+    );
+    root.remove();
+}
+
+/// Ticket 23, RED: the Row Inspector names the Padding step field. Setting
+/// Padding on row 1 moves that row's keys through Core as one accepted edit
+/// without moving row 0, and one Undo restores both rows exactly.
+#[wasm_bindgen_test]
+async fn inspector_padding_moves_only_its_own_row_with_one_undo() {
+    let (document, _) = two_row_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-padding-test",
+        document,
+        row_context(1),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let before_moved = scene_key_at(&probe, 1, 0);
+    let before_still = scene_key_at(&probe, 0, 0);
+    let revision = probe.runtime.model().accepted.unwrap().document.revision;
+
+    set_numeric_field(&root, "Padding", "24");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+
+    let accepted = probe.runtime.model().accepted.unwrap();
+    assert_eq!(
+        accepted.document.matrices[0]
+            .row_layout
+            .get(1)
+            .and_then(|record| record.padding),
+        Some(24.0),
+        "the Inspector value is the row's explicit Padding"
+    );
+    assert_eq!(
+        accepted.document.revision,
+        revision + 1,
+        "one accepted edit"
+    );
+    let moved = scene_key_at(&probe, 1, 0);
+    assert!(
+        (moved.y - before_moved.y - 5.0).abs() < 1e-9 && (moved.x - before_moved.x).abs() < 1e-9,
+        "row 1 steps out the full Padding past the 19 mm pitch"
+    );
+    let still = scene_key_at(&probe, 0, 0);
+    assert!(
+        (still.x - before_still.x).abs() < 1e-9 && (still.y - before_still.y).abs() < 1e-9,
+        "row 0 does not follow a later Padding"
+    );
+
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let restored_moved = scene_key_at(&probe, 1, 0);
+    let restored_still = scene_key_at(&probe, 0, 0);
+    assert!(
+        (restored_moved.x - before_moved.x).abs() < 1e-9
+            && (restored_moved.y - before_moved.y).abs() < 1e-9
+            && (restored_still.x - before_still.x).abs() < 1e-9
+            && (restored_still.y - before_still.y).abs() < 1e-9,
+        "one Undo restores both rows exactly"
+    );
+    root.remove();
+}
+
+fn section_named(root: &web_sys::Element, name: &str) -> Option<web_sys::Element> {
+    let headings = root.query_selector_all("summary, h3").unwrap();
+    (0..headings.length())
+        .filter_map(|index| headings.item(index))
+        .find(|node| node.text_content().as_deref() == Some(name))
+        .and_then(|node| node.dyn_into::<web_sys::Element>().ok())
+}
+
+/// Ticket 23: column 0 has no Spread step, and the Inspector says why instead
+/// of leaving a silent gap.
+#[wasm_bindgen_test]
+async fn column_zero_hides_spread_with_an_accessible_reason() {
+    let (document, _) = two_key_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-no-spread-test",
+        document,
+        column_context(0),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    assert!(
+        root.query_selector("input[aria-label='Spread']")
+            .unwrap()
+            .is_none(),
+        "column 0 has no Spread field"
+    );
+    let note = root
+        .query_selector(".m1-matrix-transform-note")
+        .unwrap()
+        .expect("the structural rule is explained in place");
+    assert_eq!(
+        note.text_content().as_deref(),
+        Some("Spread starts at column 1. Column 0 steps by pitch."),
+        "the reason names the rule"
+    );
+    root.remove();
+}
+
+/// Ticket 23: row 0 has no Padding step, and the Inspector says why.
+#[wasm_bindgen_test]
+async fn row_zero_hides_padding_with_an_accessible_reason() {
+    let (document, _) = two_row_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-no-padding-test",
+        document,
+        row_context(0),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    assert!(
+        root.query_selector("input[aria-label='Padding']")
+            .unwrap()
+            .is_none(),
+        "row 0 has no Padding field"
+    );
+    let note = root
+        .query_selector(".m1-matrix-transform-note")
+        .unwrap()
+        .expect("the structural rule is explained in place");
+    assert_eq!(
+        note.text_content().as_deref(),
+        Some("Padding starts at row 1. Row 0 sits at the column base."),
+        "the reason names the rule"
+    );
+    root.remove();
+}
+
+/// Ticket 23: a default Spread reads the pitch with a pitch badge; an explicit
+/// Spread reads its own value with no badge.
+#[wasm_bindgen_test]
+async fn default_spread_shows_the_pitch_badge_and_explicit_spread_does_not() {
+    let (document, _) = two_key_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-spread-badge-test",
+        document,
+        column_context(1),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let field = root
+        .query_selector("input[aria-label='Spread']")
+        .unwrap()
+        .expect("column 1 has a Spread field")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert_eq!(field.value(), "19", "the default Spread reads the pitch");
+    assert!(
+        root.query_selector(".m1-pitch-badge").unwrap().is_some(),
+        "the default Spread carries a pitch badge"
+    );
+
+    set_numeric_field(&root, "Spread", "24");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert!(
+        root.query_selector(".m1-pitch-badge").unwrap().is_none(),
+        "an explicit Spread drops the pitch badge"
+    );
+    root.remove();
+}
+
+/// Ticket 23: Carried and This-only sections group the named fields with
+/// scope explanations.
+#[wasm_bindgen_test]
+async fn carried_and_this_only_sections_group_the_named_fields() {
+    let (document, _) = two_key_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-sections-test",
+        document,
+        column_context(1),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    assert!(
+        section_named(&root, "Carried").is_some(),
+        "the carried section is mounted"
+    );
+    assert!(
+        section_named(&root, "This column only").is_some(),
+        "the this-only section is mounted"
+    );
+    assert!(
+        root.query_selector("input[aria-label='Spread']")
+            .unwrap()
+            .is_some(),
+        "Spread stays a named field"
+    );
+    assert!(
+        root.query_selector("input[aria-label='Stagger']")
+            .unwrap()
+            .is_some(),
+        "Stagger stays a named field"
+    );
+    root.remove();
+}
+
+/// Ticket 23: a committed edit names its changed field and promises one Undo
+/// entry; the line clears when the next edit submits.
+#[wasm_bindgen_test]
+async fn committed_shift_names_the_changed_field_with_one_undo() {
+    let (document, _) = two_row_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-status-test",
+        document,
+        row_context(0),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    assert!(
+        root.query_selector(".m1-matrix-change-status")
+            .unwrap()
+            .is_none(),
+        "no change is announced before the first commit"
+    );
+
+    set_numeric_field(&root, "Shift X", "4");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let status = root
+        .query_selector(".m1-matrix-change-status")
+        .unwrap()
+        .expect("the commit names its change");
+    assert_eq!(
+        status.text_content().as_deref(),
+        Some("Changed Shift X · one Undo entry"),
+        "the status names the changed field"
+    );
+
+    set_numeric_field(&root, "Shift X", "5");
+    settle(&probe).await;
+    assert!(
+        root.query_selector(".m1-matrix-change-status")
+            .unwrap()
+            .is_none(),
+        "a newer submit retires the previous announcement"
+    );
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    root.remove();
+}
+
+/// Ticket 23 slice 7a, RED: an anchored matrix that does not follow rotation
+/// disables its Rotation field with an accessible reason instead of letting an
+/// edit hit Core's anchored-frame refusal.
+#[wasm_bindgen_test]
+async fn unfollowed_rotation_disables_the_rotation_field_with_a_reason() {
+    let (document, context) = anchored_matrix_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-rotation-follow-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let field = root
+        .query_selector("input[aria-label='Rotation']")
+        .unwrap()
+        .expect("the Matrix section names Rotation")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert!(
+        field.disabled(),
+        "Rotation is unavailable without rotation Follow"
+    );
+    let note = root
+        .query_selector(".m1-matrix-transform-note")
+        .unwrap()
+        .expect("the Follow rule is explained in place");
+    assert_eq!(
+        note.text_content().as_deref(),
+        Some("Rotation is not followed, so turning it changes nothing."),
+        "the reason names the Follow rule"
+    );
+    root.remove();
+}
+
+/// Ticket 23 slice 7a, RED control: a followed rotation stays editable.
+#[wasm_bindgen_test]
+async fn followed_rotation_keeps_the_rotation_field_editable() {
+    let (document, context) = anchored_matrix_fixture(true);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-rotation-follow-control-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let field = root
+        .query_selector("input[aria-label='Rotation']")
+        .unwrap()
+        .expect("the Matrix section names Rotation")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert!(
+        !field.disabled(),
+        "Rotation stays editable with rotation Follow"
+    );
+    root.remove();
+}
+
+/// Ticket 23 slice 7b, RED: an anchored matrix names its anchor target and
+/// Follow subset, and Detach clears the anchor in one atomic Core intent that
+/// keeps every pose with one Undo entry.
+#[wasm_bindgen_test]
+async fn detach_clears_the_anchor_keeping_every_pose_with_one_undo() {
+    let (document, context) = anchored_matrix_fixture(true);
+    let (probe, root) =
+        mount_selection_probe("matrix-transform-detach-test", document, context, &[]).await;
+    settle(&probe).await;
+    let target = root
+        .query_selector(".m1-matrix-anchor-target")
+        .unwrap()
+        .expect("the anchor names its target");
+    assert_eq!(
+        target.text_content().as_deref(),
+        Some("Anchored to matrix · row 0 · column 0"),
+        "the anchor names its target key"
+    );
+    let follow = root
+        .query_selector(".m1-matrix-anchor-follow")
+        .unwrap()
+        .expect("the anchor names its Follow subset");
+    assert_eq!(
+        follow.text_content().as_deref(),
+        Some("Follows X, Y and rotation"),
+        "the anchor names its Follow subset"
+    );
+    let before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    let pose_before = before
+        .document
+        .parts
+        .iter()
+        .find(|part| part.id == "matrix/matrix-b/r0c0")
+        .expect("the anchored key is laid out")
+        .pose;
+    let revision_before = before.document.revision;
+    let buttons = root.query_selector_all("button").unwrap();
+    let detach = (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Detach"))
+        .expect("an anchored matrix offers Detach")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    detach.click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .is_none(),
+        "Detach clears the anchor"
+    );
+    assert_eq!(
+        after
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/matrix-b/r0c0")
+            .expect("the key survives")
+            .pose,
+        pose_before,
+        "Detach keeps every pose"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "Detach is one atomic Core intent"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let undone = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert!(
+        undone
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .is_some(),
+        "one Undo restores the anchor"
+    );
+    root.remove();
+}
+
+/// Ticket 23 slice 7b-ii, RED: when Detach would move the linked partner, the
+/// Inspector names the required Local exception and confirms it in one atomic
+/// Core intent; Cancel leaves everything unchanged.
+#[wasm_bindgen_test]
+async fn detach_proposal_confirms_the_named_local_exception_atomically() {
+    let (document, context) = linked_detach_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-detach-confirm-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let buttons = root.query_selector_all("button").unwrap();
+    let detach = (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Detach"))
+        .expect("an anchored matrix offers Detach")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    let poses_before: Vec<(String, Pose2)> = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose))
+        .collect();
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    detach.click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    // The refusal changed nothing: both anchors stay, no new revision.
+    let refused = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert!(
+        refused
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "thumb")
+            .expect("thumb survives")
+            .anchor
+            .is_some()
+            && refused
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == "thumb2")
+                .expect("thumb2 survives")
+                .anchor
+                .is_some(),
+        "the refused Detach changes nothing"
+    );
+    assert_eq!(
+        refused.document.revision, revision_before,
+        "the refused Detach commits nothing"
+    );
+    let confirm_block = root
+        .query_selector(".m1-matrix-detach-confirm")
+        .unwrap()
+        .expect("the refusal names its proposal in place");
+    assert!(
+        confirm_block
+            .text_content()
+            .as_deref()
+            .is_some_and(|text| text.contains("thumb2")),
+        "the proposal names the required Local exception"
+    );
+    // Cancel leaves the whole edit unchanged.
+    let buttons = root.query_selector_all("button").unwrap();
+    let cancel = (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Cancel"))
+        .expect("the proposal offers Cancel")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    cancel.click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "thumb")
+            .expect("thumb survives")
+            .anchor
+            .is_some(),
+        "Cancel leaves the anchor"
+    );
+    // Confirm clears both anchors, keeps every pose, in one Undo entry.
+    // Cancel re-rendered the actions, so the Detach handle is re-queried.
+    let buttons = root.query_selector_all("button").unwrap();
+    let detach = (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Detach"))
+        .expect("Cancel restores the Detach action")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    detach.click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let buttons = root.query_selector_all("button").unwrap();
+    let confirm = (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Confirm detach"))
+        .expect("the proposal offers Confirm")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    confirm.click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let confirmed = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    for id in ["thumb", "thumb2"] {
+        assert!(
+            confirmed
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == id)
+                .expect("the matrix survives")
+                .anchor
+                .is_none(),
+            "confirmed Detach clears {id}"
+        );
+    }
+    for (id, pose) in &poses_before {
+        assert_eq!(
+            confirmed
+                .document
+                .parts
+                .iter()
+                .find(|part| &part.id == id)
+                .expect("the part survives")
+                .pose,
+            *pose,
+            "confirmed Detach keeps every pose"
+        );
+    }
+    assert_eq!(
+        confirmed.document.revision,
+        revision_before + 1,
+        "confirmed Detach is one atomic Core intent"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let undone = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    for id in ["thumb", "thumb2"] {
+        assert!(
+            undone
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == id)
+                .expect("the matrix survives")
+                .anchor
+                .is_some(),
+            "one Undo restores {id}"
+        );
+    }
+    root.remove();
+}
+
+/// Ticket 23 slice 8, RED: the anchor block edits its Follow subset in place.
+/// Unchecking rotation writes one atomic SetMatrixAnchor with one Undo entry.
+#[wasm_bindgen_test]
+async fn follow_rotation_toggle_updates_the_anchor_with_one_undo() {
+    let (document, context) = anchored_matrix_fixture(true);
+    let (probe, root) =
+        mount_selection_probe("matrix-transform-follow-test", document, context, &[]).await;
+    settle(&probe).await;
+    let rotation = root
+        .query_selector("input[aria-label='Follow rotation']")
+        .unwrap()
+        .expect("the anchor names rotation Follow")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert!(rotation.checked(), "the anchored matrix follows rotation");
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    rotation.click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert!(
+        !after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .follow
+            .rotation,
+        "unchecking rotation writes the Follow subset"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "the toggle is one atomic Core intent"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .follow
+            .rotation,
+        "one Undo restores rotation Follow"
+    );
+    root.remove();
+}
+
+/// A one-key matrix in a Layout, selected at its key: the anchor target Core
+/// requires for the key's Add anchored matrix entry.
+fn add_anchored_matrix_fixture() -> (ProjectDoc, TreeContext) {
+    let (mut document, selected) = fixture();
+    document.layouts.push(Layout {
+        id: "layout".into(),
+        name: "Main".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["matrix".into()],
+        part_ids: vec![],
+        mirror_link: None,
+    });
+    (document, selected)
+}
+
+/// A second anchor target for the anchor Pick: another 1x1 matrix in the same
+/// Layout with a live key part.
+fn pick_anchor_fixture() -> (ProjectDoc, TreeContext) {
+    let (mut document, context) = anchored_matrix_fixture(true);
+    document.layouts[0].matrix_ids.push("matrix-c".into());
+    let key_id = "matrix/matrix-c/r0c0";
+    document.boards[0].part_ids.push(key_id.into());
+    document.parts.push(Part {
+        keycap: None,
+        outline: None,
+        id: key_id.into(),
+        definition_id: "key-definition".into(),
+        reference: "K3".into(),
+        pose: Pose2 {
+            at: Vec2 { x: 120.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: Some(false),
+        properties: None,
+        generator_parameters: None,
+    });
+    document.matrices.push(Matrix {
+        id: "matrix-c".into(),
+        name: Some("Other".into()),
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "key-definition".into(),
+        part_ids: vec![key_id.into()],
+        board_id: Some("board".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
+        cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
+            deleted: false,
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: Some("key-definition".into()),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        }],
+    });
+    (document, context)
+}
+
+/// Ticket 23 slice, RED: the anchor block offers Pick anchor, and applying
+/// the picked key retargets via SetMatrixAnchor as one atomic intent with one
+/// Undo entry.
+#[wasm_bindgen_test]
+async fn anchor_pick_retargets_the_anchor_with_one_undo() {
+    let (document, context) = pick_anchor_fixture();
+    let (probe, root) =
+        mount_selection_probe("matrix-transform-anchor-pick-test", document, context, &[]).await;
+    settle(&probe).await;
+    let buttons = root.query_selector_all("button").unwrap();
+    assert!(
+        (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .any(|node| node.text_content().as_deref() == Some("Pick anchor")),
+        "the anchor block offers Pick anchor"
+    );
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    let submitted = probe
+        .mount
+        .borrow()
+        .as_ref()
+        .expect("the Inspector mount exists")
+        .clone()
+        .pick_matrix_anchor("matrix-c".into(), 0, 0);
+    assert!(submitted, "the picked key reaches the transform request");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor,
+        Some(MatrixAnchor {
+            matrix_id: "matrix-c".into(),
+            row: 0,
+            column: 0,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            },
+            aggregate: None,
+        }),
+        "the pick retargets the anchor keeping Follow"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "the retarget is one atomic Core intent"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .matrix_id
+            .as_str(),
+        "matrix",
+        "one Undo restores the previous anchor target"
+    );
+    root.remove();
+}
+
+/// Ticket 23 slice, RED: picking an invalid anchor target refuses through
+/// Core and surfaces the refusal without committing.
+#[wasm_bindgen_test]
+async fn anchor_pick_refuses_an_invalid_target_without_committing() {
+    let (document, context) = pick_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-anchor-pick-refusal-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    let submitted = probe
+        .mount
+        .borrow()
+        .as_ref()
+        .expect("the Inspector mount exists")
+        .clone()
+        .pick_matrix_anchor("matrix-b".into(), 0, 0);
+    assert!(submitted, "the self pick reaches Core for validation");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        after.document.revision, revision_before,
+        "a refused pick commits nothing"
+    );
+    assert_eq!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .matrix_id
+            .as_str(),
+        "matrix",
+        "a refused pick keeps the anchor target"
+    );
+    let alerts = root.query_selector_all("[role='alert']").unwrap();
+    assert!(
+        (0..alerts.length())
+            .filter_map(|index| alerts.item(index))
+            .any(|node| node
+                .text_content()
+                .is_some_and(|text| text.contains("cannot anchor to itself"))),
+        "the refusal surfaces beside the anchor block"
+    );
+    root.remove();
+}
+
+/// Ticket 23 slice, RED: a Key selection offers Add anchored matrix, driving
+/// the Core AddAnchoredMatrix intent (1x3, same Layout, Origin (0, -pitch.y),
+/// mirrored counterpart per spec section 4) as one atomic intent with one
+/// Undo entry.
+#[wasm_bindgen_test]
+async fn key_selection_adds_an_anchored_matrix_with_one_undo() {
+    let (document, context) = add_anchored_matrix_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-add-anchored-test",
+        document,
+        context,
+        &["key-part"],
+    )
+    .await;
+    settle(&probe).await;
+    let buttons = root.query_selector_all("button").unwrap();
+    let button = (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Add anchored matrix"))
+        .expect("the key offers Add anchored matrix")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    button.click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    let added = after
+        .document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id != "matrix")
+        .expect("Add anchored matrix creates a matrix");
+    assert_eq!((added.rows, added.columns), (1, 3), "the addition is 1x3");
+    assert_eq!(
+        added.origin,
+        Vec2 { x: 0.0, y: -19.0 },
+        "the addition starts at relative Origin (0, -pitch.y)"
+    );
+    assert_eq!(
+        added.anchor,
+        Some(MatrixAnchor {
+            matrix_id: "matrix".into(),
+            row: 0,
+            column: 0,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            },
+            aggregate: None,
+        }),
+        "the addition anchors to the selected key with full Follow"
+    );
+    assert!(
+        after
+            .document
+            .layouts
+            .iter()
+            .find(|layout| layout.id == "layout")
+            .expect("the layout survives")
+            .matrix_ids
+            .contains(&added.id),
+        "the addition joins the selected key's Layout"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "the addition is one atomic Core intent"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .all(|matrix| matrix.id == "matrix"),
+        "one Undo removes the added matrix"
+    );
+    root.remove();
+}
+
+/// Ticket 32 slice, RED: a 1x1 matrix with an average aggregate anchor over
+/// two earlier-matrix keys. Both parts join one Layout, which anchor
+/// validation requires; the dependant follows the parts' mean.
+fn aggregate_anchor_fixture() -> (ProjectDoc, TreeContext) {
+    let (mut document, _) = two_key_fixture(false);
+    // Non-parallel part headings so the intersection method stays evaluable:
+    // the second part key turns 90 degrees.
+    document.matrices[0].cells[1].rotation = Some(90.0);
+    document.layouts.push(Layout {
+        id: "layout".into(),
+        name: "Main".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["matrix".into(), "matrix-b".into()],
+        part_ids: vec![],
+        mirror_link: None,
+    });
+    let key_id = "matrix/matrix-b/r0c0";
+    document.boards[0].part_ids.push(key_id.into());
+    document.parts.push(Part {
+        keycap: None,
+        outline: None,
+        id: key_id.into(),
+        definition_id: "key-definition".into(),
+        reference: "K3".into(),
+        pose: Pose2 {
+            at: Vec2 { x: 60.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: Some(false),
+        properties: None,
+        generator_parameters: None,
+    });
+    document.matrices.push(Matrix {
+        id: "matrix-b".into(),
+        name: Some("Aggregated".into()),
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "key-definition".into(),
+        part_ids: vec![key_id.into()],
+        board_id: Some("board".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: Some(MatrixAnchor {
+            matrix_id: String::new(),
+            row: 0,
+            column: 0,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            },
+            aggregate: Some(AggregateAnchor {
+                method: AggregateMethod::Average,
+                parts: vec![
+                    AnchorPart {
+                        matrix_id: "matrix".into(),
+                        row: 0,
+                        column: 0,
+                    },
+                    AnchorPart {
+                        matrix_id: "matrix".into(),
+                        row: 0,
+                        column: 1,
+                    },
+                ],
+            }),
+        }),
+        cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
+            deleted: false,
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: Some("key-definition".into()),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        }],
+    });
+    (
+        document,
+        TreeContext::Matrix {
+            matrix_id: "matrix-b".into(),
+        },
+    )
+}
+
+/// A 1x3 variant of the aggregate fixture: the third key is pickable but not
+/// yet a part, so canvas multi-Pick and commit have somewhere to go.
+fn aggregate_anchor_three_key_fixture() -> (ProjectDoc, TreeContext) {
+    let (mut document, _) = three_key_fixture();
+    // Non-parallel part headings so the intersection method stays evaluable.
+    document.matrices[0].cells[1].rotation = Some(90.0);
+    document.layouts.push(Layout {
+        id: "layout".into(),
+        name: "Main".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["matrix".into(), "matrix-b".into()],
+        part_ids: vec![],
+        mirror_link: None,
+    });
+    let key_id = "matrix/matrix-b/r0c0";
+    document.boards[0].part_ids.push(key_id.into());
+    document.parts.push(Part {
+        keycap: None,
+        outline: None,
+        id: key_id.into(),
+        definition_id: "key-definition".into(),
+        reference: "K3".into(),
+        pose: Pose2 {
+            at: Vec2 { x: 60.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: Some(false),
+        properties: None,
+        generator_parameters: None,
+    });
+    document.matrices.push(Matrix {
+        id: "matrix-b".into(),
+        name: Some("Aggregated".into()),
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "key-definition".into(),
+        part_ids: vec![key_id.into()],
+        board_id: Some("board".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: Some(MatrixAnchor {
+            matrix_id: String::new(),
+            row: 0,
+            column: 0,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            },
+            aggregate: Some(AggregateAnchor {
+                method: AggregateMethod::Average,
+                parts: vec![
+                    AnchorPart {
+                        matrix_id: "matrix".into(),
+                        row: 0,
+                        column: 0,
+                    },
+                    AnchorPart {
+                        matrix_id: "matrix".into(),
+                        row: 0,
+                        column: 1,
+                    },
+                ],
+            }),
+        }),
+        cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
+            deleted: false,
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: Some("key-definition".into()),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        }],
+    });
+    (
+        document,
+        TreeContext::Matrix {
+            matrix_id: "matrix-b".into(),
+        },
+    )
+}
+
+/// Ticket 32 slice, RED: opening the Anchor section of an average-anchored
+/// matrix lists its two part links, and activating a part link navigates to
+/// the part key with the revision unchanged and no Undo entry.
+#[wasm_bindgen_test]
+async fn aggregate_anchor_section_lists_part_links_that_navigate_without_writing() {
+    let (document, context) = aggregate_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-parts-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let links = root.query_selector_all(".m1-matrix-anchor-part").unwrap();
+    assert_eq!(
+        links.length(),
+        2,
+        "the Anchor section lists one link per aggregate part"
+    );
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    links
+        .item(0)
+        .expect("the first part link exists")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        probe.navigated.borrow().as_slice(),
+        &[TreeContext::Key {
+            matrix_id: "matrix".into(),
+            row: 0,
+            column: 0,
+        }],
+        "activating a part link navigates to the part key"
+    );
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .revision,
+        revision_before,
+        "navigation writes nothing: no new revision, no Undo entry"
+    );
+    root.remove();
+}
+
+/// Ticket 32 slice, RED: switching the aggregate method writes one Core
+/// intent with one Undo entry, keeping parts and Follow.
+#[wasm_bindgen_test]
+async fn aggregate_method_switch_writes_one_intent_with_one_undo() {
+    let (document, context) = aggregate_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-method-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let method = root
+        .query_selector("select[aria-label='Method']")
+        .unwrap()
+        .expect("the Anchor section offers the aggregate method")
+        .dyn_into::<HtmlSelectElement>()
+        .unwrap();
+    assert_eq!(
+        method.value(),
+        "average",
+        "the method shows the admitted value"
+    );
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    method.set_value("intersect");
+    let change = web_sys::EventInit::new();
+    change.set_bubbles(true);
+    method
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
+        .unwrap();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    let aggregate = after
+        .document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "matrix-b")
+        .expect("the matrix survives")
+        .anchor
+        .as_ref()
+        .expect("the anchor survives")
+        .aggregate
+        .as_ref()
+        .expect("the anchor stays aggregate");
+    assert_eq!(
+        aggregate.method,
+        AggregateMethod::Intersect,
+        "the switch writes the new method"
+    );
+    assert_eq!(
+        aggregate.parts,
+        vec![
+            AnchorPart {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 0,
+            },
+            AnchorPart {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 1,
+            },
+        ],
+        "the switch keeps every part"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "the switch is one atomic Core intent"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .method,
+        AggregateMethod::Average,
+        "one Undo restores the previous method"
+    );
+    root.remove();
+}
+
+/// Ticket 32 slice, RED: removing a part writes one Core intent with one
+/// Undo entry; the last remaining part cannot be removed.
+#[wasm_bindgen_test]
+async fn aggregate_part_remove_writes_one_intent_with_one_undo() {
+    let (document, context) = aggregate_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-remove-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let removes: Vec<web_sys::HtmlElement> = {
+        let buttons = root.query_selector_all("button").unwrap();
+        (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .filter(|node| node.text_content().as_deref() == Some("Remove"))
+            .map(|node| node.dyn_into::<web_sys::HtmlElement>().unwrap())
+            .collect()
+    };
+    assert_eq!(
+        removes.len(),
+        2,
+        "each part offers Remove while more than one part remains"
+    );
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    removes[0].click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts,
+        vec![AnchorPart {
+            matrix_id: "matrix".into(),
+            row: 0,
+            column: 1,
+        }],
+        "Remove drops the part in one Core intent"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "the removal is one atomic Core intent"
+    );
+    let remaining: Vec<web_sys::HtmlElement> = {
+        let buttons = root.query_selector_all("button").unwrap();
+        (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .filter(|node| node.text_content().as_deref() == Some("Remove"))
+            .map(|node| node.dyn_into::<web_sys::HtmlElement>().unwrap())
+            .collect()
+    };
+    assert_eq!(remaining.len(), 1, "one part link remains");
+    assert!(
+        remaining[0].has_attribute("disabled"),
+        "the last remaining part cannot be removed"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts
+            .len(),
+        2,
+        "one Undo restores the removed part"
+    );
+    root.remove();
+}
+
+fn click_button(root: &web_sys::Element, text: &str) {
+    let buttons = root.query_selector_all("button").unwrap();
+    (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some(text))
+        .unwrap_or_else(|| panic!("the Inspector offers {text}"))
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+}
+
+fn canvas_key(root: &web_sys::Element, index: u32) -> web_sys::Node {
+    root.query_selector_all("[data-part-id]")
+        .unwrap()
+        .item(index)
+        .expect("the canvas stub renders the picked key")
+}
+
+fn dispatch_canvas_pick(node: &web_sys::Node) {
+    let init = web_sys::PointerEventInit::new();
+    init.set_bubbles(true);
+    node.dispatch_event(
+        &web_sys::PointerEvent::new_with_event_init_dict("pointerdown", &init).unwrap(),
+    )
+    .unwrap();
+}
+
+fn dispatch_escape() {
+    let options = web_sys::KeyboardEventInit::new();
+    options.set_key("Escape");
+    web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &options)
+                .unwrap(),
+        )
+        .unwrap();
+}
+
+fn picked_text(root: &web_sys::Element) -> Option<String> {
+    let notes = root.query_selector_all(".m1-empty-note").unwrap();
+    (0..notes.length())
+        .filter_map(|index| notes.item(index))
+        .filter_map(|node| node.text_content())
+        .find(|text| text.ends_with("picked"))
+}
+
+/// Ticket 32 slice, RED: canvas multi-Pick adds parts to the pending aggregate
+/// without writing — duplicates are a no-op — and Esc cancels with nothing
+/// written.
+#[wasm_bindgen_test]
+async fn aggregate_multi_pick_adds_pending_parts_and_esc_cancels_without_writing() {
+    let (document, context) = aggregate_anchor_three_key_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-pick-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    click_button(&root, "Pick parts");
+    settle(&probe).await;
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    dispatch_canvas_pick(&canvas_key(&root, 2));
+    settle(&probe).await;
+    dispatch_canvas_pick(&canvas_key(&root, 2));
+    settle(&probe).await;
+    dispatch_canvas_pick(&canvas_key(&root, 0));
+    settle(&probe).await;
+    assert_eq!(
+        picked_text(&root).as_deref(),
+        Some("1 picked"),
+        "one fresh key is pending; repeats and existing parts are a no-op"
+    );
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .revision,
+        revision_before,
+        "pending picks write nothing"
+    );
+    dispatch_escape();
+    settle(&probe).await;
+    assert!(picked_text(&root).is_none(), "Esc drops the pending draft");
+    click_button(&root, "Pick parts");
+    settle(&probe).await;
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .revision,
+        revision_before,
+        "Esc cancels with nothing written"
+    );
+    root.remove();
+}
+
+/// Ticket 32 slice, RED: committing the pending multi-Pick writes one Core
+/// intent with one Undo entry.
+#[wasm_bindgen_test]
+async fn aggregate_multi_pick_commit_writes_one_intent_with_one_undo() {
+    let (document, context) = aggregate_anchor_three_key_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-commit-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    click_button(&root, "Pick parts");
+    settle(&probe).await;
+    dispatch_canvas_pick(&canvas_key(&root, 2));
+    settle(&probe).await;
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    click_button(&root, "Add 1 part");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts,
+        vec![
+            AnchorPart {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 0,
+            },
+            AnchorPart {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 1,
+            },
+            AnchorPart {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 2,
+            },
+        ],
+        "the commit appends the picked part in one Core intent"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "the commit is one atomic Core intent"
+    );
+    assert!(
+        picked_text(&root).is_none(),
+        "the commit clears the pending draft"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts
+            .len(),
+        2,
+        "one Undo restores the parts before the commit"
+    );
+    root.remove();
+}
+
+/// Ticket 32 slice, RED: committing a part Core refuses surfaces the Core
+/// reason inline with nothing written.
+#[wasm_bindgen_test]
+async fn aggregate_commit_with_self_part_refuses_through_core() {
+    let (document, context) = aggregate_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-refusal-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    click_button(&root, "Pick parts");
+    settle(&probe).await;
+    let submitted = probe
+        .mount
+        .borrow()
+        .as_ref()
+        .expect("the Inspector mount exists")
+        .clone()
+        .pick_aggregate_part("matrix-b".into(), 0, 0);
+    assert!(submitted, "the self part reaches Core validation");
+    settle(&probe).await;
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    click_button(&root, "Add 1 part");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        after.document.revision, revision_before,
+        "a refused commit writes nothing"
+    );
+    assert_eq!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts
+            .len(),
+        2,
+        "a refused commit keeps the parts"
+    );
+    let alerts = root.query_selector_all("[role='alert']").unwrap();
+    assert!(
+        (0..alerts.length())
+            .filter_map(|index| alerts.item(index))
+            .any(|node| node
+                .text_content()
+                .is_some_and(|text| text.contains("cannot anchor to itself"))),
+        "the Core refusal surfaces inline"
+    );
+    root.remove();
+}
+
+fn aggregate_dependant_pose(probe: &Probe) -> Pose2 {
+    probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .scene
+        .matrix_scenes
+        .iter()
+        .find(|scene| scene.matrix_id == "matrix-b")
+        .and_then(|scene| {
+            scene
+                .cells
+                .iter()
+                .find(|cell| cell.row == 0 && cell.column == 0)
+                .map(|cell| cell.pose)
+        })
+        .expect("the aggregate dependant is laid out")
+}
+
+fn aggregate_method_of(probe: &Probe) -> AggregateMethod {
+    probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "matrix-b")
+        .expect("the matrix survives")
+        .anchor
+        .as_ref()
+        .expect("the anchor survives")
+        .aggregate
+        .as_ref()
+        .expect("the anchor stays aggregate")
+        .method
+}
+
+/// Ticket 36, RED: committing an aggregate method switch through the mounted
+/// Inspector surface writes one Core intent, and Undo restores the prior
+/// method with poses unchanged while Redo restores the committed method.
+/// Expected poses come from Core-published scene values only.
+#[wasm_bindgen_test]
+async fn aggregate_method_switch_commits_with_redo_and_pose_round_trip() {
+    let (document, context) = aggregate_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-36-method-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let pose_before = aggregate_dependant_pose(&probe);
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    let method = root
+        .query_selector("select[aria-label='Method']")
+        .unwrap()
+        .expect("the Anchor section offers the aggregate method")
+        .dyn_into::<HtmlSelectElement>()
+        .unwrap();
+    assert_eq!(
+        method.value(),
+        "average",
+        "the method shows the admitted value"
+    );
+    method.set_value("intersect");
+    let change = web_sys::EventInit::new();
+    change.set_bubbles(true);
+    method
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
+        .unwrap();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        aggregate_method_of(&probe),
+        AggregateMethod::Intersect,
+        "the switch writes the new method"
+    );
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .revision,
+        revision_before + 1,
+        "the switch is one atomic Core intent"
+    );
+    let pose_after = aggregate_dependant_pose(&probe);
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        aggregate_method_of(&probe),
+        AggregateMethod::Average,
+        "one Undo restores the previous method"
+    );
+    assert_eq!(
+        aggregate_dependant_pose(&probe),
+        pose_before,
+        "one Undo restores the Core-published dependant pose exactly"
+    );
+    probe.runtime.submit(Event::Redo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        aggregate_method_of(&probe),
+        AggregateMethod::Intersect,
+        "one Redo restores the committed method"
+    );
+    assert_eq!(
+        aggregate_dependant_pose(&probe),
+        pose_after,
+        "one Redo restores the Core-published committed pose exactly"
+    );
+    root.remove();
+}
+
+/// Ticket 36, RED: committing an aggregate parts change through the mounted
+/// Inspector surface updates the Core-published dependant pose, and Undo
+/// restores the parts and the pose. Expected poses come from Core-published
+/// scene values only.
+#[wasm_bindgen_test]
+async fn aggregate_part_remove_updates_dependant_pose_with_undo_round_trip() {
+    let (document, context) = aggregate_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-36-parts-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let pose_before = aggregate_dependant_pose(&probe);
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    let removes: Vec<web_sys::HtmlElement> = {
+        let buttons = root.query_selector_all("button").unwrap();
+        (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .filter(|node| node.text_content().as_deref() == Some("Remove"))
+            .map(|node| node.dyn_into::<web_sys::HtmlElement>().unwrap())
+            .collect()
+    };
+    assert_eq!(
+        removes.len(),
+        2,
+        "each part offers Remove while more than one part remains"
+    );
+    removes[0].click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts
+            .len(),
+        1,
+        "Remove drops the part in one Core intent"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "the removal is one atomic Core intent"
+    );
+    let pose_after = aggregate_dependant_pose(&probe);
+    assert_ne!(
+        (pose_after.at.x, pose_after.at.y, pose_after.rotation),
+        (pose_before.at.x, pose_before.at.y, pose_before.rotation),
+        "the Core-published dependant pose follows the surviving part"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let undone = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        undone
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts
+            .len(),
+        2,
+        "one Undo restores the removed part"
+    );
+    assert_eq!(
+        aggregate_dependant_pose(&probe),
+        pose_before,
+        "one Undo restores the Core-published dependant pose exactly"
+    );
+    root.remove();
+}
+
+/// Ticket 34: native-pair source fixture. The pair itself is created through
+/// Core (`CreateMirroredHalf`), so the Key-context Omit/Rejoin flow under test
+/// starts from a genuine Core-built pair with canonical correspondences.
+fn native_pair_source_fixture() -> ProjectDoc {
+    let (mut document, _) = fixture();
+    // Mirrored matrix members carry derived identities.
+    for part in document
+        .parts
+        .iter_mut()
+        .filter(|part| part.id == "key-part")
+    {
+        part.id = "matrix/matrix/r0c0".into();
+    }
+    for board in document.boards.iter_mut() {
+        for id in board
+            .part_ids
+            .iter_mut()
+            .filter(|id| id.as_str() == "key-part")
+        {
+            *id = "matrix/matrix/r0c0".into();
+        }
+    }
+    for matrix in document.matrices.iter_mut() {
+        for id in matrix
+            .part_ids
+            .iter_mut()
+            .filter(|id| id.as_str() == "key-part")
+        {
+            *id = "matrix/matrix/r0c0".into();
+        }
+        for cell in matrix.cells.iter_mut() {
+            cell.assemblies.clear();
+        }
+    }
+    document.hardware = Some(
+        serde_json::from_value(serde_json::json!({
+            "topology": "split", "transport": "wired", "boards": [],
+            "instances": [
+                {"id": "left", "name": "Left", "boardId": "board",
+                 "half": "left", "role": "central", "flipped": false,
+                 "controllerPartId": null,
+                 "mechanical": {
+                    "boardId": "board", "method": "printed", "mount": "rigid",
+                    "integratedPlateFrame": false, "bottomStyle": "shell",
+                    "plateThickness": 1.5, "plateFoamThickness": 0.0,
+                    "pcbThickness": 1.6, "bottomFoamThickness": 0.0, "batteryHeight": 0.0,
+                    "bottomThickness": 2.0, "plateToPcb": 3.5,
+                    "wallThickness": 2.0, "clearance": 0.2,
+                    "profiles": [], "mounts": [], "closureMounts": [], "openings": []}}
+            ],
+            "pairs": []
+        }))
+        .unwrap(),
+    );
+    document
+}
+
+fn create_mirrored_half_operation() -> serde_json::Value {
+    serde_json::json!({
+        "kind": "create-mirrored-half", "pairId": "pair",
+        "sourceInstanceId": "left",
+        "mode": {"kind": "new-board", "boardId": "right", "instanceId": "right"},
+        "mapping": {"at": {"x": 200.0, "y": 0.0}, "rotation": 0.0},
+        "idRule": "board-prefix", "companionMode": "literal-mirror",
+        "mountingHole": {
+            "id": "generator:ceoloide/mounting_hole_npth", "name": "mounting hole npth",
+            "kind": "custom",
+            "pads": [{"id": "pad-0", "number": "", "at": {"x": 0, "y": 0},
+                "size": {"x": 2.2, "y": 2.2}, "shape": "circle", "drill": 2.2,
+                "plated": false, "rotation": 0}],
+            "courtyard": [{"x": -1.1, "y": -1.1}, {"x": 1.1, "y": -1.1},
+                {"x": 1.1, "y": 1.1}, {"x": -1.1, "y": 1.1}],
+            "envelopeSource": {"courtyard": "generated"},
+            "envelopeNotice": "No closed courtyard is available.",
+            "generator": {"source": "ceoloide/mounting_hole_npth", "version": "bundled-1", "parameters": {}}
+        }
+    })
+}
+
+/// Open the source document and create its mirror half through the Session.
+/// Returns the runtime plus the created mirror matrix and part ids.
+async fn open_created_pair() -> (Rc<Runtime>, String, String) {
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, native_pair_source_fixture()).await;
+    let created = EditTicket::begin(
+        &runtime,
+        "layout-create-mirror",
+        Some("create".into()),
+        boardstudio_application::EditResolver::new(
+            "layout-create-mirror",
+            |_accepted: &boardstudio_application::AcceptedSnapshot| {
+                boardstudio_application::Resolution::submit(
+                    vec!["pair".into()],
+                    serde_json::from_value(create_mirrored_half_operation())
+                        .expect("the pair creation is a typed Core edit"),
+                )
+            },
+        ),
+    );
+    support::run_pending(&runtime).await;
+    assert!(
+        matches!(created.settlement(true), Settlement::Landed { .. }),
+        "the mirror half is created"
+    );
+    let document = runtime.model().accepted.expect("the pair opens").document;
+    let mirror_matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.board_id.as_deref() == Some("right"))
+        .expect("the mirror matrix exists");
+    let mirror_part = mirror_matrix
+        .part_ids
+        .first()
+        .expect("the mirror key exists")
+        .clone();
+    (runtime, mirror_matrix.id.clone(), mirror_part)
+}
+
+/// Ticket 34: omitting the mirror key submits the typed Part/Omitted intent,
+/// hides the key from the matrix surface while keeping its logical pose, and
+/// one Undo restores it.
+#[wasm_bindgen_test]
+async fn mirror_key_omit_rejoin_round_trip() {
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+
+    let (runtime, mirror_matrix, mirror_part) = open_created_pair().await;
+    let before = runtime.model().accepted.expect("the pair opens").document;
+    let before_revision = before.revision;
+    let before_pose = before
+        .parts
+        .iter()
+        .find(|part| part.id == mirror_part)
+        .expect("the mirror part exists")
+        .pose;
+
+    let omit = EditTicket::begin(
+        &runtime,
+        "layout-matrix-key-omit",
+        Some("omit".into()),
+        key_half_exception_at_resolver(mirror_matrix.clone(), 0, 0, true),
+    );
+    support::run_pending(&runtime).await;
+    let settlement = omit.settlement(true);
+    assert!(
+        matches!(settlement, Settlement::Landed { .. }),
+        "the omit intent lands, got {settlement:?}"
+    );
+    let omitted = runtime.model().accepted.expect("an accepted document");
+    assert_eq!(
+        omitted.document.revision,
+        before_revision + 1,
+        "omit is one Undo entry"
+    );
+    let overlay = omitted
+        .document
+        .hardware
+        .as_ref()
+        .unwrap()
+        .pairs
+        .iter()
+        .find(|pair| pair.id == "pair")
+        .unwrap()
+        .halves
+        .as_ref()
+        .unwrap()
+        .exceptions
+        .iter()
+        .find(|exception| {
+            exception.kind == MirroredItemKind::Part && exception.mirror_id == mirror_part
+        })
+        .expect("the Omitted overlay is recorded");
+    assert_eq!(overlay.state, MirroredExceptionState::Omitted);
+    assert!(
+        omitted
+            .document
+            .parts
+            .iter()
+            .all(|part| part.id != mirror_part),
+        "the omitted key leaves the matrix surface record"
+    );
+    let omitted_cell = omitted
+        .scene
+        .matrix_scenes
+        .iter()
+        .find(|scene| scene.matrix_id == mirror_matrix)
+        .unwrap()
+        .cells
+        .iter()
+        .find(|cell| cell.row == 0 && cell.column == 0);
+    assert!(
+        omitted_cell.is_none_or(|cell| cell.member_id.as_deref() != Some(mirror_part.as_str())),
+        "the omitted key leaves the matrix surface"
+    );
+    if let Some(cell) = omitted_cell {
+        assert_eq!(
+            cell.pose.at, before_pose.at,
+            "the omitted key keeps its logical pose"
+        );
+    }
+
+    runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: runtime.operation(),
+    });
+    support::run_pending(&runtime).await;
+    let undone = runtime.model().accepted.expect("an accepted document");
+    assert!(
+        undone
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs
+            .iter()
+            .find(|pair| pair.id == "pair")
+            .unwrap()
+            .halves
+            .as_ref()
+            .unwrap()
+            .exceptions
+            .is_empty(),
+        "one Undo clears the overlay"
+    );
+    assert_eq!(
+        undone
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == mirror_part)
+            .unwrap()
+            .pose,
+        before_pose
+    );
+    assert!(
+        undone
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == mirror_matrix)
+            .unwrap()
+            .cells
+            .iter()
+            .any(|cell| cell.member_id.as_deref() == Some(mirror_part.as_str())),
+        "one Undo brings the key back to the surface"
+    );
+
+    let rejoin = EditTicket::begin(
+        &runtime,
+        "layout-matrix-key-omit",
+        Some("rejoin".into()),
+        key_half_exception_at_resolver(mirror_matrix.clone(), 0, 0, true),
+    );
+    support::run_pending(&runtime).await;
+    assert!(
+        matches!(rejoin.settlement(true), Settlement::Landed { .. }),
+        "re-omitting after Undo lands again"
+    );
+    let rejoin_back = EditTicket::begin(
+        &runtime,
+        "layout-matrix-key-omit",
+        Some("rejoin".into()),
+        key_half_exception_at_resolver(mirror_matrix, 0, 0, false),
+    );
+    support::run_pending(&runtime).await;
+    assert!(
+        matches!(rejoin_back.settlement(true), Settlement::Landed { .. }),
+        "rejoin lands"
+    );
+    let rejoined = runtime.model().accepted.expect("an accepted document");
+    assert!(
+        rejoined
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs
+            .iter()
+            .find(|pair| pair.id == "pair")
+            .unwrap()
+            .halves
+            .as_ref()
+            .unwrap()
+            .exceptions
+            .is_empty(),
+        "rejoin clears the overlay"
+    );
+}
+
+/// Ticket 34: the Key inspector shows the Omit control for a mirrored key and
+/// toggling it omits/rejoins with one Undo entry each.
+#[wasm_bindgen_test]
+async fn mirror_key_omit_checkbox_toggles_half_exception() {
+    use web_sys::EventInit;
+
+    let (runtime, mirror_matrix, mirror_part) = open_created_pair().await;
+    support::navigate(&runtime, "right").await;
+    runtime.submit(Event::SelectParts {
+        operation_id: runtime.operation(),
+        part_ids: vec![mirror_part.clone()],
+        range_part_ids: Vec::new(),
+        mode: SelectionMode::Replace,
+    });
+    support::run_pending(&runtime).await;
+    let scope = runtime.scope().expect("the opened project has a scope");
+    let probe = Probe {
+        canvas_controls: false,
+        runtime: runtime.clone(),
+        selected: ScopedTreeContext {
+            scope,
+            context: TreeContext::Key {
+                matrix_id: mirror_matrix.clone(),
+                row: 0,
+                column: 0,
+            },
+        },
+        root_id: "matrix-transform-key-omit-test",
+        version: Rc::default(),
+        selected_context: Rc::default(),
+        adapter: Rc::default(),
+        mount: Rc::default(),
+        render_count: Rc::default(),
+        navigated: Rc::default(),
+    };
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id(probe.root_id);
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(matrix_transform_host);
+    dom.provide_root_context(probe.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    settle(&probe).await;
+    let before_revision = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    let key_enabled = root
+        .query_selector("input[aria-label='Key enabled']")
+        .unwrap()
+        .is_some();
+    let omit = root
+        .query_selector("input[aria-label='Omit from mirror']")
+        .unwrap()
+        .unwrap_or_else(|| {
+            panic!("a mirrored key offers Omit (key section present: {key_enabled})")
+        })
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert!(!omit.checked(), "the linked key starts rejoined");
+    omit.set_checked(true);
+    let event = EventInit::new();
+    event.set_bubbles(true);
+    omit.dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
+        .unwrap();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let feedback = probe
+        .mount
+        .borrow()
+        .as_ref()
+        .map(|mount| format!("{:?}", mount.feedback))
+        .unwrap_or_default();
+    let omitted = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        omitted.document.revision,
+        before_revision + 1,
+        "omit is one Undo entry, feedback={feedback}"
+    );
+    assert!(
+        omitted
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs
+            .iter()
+            .find(|pair| pair.id == "pair")
+            .unwrap()
+            .halves
+            .as_ref()
+            .unwrap()
+            .exceptions
+            .iter()
+            .any(|exception| {
+                exception.kind == MirroredItemKind::Part
+                    && exception.mirror_id == mirror_part
+                    && exception.state == MirroredExceptionState::Omitted
+            }),
+        "checking Omit records the Omitted overlay"
+    );
+    omit.set_checked(false);
+    omit.dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
+        .unwrap();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let rejoined = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert!(
+        rejoined
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs
+            .iter()
+            .find(|pair| pair.id == "pair")
+            .unwrap()
+            .halves
+            .as_ref()
+            .unwrap()
+            .exceptions
+            .is_empty(),
+        "clearing Omit rejoins the key"
+    );
     root.remove();
 }

@@ -1,5 +1,5 @@
 //! Pure accepted-envelope and axis-alignment policy for Layout Align.
-use boardstudio_core::model::{Matrix, Mirror, Part, PartDefinition, PartKind, Vec2};
+use boardstudio_core::model::{Part, PartDefinition, PartKind, Vec2};
 
 pub fn reference_choice(
     current: Option<&str>,
@@ -258,33 +258,10 @@ pub fn alignment_delta(
     })
 }
 
-pub fn local_matrix_delta(matrix: &Matrix, delta: Vec2, column: usize) -> Vec2 {
-    let angle = -matrix.rotation.unwrap_or_default().to_radians();
-    let (sin, cos) = angle.sin_cos();
-    let mut x = delta.x * cos - delta.y * sin;
-    let mut y = delta.x * sin + delta.y * cos;
-    match matrix.mirror {
-        Some(Mirror::None) | None => {}
-        Some(Mirror::X) => x *= -1.0,
-        Some(Mirror::Y) => y *= -1.0,
-    }
-    let splay = -matrix
-        .column_splays
-        .iter()
-        .take(column + 1)
-        .sum::<f64>()
-        .to_radians();
-    let (sin, cos) = splay.sin_cos();
-    Vec2 {
-        x: x * cos - y * sin,
-        y: x * sin + y * cos,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::Pose2;
+    use boardstudio_core::model::{Mirror, Pose2};
 
     fn part(definition_id: &str, keycap: Option<Vec2>, rotation: f64) -> Part {
         Part {
@@ -357,14 +334,30 @@ mod tests {
     }
 
     #[test]
-    fn column_alignment_delta_uses_matrix_rotation_mirror_and_accumulated_splay() {
-        let matrix: Matrix = serde_json::from_value(serde_json::json!({
-            "id":"m", "rows":2, "columns":3, "pitch":{"x":19,"y":19},
-            "origin":{"x":0,"y":0}, "definitionId":"d", "partIds":[],
-            "mirror":"x", "rotation":90, "columnSplays":[0,10]
-        }))
-        .unwrap();
-        let actual = local_matrix_delta(&matrix, Vec2 { x: 2.0, y: 3.0 }, 1);
+    fn independent_moves_use_the_published_mirror_aware_key_frame() {
+        use boardstudio_core::layout_kernel::{self, ColumnLayout, LayoutInput, RawAnchorContext};
+        let input = LayoutInput {
+            rows: 2,
+            columns: 3,
+            rotation: 90.0,
+            mirror: Mirror::X,
+            column_layout: vec![
+                ColumnLayout::default(),
+                ColumnLayout {
+                    splay: 10.0,
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        let layout = layout_kernel::evaluate(&input, RawAnchorContext::World).unwrap();
+        let actual = layout
+            .cells
+            .iter()
+            .find(|cell| cell.row == 0 && cell.column == 1)
+            .unwrap()
+            .offset_frame
+            .inverse_vector(Vec2 { x: 2.0, y: 3.0 });
         assert!((actual.x - -3.3017196143704846).abs() < 1e-12);
         assert!((actual.y - -1.4486709730236247).abs() < 1e-12);
     }

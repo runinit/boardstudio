@@ -56,6 +56,7 @@ pub(crate) use part_placement::{LayoutPlacementCancellation, layout_view_mode_ha
 pub mod matrix_relations;
 pub mod matrix_transform_lifecycle;
 pub mod matrix_transform_operation;
+pub mod mirror_existing_half;
 pub mod mirrored_pair_geometry;
 pub mod mirrored_pair_lifecycle;
 pub mod outline;

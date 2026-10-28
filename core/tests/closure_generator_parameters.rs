@@ -293,7 +293,7 @@ fn a_boss_diameter_that_is_not_a_clean_decimal_renders_on_a_flipped_linked_pair(
 /// A project saved by the string writer: format version 3 with its closure holes as text.
 /// Browser storage and archive import migrate it, Core opens it, and it exports.
 #[test]
-fn a_version_3_closure_project_with_saved_strings_migrates_opens_and_exports() {
+fn a_version_3_closure_project_is_refused_and_current_numeric_parameters_export() {
     let mut document = document();
     document.mechanical.as_mut().unwrap().closure_mounts = None;
     apply(
@@ -324,20 +324,27 @@ fn a_version_3_closure_project_with_saved_strings_migrates_opens_and_exports() {
     }
     assert!(saved.to_string().contains("\"hole_drill\":\""));
 
-    let (text, changed) = migrate::migrate_json(&saved.to_string()).unwrap();
-    assert!(changed, "a version 3 project is written back at version 4");
-    let migrated: ProjectDoc = serde_json::from_str(&text).unwrap();
-    assert_eq!(migrated.format_version, migrate::CURRENT_VERSION);
-    assert_numeric_parameters(&migrated);
-
+    let original = saved.to_string();
+    let error = migrate::migrate_json(&original).unwrap_err();
+    assert!(
+        error.contains("format 3") && error.contains("No conversion"),
+        "{error}"
+    );
+    assert_eq!(saved.to_string(), original);
     let mut engine = CoreEngine::new();
     let reply = engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: migrated.clone(),
+        id: "old".into(),
+        document: serde_json::from_value(saved).unwrap(),
     });
-    assert!(
-        matches!(reply, CoreReply::Scene { .. }),
-        "the migrated closure project opens"
-    );
+    assert!(matches!(reply, CoreReply::Error { .. }));
+    // The current authored numeric document still opens and exports without conversion.
+    assert!(matches!(
+        engine.handle(CoreRequest::Open {
+            id: "current".into(),
+            document: document.clone()
+        }),
+        CoreReply::Scene { .. }
+    ));
+    let migrated = document;
     assert_renders_previews_and_exports(&migrated);
 }

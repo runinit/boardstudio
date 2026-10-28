@@ -88,8 +88,9 @@ fn dispatch(request: ArchiveRequest, buffers: &[Vec<u8>], limits: Limits) -> Arc
                     .ok_or("Archive has no project.json")?,
             )
             .map_err(|_| "Project JSON is not UTF-8")?;
-            let references = asset_references(&project_json)?;
+            // Inspect the version before any schema-dependent interpretation.
             let (project_json, _) = crate::migrate::migrate_json(&project_json)?;
+            let references = asset_references(&project_json)?;
             let indexed = files
                 .iter()
                 .map(|(name, bytes)| (name.as_str(), bytes.as_slice()))
@@ -157,6 +158,7 @@ fn safe_path(path: &str) -> bool {
             .all(|component| !matches!(component, "" | "." | ".."))
 }
 
+// The format check stays: PackProject calls this without a prior version gate.
 fn asset_references(json: &str) -> Result<Vec<(String, String)>, String> {
     let value: serde_json::Value =
         serde_json::from_str(json).map_err(|error| format!("Invalid project JSON: {error}"))?;
@@ -435,23 +437,61 @@ mod tests {
     }
 
     #[test]
-    fn unpacking_a_version_1_project_migrates_it() {
+    fn unpacking_an_unversioned_project_refuses_without_conversion() {
         let json = json!({
             "format": "boardstudio/v2", "parts": [], "boards": [], "assets": [],
             "definitions": [{ "id": "ergogen:ceoloide/switch_mx" }],
         })
         .to_string();
         let (_, packed) = pack_project(json, &[], LIMITS).unwrap();
-        let (reply, _) = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap();
-        let ArchiveReply::Unpacked { project_json, .. } = reply else {
-            panic!("expected project")
-        };
-        let project: serde_json::Value = serde_json::from_str(&project_json).unwrap();
-        assert_eq!(project["formatVersion"], CURRENT_VERSION);
-        assert_eq!(
-            project["definitions"][0]["id"],
-            "generator:ceoloide/switch_mx"
+        let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
+        assert!(
+            error.contains("legacy") && error.contains("No conversion"),
+            "{error}"
         );
+    }
+
+    #[test]
+    fn unpacking_refuses_every_version_before_reading_the_asset_table() {
+        // Each project has a malformed asset table; the version gate must win.
+        for (version, explanation) in [
+            (
+                Some(json!(CURRENT_VERSION - 1)),
+                "No conversion is available",
+            ),
+            (Some(json!(CURRENT_VERSION + 1)), "compatible newer build"),
+            (Some(json!(0)), "invalid formatVersion"),
+            (Some(json!("7")), "invalid formatVersion"),
+            (Some(json!(7.5)), "invalid formatVersion"),
+            (Some(json!(null)), "invalid formatVersion"),
+            (None, "no formatVersion"),
+        ] {
+            let mut document = json!({"format": "boardstudio/v2", "assets": "broken"});
+            if let Some(version) = version {
+                document["formatVersion"] = version;
+            }
+            let packed =
+                vec![pack(&[("project.json", document.to_string().as_bytes())], None).unwrap()];
+            let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
+            assert!(error.contains(explanation), "{document}: {error}");
+        }
+    }
+
+    #[test]
+    fn unpacking_an_unrecognized_format_is_unsupported_without_conversion() {
+        let json = json!({"format": "boardstudio/v1", "formatVersion": CURRENT_VERSION - 1,
+            "parts": [], "boards": [], "assets": []})
+        .to_string();
+        let packed = vec![pack(&[("project.json", json.as_bytes())], None).unwrap()];
+        let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
+        assert!(error.contains("Unsupported document format"), "{error}");
+    }
+
+    #[test]
+    fn unpacking_malformed_json_text_is_refused_as_invalid_project_json() {
+        let packed = vec![pack(&[("project.json", b"{not json")], None).unwrap()];
+        let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
+        assert!(error.contains("Invalid project JSON"), "{error}");
     }
 
     #[test]
@@ -462,7 +502,7 @@ mod tests {
         .to_string();
         let (_, packed) = pack_project(json, &[], LIMITS).unwrap();
         let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
-        assert!(error.contains("newer than this app supports"), "{error}");
+        assert!(error.contains("compatible newer build"), "{error}");
     }
 
     #[test]
@@ -496,7 +536,7 @@ mod tests {
     }
 
     #[test]
-    fn version_5_mirrored_halves_migrate_without_rewriting_their_payload() {
+    fn version_5_mirrored_halves_are_refused_without_rewriting_their_payload() {
         let json = json!({
             "format": "boardstudio/v2", "formatVersion": 5, "parts": [], "boards": [], "assets": [],
             "hardware": { "pairs": [{
@@ -514,15 +554,14 @@ mod tests {
         })
         .to_string();
         let (_, packed) = pack_project(json.clone(), &[], LIMITS).unwrap();
-        let (reply, _) = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap();
-        let ArchiveReply::Unpacked { project_json, .. } = reply else {
-            panic!("expected project")
-        };
-        let mut expected: serde_json::Value = serde_json::from_str(&json).unwrap();
-        expected["formatVersion"] = json!(CURRENT_VERSION);
+        let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
+        assert!(
+            error.contains("format 5") && error.contains("No conversion"),
+            "{error}"
+        );
         assert_eq!(
-            serde_json::from_str::<serde_json::Value>(&project_json).unwrap(),
-            expected
+            serde_json::from_str::<serde_json::Value>(&json).unwrap()["formatVersion"],
+            5
         );
     }
 

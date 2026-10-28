@@ -2,6 +2,9 @@
 status: accepted
 ---
 
+> Amended by [ADR-0036](0036-matrices-follow-ergogen-point-layout.md): saved projects are no
+> longer migrated, so "saved offsets keep their meaning" no longer applies.
+
 # Matrix gestures edit named placement parameters through Core
 
 The Inspector's **Stagger** set the relative column stagger. The toolbar's
@@ -52,3 +55,11 @@ parameter it changes, and that Core owns the rules:
 - **Core computes relationships in full** (a complete relations projection): the
   most Core ownership, but the panel's grouping and wording would sit in Core
   too.
+
+## Amendment: carried chains and anchors in Relations (2026-10-23)
+
+[The accepted layout-parity Relations decision](../plans/ergogen-layout-parity/issues/12-relations-and-highlight.md#answer)
+extends scene facts to carried contributions, cumulative values and matrix anchors.
+Core owns the geometry facts; the presentation owns their grouping, wording and editor
+navigation. Reference highlighting is not an edit preview. This preserves the existing
+seam rather than moving the formatted Relations tree into Core.

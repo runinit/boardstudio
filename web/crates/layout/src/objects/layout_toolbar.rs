@@ -5,6 +5,7 @@ use boardstudio_core::model::Vec2;
 pub use boardstudio_web_ui_model::state::{LayoutSnapSettings, TreeCellAnchor};
 use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardPopover, BoardToolbar};
 use dioxus::prelude::*;
+use dioxus_primitives::toolbar::ToolbarButton;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{Document, HtmlElement, Node, PointerEvent as WebPointerEvent};
@@ -217,6 +218,263 @@ mod tests {
                 .get_attribute("aria-label")
                 .as_deref(),
             Some("Select Row")
+        );
+        root.remove();
+    }
+
+    #[derive(Props, Clone, PartialEq)]
+    struct PillDuplicateProbeProps {
+        open: Option<LayoutCommandMenu>,
+        tools: bool,
+    }
+
+    #[component]
+    fn pill_duplicate_probe_host(props: PillDuplicateProbeProps) -> Element {
+        let mut open_menu = use_signal(|| None::<LayoutCommandMenu>);
+        let target = props.open;
+        let tools = props.tools;
+        let transform = super::super::layout_transform_toolbar::LayoutTransformMenuMount {
+            properties_available: tools,
+            column_available: true,
+            row_available: true,
+            // The real pill keeps the scope row visible and only swaps the tools;
+            // `tools` here models whether a selection backs them, not the row itself.
+            pointer_tools_visible: true,
+            pointer_tools_available: tools,
+            active_tool: None,
+            matrix_rotate_followed: None,
+            on_selection_kind: EventHandler::new(|_: LayoutSelectionKind| {}),
+            on_show_properties: EventHandler::new(|()| {}),
+            on_transform_tool: EventHandler::new(
+                |_: super::super::layout_transform_toolbar::LayoutTransformTool| {},
+            ),
+        };
+        let align = super::super::layout_align::LayoutAlignMount {
+            references: Vec::new(),
+            selected_reference: None,
+            action: None,
+            enabled: false,
+            disabled_reason: None,
+            busy: false,
+            feedback: None,
+            on_reference: EventHandler::new(|_: String| {}),
+            on_align: EventHandler::new(|_: super::super::layout_align::AlignAction| {}),
+        };
+        rsx! {
+            button {
+                id: "pill-probe-open",
+                onclick: move |_| open_menu.set(target),
+                "Open probe menu"
+            }
+            LayoutCommandPill {
+                command_label: "Layout".to_owned(),
+                menu_owner_key: "duplicate-probe".to_owned(),
+                open_menu,
+                selection_kind: LayoutSelectionKind::Column,
+                snap_settings: LayoutSnapSettings::default(),
+                transform,
+                align,
+                show_relationships: false,
+                on_selection_kind: EventHandler::new(|_: LayoutSelectionKind| {}),
+                on_snap_intent: EventHandler::new(|_: LayoutSnapIntent| {}),
+                has_selection_context: true,
+                on_show_relationships: EventHandler::new(|_: ()| {}),
+            }
+        }
+    }
+
+    fn tool_button_count(root: &web_sys::Element, label: &str) -> usize {
+        let buttons = root.query_selector_all("button").unwrap();
+        (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .filter(|node| node.text_content().is_some_and(|text| text.trim() == label))
+            .count()
+    }
+
+    async fn mount_pill(open: Option<LayoutCommandMenu>) -> web_sys::Element {
+        mount_pill_with_tools(open, true).await
+    }
+
+    async fn mount_pill_with_tools(
+        open: Option<LayoutCommandMenu>,
+        tools: bool,
+    ) -> web_sys::Element {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new_with_props(
+                pill_duplicate_probe_host,
+                PillDuplicateProbeProps { open, tools },
+            ),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        root
+    }
+
+    fn scope_trigger(root: &web_sys::Element, kind: &str) -> web_sys::HtmlElement {
+        root.query_selector(&format!("button[aria-label='Select {kind}']"))
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+    }
+
+    async fn click(element: &web_sys::HtmlElement) {
+        element.click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn column_tools_appear_once_when_transform_popover_opens() {
+        let root = mount_pill(Some(LayoutCommandMenu::Transform)).await;
+        root.query_selector("#pill-probe-open")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        for label in ["Stagger", "Spread", "Offset"] {
+            assert_eq!(
+                tool_button_count(&root, label),
+                1,
+                "{label} must appear exactly once: inline in the toolbar, not duplicated in the Transform popover"
+            );
+        }
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn scope_popover_keeps_hint_when_nothing_selected() {
+        let root = mount_pill_with_tools(Some(LayoutCommandMenu::Select), false).await;
+        click(
+            &root
+                .query_selector("#pill-probe-open")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap(),
+        )
+        .await;
+        let hint = root
+            .query_selector("#m1-layout-scope-panel-Column .m1-layout-scope-hint")
+            .unwrap()
+            .expect("the no-selection scope popover still opens with a hint");
+        assert!(
+            hint.text_content()
+                .unwrap_or_default()
+                .contains("Select a column on the canvas"),
+            "the no-selection hint points at the canvas"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn column_scope_trigger_never_opens_panel_when_tools_visible() {
+        let root = mount_pill(Some(LayoutCommandMenu::Select)).await;
+        click(&scope_trigger(&root, "Column")).await;
+        assert!(
+            root.query_selector("#m1-layout-scope-panel-Column")
+                .unwrap()
+                .is_none(),
+            "Column actions panel must not render when the pill already carries the tools"
+        );
+        for label in ["Stagger", "Spread", "Offset"] {
+            assert_eq!(
+                tool_button_count(&root, label),
+                1,
+                "{label} must appear exactly once: inline in the toolbar, never in a scope panel"
+            );
+        }
+        root.remove();
+    }
+
+    #[component]
+    fn scope_reselect_probe_host() -> Element {
+        let mut kind = use_signal(|| LayoutSelectionKind::Key);
+        let mut has_selection = use_signal(|| false);
+        let open_menu = use_signal(|| None::<LayoutCommandMenu>);
+        let transform = has_selection().then(|| {
+            super::super::layout_transform_toolbar::LayoutTransformMenuMount {
+                properties_available: true,
+                column_available: true,
+                row_available: true,
+                pointer_tools_visible: true,
+                pointer_tools_available: true,
+                active_tool: None,
+                matrix_rotate_followed: None,
+                on_selection_kind: EventHandler::new(|_: LayoutSelectionKind| {}),
+                on_show_properties: EventHandler::new(|()| {}),
+                on_transform_tool: EventHandler::new(
+                    |_: super::super::layout_transform_toolbar::LayoutTransformTool| {},
+                ),
+            }
+        });
+        rsx! {
+            button {
+                id: "scope-probe-select-column",
+                onclick: move |_| {
+                    has_selection.set(true);
+                    kind.set(LayoutSelectionKind::Column);
+                },
+                "Simulate column selection"
+            }
+            LayoutSelectionToolbar {
+                open_menu,
+                selection_kind: kind(),
+                on_selection_kind: move |next| kind.set(next),
+                transform,
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn scope_panel_closes_when_column_selection_arrives() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(scope_reselect_probe_host),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        click(&scope_trigger(&root, "Column")).await;
+        assert!(
+            root.query_selector("#m1-layout-scope-panel-Column")
+                .unwrap()
+                .is_some(),
+            "the no-selection scope trigger still opens its hint panel"
+        );
+        click(
+            &root
+                .query_selector("#scope-probe-select-column")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap(),
+        )
+        .await;
+        assert!(
+            root.query_selector("#m1-layout-scope-panel-Column")
+                .unwrap()
+                .is_none(),
+            "selecting a column on the canvas must close the scope panel, not leave it over the pill"
+        );
+        click(&scope_trigger(&root, "Column")).await;
+        assert!(
+            root.query_selector("#m1-layout-scope-panel-Column")
+                .unwrap()
+                .is_none(),
+            "re-selecting the Column scope while tools are visible selects without reopening a panel"
+        );
+        assert_eq!(
+            scope_trigger(&root, "Column")
+                .get_attribute("aria-pressed")
+                .as_deref(),
+            Some("true"),
+            "the Column scope stays selected"
         );
         root.remove();
     }
@@ -701,7 +959,6 @@ pub fn LayoutCommandPill(
             super::layout_transform_toolbar::LayoutTransformToolbar {
                 open_menu,
                 mount: transform.clone(),
-                selection_kind: pointer_tools_visible.then_some(selection_kind),
             }
             super::layout_align::LayoutAlignToolbar {
                 mount: align,
@@ -752,9 +1009,33 @@ fn LayoutSelectionToolbar(
     let has_actions = transform
         .as_ref()
         .is_some_and(|mount| mount.properties_available || mount.pointer_tools_available);
+    // While a selection backs the inline tools, scope triggers only switch kind:
+    // opening a panel here would cover the pill the panel points at. A canvas
+    // selection arriving under an open hint panel lands here as well.
+    use_effect(use_reactive((&has_actions,), move |(has_actions,)| {
+        if has_actions {
+            open_menu.set(None);
+        }
+    }));
     rsx! {
         BoardToolbar { class: "layout-selection-actions", label: "Selection scope",
             for (index, kind) in LayoutSelectionKind::ALL.into_iter().enumerate() {
+                if has_actions {
+                    ToolbarButton {
+                        index,
+                        id: format!("m1-layout-scope-{}", kind.label()),
+                        class: "board-popover-trigger layout-selection-action",
+                        title: format!("Select {}", kind.label()),
+                        aria_label: format!("Select {}", kind.label()),
+                        aria_pressed: kind == selection_kind,
+                        on_click: move |_| {
+                            on_selection_kind.call(kind);
+                            open_menu.set(None);
+                        },
+                        LayoutSelectionIcon { kind }
+                        span { class: "layout-action-label", "{kind.label()}" }
+                    }
+                } else {
                 BoardPopover {
                     open: open_menu() == Some(LayoutCommandMenu::Select) && kind == selection_kind,
                     on_open_change: move |next| {
@@ -785,24 +1066,17 @@ fn LayoutSelectionToolbar(
                         close_label: format!("Close {} actions", kind.label()),
                         open_menu, menu: LayoutCommandMenu::Select,
                     }
-                    if has_actions {
-                        if let Some(mount) = transform.clone() {
-                            super::layout_transform_toolbar::LayoutContextActionToolbar {
-                                mount, open_menu, selection_kind: kind,
-                            }
-                        }
-                    } else {
-                        p { class: "m1-layout-scope-hint", "Select a {kind.label().to_lowercase()} on the canvas to edit it." }
-                        if let Some(mount) = transform.clone() {
-                            BoardButton {
-                                onclick: move |_| {
-                                    mount.on_show_properties.call(());
-                                    close_layout_command_menu(open_menu, LayoutCommandMenu::Select);
-                                },
-                                "Open Inspector"
-                            }
+                    p { class: "m1-layout-scope-hint", "Select a {kind.label().to_lowercase()} on the canvas to edit it." }
+                    if let Some(mount) = transform.clone() {
+                        BoardButton {
+                            onclick: move |_| {
+                                mount.on_show_properties.call(());
+                                close_layout_command_menu(open_menu, LayoutCommandMenu::Select);
+                            },
+                            "Open Inspector"
                         }
                     }
+                }
                 }
             }
         }
@@ -836,11 +1110,15 @@ fn LayoutSelectionIcon(kind: LayoutSelectionKind) -> Element {
 }
 
 /// Always-visible snapping preferences; the existing intent owner remains authoritative.
+/// The Canvas handles checkbox below them flips workspace view state only: hiding
+/// handles never submits an edit and never touches document or history.
 #[component]
 pub fn LayoutSnapDock(
     settings: LayoutSnapSettings,
     open_menu: Signal<Option<LayoutCommandMenu>>,
     on_snap_intent: EventHandler<LayoutSnapIntent>,
+    #[props(default = true)] handles_visible: bool,
+    on_toggle_handles: EventHandler<bool>,
 ) -> Element {
     rsx! {
         boardstudio_web_ui_shared::controls::BoardAccordionSection {
@@ -850,6 +1128,15 @@ pub fn LayoutSnapDock(
                 span { "Snap" } small { "{snap_label(settings.snap_fraction)}" }
             },
             LayoutSnapOptions { settings, on_snap_intent }
+            label { class: "m1-layout-snap-check",
+                BoardCheckbox {
+                    checked: handles_visible,
+                    onchange: move |event: FormEvent| {
+                        on_toggle_handles.call(event.checked());
+                    },
+                }
+                "Canvas handles"
+            }
         }
     }
 }

@@ -132,14 +132,14 @@ fn wired_document() -> ProjectDoc {
         edge_gap: None,
 
         diode_direction: Some(DiodeDirection::Row2col),
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: (0..2)
             .flat_map(|r| {
                 (0..2).map(move |c| MatrixCell {
+                    shift: None,
+                    bend: None,
                     deleted: false,
                     row: r,
                     column: c,

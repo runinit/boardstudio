@@ -768,7 +768,26 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         return;
                     }
                 };
-                let at = grid_snap_point(canvas_center, snap_settings.read().snap_fraction);
+                // Ticket 22: the initial placement grid follows the selected matrix
+                // pitch (19.05 mm only when the selection names no matrix).
+                let pitch = (adapter_for_async.selected_context)()
+                    .and_then(|selected| match &selected.context {
+                        TreeContext::Matrix { matrix_id }
+                        | TreeContext::Row { matrix_id, .. }
+                        | TreeContext::Column { matrix_id, .. }
+                        | TreeContext::Key { matrix_id, .. } => Some(matrix_id.clone()),
+                        TreeContext::Component { matrix_id, .. } => matrix_id.clone(),
+                        _ => None,
+                    })
+                    .and_then(|matrix_id| {
+                        snapshot
+                            .document
+                            .matrices
+                            .iter()
+                            .find(|matrix| matrix.id == matrix_id)
+                    })
+                    .map(|matrix| matrix.pitch);
+                let at = grid_snap_point(canvas_center, snap_settings.read().snap_fraction, pitch);
                 let layout_id =
                     layout_target().filter(|layout_id| {
                         snapshot.document.layouts.iter().any(|layout| {
@@ -1535,23 +1554,40 @@ fn document_with_pending_definition(
     snap_document
 }
 
-fn grid_snap_point(at: Vec2, snap_fraction: f64) -> Vec2 {
+/// Snap-unit pitch: the selected matrix pitch, or 19.05 mm when none is selected
+/// (ticket 08 decision 1).
+fn snap_pitch(pitch: Option<Vec2>) -> Vec2 {
+    pitch.unwrap_or(Vec2 { x: 19.05, y: 19.05 })
+}
+
+fn grid_snap_point(at: Vec2, snap_fraction: f64, pitch: Option<Vec2>) -> Vec2 {
     if snap_fraction == 0.0 {
         return at;
     }
+    let pitch = snap_pitch(pitch);
     let step = if snap_fraction.is_finite() {
         if snap_fraction < 0.0 {
             -snap_fraction
         } else {
-            19.05 * snap_fraction
+            pitch.x.max(0.001) * snap_fraction
         }
     } else {
-        19.05 * 0.25
+        pitch.x.max(0.001) * 0.25
+    }
+    .max(0.001);
+    let step_y = if snap_fraction.is_finite() {
+        if snap_fraction < 0.0 {
+            -snap_fraction
+        } else {
+            pitch.y.max(0.001) * snap_fraction
+        }
+    } else {
+        pitch.y.max(0.001) * 0.25
     }
     .max(0.001);
     Vec2 {
         x: (at.x / step).round() * step,
-        y: (at.y / step).round() * step,
+        y: (at.y / step_y).round() * step_y,
     }
 }
 
@@ -1560,6 +1596,9 @@ pub struct PlacementSnapOptions {
     pub geometry_snap: bool,
     pub gap: Option<f64>,
     pub free: bool,
+    /// Selected matrix pitch; `None` keeps the 19.05 mm default when nothing is
+    /// selected (ticket 08 decision 1: snap units are pitch x snap fraction).
+    pub pitch: Option<Vec2>,
 }
 
 pub fn placement_gap(settings: &LayoutSnapSettings) -> Option<f64> {
@@ -1576,7 +1615,9 @@ pub fn snap_placement_at(
     if options.free {
         return at;
     }
-    let grid = grid_snap_point(at, options.snap_fraction);
+    // Ticket 08 decision 1: snap units are the selected pitch x the snap fraction;
+    // 19.05 mm applies only when no matrix is selected.
+    let grid = grid_snap_point(at, options.snap_fraction, options.pitch);
     if !options.geometry_snap {
         return grid;
     }
@@ -1802,6 +1843,8 @@ pub fn selected_key_component_operation(
     let can_drive_matrix = matches!(definition.kind, PartKind::Switch)
         || super::parts::matrix_input_available(definition);
     let mut cell = current.clone().unwrap_or(MatrixCell {
+        shift: None,
+        bend: None,
         deleted: false,
         row: *row,
         column: *column,
@@ -1853,10 +1896,9 @@ pub fn selected_key_component_operation(
             || previous.variant != cell.variant
             || previous.assemblies != cell.assemblies
     });
-    let is_mirror_target = accepted
-        .layouts
-        .iter()
-        .any(|layout| layout.matrix_id == *matrix_id && layout.mirror_link.is_some());
+    let is_mirror_target = accepted.layouts.iter().any(|layout| {
+        layout.matrix_ids.iter().any(|id| id == matrix_id) && layout.mirror_link.is_some()
+    });
     if assemblies_changed && is_mirror_target {
         cell.assemblies_local = Some(true);
     }
@@ -2637,6 +2679,8 @@ mod tests {
             .push(passive_definition("imported:existing"));
         let mut matrix = matrix_fixture();
         matrix.cells.push(MatrixCell {
+            shift: None,
+            bend: None,
             deleted: false,
             row: 1,
             column: 2,
@@ -3460,7 +3504,7 @@ mod tests {
                 id: "layout-main".into(),
                 name: "Main".into(),
                 board_id: "board-main".into(),
-                matrix_id: "matrix-main".into(),
+                matrix_ids: vec!["matrix-main".into()],
                 part_ids: vec![],
                 mirror_link: None,
             },
@@ -3468,7 +3512,7 @@ mod tests {
                 id: "layout-other".into(),
                 name: "Other".into(),
                 board_id: "board-main".into(),
-                matrix_id: "matrix-other".into(),
+                matrix_ids: vec!["matrix-other".into()],
                 part_ids: vec![],
                 mirror_link: None,
             },
@@ -3511,7 +3555,7 @@ mod tests {
                 id: "layout-main".into(),
                 name: "Main".into(),
                 board_id: "board-main".into(),
-                matrix_id: "matrix-main".into(),
+                matrix_ids: vec!["matrix-main".into()],
                 part_ids: vec![],
                 mirror_link: None,
             },
@@ -3519,7 +3563,7 @@ mod tests {
                 id: "layout-mirror".into(),
                 name: "Mirror".into(),
                 board_id: "board-mirror".into(),
-                matrix_id: "matrix-mirror".into(),
+                matrix_ids: vec!["matrix-mirror".into()],
                 part_ids: vec![],
                 mirror_link: None,
             },
@@ -3640,12 +3684,12 @@ mod tests {
             rotation: None,
             edge_gap: None,
             diode_direction: None,
-            row_offsets: vec![],
-            column_offsets: vec![],
-            column_staggers: vec![],
-            column_splays: vec![],
-            column_origins: vec![],
+            row_layout: vec![],
+            column_layout: vec![],
+            anchor: None,
             cells: vec![MatrixCell {
+                shift: None,
+                bend: None,
                 deleted: false,
                 row: 1,
                 column: 2,
@@ -3724,6 +3768,8 @@ mod tests {
         let mut source = matrix_fixture();
         source.id = "matrix-source".into();
         source.cells.push(MatrixCell {
+            shift: None,
+            bend: None,
             deleted: false,
             row: 0,
             column: 0,
@@ -3743,7 +3789,7 @@ mod tests {
                 id: "layout-source".into(),
                 name: "Left".into(),
                 board_id: "board-main".into(),
-                matrix_id: "matrix-source".into(),
+                matrix_ids: vec!["matrix-source".into()],
                 part_ids: Vec::new(),
                 mirror_link: None,
             },
@@ -3751,9 +3797,17 @@ mod tests {
                 id: "layout-target".into(),
                 name: "Right".into(),
                 board_id: "board-main".into(),
-                matrix_id: "matrix-target".into(),
+                matrix_ids: vec!["matrix-target".into()],
                 part_ids: Vec::new(),
                 mirror_link: Some(boardstudio_core::model::LayoutMirrorLink {
+                    correspondences: vec![boardstudio_core::model::MirroredCorrespondence {
+                        companion_mode: None,
+                        companion_tweak: None,
+                        kind: boardstudio_core::model::MirroredItemKind::Matrix,
+                        source_id: "matrix-source".into(),
+                        mirror_id: "matrix-target".into(),
+                    }],
+                    exceptions: vec![],
                     source_id: "layout-source".into(),
                     axis_x: 0.0,
                 }),
@@ -3769,7 +3823,7 @@ mod tests {
             ..
         } = opened
         else {
-            panic!("the linked source fixture opens in Core");
+            panic!("the linked source fixture opens in Core: {opened:?}");
         };
         let accepted = *opened_document;
         let target_before = accepted
@@ -3959,14 +4013,14 @@ mod tests {
         let point = Vec2 { x: 4.6, y: -4.6 };
 
         assert_eq!(
-            grid_snap_point(point, 0.25),
+            grid_snap_point(point, 0.25, None),
             Vec2 {
                 x: 4.7625,
                 y: -4.7625
             }
         );
-        assert_eq!(grid_snap_point(point, -0.5), Vec2 { x: 4.5, y: -4.5 });
-        assert_eq!(grid_snap_point(point, 0.0), point);
+        assert_eq!(grid_snap_point(point, -0.5, None), Vec2 { x: 4.5, y: -4.5 });
+        assert_eq!(grid_snap_point(point, 0.0, None), point);
         assert_eq!(
             snap_placement_at(
                 &fixture(),
@@ -3978,6 +4032,7 @@ mod tests {
                     geometry_snap: false,
                     gap: None,
                     free: false,
+                    pitch: None,
                 }
             ),
             Vec2 {
@@ -3996,6 +4051,7 @@ mod tests {
                     geometry_snap: true,
                     gap: None,
                     free: true,
+                    pitch: None,
                 }
             ),
             point
@@ -4048,6 +4104,7 @@ mod tests {
                 geometry_snap: true,
                 gap: None,
                 free: false,
+                pitch: None,
             },
         );
         assert_eq!(at.x, 11.0);
@@ -4099,5 +4156,51 @@ mod tests {
         assert!(!owner.is_current(&initial, Some(&scope), 4, false, Some("project"), true));
         assert!(!owner.is_current(&initial, Some(&scope), 4, true, Some("other"), true));
         assert!(!owner.is_current(&initial, Some(&scope), 4, true, Some("project"), false));
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn component_placement_snap_uses_the_selected_matrix_pitch() {
+        // Ticket 22: the selected matrix uses a 20 mm pitch, so a quarter snap
+        // steps 5 mm (ticket 08 decision 1: pitch x snap fraction, 19.05 mm only
+        // when none is selected).
+        let mut document = fixture();
+        document.matrices.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "matrix",
+                "rows": 1,
+                "columns": 2,
+                "pitch": {"x": 20.0, "y": 20.0},
+                "origin": {"x": 0.0, "y": 0.0},
+                "definitionId": "catalog:controller",
+                "partIds": [],
+                "boardId": "board-main",
+                "cells": []
+            }))
+            .unwrap(),
+        );
+        let definition = controller_definition("catalog:controller");
+        let pending = controller_part(
+            definition,
+            "part-controller".into(),
+            "U1".into(),
+            Vec2::default(),
+        )
+        .expect("controller placement");
+        assert_eq!(
+            snap_placement_at(
+                &document,
+                "board-main",
+                &pending,
+                Vec2 { x: 4.6, y: -4.6 },
+                PlacementSnapOptions {
+                    snap_fraction: 0.25,
+                    geometry_snap: false,
+                    gap: None,
+                    free: false,
+                    pitch: Some(Vec2 { x: 20.0, y: 20.0 }),
+                },
+            ),
+            Vec2 { x: 5.0, y: -5.0 }
+        );
     }
 }

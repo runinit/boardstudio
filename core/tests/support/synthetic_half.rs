@@ -89,7 +89,7 @@ pub(crate) fn document() -> Value {
         "pitch":{"x":19,"y":21},"origin":{"x":0,"y":0},"definitionId":switch,"boardId":"left",
         "partIds":["matrix/left-synthetic-keys/r0c0","matrix/left-synthetic-keys/r0c1","matrix/left-synthetic-keys/r1c0","matrix/left-synthetic-keys/r1c1"],"cells":cells}]);
     document["layouts"] = json!([{"id":"left-synthetic-keys-layout","name":"Synthetic keys","boardId":"left",
-        "matrixId":"left-synthetic-keys","partIds":[]}]);
+        "matrixIds": ["left-synthetic-keys"],"partIds":[]}]);
     let net_ids: Vec<Value> = nets.iter().map(|net| net["id"].clone()).collect();
     document["nets"] = Value::Array(nets);
     document["boards"] = json!([{"id":"left","name":"Synthetic left","partIds":part_ids,

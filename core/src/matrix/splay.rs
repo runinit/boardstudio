@@ -1,5 +1,5 @@
-use super::{location, valid_projection_matrix};
-use crate::model::{Matrix, MatrixSplayAffect, MatrixSplayChange, Vec2};
+use super::{evaluated, valid_projection_matrix};
+use crate::model::{Matrix, MatrixSplayAffect, MatrixSplayChange, ProjectDoc, Vec2};
 
 pub(crate) fn rotate(point: Vec2, degrees: f64, pivot: Vec2) -> Vec2 {
     let angle = degrees.to_radians();
@@ -12,165 +12,161 @@ pub(crate) fn rotate(point: Vec2, degrees: f64, pivot: Vec2) -> Vec2 {
     }
 }
 
-fn local_origin(matrix: &Matrix, column: u32) -> Vec2 {
-    matrix
-        .column_origins
+fn with_origin(
+    matrix: &Matrix,
+    column: u32,
+    point: Vec2,
+    hold: bool,
+    doc: &ProjectDoc,
+) -> Result<Matrix, String> {
+    let values = matrix
+        .column_layout
         .get(column as usize)
         .copied()
-        .flatten()
-        .unwrap_or(Vec2 {
-            x: column as f64 * matrix.pitch.x,
-            y: matrix
-                .column_staggers
-                .iter()
-                .take(column as usize + 1)
-                .sum(),
-        })
-}
-
-pub(super) fn origin_world(matrix: &Matrix, column: u32) -> Vec2 {
-    let mut point = local_origin(matrix, column);
-    for index in (0..column as usize).rev() {
-        point = rotate(
-            point,
-            matrix.column_splays.get(index).copied().unwrap_or(0.0),
-            local_origin(matrix, index as u32),
-        );
+        .unwrap_or_default();
+    if values.splay_origin == point {
+        return Ok(matrix.clone());
     }
-    if matches!(matrix.mirror, Some(crate::model::Mirror::X)) {
-        point.x = -point.x;
-    }
-    if matches!(matrix.mirror, Some(crate::model::Mirror::Y)) {
-        point.y = -point.y;
-    }
-    point = rotate(
-        point,
-        matrix.rotation.unwrap_or(0.0),
-        Vec2 { x: 0.0, y: 0.0 },
+    let mut after = matrix.clone();
+    after.column_layout.resize_with(
+        (column as usize + if hold && values.rotation != 0.0 { 2 } else { 1 })
+            .min(matrix.columns as usize)
+            .max(after.column_layout.len()),
+        Default::default,
     );
-    Vec2 {
-        x: point.x + matrix.origin.x,
-        y: point.y + matrix.origin.y,
+    let index = column as usize;
+    let delta = Vec2 {
+        x: point.x - values.splay_origin.x,
+        y: point.y - values.splay_origin.y,
+    };
+    after.column_layout[index].splay_origin = point;
+    if !hold {
+        return Ok(after);
     }
-}
-
-fn inverse_vector(matrix: &Matrix, column: u32, world: Vec2) -> Vec2 {
-    let mut point = rotate(
-        world,
-        -matrix.rotation.unwrap_or(0.0),
-        Vec2 { x: 0.0, y: 0.0 },
-    );
-    if matches!(matrix.mirror, Some(crate::model::Mirror::X)) {
-        point.x = -point.x;
+    let rotated = rotate(delta, values.splay + values.rotation, Vec2::default());
+    let correction = Vec2 {
+        x: rotated.x - delta.x,
+        y: rotated.y - delta.y,
+    };
+    if column > 0 {
+        after.column_layout[index].spread =
+            Some(values.spread.unwrap_or(matrix.pitch.x) + correction.x);
+        after.column_layout[index].stagger += correction.y;
+    } else {
+        let frame = evaluated(matrix, doc)?.frame;
+        let reflect = |v: Vec2| match matrix.mirror {
+            Some(crate::model::Mirror::X) => Vec2 { x: -v.x, y: v.y },
+            Some(crate::model::Mirror::Y) => Vec2 { x: v.x, y: -v.y },
+            _ => v,
+        };
+        let world = rotate(reflect(correction), frame.rotation, Vec2::default());
+        let change = super::evaluation::origin_delta(&after, doc, world)?;
+        after.origin.x += change.x;
+        after.origin.y += change.y;
     }
-    if matches!(matrix.mirror, Some(crate::model::Mirror::Y)) {
-        point.y = -point.y;
+    if column + 1 < matrix.columns && values.rotation != 0.0 {
+        let rotated = rotate(delta, values.rotation, Vec2::default());
+        let next = &mut after.column_layout[index + 1];
+        next.spread = Some(next.spread.unwrap_or(matrix.pitch.x) + delta.x - rotated.x);
+        next.stagger += delta.y - rotated.y;
     }
-    rotate(
-        point,
-        -matrix
-            .column_splays
-            .iter()
-            .take(column as usize + 1)
-            .sum::<f64>(),
-        Vec2 { x: 0.0, y: 0.0 },
-    )
-}
-
-fn preserve_columns(
-    before: &Matrix,
-    mut after: Matrix,
-    columns: impl Iterator<Item = u32>,
-) -> Matrix {
-    after
-        .column_offsets
-        .resize(after.columns as usize, Vec2 { x: 0.0, y: 0.0 });
-    for column in columns {
-        let previous = location(before, 0, column, None);
-        let next = location(&after, 0, column, None);
-        let delta = inverse_vector(
-            &after,
-            column,
-            Vec2 {
-                x: previous.x - next.x,
-                y: previous.y - next.y,
-            },
-        );
-        after.column_offsets[column as usize].x += delta.x;
-        after.column_offsets[column as usize].y += delta.y;
-    }
-    after
+    Ok(after)
 }
 
 pub(crate) fn update(
     matrix: &Matrix,
     column: u32,
     change: &MatrixSplayChange,
+    doc: &ProjectDoc,
 ) -> Result<Matrix, String> {
     valid_projection_matrix(matrix)?;
     if column >= matrix.columns {
         return Err("Matrix splay column is out of bounds".into());
     }
     let mut after = matrix.clone();
+    after.column_layout.resize_with(
+        (column as usize + 1).max(after.column_layout.len()),
+        Default::default,
+    );
     match change {
-        MatrixSplayChange::Origin { world } => {
-            let point = world.map(|world| {
-                let mut point = Vec2 {
-                    x: world.x - matrix.origin.x,
-                    y: world.y - matrix.origin.y,
-                };
-                point = rotate(
-                    point,
-                    -matrix.rotation.unwrap_or(0.0),
-                    Vec2 { x: 0.0, y: 0.0 },
-                );
-                if matches!(matrix.mirror, Some(crate::model::Mirror::X)) {
-                    point.x = -point.x;
-                }
-                if matches!(matrix.mirror, Some(crate::model::Mirror::Y)) {
-                    point.y = -point.y;
-                }
-                for index in 0..column as usize {
-                    point = rotate(
-                        point,
-                        -matrix.column_splays.get(index).copied().unwrap_or(0.0),
-                        local_origin(matrix, index as u32),
-                    );
-                }
-                point
-            });
-            if world.is_some_and(|v| !v.x.is_finite() || !v.y.is_finite()) {
+        MatrixSplayChange::OriginRelative { value } => {
+            if !value.x.is_finite() || !value.y.is_finite() {
                 return Err("Matrix splay origin is non-finite".into());
             }
-            after.column_origins.resize(after.columns as usize, None);
-            after.column_origins[column as usize] = point;
-            let result = preserve_columns(matrix, after, column..matrix.columns);
-            valid_projection_matrix(&result)?;
-            Ok(result)
+            after = with_origin(matrix, column, *value, true, doc)?;
         }
         MatrixSplayChange::Angle { angle, affect } => {
             if !angle.is_finite() {
                 return Err("Matrix splay angle is non-finite".into());
             }
-            after.column_splays.resize(after.columns as usize, 0.0);
-            let delta = *angle - after.column_splays[column as usize];
-            after.column_splays[column as usize] = *angle;
-            if matches!(affect, MatrixSplayAffect::Following) || column + 1 == matrix.columns {
-                valid_projection_matrix(&after)?;
-                return Ok(after);
+            let values = &mut after.column_layout[column as usize];
+            let current = match affect {
+                MatrixSplayAffect::Following => values.splay,
+                MatrixSplayAffect::Column => values.rotation,
+            };
+            if current == *angle {
+                return Ok(matrix.clone());
             }
-            after.column_splays[column as usize + 1] -= delta;
-            let result = preserve_columns(matrix, after, (column + 1)..matrix.columns);
-            valid_projection_matrix(&result)?;
-            Ok(result)
+            match affect {
+                MatrixSplayAffect::Following => values.splay = *angle,
+                MatrixSplayAffect::Column => values.rotation = *angle,
+            }
+        }
+        MatrixSplayChange::Origin { world } | MatrixSplayChange::OriginSwing { world } => {
+            let hold = matches!(change, MatrixSplayChange::Origin { .. });
+            let point = if let Some(target) = world {
+                if !target.x.is_finite() || !target.y.is_finite() {
+                    return Err("Matrix splay origin is non-finite".into());
+                }
+                let layout = evaluated(matrix, doc)?;
+                let current = &layout.columns[column as usize];
+                let delta = Vec2 {
+                    x: target.x - current.splay_origin.x,
+                    y: target.y - current.splay_origin.y,
+                };
+                if delta == Vec2::default() {
+                    return Ok(matrix.clone());
+                }
+                // Hold compensation turns the final origin displacement by this column's full turn.
+                let frame = if hold {
+                    current.frame
+                } else {
+                    super::kernel::ComposedFrame {
+                        axis_x: current.incoming_axis_x,
+                        axis_y: current.stagger_axis,
+                        ..Default::default()
+                    }
+                };
+                // The hold inverse order is pinned by core/tests/fixtures/boundary/transcript.json.
+                let local = frame.inverse_vector(delta);
+                Vec2 {
+                    x: current.relative_origin.x + local.x,
+                    y: current.relative_origin.y + local.y,
+                }
+            } else {
+                Vec2::default()
+            };
+            after = with_origin(matrix, column, point, hold, doc)?;
         }
     }
+    evaluated(&after, doc)?;
+    Ok(after)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::model::Mirror;
+
+    fn update(matrix: &Matrix, column: u32, change: &MatrixSplayChange) -> Result<Matrix, String> {
+        super::update(matrix, column, change, &ProjectDoc::empty("test", "Test"))
+    }
+    fn origin_world(matrix: &Matrix, column: u32) -> Vec2 {
+        evaluated(matrix, &ProjectDoc::empty("test", "Test"))
+            .unwrap()
+            .columns[column as usize]
+            .splay_origin
+    }
 
     fn matrix() -> Matrix {
         Matrix {
@@ -188,17 +184,36 @@ mod tests {
             edge_gap: None,
 
             diode_direction: None,
-            row_offsets: vec![],
-            column_offsets: vec![],
-            column_staggers: vec![0.0, 3.0, -2.0],
-            column_splays: vec![9.0, 17.0, -4.0],
-            column_origins: vec![],
+            row_layout: vec![],
+            column_layout: vec![
+                crate::model::ColumnLayout {
+                    splay: 9.0,
+                    ..Default::default()
+                },
+                crate::model::ColumnLayout {
+                    stagger: 3.0,
+                    splay: 17.0,
+                    ..Default::default()
+                },
+                crate::model::ColumnLayout {
+                    stagger: -2.0,
+                    splay: -4.0,
+                    ..Default::default()
+                },
+            ],
+            anchor: None,
             cells: vec![],
         }
     }
 
     fn key(matrix: &Matrix, row: u32, column: u32) -> Vec2 {
-        location(matrix, row, column, None)
+        super::super::evaluation::cell_pose(
+            &evaluated(matrix, &ProjectDoc::empty("test", "Test")).unwrap(),
+            row,
+            column,
+        )
+        .unwrap()
+        .at
     }
 
     #[test]
@@ -232,8 +247,32 @@ mod tests {
         before.mirror = None;
         before.rotation = Some(21.0);
         before.columns = 4;
-        before.column_staggers = vec![0.0; 4];
-        before.column_splays = vec![12.0, 8.0, 0.0, 0.0];
+        {
+            let values = vec![0.0; 4];
+            before.column_layout.resize_with(
+                values.len().max(before.column_layout.len()),
+                Default::default,
+            );
+            for record in &mut before.column_layout {
+                record.stagger = 0.0;
+            }
+            for (record, value) in before.column_layout.iter_mut().zip(values) {
+                record.stagger = value;
+            }
+        }
+        {
+            let values = vec![12.0, 8.0, 0.0, 0.0];
+            before.column_layout.resize_with(
+                values.len().max(before.column_layout.len()),
+                Default::default,
+            );
+            for record in &mut before.column_layout {
+                record.splay = 0.0;
+            }
+            for (record, value) in before.column_layout.iter_mut().zip(values) {
+                record.splay = value;
+            }
+        }
         let after = update(
             &before,
             1,
@@ -261,8 +300,14 @@ mod tests {
         before.mirror = None;
         before.rotation = Some(0.0);
         before.origin = Vec2 { x: 0.0, y: 0.0 };
-        before.column_staggers.clear();
-        before.column_splays.clear();
+        before
+            .column_layout
+            .iter_mut()
+            .for_each(|record| record.stagger = 0.0);
+        before
+            .column_layout
+            .iter_mut()
+            .for_each(|record| record.splay = 0.0);
         let custom = update(
             &before,
             1,
@@ -298,7 +343,7 @@ mod tests {
         )
         .unwrap();
         let reset = update(&changed, 1, &MatrixSplayChange::Origin { world: None }).unwrap();
-        assert!(reset.column_origins[1].is_none());
+        assert_eq!(reset.column_layout[1].splay_origin, Vec2::default());
         assert!(
             update(
                 &before,

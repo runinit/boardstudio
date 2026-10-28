@@ -102,11 +102,9 @@ fn fixture() -> ProjectDoc {
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: vec![],
     });
     document.outline.push(OutlineFeature::PartEnvelope {
@@ -132,7 +130,13 @@ fn observed(accepted: &AcceptedSnapshot) -> Observed {
         stagger: document
             .matrices
             .first()
-            .and_then(|matrix| matrix.column_staggers.first().copied())
+            .and_then(|matrix| {
+                matrix
+                    .column_layout
+                    .first()
+                    .map(|record| &record.stagger)
+                    .copied()
+            })
             .unwrap_or(0.0),
         mechanical: document
             .mechanical
@@ -161,7 +165,7 @@ fn operation(action: Action, accepted: &AcceptedSnapshot) -> EditOperation {
                 .document
                 .matrices
                 .first()
-                .and_then(|matrix| matrix.column_staggers.first().copied())
+                .and_then(|matrix| matrix.column_layout.first().map(|record| &record.stagger).copied())
                 .unwrap_or(0.0);
             EditOperation::SetMatrixPlacement {
                 matrix_id: "main".into(),

@@ -87,14 +87,22 @@ fn stored_document() -> (String, Vec<ArchiveAssetBuffer>, Vec<Vec<u8>>) {
         &mut engine,
         opened.revision,
         &serde_json::json!({
-            "kind": "copy-outline", "boardId": "main", "versionId": "refined", "name": "Linked refinement"
+            "kind": "apply-outline-edit", "edit": {
+                "target": {"kind": "board", "boardId": "main"},
+                "change": {"copy": {"version_id": "refined", "name": "Linked refinement"}},
+                "seed": 31, "reviewed": null
+            }
         }),
     );
     edit(
         &mut engine,
         linked.revision,
         &serde_json::json!({
-            "kind": "copy-outline", "boardId": "main", "versionId": "edited", "name": "Edited outline"
+            "kind": "apply-outline-edit", "edit": {
+                "target": {"kind": "board", "boardId": "main"},
+                "change": {"copy": {"version_id": "edited", "name": "Edited outline"}},
+                "seed": 32, "reviewed": null
+            }
         }),
     );
     let mut stored = serde_json::to_value(accepted(&mut engine)).unwrap();
@@ -256,7 +264,11 @@ fn a_document_this_build_writes_is_at_the_current_integrated_format_version() {
         &mut engine,
         opened.revision,
         &serde_json::json!({
-            "kind": "copy-outline", "boardId": "main", "versionId": "fresh", "name": "Fresh"
+            "kind": "apply-outline-edit", "edit": {
+                "target": {"kind": "board", "boardId": "main"},
+                "change": {"copy": {"version_id": "fresh", "name": "Fresh"}},
+                "seed": 33, "reviewed": null
+            }
         }),
     );
     assert!(
@@ -315,34 +327,31 @@ fn both_transports_keep_version_and_feature_identities() {
 /// A version 2 document that already carries outline versions migrates to the current
 /// integrated version without adding, dropping or reshaping them.
 #[test]
-fn migrating_an_older_document_keeps_its_outline_versions_and_invents_no_link() {
+fn refusing_an_older_document_preserves_its_outline_versions_and_identity_reservations() {
     let (stored, _, _) = stored_document();
     let mut older: serde_json::Value = serde_json::from_str(&stored).unwrap();
     older["formatVersion"] = serde_json::json!(2);
-    let (migrated, changed) = migrate::migrate_json(&serde_json::to_string(&older).unwrap())
-        .expect("a version 2 document migrates");
-    assert!(changed, "the older document really migrated");
-    let migrated: serde_json::Value = serde_json::from_str(&migrated).unwrap();
-    assert_eq!(migrated["formatVersion"], migrate::CURRENT_VERSION);
-    let before = older["boardOutlines"][0]["versions"].clone();
-    // The version 2 shape already stated the linked refinement explicitly.
-    assert_eq!(
-        before[0]["ownership"], "linked",
-        "the older document's explicit link is what the fixture captured"
+    let original = older.to_string();
+    let error = migrate::migrate_json(&original).unwrap_err();
+    assert!(
+        error.contains("format 2") && error.contains("No conversion"),
+        "{error}"
     );
-    assert_eq!(
-        migrated["boardOutlines"][0]["versions"], before,
-        "migration keeps every version's ownership, identities and geometry"
-    );
-    assert_eq!(
-        migrated["boardOutlines"][0]["retiredVersionIds"],
-        older["boardOutlines"][0]["retiredVersionIds"],
-        "migration keeps the identity reservation"
-    );
+    assert_eq!(older.to_string(), original);
     let mut engine = CoreEngine::new();
-    let scene = scene(engine.handle(CoreRequest::Open {
-        id: "migrated".into(),
-        document: serde_json::from_value(migrated).unwrap(),
+    let before = scene(engine.handle(CoreRequest::Open {
+        id: "valid".into(),
+        document: browser_writeback(&stored),
     }));
-    assert!(!scene.board_contours.is_empty());
+    assert!(matches!(
+        engine.handle(CoreRequest::Open {
+            id: "old".into(),
+            document: serde_json::from_value(older).unwrap()
+        }),
+        CoreReply::Error { .. }
+    ));
+    let after = scene(engine.handle(CoreRequest::Snapshot {
+        id: "after-refusal".into(),
+    }));
+    assert_eq!(after.board_contours, before.board_contours);
 }

@@ -14,6 +14,7 @@ mod tree_projection_tests;
 thread_local! {
     static TREE_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
+mod add_matrix_surface;
 mod keycap_resize;
 mod keycap_size;
 mod keycap_size_controller;
@@ -30,10 +31,12 @@ mod matrix_inspector_controller;
 mod matrix_placement_controller;
 mod matrix_setup;
 mod matrix_setup_controller;
+mod matrix_setup_fields;
 mod matrix_transform_controller;
 mod matrix_transform_inspector;
 mod mirrored_pair;
 mod mirrored_pair_controller;
+pub use add_matrix_surface::{AddMatrixMode, AddMatrixSurface};
 pub use board_setup_controller::{BoardSetupMount, use_board_setup};
 use boardstudio_web_ui_model::tree;
 pub use existing_half::{ExistingHalfMount, ExistingHalfSetup};
@@ -169,7 +172,6 @@ pub fn Objects(
     on_open_geometry_scripts: EventHandler<()>,
     board_setup: Option<BoardSetupMount>,
     matrix_setup: Option<MatrixSetupMount>,
-    mirrored_pair: Option<MirroredPairMount>,
     pair_created: Option<Signal<Option<MirroredPairCreated>>>,
     on_place_component: Option<EventHandler<super::part_placement::ComponentPlacementAction>>,
     layout_target: Option<Signal<Option<String>>>,
@@ -332,7 +334,9 @@ pub fn Objects(
         document
             .layouts
             .iter()
-            .find(|layout| layout.board_id == board_id && layout.matrix_id == matrix_id)
+            .find(|layout| {
+                layout.board_id == board_id && layout.matrix_ids.iter().any(|id| *id == matrix_id)
+            })
             .map(|layout| layout.id.clone())
     });
     let layout_target_for_effect = layout_target;
@@ -380,7 +384,6 @@ pub fn Objects(
                     on_select,
                     on_open_geometry_scripts,
                     matrix_setup,
-                    mirrored_pair,
                     matrix_inspector,
                     existing_half,
                     snapshot: AcceptedSource(snapshot.clone()),
@@ -596,7 +599,6 @@ fn AddObjectEntry(
     on_select: EventHandler<TreeSelectRequest>,
     on_open_geometry_scripts: EventHandler<()>,
     matrix_setup: Option<MatrixSetupMount>,
-    mirrored_pair: Option<MirroredPairMount>,
     matrix_inspector: Option<MatrixInspectorMount>,
     existing_half: ExistingHalfMount,
     snapshot: AcceptedSource,
@@ -609,9 +611,6 @@ fn AddObjectEntry(
 ) -> Element {
     let snapshot = snapshot.0;
     let open_menu = menu_open();
-    let mirrored_open = mirrored_pair
-        .as_ref()
-        .map(|mount| (mount.can_open, mount.on_open));
     let matrix_open = matrix_setup
         .as_ref()
         .map(|mount| (mount.can_open, mount.on_open));
@@ -680,18 +679,6 @@ fn AddObjectEntry(
                                 small { "Create a linked half from an existing layout" }
                             }
                         }
-                        if let Some((can_open, on_open)) = mirrored_open {
-                            button {
-                                r#type: "button",
-                                disabled: !can_open,
-                                onclick: move |_| {
-                                    menu_open.set(false);
-                                    on_open.call(());
-                                },
-                                "Mirrored pair…"
-                                small { "Create linked left and right halves" }
-                            }
-                        }
                         if let Some((can_open, on_open)) = matrix_open {
                             button {
                                 r#type: "button",
@@ -701,7 +688,7 @@ fn AddObjectEntry(
                                     on_open.call(());
                                 },
                                 "Matrix…"
-                                small { "Rows, columns & key assemblies" }
+                                small { "Single or mirrored-pair rows, columns & key assemblies" }
                             }
                         }
                     }

@@ -533,7 +533,7 @@ mod tests {
             id: "layout".into(),
             name: "Layout".into(),
             board_id: "board".into(),
-            matrix_id: "matrix".into(),
+            matrix_ids: vec!["matrix".into()],
             part_ids: vec!["authored".into(), "case-closure/stale".into()],
             mirror_link: None,
         });

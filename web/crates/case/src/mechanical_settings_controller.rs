@@ -1287,8 +1287,8 @@ mod adapter_tests {
                 "id": "unrelated-matrix", "rows": 1, "columns": 1,
                 "pitch": { "x": 19.0, "y": 19.0 }, "origin": { "x": 0.0, "y": 0.0 },
                 "definitionId": "switch-definition", "partIds": [], "boardId": "unrelated-board",
-                "diodeDirection": "row2col", "rowOffsets": [], "columnOffsets": [],
-                "columnStaggers": [], "columnSplays": [], "columnOrigins": [], "cells": []
+                "diodeDirection": "row2col", "rowLayout": [], "columnLayout": [],
+            "cells": []
             }))
             .expect("a matrix edit outside the reviewed inputs parses"),
         );

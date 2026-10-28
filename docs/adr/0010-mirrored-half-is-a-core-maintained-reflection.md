@@ -194,3 +194,23 @@ not submit a whole-document replacement or split these changes across edits.
   instance or hardware record changed by topology, transport, or relabelling.
 - This amendment concerns physical setup's mirrored-half creation path. Other adapter-owned
   topology and transport edits retain their existing ownership unless separately decided.
+
+## Amendment: layout parity, anchors and matrix exceptions (2026-10-23)
+
+The user accepted [the matrix/anchor exception rules](../plans/ergogen-layout-parity/issues/11-mirrored-halves-rules.md#answer)
+in four decision rounds. Same-board Layout links gain the same per-matrix/key Local,
+Omitted and Rejoin meanings as native mirrored halves. Local keys retain their world
+poses through shared carried-layout edits. Local matrices retain independent dimensions
+and layout, and making an anchored matrix Local detaches it while preserving pose.
+
+Anchors follow actual Local keys; Omitted matrices/keys retain logical anchor poses.
+Partial Follow uses transported source-world origin/axes, rather than independently
+zeroing partner-world components. Shared parameter ownership does not erase an explicit
+anchor exception's effect on a dependent matrix's placement.
+
+Keep-pose detachment that requires another Local exception asks for confirmation before
+any change, including when triggered by actual anchor removal. Source deletion preserves
+a complete Local matrix and its surviving Layout ownership, retiring only the defunct
+correspondence. Rejoin cannot target a deleted source or silently bind a replacement.
+The linked-half decision names the exact inverse/refusal rules and required prepared-route
+acceptance; it does not claim production implementation.

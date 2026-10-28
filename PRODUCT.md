@@ -33,7 +33,7 @@ are parts of one workflow.
 - Projects persist locally and can be saved and reopened as portable project
   files. The app shell and browser storage support offline work after initial
   loading; optional model assets and the CAD kernel load on demand.
-- The workbench connects Design, PCB, Case, Parts, and Export, including keymap
+- The workbench connects Layout, PCB, Keymap, Keycaps, Case, Parts, and Export, including keymap
   and firmware handoffs. Parts provides
   compiled footprint previews and attached model previews.
 - Designers continue routing and final electrical checks in KiCad, and review
@@ -74,7 +74,7 @@ are parts of one workflow.
 ## Brand Commitments
 
 The product name is BoardStudio (one word). Use the established workflow
-terminology: Design, PCB, Case, Parts, Export, components, key assemblies,
+terminology: Layout, PCB, Keymap, Keycaps, Case, Parts, Export, components, key assemblies,
 matrices, outlines, keycaps, and keymaps.
 
 ## Evidence on Hand

@@ -124,19 +124,19 @@ pub(super) fn bridge_metadata(
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
-    let matrix_ids =
-        doc.matrices
-            .iter()
-            .filter(|matrix| {
-                part_ids.iter().any(|id| {
-                    matrix.part_ids.contains(id)
-                        || doc.layouts.iter().any(|layout| {
-                            layout.matrix_id == matrix.id && layout.part_ids.contains(id)
-                        })
-                })
+    let matrix_ids = doc
+        .matrices
+        .iter()
+        .filter(|matrix| {
+            part_ids.iter().any(|id| {
+                matrix.part_ids.contains(id)
+                    || doc.layouts.iter().any(|layout| {
+                        layout.matrix_ids.contains(&matrix.id) && layout.part_ids.contains(id)
+                    })
             })
-            .map(|matrix| matrix.id.clone())
-            .collect();
+        })
+        .map(|matrix| matrix.id.clone())
+        .collect();
     OutlineBridge {
         id: authored
             .map(|id| format!("{feature}:bridge:{id}"))

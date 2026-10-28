@@ -124,12 +124,12 @@ fn matrix_range_fixture() -> (ProjectDoc, Vec<String>) {
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
             deleted: false,
             row: 1,
             column: 1,
@@ -607,6 +607,174 @@ fn open_ready(session: &mut Session, engine: &mut CoreEngine) {
         save_attempt_id,
         result: SaveResult::Committed,
     });
+}
+
+#[test]
+fn owned_gesture_commit_finishes_before_project_open() {
+    for preview_first in [true, false] {
+        let mut session = Session::new();
+        let mut engine = CoreEngine::new();
+        open_ready(&mut session, &mut engine);
+        session.submit(Event::GestureBegin {
+            operation_id: OperationId(21),
+            pointer_id: 7,
+            target_ids: vec!["key".into()],
+            transaction_id: "owned-before-open".into(),
+            start: vec![Position {
+                id: "key".into(),
+                at: Vec2 { x: 0.0, y: 0.0 },
+            }],
+            pitch: Vec2 { x: 19.05, y: 19.05 },
+            snap_fraction: 0.0,
+            geometry_snap: false,
+            gap: None,
+            alt: false,
+        });
+        let preview = if preview_first {
+            session.submit(Event::GestureSample {
+                pointer_id: 7,
+                positions: vec![Position {
+                    id: "key".into(),
+                    at: Vec2 { x: 4.0, y: 0.0 },
+                }],
+                alt: false,
+            });
+            let generation = session.read_model().gesture.as_ref().unwrap().generation;
+            Some(session.submit(Event::GestureFrame { generation }))
+        } else {
+            None
+        };
+        let commit = session.submit(Event::GestureEnd {
+            pointer_id: 7,
+            final_positions: vec![Position {
+                id: "key".into(),
+                at: Vec2 { x: 4.0, y: 0.0 },
+            }],
+            alt: false,
+        });
+        let (request_id, executor_epoch, request) =
+            core_effect(preview.as_ref().unwrap_or(&commit));
+        let next = ProjectDoc::empty("next-project", "Next");
+        let open = session.submit(Event::Open {
+            operation_id: OperationId(22),
+            document: next.clone(),
+        });
+        assert!(
+            !open.iter().any(|effect| matches!(
+                effect,
+                Effect::Settled {
+                    operation_id: OperationId(21),
+                    outcome: TerminalOutcome::Cancelled,
+                    ..
+                }
+            )),
+            "project switching must not cancel an owned commit"
+        );
+        let mut effects = session.complete(Completion::Core {
+            request_id,
+            executor_epoch,
+            reply: Box::new(engine.handle(request)),
+        });
+        if preview_first {
+            let (request_id, executor_epoch, request) = core_effect(&effects);
+            effects = session.complete(Completion::Core {
+                request_id,
+                executor_epoch,
+                reply: Box::new(engine.handle(request)),
+            });
+        }
+        let (save_attempt_id, saved) = save_effect(&effects);
+        assert_eq!(saved.id, "project");
+        assert_eq!(saved.parts[0].pose.at.x, 4.0);
+        let effects = session.complete(Completion::Persist {
+            save_attempt_id,
+            result: SaveResult::Committed,
+        });
+        assert_eq!(
+            settled_landing(&effects, OperationId(21)).0,
+            TerminalOutcome::Completed
+        );
+        assert_eq!(
+            session
+                .read_model()
+                .accepted
+                .as_ref()
+                .unwrap()
+                .document
+                .as_ref(),
+            &saved
+        );
+        let (replacement, _) = settle_core_and_save(&mut session, &mut engine, effects);
+        assert_eq!(replacement, next);
+        assert_eq!(
+            session
+                .read_model()
+                .accepted
+                .as_ref()
+                .unwrap()
+                .document
+                .as_ref(),
+            &next
+        );
+    }
+}
+
+#[test]
+fn invalid_open_preserves_the_current_gesture_and_accepted_session() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    session.submit(Event::GestureBegin {
+        operation_id: OperationId(21),
+        pointer_id: 7,
+        target_ids: vec!["key".into()],
+        transaction_id: "keep-draft".into(),
+        start: vec![Position {
+            id: "key".into(),
+            at: Vec2 { x: 0.0, y: 0.0 },
+        }],
+        pitch: Vec2 { x: 19.05, y: 19.05 },
+        snap_fraction: 0.0,
+        geometry_snap: false,
+        gap: None,
+        alt: false,
+    });
+    let before = session.read_model().clone();
+    let mut invalid = fixture();
+    invalid.format_version = 6;
+    let mut effects = session.submit(Event::Open {
+        operation_id: OperationId(22),
+        document: invalid,
+    });
+    if effects
+        .iter()
+        .any(|effect| matches!(effect, Effect::Core { .. }))
+    {
+        let (request_id, epoch, request) = core_effect(&effects);
+        effects.extend(session.complete(Completion::Core {
+            request_id,
+            executor_epoch: epoch,
+            reply: Box::new(engine.handle(request)),
+        }));
+    }
+    assert!(effects.iter().any(|effect| matches!(effect,
+        Effect::Settled { operation_id: OperationId(22), outcome: TerminalOutcome::Rejected(reason), .. }
+            if reason.contains("No conversion"))));
+    assert!(!effects.iter().any(|effect| matches!(
+        effect,
+        Effect::Persist { .. } | Effect::ReleasePointer { .. }
+    )));
+    assert_eq!(session.read_model().accepted, before.accepted);
+    assert_eq!(session.read_model().gesture, before.gesture);
+    assert_eq!(
+        session.scope(),
+        Some(boardstudio_application::Scope {
+            session_epoch: before.accepted.unwrap().session_epoch,
+            document_id: "project".into(),
+            board_id: String::new(),
+            instance_id: None
+        })
+    );
 }
 
 #[test]
@@ -1141,6 +1309,121 @@ fn uncertain_worker_outcome_is_never_replayed_and_requires_explicit_reopen() {
 }
 
 #[test]
+fn failed_replacement_retries_the_exact_candidate_without_core_or_early_publication() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    let effects = session.submit(move_edit(70, 0, 4.0));
+    settle_core_and_save(&mut session, &mut engine, effects);
+    let before = session.read_model().accepted.clone().unwrap();
+    let scope = session.scope();
+    let candidate = ProjectDoc::empty("fresh-replacement", "Fresh");
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(71),
+        document: candidate.clone(),
+    });
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(engine.handle(request)),
+    });
+    let (save_attempt_id, pending) = save_effect(&effects);
+    assert_eq!(pending, candidate);
+    session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Aborted("quota".into()),
+    });
+    assert_eq!(session.read_model().accepted.as_ref(), Some(&before));
+    assert_eq!(session.scope(), scope);
+    assert_eq!(session.read_model().lifecycle, Lifecycle::RecoveryRequired);
+    let effects = session.submit(Event::RetrySave {
+        operation_id: OperationId(72),
+    });
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Core { .. }))
+    );
+    let (retry_id, retried) = save_effect(&effects);
+    assert_eq!(retried, candidate);
+    session.complete(Completion::Persist {
+        save_attempt_id: retry_id,
+        result: SaveResult::Committed,
+    });
+    let accepted = session.read_model().accepted.clone().unwrap();
+    assert_eq!(accepted.document.as_ref(), &candidate);
+    assert_ne!(accepted.session_epoch, before.session_epoch);
+    let effects = session.submit(Event::Undo {
+        operation_id: OperationId(73),
+    });
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(engine.handle(request)),
+    });
+    assert!(
+        matches!(settled_landing(&effects, OperationId(73)).0, TerminalOutcome::Rejected(reason) if reason == "History is empty")
+    );
+    assert_eq!(session.read_model().accepted.as_ref(), Some(&accepted));
+}
+
+#[test]
+fn invalid_recovery_keeps_the_exact_failed_result_for_storage_only_retry() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    let effects = session.submit(move_edit(70, 0, 4.0));
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(engine.handle(request)),
+    });
+    let (save_attempt_id, pending) = save_effect(&effects);
+    session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Aborted("quota".into()),
+    });
+    let before = session.read_model().clone();
+    let mut invalid = fixture();
+    invalid.format_version = 6;
+    let effects = session.submit(Event::RecoverWithDocument {
+        operation_id: OperationId(71),
+        document: invalid,
+    });
+    assert!(
+        matches!(settled_landing(&effects, OperationId(71)).0, TerminalOutcome::Rejected(reason) if reason.contains("No conversion"))
+    );
+    assert_eq!(session.read_model(), &before);
+    let effects = session.submit(Event::RetrySave {
+        operation_id: OperationId(72),
+    });
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Core { .. }))
+    );
+    let (retry_id, retried) = save_effect(&effects);
+    assert_eq!(retried, pending);
+    session.complete(Completion::Persist {
+        save_attempt_id: retry_id,
+        result: SaveResult::Committed,
+    });
+    assert_eq!(
+        session
+            .read_model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .as_ref(),
+        &pending
+    );
+}
+
+#[test]
 fn recovery_reopen_discards_failed_save_and_ignores_stale_executor_restart() {
     let mut session = Session::new();
     let mut engine = CoreEngine::new();
@@ -1216,6 +1499,89 @@ fn recovery_reopen_discards_failed_save_and_ignores_stale_executor_restart() {
         })
         .unwrap();
     assert_eq!(next_epoch, active_epoch);
+}
+
+// Characterization for the IDB-quota UI escape hatch: after a quota-aborted save
+// latches RecoveryRequired, opening a fresh document discards the retained oversized
+// candidate without recommitting it, and RetrySave stays an explicit-only action.
+// The Runtime create-new/delete recovery flows rely on this Session contract.
+#[test]
+fn quota_escape_recover_discards_oversized_candidate_and_retry_stays_explicit() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    let effects = session.submit(move_edit(70, 0, 4.0));
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let reply = engine.handle(request);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(reply),
+    });
+    let (save_attempt_id, oversized) = save_effect(&effects);
+    session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Aborted("QuotaExceededError: origin storage is full".into()),
+    });
+    assert_eq!(session.read_model().lifecycle, Lifecycle::RecoveryRequired);
+
+    let fresh = ProjectDoc::empty("quota-escape-fresh", "Untitled keyboard");
+    let effects = session.submit(Event::RecoverWithDocument {
+        operation_id: OperationId(71),
+        document: fresh.clone(),
+    });
+    assert!(
+        !effects.iter().any(
+            |effect| matches!(effect, Effect::Persist { document, .. } if **document == oversized)
+        ),
+        "recovery must not recommit the quota-exceeding candidate"
+    );
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(engine.handle(request)),
+    });
+    let (save_attempt_id, persisted) = save_effect(&effects);
+    assert_eq!(
+        persisted, fresh,
+        "the only persistence after escape carries the fresh document"
+    );
+    let effects = session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Committed,
+    });
+    assert_eq!(
+        session
+            .read_model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .as_ref(),
+        &fresh
+    );
+    assert!(
+        matches!(
+            settled_landing(&effects, OperationId(71)).0,
+            TerminalOutcome::Completed
+        ),
+        "the escape hatch settles the fresh open as completed"
+    );
+
+    let effects = session.submit(Event::RetrySave {
+        operation_id: OperationId(72),
+    });
+    assert!(
+        matches!(settled_landing(&effects, OperationId(72)).0, TerminalOutcome::Rejected(reason) if reason == "there is no retained save to retry"),
+        "after the escape hatch there is no retained save left to retry"
+    );
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Persist { .. })),
+        "no automatic save retries the discarded document"
+    );
 }
 
 #[test]
@@ -2889,4 +3255,117 @@ fn queued_stale_fit_setter_retires_after_undo_then_add() {
         ],
         "undo/add must mint a fresh identity and the stale setter must not redirect"
     );
+}
+
+#[test]
+fn carried_shift_preview_cancel_commit_and_history_use_the_accepted_matrix() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    let (document, _) = matrix_range_fixture();
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(1),
+        document,
+    });
+    settle_core_and_save(&mut session, &mut engine, effects);
+    let before = session.read_model().accepted.clone().unwrap();
+    let key = "matrix/main/r1c0";
+    assert_eq!(
+        before
+            .document
+            .parts
+            .iter()
+            .find(|p| p.id == key)
+            .unwrap()
+            .pose
+            .at,
+        Vec2 { x: 0.0, y: 19.0 }
+    );
+    let operation = EditOperation::SetMatrixPlacement {
+        matrix_id: "main".into(),
+        change: MatrixPlacementChange::RowShift {
+            row: 1,
+            value: Vec2 { x: 4.0, y: -3.0 },
+        },
+    };
+    let effects = session.submit(Event::PreviewEdit {
+        operation_id: OperationId(2),
+        transaction_id: "shift-preview".into(),
+        target_ids: vec![key.into()],
+        operation: operation.clone(),
+    });
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    assert!(
+        matches!(&request, CoreRequest::Edit { command, .. } if command.phase == EditPhase::Preview)
+    );
+    let reply = engine.handle(request);
+    assert!(matches!(&reply, CoreReply::Preview { .. }));
+    session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(reply),
+    });
+    let preview = session.read_model().display_preview.clone().unwrap();
+    assert_eq!(
+        preview.matrix_scenes[0]
+            .cells
+            .iter()
+            .find(|c| c.row == 1 && c.column == 0)
+            .unwrap()
+            .pose
+            .at,
+        Vec2 { x: 4.0, y: 16.0 }
+    );
+    assert_eq!(
+        session.read_model().accepted.as_ref().unwrap().document,
+        before.document
+    );
+    let effects = session.submit(Event::ClearPreview {
+        operation_id: OperationId(3),
+        token: before.token,
+        revision: before.document.revision,
+        board_id: session.read_model().active_board_id.clone(),
+        transaction_id: "shift-preview".into(),
+    });
+    // Clearing a completed preview is view-only and never persists a document.
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Persist { .. }))
+    );
+    assert!(session.read_model().display_preview.is_none());
+    let effects = session.submit(Event::ResolveEdit {
+        operation_id: OperationId(4),
+        label: "Shift field".into(),
+        resolver: EditResolver::new("Shift field", move |_| {
+            Resolution::submit(vec![key.into()], operation.clone())
+        }),
+    });
+    let (after, _) = settle_core_and_save(&mut session, &mut engine, effects);
+    assert_eq!(
+        session
+            .read_model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .scene
+            .matrix_scenes,
+        preview.matrix_scenes
+    );
+    assert_eq!(
+        after.parts.iter().find(|p| p.id == key).unwrap().pose.at,
+        Vec2 { x: 4.0, y: 16.0 }
+    );
+    assert_eq!(after.matrices[0].cells, before.document.matrices[0].cells);
+    let effects = session.submit(Event::Undo {
+        operation_id: OperationId(5),
+    });
+    let (undone, _) = settle_core_and_save(&mut session, &mut engine, effects);
+    assert_eq!(undone.matrices, before.document.matrices);
+    assert_eq!(undone.parts, before.document.parts);
+    let effects = session.submit(Event::Redo {
+        operation_id: OperationId(6),
+    });
+    let (redone, _) = settle_core_and_save(&mut session, &mut engine, effects);
+    assert_eq!(redone.matrices, after.matrices);
+    assert_eq!(redone.parts, after.parts);
 }
