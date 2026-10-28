@@ -85,7 +85,7 @@ pub fn classify_invalid(method: &str) -> InvalidKind {
     }
 }
 
-/// Per-method counts of tolerated unparsable CDP events, for later receipts.
+/// Per-method counts of unparsable CDP events, for later receipts.
 #[derive(Debug, Default)]
 pub struct InvalidCounts {
     counts: std::collections::HashMap<String, usize>,
@@ -243,13 +243,14 @@ impl HandlerErrors {
 
     /// Count of tolerated benign-domain invalid protocol messages.
     pub fn tolerated_invalid_total(&self) -> usize {
-        self.invalids
+        let invalids = self
+            .invalids
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .total()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        invalids.total() - invalids.required_total()
     }
 
-    /// One run-log block for tolerated invalids; always printed, even at zero.
+    /// One run-log block for invalid messages; always printed, even at zero.
     pub fn invalid_report(&self) -> String {
         let invalids = self
             .invalids
@@ -316,12 +317,12 @@ pub fn spawn_handler_drain(
                 let message = match error {
                     CdpError::InvalidMessage(payload, cause) => {
                         let method = invalid_method(&payload);
+                        errors
+                            .invalids
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .record(&method);
                         if classify_invalid(&method) == InvalidKind::Benign {
-                            errors
-                                .invalids
-                                .lock()
-                                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                                .record(&method);
                             let name = if method.is_empty() {
                                 "<unknown>"
                             } else {
@@ -2016,6 +2017,7 @@ mod invalid_policy_tests {
         assert!(verdict.contains("Network.responseReceived"), "{verdict}");
         assert!(!verdict.contains("secret-token"), "{verdict}");
         assert_eq!(errors.tolerated_invalid_total(), 0);
+        assert!(errors.invalid_report().contains("total=1 required=1"));
     }
 
     #[tokio::test]
