@@ -1396,7 +1396,9 @@ check passed on `cca95c5d0709c4fe9ad0ba82ebaacef5e88e3743`, not this source or
 documentation commit. Hosted CI and closure review remain unrun; other acceptance
 requirements remain open and the ticket stays claimed.
 
-## 2026-10-27: local closure
+## Comments
+
+### 2026-10-27: local closure
 
 Resolved for local scope. Earlier open-gate statements above describe their dated state.
 Launcher and schema comparisons, failure controls and tooling evidence are recorded above;

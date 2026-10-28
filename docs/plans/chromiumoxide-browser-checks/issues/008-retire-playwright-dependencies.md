@@ -1,6 +1,6 @@
 # 008: Retire Playwright browser dependencies
 
-Status: resolved
+Status: ready-for-human
 Type: build
 Blocked by: [Rust drag smoke end to end](005-rust-drag-smoke.md), [Rust CAD runtime capture](006-rust-cad-runtime-capture.md), [Rust Graphite acceptance checks](007-rust-graphite-acceptance.md)
 Parent: [Chromiumoxide browser checks](../map.md)
@@ -473,9 +473,12 @@ The full check passed at `cca95c5d0709c4fe9ad0ba82ebaacef5e88e3743`, not at the
 fixture source or this documentation commit. Hosted CI and closure review remain
 unrun; remaining retirement and ticket 006 acceptance requirements stay open.
 
-## 2026-10-27: local closure
+## Comments
 
-Resolved for local scope. The preceding dated open-gate statements describe earlier
+### 2026-10-27: local verification and remaining hosted gate
+
+Local implementation and reviews are complete, but this ticket remains open pending
+hosted CI under the final removal sequence. The preceding dated open-gate statements describe earlier
 states; [ticket 006](006-rust-cad-runtime-capture.md#2026-10-27-local-closure) and
 [ticket 007](007-rust-graphite-acceptance.md#2026-10-27-local-closure) record their
 local parity and review dispositions. Historical Cadrum reproduction was explicitly
@@ -493,5 +496,7 @@ documentation-only closure commit.
 
 Hosted CI remains unrun and nothing has been pushed. Execute the
 [CI verification plan](#ci-verification-plan) on a hosted PR or dispatch and record
-the actual run URL and verdict, including web, native and release-build jobs; local
-verification is not a hosted-CI result.
+the actual run URL and verdict. Verify the web job's no-Playwright preflight, pinned
+Chrome, Rust drag, mounted browser checks and failure artifacts; verify that the native
+job retains Node tooling and the release-build job provisions its web tools. Local
+verification is not a hosted-CI result; retirement is not complete until this gate is recorded.

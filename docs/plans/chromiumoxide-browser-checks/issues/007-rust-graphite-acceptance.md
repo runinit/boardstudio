@@ -755,7 +755,9 @@ This is consumer cutover evidence, not a full supported-check, hosted-CI, visual
 approval or combined closure-review verdict. Ticket 007 remains open for those
 outstanding gates.
 
-## 2026-10-27: local closure
+## Comments
+
+### 2026-10-27: local closure
 
 Resolved for local scope; earlier open-gate statements record their dated state. The
 [source-bound manual cutover](#2026-10-27-source-bound-manual-cutover) records both
