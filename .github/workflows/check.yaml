@@ -42,7 +42,7 @@ jobs:
       # Saves on main, dev and same-repo pull requests. A pull request writes only its own
       # refs/pull/N/merge scope, which later pushes to that pull request restore and no other ref can
       # read, so stacked pull requests (whose base never runs this workflow) stop starting cold.
-      # Fork pull requests never save: they could fill the 10 GB quota and evict trusted caches.
+      # Fork and Dependabot pull requests do not save, limiting pressure on the 10 GB cache quota.
       # cache-on-failure stays off: a cancelled (superseded) first run would otherwise save a partial
       # target under the immutable key, and every later run would exact-hit it and skip the save.
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -53,7 +53,7 @@ jobs:
             cad/monstertruck-qualification -> target
             cad/wasm -> target
           env-vars: ImageOS
-          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') }}
       - run: python3 scripts/check.py repo tooling lint test
 
   # Release build and mounted browser tests.
@@ -82,7 +82,7 @@ jobs:
             cad/wasm -> target
           shared-key: web
           env-vars: ImageOS
-          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') }}
       - run: python3 scripts/check.py build browser
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
