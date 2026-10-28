@@ -16,6 +16,35 @@ def which(*available):
 
 
 class BrowserToolsTests(unittest.TestCase):
+    def test_missing_cargo_is_reported_before_launch_with_or_without_inherited_lock(self):
+        for inherited in (None, 9):
+            with self.subTest(inherited=inherited), \
+                    mock.patch.object(browser_tools, "_inherited_build_lock", return_value=inherited), \
+                    mock.patch.object(browser_tools.shutil, "which", side_effect=which("flock")), \
+                    mock.patch.object(browser_tools.subprocess, "run") as run:
+                with self.assertRaises(browser_tools.MissingBrowserTool) as error:
+                    browser_tools.build_drag_harness()
+                self.assertIn("cargo", str(error.exception).lower())
+                self.assertIn("install", str(error.exception).lower())
+                run.assert_not_called()
+
+    def test_cargo_disappearing_before_launch_is_actionable(self):
+        for inherited, executable in ((9, "cargo"), (None, "flock")):
+            with self.subTest(executable=executable), \
+                    mock.patch.object(browser_tools, "_inherited_build_lock", return_value=inherited), \
+                    mock.patch.object(browser_tools.shutil, "which", side_effect=which("cargo", "flock")), \
+                    mock.patch.object(browser_tools.subprocess, "run", side_effect=FileNotFoundError(2, "missing", executable)):
+                with self.assertRaises(browser_tools.MissingBrowserTool) as error:
+                    browser_tools.build_drag_harness()
+                self.assertIn(executable, str(error.exception).lower())
+
+    def test_unrelated_launch_error_is_not_relabelled(self):
+        with mock.patch.object(browser_tools, "_inherited_build_lock", return_value=9), \
+                mock.patch.object(browser_tools.shutil, "which", side_effect=which("cargo")), \
+                mock.patch.object(browser_tools.subprocess, "run", side_effect=FileNotFoundError(2, "missing", "/other")):
+            with self.assertRaises(FileNotFoundError):
+                browser_tools.build_drag_harness()
+
     def test_cancelled_launcher_keeps_build_lock_until_child_exits(self):
         import os
         import select
@@ -135,6 +164,7 @@ class BrowserToolsTests(unittest.TestCase):
                     message = json.dumps({"reason": "compiler-message", "message": {
                         "rendered": "error: registry request failed\n" + diagnostic}})
                     with mock.patch.dict(browser_tools.os.environ, {}, clear=True), \
+                            mock.patch.object(browser_tools.shutil, "which", side_effect=which("flock", "cargo")), \
                             mock.patch.object(browser_tools.subprocess, "run", return_value=mock.Mock(
                                 returncode=101, stdout=message if rendered else "",
                                 stderr="" if rendered else "error: registry request failed\n" + diagnostic)):

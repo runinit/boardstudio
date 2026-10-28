@@ -116,6 +116,32 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             self.assertNotIn("BUILD", result.stdout)
             self.assertNotIn("LAUNCH", result.stdout)
 
+    def test_parts_inspector_missing_build_prerequisites_exit_cleanly_before_launch(self):
+        runner = """
+import os, runpy, subprocess, sys
+sys.path.insert(0, 'scripts')
+def forbidden(*args, **kwargs):
+    raise AssertionError('build or browser launched')
+subprocess.run = forbidden
+os.execv = forbidden
+runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            env = dict(os.environ, PATH=directory, HOME=directory,
+                       BOARDSTUDIO_PREVIEW_URL="http://example.test/", CHROME_BIN="/chosen/chrome")
+            env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
+            for missing in ("flock", "cargo"):
+                with self.subTest(missing=missing):
+                    if missing == "cargo":
+                        (Path(directory) / "flock").symlink_to("/usr/bin/flock")
+                    result = subprocess.run([sys.executable, "-c", runner], cwd=ROOT, env=env,
+                                            capture_output=True, text=True)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(missing, result.stderr.lower())
+                    self.assertIn("install", result.stderr.lower())
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertNotIn("build or browser launched", result.stderr)
+
     def test_cad_capture_controls_have_a_human_runnable_entry_point(self):
         result = subprocess.run([sys.executable, "cad/scripts/test-cad-capture-controls.py", "--help"],
                                 cwd=ROOT, capture_output=True, text=True)

@@ -9,8 +9,8 @@ from browser_tools import MissingBrowserTool, _build_harness, locate_chrome  # n
 
 try:
     os.environ["CHROME_BIN"] = locate_chrome()
+    binary = _build_harness("parts-inspector-scroll")
 except MissingBrowserTool as error:
     raise SystemExit(f"Parts inspector: {error}") from error
 
-binary = _build_harness("parts-inspector-scroll")
 os.execv(str(binary), [str(binary)])

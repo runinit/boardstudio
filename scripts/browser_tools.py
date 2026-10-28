@@ -68,13 +68,20 @@ def _build_harness(binary: str) -> Path:
     lock.parent.mkdir(parents=True, exist_ok=True)
     inherited = _inherited_build_lock()
     if inherited is None and not shutil.which("flock"):
-        raise MissingBrowserTool("drag browser smoke needs flock for the shared build lock; install flock (util-linux)")
-    result = subprocess.run(
-        [*(["flock", str(lock)] if inherited is None else []), "cargo", "build", "--locked", "--message-format=json",
-         "--manifest-path", str(root / "tools/browser-harness/Cargo.toml"),
-         "--package", "boardstudio-browser-harness", "--bin", binary],
-        cwd=root, capture_output=True, text=True, **({"pass_fds": (inherited,)} if inherited is not None else {}),
-    )
+        raise MissingBrowserTool("browser harness needs flock for the shared build lock; install flock (util-linux)")
+    if not shutil.which("cargo"):
+        raise MissingBrowserTool("browser harness needs Cargo; install Rust and Cargo and add cargo to PATH")
+    try:
+        result = subprocess.run(
+            [*(["flock", str(lock)] if inherited is None else []), "cargo", "build", "--locked", "--message-format=json",
+             "--manifest-path", str(root / "tools/browser-harness/Cargo.toml"),
+             "--package", "boardstudio-browser-harness", "--bin", binary],
+            cwd=root, capture_output=True, text=True, **({"pass_fds": (inherited,)} if inherited is not None else {}),
+        )
+    except FileNotFoundError as error:
+        if error.filename == ("flock" if inherited is None else "cargo"):
+            raise MissingBrowserTool(f"browser harness cannot find {error.filename}; install it and add it to PATH") from error
+        raise
     if result.returncode:
         diagnostic = result.stderr
         for line in result.stdout.splitlines():
