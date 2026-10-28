@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """Verify pure-Rust CAD build stamp invalidation, cache reuse, and failure propagation."""
 import contextlib
+import http.server
 import importlib.util
 import io
 import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
+import threading
+import time
 import tomllib
 import unittest
+import urllib.request
 from unittest.mock import patch
 
 import cad_build as build
@@ -291,6 +296,16 @@ class CadWorkspaceTests(unittest.TestCase):
 
 
 class BrowserSmokeParserTests(unittest.TestCase):
+    def test_chromium_prefers_pinned_chrome_bin(self):
+        with patch.dict(browser.os.environ, {"CHROME_BIN": "/pinned/chrome", "CHROME": "/legacy/chrome"}, clear=True), \
+                patch.object(browser.shutil, "which", side_effect=lambda name: name):
+            self.assertEqual(browser.chromium(), "/pinned/chrome")
+
+    def test_chromium_accepts_legacy_chrome_override(self):
+        with patch.dict(browser.os.environ, {"CHROME": "/legacy/chrome"}, clear=True), \
+                patch.object(browser.shutil, "which", side_effect=lambda name: name):
+            self.assertEqual(browser.chromium(), "/legacy/chrome")
+
     def test_result_is_read_from_the_rendered_page_and_unescaped(self):
         dom = '<html><pre id="result">{"ok":true,"error":null,"checks":[{"name":"a &amp; b","ok":true,"detail":"1 &lt; 2"}]}</pre></html>'
         result = browser.parse_result(dom)
@@ -310,6 +325,75 @@ class BrowserSmokeParserTests(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as raised:
                 browser.main()
         self.assertEqual(raised.exception.code, 1)
+
+
+class BrowserSessionCleanupTests(unittest.TestCase):
+    def run_with_delete_delay(self, delay):
+        class DriverHandler(http.server.BaseHTTPRequestHandler):
+            def reply(self, value):
+                body = json.dumps({"value": value}).encode()
+                try:
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(body)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+
+            def do_GET(self):
+                self.reply({})
+
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                if self.path == "/session":
+                    self.reply({"sessionId": "test"})
+                elif self.path.endswith("/execute/sync"):
+                    self.reply("<html>done</html>" if "outerHTML" in body["script"] else "done")
+                else:
+                    self.reply(None)
+
+            def do_DELETE(self):
+                time.sleep(delay)
+                self.reply(None)
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), DriverHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        open_url = urllib.request.urlopen
+        popen = subprocess.Popen
+        drivers = []
+
+        def start_driver(*args, **kwargs):
+            driver = popen([sys.executable, "-c", "import time; time.sleep(30)"], **kwargs)
+            drivers.append(driver)
+            return driver
+
+        def redirect(request, **kwargs):
+            request.full_url = f"http://127.0.0.1:{server.server_port}" + request.selector
+            return open_url(request, **kwargs)
+
+        try:
+            with patch.object(browser, "chromedriver", return_value="fake-driver"), \
+                    patch.object(browser.subprocess, "Popen", side_effect=start_driver), \
+                    patch.object(browser.urllib.request, "urlopen", side_effect=redirect):
+                return browser.run_page("http://example.invalid", browser="fake-browser", timeout=10)
+        finally:
+            self.assertEqual(len(drivers), 1)
+            self.assertIsNotNone(drivers[0].poll(), "owned driver must exit even when deletion times out")
+
+    def test_session_delete_can_finish_after_750ms(self):
+        self.assertEqual(self.run_with_delete_delay(1.0), "<html>done</html>")
+
+    def test_session_delete_timeout_is_reported(self):
+        started = time.monotonic()
+        with self.assertRaisesRegex(RuntimeError, "cleanup incomplete: session deletion failed: timed out"):
+            self.run_with_delete_delay(6.0)
+        self.assertGreater(time.monotonic() - started, 4.5)
+        self.assertLess(time.monotonic() - started, 10)
 
 
 if __name__ == "__main__":

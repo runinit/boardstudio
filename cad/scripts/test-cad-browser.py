@@ -21,10 +21,10 @@ PAGE = ("cad/scripts/browser-smoke/occurrence-budget.html" if "--occurrence-budg
 
 
 def chromium():
-    for name in (os.environ.get("CHROME"), "chromium", "chromium-browser", "google-chrome", "chrome"):
+    for name in (os.environ.get("CHROME_BIN"), os.environ.get("CHROME"), "chromium", "chromium-browser", "google-chrome", "chrome"):
         if name and shutil.which(name):
             return shutil.which(name)
-    raise RuntimeError("Chrome or Chromium is required (set CHROME to override)")
+    raise RuntimeError("Chrome or Chromium is required (set CHROME_BIN to override)")
 
 
 def chromedriver():
@@ -51,11 +51,9 @@ def serve():
 def run_page(url, browser=None, timeout=180):
     deadline = time.monotonic() + timeout
 
-    def request(port, method, path, payload=None, until=None, max_wait=None):
+    def request(port, method, path, payload=None, until=None):
         request_deadline = deadline if until is None else until
         remaining = request_deadline - time.monotonic()
-        if max_wait is not None:
-            remaining = min(remaining, max_wait)
         if remaining <= 0:
             raise TimeoutError("ChromeDriver smoke test timed out")
         data = None if payload is None else json.dumps(payload).encode()
@@ -162,7 +160,6 @@ def run_page(url, browser=None, timeout=180):
             raise
         finally:
             active_error = primary_error or sys.exc_info()[1]
-            cleanup_deadline = time.monotonic() + 4
             cleanup_errors = []
 
             def driver_running():
@@ -177,9 +174,11 @@ def run_page(url, browser=None, timeout=180):
             if session_id is not None:
                 try:
                     request(port, "DELETE", f"/session/{session_id}",
-                            until=cleanup_deadline, max_wait=0.75)
+                            until=time.monotonic() + 5)
                 except Exception as error:
                     cleanup_errors.append(f"session deletion failed: {error}")
+
+            cleanup_deadline = time.monotonic() + 4
 
             def refresh_owned(pids):
                 try:

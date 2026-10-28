@@ -301,9 +301,8 @@ async fn run(counters: Arc<Counters>) -> Result<()> {
     );
     step!(
         "target dispose",
-        driver::dispose_isolated_page(&browser, context)
+        driver::dispose_isolated_page(&browser, Some(context), isolated, &isolated_errors)
     );
-    drop(isolated);
     isolated_errors
         .fail_if_any()
         .map_err(|error| fail(error.to_string()))?;

@@ -110,6 +110,7 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
 .m1-project-menu-actions .m1-library-new { color: var(--wb-on-accent); background: var(--wb-accent); font-weight: 600; }
 .m1-project-menu-actions .m1-library-new:hover { background: var(--wb-accent-dark); }
 .m1-project-menu-open { background: var(--wb-surface-soft); }
+.m1-project-menu-open[aria-disabled="true"], .m1-library-import-action[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 .m1-project-menu-actions .m1-project-file-input { display: none; }
 .m1-project-menu-library .m1-project-current { flex-direction: column; align-items: stretch; gap: 6px; margin: 0; padding: 12px 20px; }
 .m1-project-current-status { color: var(--wb-muted); font-size: 11px; }

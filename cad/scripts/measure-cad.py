@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Finite 011 preparation/capture. No builds or browser launches without a run subcommand.
 
-The Cadrum paths are kept deliberately: they let the recorded old-versus-new baseline be
-reproduced from a historical checkout. Production code no longer uses Cadrum.
+Historical Cadrum captures remain readable; new Cadrum reproduction is retired.
 """
 
 from __future__ import annotations
@@ -24,6 +23,7 @@ import subprocess
 import sys
 import threading
 import time
+import zipfile
 from http.server import ThreadingHTTPServer
 
 sys.dont_write_bytecode = True
@@ -31,7 +31,6 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 import browser_tools  # noqa: E402
 
-HISTORICAL = Path("/home/chris/.t3/worktrees/ts-boardstudio2/t3-2088b1aa")
 OLD_HEAD = "6c9c4867755bd2316f751783729a3ff9778fc04a"
 FIXTURES = ROOT / "cad/test/fixtures/performance"
 PROFILES = ("checked", "release")
@@ -93,9 +92,28 @@ def schedule(build_cycles=1, runs=1, backends=("monstertruck",)):
     return rows
 
 
-def existing_artifacts(root, receipt, profile):
+def existing_artifacts(root, receipt, profile, build=None, captured=None):
     """Validate the existing integration receipt, without inventing a timed build record."""
     content = receipt.read_text()
+    if content.lstrip().startswith("{"):
+        record = json.loads(content)
+        invocation, source, commands = record.get("invocation", {}), record.get("source", {}), record.get("commands", [])
+        if (record.get("schema_version") != 1 or record.get("generated_by") != "scripts/check.py"
+                or profile != "checked" or invocation.get("accepted") is not True
+                or invocation.get("exit_code") != 0 or invocation.get("steps") != ["build"]
+                or invocation.get("planned_commands") != 1 or invocation.get("ran_commands") != 1
+                or invocation.get("not_run_commands") != [] or source.get("dirty") is not False
+                or source.get("local_changes") != 0 or len(commands) != 1
+                or commands[0].get("step") != "build" or commands[0].get("status") != "ran"
+                or commands[0].get("passed") is not True or commands[0].get("exit_code") != 0
+                or commands[0].get("command") != ["python3", "scripts/build-web.py", "--fast"]
+                or not build or not captured):
+            raise ValueError("checked receipt requires a successful build and source-bound build capture")
+        validate_page_build_receipt(None, build, captured)
+        fields = build_binding(captured)
+        if source.get("revision") != fields["head"] or fields["profile"] != profile:
+            raise ValueError("checked receipt source does not match build capture")
+        return f"validation_only=true\nreceipt={receipt}\nbuild_capture={build}\n{content}"
     match = re.search(r"Current combined source ([0-9a-f]{40});", content)
     if not match or profile != "checked" or "--no-opt" not in content or "Dioxus page debug" not in content:
         raise ValueError("existing receipt must identify tested source and checked/no-opt artifacts")
@@ -257,6 +275,36 @@ def validate_build_bindings(before_text, after_text, backend, profile, state):
     harness = tuple(sorted((key, value) for key, value in after.items()
                            if key.startswith(("driver_", "workload_blob_"))))
     return source, harness, (after["source_sha256"], diff, after["official_provider_inputs"])
+
+
+def validate_u1_scope(project):
+    scope = json.loads((FIXTURES / "U1-scope.json").read_text())
+    boards = project.get("boards", [])
+    if (project.get("id") != scope["projectId"] or project.get("formatVersion") != scope["formatVersion"]
+            or project.get("revision") != scope["revision"] or len(boards) != 1
+            or boards[0].get("id") != scope["boardId"]
+            or boards[0].get("outlineIds") != [scope["outlineId"]]
+            or [outline.get("id") for outline in project.get("outline", [])] != [scope["outlineId"]]):
+        raise ValueError("U1 scope project/board/outline/format/revision mismatch")
+
+
+def validate_page_build_receipt(capture, build, captured=None):
+    with (build / "build.csv").open() as source:
+        rows = list(csv.DictReader(source))
+    if len(rows) != 1 or rows[0].get("status") != "ok" or "\nexit=0\n" not in (build / "command.log").read_text():
+        raise ValueError("build receipt is not successful")
+    row = rows[0]
+    before = (build / "binding-before.log").read_text()
+    after = (build / "binding-after.log").read_text()
+    validate_build_bindings(before, after, row["backend"], row["profile"], row["state"])
+    if captured is None:
+        captured = (capture / "binding-before.log").read_text()
+        if captured != (capture / "binding-after.log").read_text():
+            raise ValueError("capture binding drift")
+    fields = ("head=", "source_sha256=", "profile=", "official_provider_inputs=", "provider_stamp=", "artifact_")
+    select = lambda text: [line for line in text.splitlines() if line.startswith(fields)]
+    if select(after) != select(captured):
+        raise ValueError("build receipt does not match capture binding")
 
 
 def environment():
@@ -422,7 +470,7 @@ def process_memory(pid):
     return values["Pss"], values["Rss"]
 
 
-def sample_tree(pid):
+def sample_tree(pid, chrome=None):
     parents, commands = {}, {}
     for path in Path("/proc").iterdir():
         if not path.name.isdigit():
@@ -439,8 +487,19 @@ def sample_tree(pid):
         if not children:
             break
         owned.update(children)
-    # Playwright's own browser descendant has this launch flag. Keep the Node controller separate.
     browsers = {p for p in owned if b"--remote-debugging-pipe" in commands.get(p, [])}
+    for process in owned:
+        # Chrome may rewrite its NUL-separated arguments into one space-separated title.
+        command = [word for arg in commands.get(process, []) for word in arg.split()]
+        if (chrome and parents.get(process) == pid
+                and any(arg.startswith(b"--remote-debugging-port=") for arg in command)
+                and any(arg.startswith(b"--user-data-dir=") for arg in command)
+                and not any(arg.startswith(b"--type=") for arg in command)):
+            try:
+                if os.path.samefile(f"/proc/{process}/exe", chrome):
+                    browsers.add(process)
+            except OSError:
+                pass
     browser_tree = set(browsers)
     while True:
         children = {p for p in owned if parents.get(p) in browser_tree} - browser_tree
@@ -466,8 +525,10 @@ def capture(command, root, out, timeout, env=None):
         log.flush()
         writer = csv.writer(memory)
         writer.writerow(("monotonic_s", "unix_s", "pid", "scope", "pss_kib", "rss_kib", "status"))
+        lock_fd = browser_tools._inherited_build_lock()
         process = subprocess.Popen(command, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                   env=env, start_new_session=True, text=True, bufsize=1)
+                                   env=env, start_new_session=True, text=True, bufsize=1,
+                                   pass_fds=(lock_fd,) if lock_fd is not None else ())
         done = threading.Event()
         timed_lines = csv.writer(timing)
         timed_lines.writerow(("monotonic_s", "unix_s", "line"))
@@ -481,12 +542,16 @@ def capture(command, root, out, timeout, env=None):
         reader = threading.Thread(target=drain, daemon=True)
         reader.start()
 
+        browser_seen = False
+
         def sample():
+            nonlocal browser_seen
             while not done.is_set():
                 now = time.monotonic()
                 unix = time.time()
-                for row in sample_tree(process.pid):
+                for row in sample_tree(process.pid, env.get("CHROME_BIN") if env else None):
                     writer.writerow((now, unix, *row))
+                    browser_seen |= row[1] == "browser" and row[4] == "ok"
                 memory.flush()
                 done.wait(max(0, .05 - (time.monotonic() - now)))
 
@@ -518,6 +583,9 @@ def capture(command, root, out, timeout, env=None):
                 log.write("stdout remained open after child exit; observation invalid\n")
         if not reader.is_alive():
             process.stdout.close()
+        if code == 0 and env and env.get("CHROME_BIN") and not browser_seen:
+            code = 1
+            log.write("browser memory attribution unavailable; use the actual Chrome executable, not a wrapper\n")
         elapsed = time.monotonic() - started
         log.write(f"\nexit={code}\nwall_seconds={elapsed}\n")
     (out / "environment-after.log").write_text(environment())
@@ -531,6 +599,7 @@ def main():
     parser.add_argument("--source-head", help="root's frozen full source commit; required for execution")
     parser.add_argument("--profile", choices=PROFILES, default="checked")
     parser.add_argument("--output", type=Path, required=True, help="new directory under this lane's .evidence")
+    parser.add_argument("--driver", choices=("rust",), default="rust", help="browser driver (Rust only)")
     parser.add_argument("--workload", choices=(*PAIRED, *UNPAIRED, "startup:cold", "startup:warm", "U1:freeze", "U1:page"))
     parser.add_argument("--pair", type=int, choices=range(0, 6), default=1)
     parser.add_argument("--growth", action="store_true")
@@ -544,7 +613,12 @@ def main():
     parser.add_argument("--build-cycles", type=int, choices=(1, 3), default=1,
                         help="one matched initial build cycle; three is the retained upper proposal, only after root requests it")
     args = parser.parse_args()
+    if args.action == "runtime":
+        if args.workload == "U1:page":
+            parser.error("U1:page provides validation only, with no runtime samples; use validate for diagnostics")
     root, out = args.checkout.resolve(), args.output.resolve()
+    if args.action in ("build", "runtime", "validate") and (root / "cad/scripts/cadrum_build.py").is_file():
+        parser.error("historical Cadrum reproduction is retired; existing captures remain available for report")
     if not out.is_relative_to(ROOT / ".evidence"):
         parser.error("capture outputs must be under this lane's .evidence")
     if out.exists():
@@ -572,52 +646,40 @@ def main():
         parser.error("execution requires the exact root-cleared --source-head")
     if args.growth and args.pair != 0:
         parser.error("growth sequence is separate from the five pairs; pass --pair 0")
-    old = (root / "cad/scripts/cadrum_build.py").is_file()
-    backend = "cadrum" if old else "monstertruck"
+    backend = "monstertruck"
     if args.action == "build":
-        if root == HISTORICAL:
-            parser.error("historical baseline lane/artifacts are read-only; provision a measurement workspace")
         if not args.state:
             parser.error("build requires --state clean/noop/incremental")
         if args.state == "clean" and any((root / p).exists() for p in (
                 "target", "cad/wasm/target", "cad/wasm/pkg", "web/target", "renderer/pkg", "renderer/target")):
             parser.error("clean cycle requires fresh dedicated output directories; this tool never cleans")
-        if old and os.environ.get("CADRUM_IMAGE_READY") != "1":
-            parser.error("verify pinned image/archive first, then set CADRUM_IMAGE_READY=1")
-        if old and (not any(line.startswith("historical_image=") and
-                            "569918e5874f8908957a76e2b2df7518d9c7886f5d224c5536ec2ca9896fd2f0" in line for line in before)
-                    or not any(line.startswith("historical_prebuilt_archive=") and
-                               "actual=8149e781acdbd21507cfb29937e48e5fdbe628ee5c37007f720dcf5d4000e6ad" in line for line in before)):
-            parser.error("pinned historical image/archive provenance unavailable; no automatic provisioning fallback")
-        browser_tools.locate()  # Fail before expensive compilation if the retained browser prerequisites drifted.
+        browser_tools.locate_chrome()
         command = [sys.executable, "scripts/build-web.py", *(["--fast"] if args.profile == "checked" else [])]
         code, elapsed = capture(command, root, out, 7200)
         sizes(root, out / "sizes.csv")
     else:
         if not args.workload or not current:
             parser.error("runtime requires --workload and the selected profile's current official CAD stamp")
-        if old and args.workload in UNPAIRED:
-            parser.error("historical Cadrum has no admitted refinement/owned-query counterpart")
         validation = args.action == "validate"
         if args.workload == "U1:freeze" and not validation:
             parser.error("U1:freeze is validation-only; use the committed frozen archive")
+        if args.workload == "U1:page":
+            with zipfile.ZipFile(FIXTURES / "U1.boardstudio") as archive:
+                validate_u1_scope(json.loads(archive.read("project.json")))
         if validation:
             if args.growth or not args.artifact_receipt:
                 parser.error("validate requires --artifact-receipt and never runs repetition/growth sequences")
-            (out / "artifact-validation.log").write_text(existing_artifacts(root, args.artifact_receipt, args.profile))
+            (out / "artifact-validation.log").write_text(existing_artifacts(root, args.artifact_receipt, args.profile, args.build_run, "\n".join(before) + "\n"))
         else:
             if not args.admission_note or not args.admission_note.is_file():
                 parser.error("runtime needs root's --admission-note for this frozen source/artifacts/quiet window")
             (out / "admission.log").write_text(args.admission_note.read_text())
-            if not args.build_run or not (args.build_run / "binding-after.log").is_file():
+            if not args.build_run:
                 parser.error("runtime requires --build-run from a successful source-bound full build capture")
-            build_binding = (args.build_run / "binding-after.log").read_text()
-            if "\nexit=0\n" not in (args.build_run / "command.log").read_text():
-                parser.error("the referenced full build failed")
-            bound_fields = ("head=", "source_sha256=", "profile=", "official_provider_inputs=", "provider_stamp=", "artifact_")
-            selected = lambda lines: [line for line in lines if line.startswith(bound_fields)]
-            if selected(build_binding.splitlines()) != selected(before):
-                parser.error("full build binding does not match these served source/profile/artifacts")
+            try:
+                validate_page_build_receipt(None, args.build_run, "\n".join(before) + "\n")
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                parser.error(f"build receipt rejected: {error}; supply a successful matching --build-run")
         package = root / "cad/wasm/pkg"
         staged = root / "web/target/site/site-subpath/boardstudio/assets/cad"
         for file in package.glob("*.js"):
@@ -629,7 +691,7 @@ def main():
         site = root / "web/target/site"
         if not (site / "site-subpath/boardstudio/assets/cad-worker/entry.js").is_file():
             parser.error("runtime requires a fresh source-bound full page/worker package; provider-only is insufficient")
-        node, chrome = browser_tools.locate()
+        chrome = browser_tools.locate_chrome()
         serve = module_at(ROOT / "scripts/serve-web.py", "perf_serve")
         base_handler = serve.handler_for(site)
 
@@ -648,10 +710,11 @@ def main():
             def log_message(self, *args):
                 pass
 
+        executable = [str(browser_tools._build_harness("cad-capture"))]
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        command = [node, str(ROOT / "cad/scripts/measure-cad-runtime.cjs"),
+        command = [*executable,
                    f"http://127.0.0.1:{server.server_port}", backend, args.profile,
                    args.workload, str(out), str(args.pair), "validation" if validation else "growth20" if args.growth else "latency"]
         try:
@@ -679,6 +742,12 @@ def main():
             server.shutdown()
             server.server_close()
             thread.join(timeout=3)
+        if code == 0 and args.workload == "U1:page":
+            try:
+                validate_u1_scope(json.loads((out / "accepted-project.json").read_text()))
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                (out / "scope-rejection.log").write_text(f"U1 scope rejection: {error}\n")
+                code = 1
     after, _ = binding(root, args.profile)
     (out / "binding-after.log").write_text("\n".join(after) + "\n")
     if args.action == "build":
