@@ -42,9 +42,11 @@ pub const CTRL_MODIFIER: i64 = 2;
 /// Launch flags every real-page check uses.
 pub const LAUNCH_ARGS: [&str; 2] = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"];
 
-/// Retained from the pre-migration tree for the `skew-probe` diagnostic
-/// (decoupled Chrome-pin protocol-skew probe): the migration's shared driver
-/// surfaces invalid messages and fails, so it no longer needs these counters.
+/// Ticket-001 policy for unparsable (`InvalidMessage`) CDP events: the harness
+/// launches with invalids surfaced so they can be counted, then classifies
+/// each one. Events outside the harness's used surface are tolerated and
+/// counted (surfaced in the run log, never silent); events on the used
+/// surface fail the run loudly because they may hide a real loss.
 /// Classification of an unparsable (`InvalidMessage`) CDP event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvalidKind {
@@ -142,7 +144,10 @@ pub fn invalid_method(raw: &str) -> String {
 
 /// Launch Chrome with the shared flags and viewport under an isolated profile.
 ///
-/// Invalid protocol messages are surfaced and fail the run. The child's
+/// Invalid protocol messages are surfaced so the drain can count them: events
+/// outside the harness's used CDP surface are tolerated and counted in the
+/// run log, while events on the used surface fail the run (see
+/// [`HandlerErrors`]). The child's
 /// `XDG_CONFIG_HOME` is isolated from the user's configuration.
 pub async fn launch_chrome(chrome: &str, dirs: &IsolatedDirs) -> Result<(Browser, Handler)> {
     launch_chrome_with_args(chrome, dirs, &[]).await
@@ -215,11 +220,16 @@ pub async fn launch_chrome_with_args(
 
 /// Handler errors observed while the run is active.
 ///
-/// Protocol and command-routing failures, including invalid events, fail the run.
+/// Protocol and command-routing failures fail the run, except tolerated
+/// benign-domain invalids, which are counted (see [`InvalidCounts`]) and
+/// logged instead. The run log always prints [`HandlerErrors::invalid_report`],
+/// so tolerated invalids are never silent; required-domain invalid loss still
+/// fails loudly via [`HandlerErrors::fail_if_any`].
 #[derive(Debug, Default)]
 pub struct HandlerErrors {
     count: AtomicUsize,
     first: std::sync::Mutex<Vec<String>>,
+    invalids: std::sync::Mutex<InvalidCounts>,
 }
 
 impl HandlerErrors {
@@ -231,6 +241,36 @@ impl HandlerErrors {
     /// Number of handler errors recorded so far.
     pub fn count(&self) -> usize {
         self.count.load(Ordering::Relaxed)
+    }
+
+    /// Count of tolerated benign-domain invalid protocol messages.
+    pub fn tolerated_invalid_total(&self) -> usize {
+        self.invalids
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .total()
+    }
+
+    /// One run-log block for tolerated invalids; always printed, even at zero.
+    pub fn invalid_report(&self) -> String {
+        let invalids = self
+            .invalids
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut report = format!(
+            "invalid protocol messages: total={} required={}",
+            invalids.total(),
+            invalids.required_total()
+        );
+        for (method, count, kind) in invalids.sorted() {
+            let name = if method.is_empty() {
+                "<unknown>"
+            } else {
+                &method
+            };
+            report.push_str(&format!("\n  {name} -> {count} ({kind:?})"));
+        }
+        report
     }
 
     fn record(&self, message: String) {
@@ -261,8 +301,11 @@ impl HandlerErrors {
 
 /// Drain the browser handler for the duration of the run.
 ///
-/// Returned errors are recorded with full redacted payloads; the task ends
-/// when the caller drops the browser or aborts the handle.
+/// Unparsable protocol messages are classified per the ticket-001 policy:
+/// benign-domain invalids are counted and logged (never silent, never fatal),
+/// while required-domain invalids and all other handler errors are recorded
+/// with full redacted payloads and fail the run. The task ends when the
+/// caller drops the browser or aborts the handle.
 pub fn spawn_handler_drain(
     handler: Handler,
     errors: Arc<HandlerErrors>,
@@ -274,6 +317,24 @@ pub fn spawn_handler_drain(
             if let Err(error) = event {
                 let message = match error {
                     CdpError::InvalidMessage(payload, cause) => {
+                        let method = invalid_method(&payload);
+                        if classify_invalid(&method) == InvalidKind::Benign {
+                            errors
+                                .invalids
+                                .lock()
+                                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                                .record(&method);
+                            let name = if method.is_empty() {
+                                "<unknown>"
+                            } else {
+                                &method
+                            };
+                            eprintln!(
+                                "tolerated invalid protocol message ({name}): {cause}; payload: {}",
+                                redact(&payload)
+                            );
+                            continue;
+                        }
                         format!(
                             "invalid protocol message: {cause}; payload: {}",
                             redact(&payload)
@@ -1843,5 +1904,120 @@ mod redaction_tests {
         assert!(!output.contains("body-secret"));
         assert!(!output.contains("cookie-secret"));
         assert!(output.contains("safe"));
+    }
+}
+
+#[cfg(test)]
+mod invalid_policy_tests {
+    /// Representative Chrome 156 `Network.requestWillBeSentExtraInfo` event.
+    /// chromiumoxide 0.9.1 has no such typed variant (experimental,
+    /// unsubscribed domain), so the typed parse fails with `InvalidMessage`.
+    /// The exact archived bytes are unrecoverable (the spike truncated raw
+    /// payloads to 400 chars with no Serde cause), so this carries the same
+    /// method plus 156-era fields as the acceptance fixture.
+    const NETWORK_EXTRA_INFO: &str = r#"{"method":"Network.requestWillBeSentExtraInfo","params":{"requestId":"11.1","associatedCookies":[],"headers":{":authority":"127.0.0.1"},"cookiePartitionKey":{"topLevelSite":"http://127.0.0.1"},"clientSecurityState":{"initiatorIsSecureContext":true}}}"#;
+
+    #[test]
+    fn experimental_network_events_are_benign() {
+        assert_eq!(
+            super::classify_invalid("Network.requestWillBeSentExtraInfo"),
+            super::InvalidKind::Benign
+        );
+        assert_eq!(
+            super::invalid_method(NETWORK_EXTRA_INFO),
+            "Network.requestWillBeSentExtraInfo"
+        );
+    }
+
+    #[test]
+    fn required_domain_and_missing_method_are_required() {
+        for method in [
+            "Runtime.exceptionThrown",
+            "Target.targetCreated",
+            "Page.loadEventFired",
+            "Accessibility.loadComplete",
+            "",
+        ] {
+            assert_eq!(
+                super::classify_invalid(method),
+                super::InvalidKind::Required,
+                "{method}"
+            );
+        }
+    }
+
+    async fn drain_one_invalid(raw: &str) -> super::HandlerErrors {
+        use futures::StreamExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let raw = raw.to_owned();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut ws = async_tungstenite::tokio::accept_async(socket)
+                .await
+                .unwrap();
+            while let Some(message) = ws.next().await {
+                let message = message.unwrap();
+                let command: serde_json::Value =
+                    serde_json::from_str(message.to_text().unwrap()).unwrap();
+                if command["method"] == "Browser.close" {
+                    ws.send(format!(r#"{{"id":{},"result":{{}}}}"#, command["id"]).into())
+                        .await
+                        .unwrap();
+                    ws.send(raw.clone().into()).await.unwrap();
+                    ws.close(None).await.unwrap();
+                    break;
+                }
+            }
+        });
+        let config = chromiumoxide::handler::HandlerConfig {
+            ignore_invalid_messages: false,
+            ..Default::default()
+        };
+        let (mut browser, handler) =
+            chromiumoxide::Browser::connect_with_config(format!("ws://{address}"), config)
+                .await
+                .unwrap();
+        let handler_errors = std::sync::Arc::new(super::HandlerErrors::new());
+        let page_errors = std::sync::Arc::new(super::PageErrors::new());
+        let drain = super::spawn_handler_drain(handler, handler_errors.clone(), page_errors);
+        browser.close().await.unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(5), drain)
+            .await
+            .unwrap()
+            .unwrap();
+        server.await.unwrap();
+        drop(browser);
+        std::sync::Arc::try_unwrap(handler_errors)
+            .unwrap_or_else(|_| panic!("drain retained errors"))
+    }
+
+    #[tokio::test]
+    async fn benign_network_invalid_is_counted_not_fatal() {
+        let errors = drain_one_invalid(NETWORK_EXTRA_INFO).await;
+        assert!(
+            errors.fail_if_any().is_ok(),
+            "benign Network.invalid must not fail the run: {:?}",
+            errors.fail_if_any().unwrap_err()
+        );
+        assert_eq!(errors.tolerated_invalid_total(), 1);
+        let report = errors.invalid_report();
+        assert!(
+            report.contains("Network.requestWillBeSentExtraInfo"),
+            "{report}"
+        );
+    }
+
+    #[tokio::test]
+    async fn required_invalid_still_fails_loudly() {
+        let errors = drain_one_invalid(r#"{"method":"Runtime.exceptionThrown","params":{}}"#).await;
+        let verdict = errors.fail_if_any().unwrap_err().to_string();
+        assert!(
+            verdict.contains("invalid protocol message")
+                && verdict.contains("Runtime.exceptionThrown"),
+            "{verdict}"
+        );
+        assert_eq!(errors.tolerated_invalid_total(), 0);
     }
 }

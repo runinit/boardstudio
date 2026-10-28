@@ -59,6 +59,9 @@ pub(super) async fn finish_browser(
     } else {
         Err(Error(errors.join("; ")))
     };
+    // Ticket-001: tolerated invalids are never silent — every run logs the
+    // counter, even at zero, alongside the shutdown verdict.
+    println!("{}", handler_errors.invalid_report());
     (result, confirmed)
 }
 
