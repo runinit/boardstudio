@@ -104,25 +104,38 @@ async function setSlider(page, name, target) {
     await page.locator('#m1-layout-select-trigger').click();
     await page.locator('#m1-layout-select-menu').getByRole('button', { name, exact: true }).click();
   };
-  const waitDocument = signature => page.waitForFunction(async ({ expected, database }) => {
-    const project = await new Promise((resolve, reject) => {
-      const request = indexedDB.open(database);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        const db = request.result;
+  // Poll from Node: a promise-returning pageFunction is evaluated only once by
+  // the pinned Playwright version instead of polling to its timeout, so the
+  // wait must re-evaluate here. Same 20 s bound and match, compared with the
+  // same canonicalization the assertions use.
+  const readProjects = () => page.evaluate(database => new Promise((resolve, reject) => {
+    const request = indexedDB.open(database);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      try {
         const query = db.transaction('projects').objectStore('projects').getAll();
-        query.onerror = () => reject(query.error);
-        query.onsuccess = () => { db.close(); resolve(query.result[0]); };
-      };
-    });
-    if (!project) return false;
-    delete project.revision;
-    const canonical = value => Array.isArray(value) ? value.map(canonical)
-      : value && typeof value === 'object'
-        ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])]))
-        : value;
-    return JSON.stringify(canonical(project)) === expected;
-  }, { expected: signature, database: STORAGE_DATABASE }, { timeout: 20000 });
+        query.onerror = () => { db.close(); reject(query.error); };
+        query.onsuccess = () => { db.close(); resolve(query.result); };
+      } catch (error) {
+        db.close();
+        reject(error);
+      }
+    };
+  }), STORAGE_DATABASE);
+  const waitDocument = async signature => {
+    const deadline = Date.now() + 20000;
+    for (;;) {
+      const projects = await readProjects();
+      const project = projects[0];
+      if (project) {
+        delete project.revision;
+        if (JSON.stringify(stable(project)) === signature) return true;
+      }
+      if (Date.now() >= deadline) throw new Error('timed out waiting for the saved document');
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+  };
   const matrixState = (project, matrixId, row, column) => {
     const matrix = project.matrices.find(item => item.id === matrixId);
     assert.ok(matrix, `matrix ${matrixId} exists in the saved document`);
@@ -220,32 +233,33 @@ async function setSlider(page, name, target) {
     await startSaveTracking();
     await release();
     await waitForSaveCycle();
-    await page.waitForFunction(async ({ database, matrixId, row, column, expected, fields }) => {
-      const project = await new Promise((resolve, reject) => {
-        const request = indexedDB.open(database);
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const db = request.result;
-          const query = db.transaction('projects').objectStore('projects').getAll();
-          query.onerror = () => reject(query.error);
-          query.onsuccess = () => { db.close(); resolve(query.result[0]); };
-        };
-      });
-      if (!project) return false;
-      const matrix = project.matrices.find(item => item.id === matrixId);
-      if (!matrix) return false;
-      const cells = matrix.cells || [];
-      const cell = cells.find(item => item.row === row && item.column === column);
-      const state = {
-        offset: matrix.columnLayout?.[column]?.offset || { x: 0, y: 0 },
-        stagger: matrix.columnLayout?.[column]?.stagger || 0,
-        cellOffset: cell?.offset || { x: 0, y: 0 },
-        columnCellOffsets: Array.from({ length: matrix.rows }, (_, cellRow) =>
-          cells.find(item => item.row === cellRow && item.column === column)?.offset || { x: 0, y: 0 }),
-        origin: matrix.origin || { x: 0, y: 0 },
-      };
-      return fields.every(field => JSON.stringify(state[field]) !== JSON.stringify(expected[field]));
-    }, { database: STORAGE_DATABASE, ...identity, expected, fields: expectedFields }, { timeout: 20000 });
+    // Poll from Node for the same Playwright reason as waitDocument: same
+    // 20 s bound and the same per-field change check, evaluated here instead
+    // of in a promise-returning pageFunction.
+    {
+      const deadline = Date.now() + 20000;
+      for (;;) {
+        const projects = await readProjects();
+        const project = projects[0];
+        const matrix = project?.matrices?.find(item => item.id === identity.matrixId);
+        if (matrix) {
+          const cells = matrix.cells || [];
+          const cell = cells.find(item => item.row === identity.row && item.column === identity.column);
+          const state = {
+            offset: matrix.columnLayout?.[identity.column]?.offset || { x: 0, y: 0 },
+            stagger: matrix.columnLayout?.[identity.column]?.stagger || 0,
+            cellOffset: cell?.offset || { x: 0, y: 0 },
+            columnCellOffsets: Array.from({ length: matrix.rows }, (_, cellRow) =>
+              cells.find(item => item.row === cellRow && item.column === identity.column)?.offset || { x: 0, y: 0 }),
+            origin: matrix.origin || { x: 0, y: 0 },
+          };
+          if (expectedFields.every(field =>
+            JSON.stringify(state[field]) !== JSON.stringify(expected[field]))) break;
+        }
+        if (Date.now() >= deadline) throw new Error(`timed out waiting for the changed matrix cells (${config.name})`);
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
     const durableAt = await page.evaluate(() => performance.now());
     const after = await doc();
     assert.notEqual(after.signature, before.signature, `${config.name}: edit was durably saved`);
