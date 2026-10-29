@@ -55,8 +55,9 @@ GitHub work resumes; the local check is not a substitute.
 
 ## Full-gate destination and sequence — 2026-10-29
 
-The user now targets **approximately 10 minutes overall for the full required PR gate**, not
-the earlier 17-minute tiered gate. This supersedes the earlier tiering policy for this goal:
+The user now aspires to **approximately 10 minutes cold overall for the full required PR gate**,
+not the earlier 17-minute tiered gate, and authorizes topology changes if needed (user direction,
+2026-10-29). This supersedes the earlier tiering policy for this goal:
 do not remove, defer, or weaken required coverage to achieve the time. The current local-first
 constraints above remain in force; no new hosted runs, PRs, merges, or ticket 15 matrix until
 the user returns to GitHub work. See the [dated decision](wiki/decisions.md) and
@@ -110,7 +111,7 @@ Prioritized local-first work, respecting existing ownership:
    not evidence of current required-check configuration.
 
 **Success:** all required native and web checks are green on the same head, with unchanged
-coverage, and the hosted end-to-end full required gate wall is approximately 10 minutes, with
+coverage, and the cold hosted end-to-end full required gate wall is approximately 10 minutes, with
 cold versus warm explicitly identified and comparable receipts. Include other required checks
 and queue/setup/aggregation in the overall wall if they determine completion. Report cold and
 warm separately; a warm hit is not evidence that cold meets the target. Neither local timings
@@ -121,8 +122,8 @@ The 19.2-minute warm browser wall is already partly parallel, not divisible seri
 replacing CAD's 640s with the existing 426s workspace lane would still leave roughly 11 minutes
 including historical serial steps and setup; that is counterfactual arithmetic, not a measurement
 or a proof that a particular split works. Runner capacity, cache access, artifact compatibility,
-contention and real shard balance remain unknown. The user has not decided whether the target
-applies to cold runs, runner size, cache layout, or native/web topology.
+contention and real shard balance remain unknown. The user has not preselected runner size,
+cost policy, cache layout, artifacts, or a specific native/web topology.
 
 ## Earlier destination (historical)
 

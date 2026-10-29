@@ -49,3 +49,9 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
   cache states. The [map](../map.md#full-gate-destination-and-sequence--2026-10-29) records the
   practical sequence, resource and trust constraints, and unproven assumptions; the
   [baseline](baseline.md) records the measured anchors. Source: user direction, 2026-10-29.
+- On 2026-10-29, the user said approximately **10 minutes cold** would be great for the full
+  gate and authorized topology changes if needed. This is an aspirational objective, not a
+  demonstrated result; track cold and warm separately, retain full coverage, and do not infer
+  approval of an unsafe cache or a particular artifact, caching, runner, or cost policy. The
+  local-first and no-hosted-CI-until-later constraints above remain. Source: user direction in
+  the parent conversation, 2026-10-29.
