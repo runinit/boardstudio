@@ -32,8 +32,9 @@ claim and status changes in the relevant ticket and keep this map consistent. Se
 The page-list integration portion of [check-speed 12](../check-speed/issues/12-browser-quick-wins.md)
 was claimed then released: experimental cherry-pick `c78aaa367` changes locking and listing
 diagnostics and needs the documented compatibility work before promotion. No fresh warm browser
-comparison was taken; prior evidence remains in ticket 06. The other quick-win candidates were
-not claimed by this session.
+comparison was taken; its historical ~5s gain is unverified on this base. Do not promote it as-is;
+deprioritize repair unless it directly enables critical-path work. The other quick-win candidates
+were not claimed by this session.
 
 See [decisions](wiki/decisions.md) and [baseline](wiki/baseline.md) for dated context and
 existing measurements. Hosted CI receipts and the original gate criteria remain necessary when
@@ -59,8 +60,8 @@ were about 6.1/19.2 minutes. Provider overlap's local provider-phase savings and
 
 Prioritized local-first work, respecting existing ownership:
 
-1. Finish the focused web-build correctness and measurement work above, including the separately
-   owned page-list integration; compare equivalent end-to-end commands and retain all tests.
+1. Finish the focused web-build correctness and measurement work above; compare equivalent
+   end-to-end commands and retain all tests. The blocked page-list candidate is not a priority.
    Profile the full browser and native paths locally by compile, execution, setup and wait time,
    with test identities/counts and cache state. Do not mistake a `--fast` build for release proof.
 2. Design and locally validate full-coverage web shards around independent crate batches and
