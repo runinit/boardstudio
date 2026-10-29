@@ -9,7 +9,7 @@ use async_tungstenite::{WebSocketStream, tungstenite::protocol::WebSocketConfig}
 use futures::stream::Stream;
 use futures::task::{Context, Poll};
 use futures::{SinkExt, StreamExt};
-use serde::de::{MapAccess, Visitor};
+use serde::de::{MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 use serde_json::value::RawValue;
 
@@ -48,29 +48,71 @@ impl<'de> Deserialize<'de> for RawObject<'de> {
     }
 }
 
-fn reject_duplicates(raw: &str) -> serde_json::Result<()> {
-    match raw.trim_start().as_bytes().first() {
-        Some(b'{') => {
-            let object: RawObject<'_> = serde_json::from_str(raw)?;
-            let mut keys = HashSet::new();
-            for (key, value) in object.0 {
-                if !keys.insert(key) {
-                    return Err(<serde_json::Error as serde::de::Error>::custom(
-                        "duplicate JSON key",
-                    ));
+struct UniqueKeys;
+
+impl<'de> Deserialize<'de> for UniqueKeys {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        struct UniqueVisitor;
+        impl<'de> Visitor<'de> for UniqueVisitor {
+            type Value = UniqueKeys;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("JSON without duplicate object keys")
+            }
+
+            fn visit_bool<E: serde::de::Error>(
+                self,
+                _: bool,
+            ) -> std::result::Result<Self::Value, E> {
+                Ok(UniqueKeys)
+            }
+            fn visit_i64<E: serde::de::Error>(self, _: i64) -> std::result::Result<Self::Value, E> {
+                Ok(UniqueKeys)
+            }
+            fn visit_u64<E: serde::de::Error>(self, _: u64) -> std::result::Result<Self::Value, E> {
+                Ok(UniqueKeys)
+            }
+            fn visit_f64<E: serde::de::Error>(self, _: f64) -> std::result::Result<Self::Value, E> {
+                Ok(UniqueKeys)
+            }
+            fn visit_str<E: serde::de::Error>(
+                self,
+                _: &str,
+            ) -> std::result::Result<Self::Value, E> {
+                Ok(UniqueKeys)
+            }
+            fn visit_unit<E: serde::de::Error>(self) -> std::result::Result<Self::Value, E> {
+                Ok(UniqueKeys)
+            }
+
+            fn visit_map<M: MapAccess<'de>>(
+                self,
+                mut map: M,
+            ) -> std::result::Result<Self::Value, M::Error> {
+                let mut keys = HashSet::new();
+                while let Some(key) = map.next_key::<String>()? {
+                    if !keys.insert(key) {
+                        return Err(<M::Error as serde::de::Error>::custom("duplicate JSON key"));
+                    }
+                    map.next_value::<UniqueKeys>()?;
                 }
-                reject_duplicates(value.get())?;
+                Ok(UniqueKeys)
+            }
+
+            fn visit_seq<S: SeqAccess<'de>>(
+                self,
+                mut seq: S,
+            ) -> std::result::Result<Self::Value, S::Error> {
+                while seq.next_element::<UniqueKeys>()?.is_some() {}
+                Ok(UniqueKeys)
             }
         }
-        Some(b'[') => {
-            let values: Vec<&RawValue> = serde_json::from_str(raw)?;
-            for value in values {
-                reject_duplicates(value.get())?;
-            }
-        }
-        _ => {}
+        deserializer.deserialize_any(UniqueVisitor)
     }
-    Ok(())
+}
+
+fn reject_duplicates(raw: &str) -> serde_json::Result<()> {
+    serde_json::from_str::<UniqueKeys>(raw).map(|_| ())
 }
 
 fn decode_message<T: EventMessage>(raw: &str) -> serde_json::Result<Message<T>> {
@@ -88,6 +130,31 @@ fn decode_message<T: EventMessage>(raw: &str) -> serde_json::Result<Message<T>> 
     if root.0.iter().any(|(key, _)| key == "id")
         && serde_json::from_str::<chromiumoxide_types::Response>(raw).is_ok()
     {
+        return serde_json::from_str(raw);
+    }
+    let has_new = root
+        .0
+        .iter()
+        .filter(|(key, _)| key == "params")
+        .any(|(_, value)| {
+            let Ok(params) = serde_json::from_str::<RawObject<'_>>(value.get()) else {
+                return false;
+            };
+            params
+                .0
+                .iter()
+                .filter(|(key, _)| key == "clientSecurityState")
+                .any(|(_, value)| {
+                    let Ok(state) = serde_json::from_str::<RawObject<'_>>(value.get()) else {
+                        return false;
+                    };
+                    state
+                        .0
+                        .iter()
+                        .any(|(key, _)| key == "localNetworkAccessRequestPolicy")
+                })
+        });
+    if !has_new {
         return serde_json::from_str(raw);
     }
     reject_duplicates(raw)?;
@@ -128,6 +195,9 @@ fn decode_message<T: EventMessage>(raw: &str) -> serde_json::Result<Message<T>> 
     }
     if !new {
         return serde_json::from_str(raw);
+    }
+    if let Ok(original) = serde_json::from_str(raw) {
+        return Ok(original);
     }
     let mut translated = String::from("{");
     for (index, (key, value)) in state_fields.0.iter().enumerate() {
@@ -309,7 +379,7 @@ mod compatibility_tests {
     // Redacted shape of a Chrome 156 event captured from the face runner.
     const CAPTURED: &str = r#"{"method":"Network.requestWillBeSentExtraInfo","params":{"requestId":"REDACTED","associatedCookies":[],"headers":{"Accept":"REDACTED","Accept-Encoding":"REDACTED","Accept-Language":"REDACTED","Connection":"REDACTED","Host":"REDACTED","Referer":"REDACTED","Sec-Fetch-Dest":"REDACTED","Sec-Fetch-Mode":"REDACTED","Sec-Fetch-Site":"REDACTED","User-Agent":"REDACTED","sec-ch-ua":"REDACTED","sec-ch-ua-mobile":"REDACTED","sec-ch-ua-platform":"REDACTED"},"connectTiming":{"requestTime":213466.237742},"clientSecurityState":{"initiatorIsSecureContext":true,"initiatorIPAddressSpace":"Loopback","localNetworkAccessRequestPolicy":"PermissionBlock"},"siteHasCookieInOtherPartition":false},"sessionId":"REDACTED"}"#;
 
-    async fn replay(messages: Vec<String>) -> Vec<Result<Message<CdpEventMessage>>> {
+    async fn replay_as<T: EventMessage + Unpin>(messages: Vec<String>) -> Vec<Result<Message<T>>> {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let count = messages.len();
@@ -322,7 +392,7 @@ mod compatibility_tests {
                 ws.send(message.into()).await.unwrap();
             }
         });
-        let mut conn = Connection::<CdpEventMessage>::connect(format!("ws://{addr}"))
+        let mut conn = Connection::<T>::connect(format!("ws://{addr}"))
             .await
             .unwrap();
         let mut received = Vec::new();
@@ -336,6 +406,127 @@ mod compatibility_tests {
         }
         server.await.unwrap();
         received
+    }
+
+    async fn replay(messages: Vec<String>) -> Vec<Result<Message<CdpEventMessage>>> {
+        replay_as(messages).await
+    }
+
+    #[tokio::test]
+    async fn legacy_events_keep_original_duplicate_map_behavior() {
+        let legacy = CAPTURED.replace(
+            "localNetworkAccessRequestPolicy",
+            "privateNetworkRequestPolicy",
+        );
+        let no_state = CAPTURED.replace(
+            ",\"clientSecurityState\":{\"initiatorIsSecureContext\":true,\"initiatorIPAddressSpace\":\"Loopback\",\"localNetworkAccessRequestPolicy\":\"PermissionBlock\"}",
+            "",
+        );
+        let inputs = vec![
+            legacy.replace(
+                "\"Accept\":\"REDACTED\"",
+                "\"Accept\":\"one\",\"Accept\":\"two\"",
+            ),
+            legacy.replace(
+                "\"siteHasCookieInOtherPartition\":false",
+                "\"extension\":{\"x\":1,\"x\":2},\"siteHasCookieInOtherPartition\":false",
+            ),
+            no_state.replace(
+                "\"Accept\":\"REDACTED\"",
+                "\"Accept\":\"one\",\"Accept\":\"two\"",
+            ),
+        ];
+        for (raw, actual) in inputs.iter().zip(replay(inputs.clone()).await) {
+            let expected = serde_json::from_str::<Message<CdpEventMessage>>(raw).unwrap();
+            assert_eq!(
+                format!("{:?}", actual.unwrap()),
+                format!("{expected:?}"),
+                "{raw}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn generic_connection_preserves_valid_original_event() {
+        use chromiumoxide_types::CdpJsonEventMessage;
+        let raw = CAPTURED.to_string();
+        let expected: Message<CdpJsonEventMessage> = serde_json::from_str(&raw).unwrap();
+        let actual = replay_as::<CdpJsonEventMessage>(vec![raw])
+            .await
+            .pop()
+            .unwrap()
+            .unwrap();
+        let (Message::Event(actual), Message::Event(expected)) = (actual, expected) else {
+            panic!("expected generic events")
+        };
+        assert_eq!(actual, expected);
+        assert!(
+            actual.params["clientSecurityState"]
+                .get("localNetworkAccessRequestPolicy")
+                .is_some()
+        );
+    }
+
+    #[tokio::test]
+    async fn generic_connection_still_rejects_ambiguous_alias_candidates() {
+        use chromiumoxide_types::CdpJsonEventMessage;
+        let key = "\"localNetworkAccessRequestPolicy\":\"PermissionBlock\"";
+        let inputs = vec![
+            CAPTURED.replace(
+                key,
+                &format!("{key},\"privateNetworkRequestPolicy\":\"Allow\""),
+            ),
+            CAPTURED.replace(key, &format!("{key},{key}")),
+            CAPTURED.replace("\"params\":{", "\"params\":{},\"params\":{"),
+        ];
+        for (raw, result) in inputs
+            .iter()
+            .zip(replay_as::<CdpJsonEventMessage>(inputs.clone()).await)
+        {
+            assert!(matches!(result, Err(CdpError::InvalidMessage(payload, _)) if &payload == raw));
+        }
+    }
+
+    #[tokio::test]
+    async fn alias_keeps_typed_decoder_numeric_extension_behavior() {
+        for number in ["1e200", "1e9999"] {
+            let raw = CAPTURED.replace(
+                "\"siteHasCookieInOtherPartition\":false",
+                &format!("\"extension\":{number},\"siteHasCookieInOtherPartition\":false"),
+            );
+            let legacy = raw.replace(
+                "localNetworkAccessRequestPolicy",
+                "privateNetworkRequestPolicy",
+            );
+            let expected = serde_json::from_str::<Message<CdpEventMessage>>(&legacy);
+            let actual = replay(vec![raw.clone()]).await.pop().unwrap();
+            match (expected, actual) {
+                (Ok(expected), Ok(actual)) => {
+                    assert_eq!(format!("{actual:?}"), format!("{expected:?}"))
+                }
+                (Err(_), Err(CdpError::InvalidMessage(payload, _))) => assert_eq!(payload, raw),
+                (expected, actual) => {
+                    panic!("decoder behavior differs: {expected:?} versus {actual:?}")
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn duplicate_check_rejects_excessive_nesting() {
+        let nested = format!("{}0{}", "[".repeat(8192), "]".repeat(8192));
+        assert!(reject_duplicates(&nested).is_err());
+    }
+
+    #[tokio::test]
+    async fn deeply_nested_alias_event_returns_original_invalid_payload() {
+        let nested = format!("{}0{}", "[".repeat(8192), "]".repeat(8192));
+        let raw = CAPTURED.replace(
+            "\"siteHasCookieInOtherPartition\":false",
+            &format!("\"extension\":{nested},\"siteHasCookieInOtherPartition\":false"),
+        );
+        let result = replay(vec![raw.clone()]).await.pop().unwrap();
+        assert!(matches!(result, Err(CdpError::InvalidMessage(payload, _)) if payload == raw));
     }
 
     #[tokio::test]
