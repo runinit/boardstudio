@@ -29,3 +29,11 @@ receipt that every later speedup compares against.
 - Claimed for probe-branch prep delegate
   `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3A8f05dfbe-b82d-498b-9096-38c1c357cfc3`
   (work stops before the draft PR — that needs user approval).
+- Probe ready 2026-10-29: `ci/probe-warm-baseline` pushed at `008cb78f` — `d650e1ddf` plus
+  exactly the five cache commits (`git log d650e1ddf..HEAD` shows only those five; 4 files
+  touched). One conflict in `scripts/check.py` (probe head's `TOOLING_TESTS` lacks the
+  stack-product entries): resolved probe-tree plus the cache hunk. Wiring verified:
+  `test-ci-workflow.py` exists and is in `TOOLING_TESTS`; save-if scopes, per-PR cancellation,
+  `RUSTUP_HOME`, `ImageOS`, qualification target all present. Next: draft PR against `dev`
+  (user approval), then re-run for cold→warm on the probe head; the transition run will be
+  cold and is not steady state.
