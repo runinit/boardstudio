@@ -1,6 +1,6 @@
 # 19: Node-free Ergogen oracle
 
-Status: claimed
+Status: needs-info
 Type: task
 Blocked by: [Face-completeness replacement](18-face-completeness-replacement.md)
 Parent: [CI wall time map](../map.md)
@@ -189,9 +189,13 @@ gate intact.
   step 4; a C2 battery failure or an exit-0-with-incomplete-boundaries finding → REJECT pending
   redesign. Non-blocking: F1 licence review (only for bundled distribution), F2 step-4
   inventory note, F3 ticket-22 audit untouched.
-- C1–C4 close-out delegated 2026-10-29 (terra xhigh, branch `research/ergogen-closeout` from
-  `9d8c99c6`; no PR): full battery under the ratified rule + C1/C3/C4; any failure or
-  host-visible write reinstates REJECT with no further ratification.
+- C1–C4 close-out 2026-10-29: REJECT STANDS, step-4 cutover is NO-GO pending redesign. A
+  binary copied into the sandbox's private /tmp EXECUTED successfully (proof 4 failed) — no
+  host-visible write was established, but the ratified rule is explicit and needs no further
+  ratification. C1/C3/C4 unattempted; parity suites not rerun; Node test still registered.
+  Branch `research/ergogen-closeout` pushed (`3a616419`), no PR. Next: redesign direction
+  (user + Wonder) — e.g. noexec scratch proven against Chrome/pip needs, scratch elimination,
+  or nobody+seccomp execve denial — then re-run the full battery before any cutover talk.
 - C1–C4 result 2026-10-29: REJECT trigger hit — containment battery denied fixture/checkout/
   repo writes, egress (`1.1.1.1:53` unreachable), and node exec, but a write to the sandbox's
   private `/tmp` tmpfs SUCCEEDED against a "only staging writable" condition. Nothing was
