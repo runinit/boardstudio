@@ -200,6 +200,9 @@ gate intact.
   (branch `research/ergogen-noexec`): noexec scratch, prove Chrome/pip/driver still function,
   full battery + C1/C3/C4; a Chrome refusal is evidence forcing path (b), not a cue for
   workarounds.
+- Round 2 dispatched 2026-10-29 (first attempt stopped: worktree changed branches under it;
+  base ref verified on origin at `3a616419`). Pinned base plus tripwire: abort if the worktree
+  moves again.
 - C1–C4 result 2026-10-29: REJECT trigger hit — containment battery denied fixture/checkout/
   repo writes, egress (`1.1.1.1:53` unreachable), and node exec, but a write to the sandbox's
   private `/tmp` tmpfs SUCCEEDED against a "only staging writable" condition. Nothing was
