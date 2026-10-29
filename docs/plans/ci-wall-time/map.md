@@ -39,7 +39,70 @@ See [decisions](wiki/decisions.md) and [baseline](wiki/baseline.md) for dated co
 existing measurements. Hosted CI receipts and the original gate criteria remain necessary when
 GitHub work resumes; the local check is not a substitute.
 
-## Destination
+## Full-gate destination and sequence — 2026-10-29
+
+The user now targets **approximately 10 minutes overall for the full required PR gate**, not
+the earlier 17-minute tiered gate. This supersedes the earlier tiering policy for this goal:
+do not remove, defer, or weaken required coverage to achieve the time. The current local-first
+constraints above remain in force; no new hosted runs, PRs, merges, or ticket 15 matrix until
+the user returns to GitHub work. See the [dated decision](wiki/decisions.md) and
+[baseline](wiki/baseline.md).
+
+Measured anchors: on the green cold baseline, native and web ran concurrently at 30m19s and
+33m37s; native tooling/lint/test were 143/477/1095s and web build/browser 624/1363s. The
+same-head warm probe measured 14m41s native and 26m03s web, including setup, not a 10-minute
+gate. Its native CAD test lane alone took 640s (including 527s compile); web warm build/browser
+were about 6.1/19.2 minutes. Provider overlap's local provider-phase savings and the roughly
+5s page-list result are not full-gate gains. Details and qualifications: tickets
+[03](issues/03-warm-baseline-measure.md), [05](issues/05-provider-parallelism.md),
+[06](issues/06-page-list-removal.md), and [14](issues/14-native-warm-wall.md).
+
+Prioritized local-first work, respecting existing ownership:
+
+1. Finish the focused web-build correctness and measurement work above, including the separately
+   owned page-list integration; compare equivalent end-to-end commands and retain all tests.
+   Profile the full browser and native paths locally by compile, execution, setup and wait time,
+   with test identities/counts and cache state. Do not mistake a `--fast` build for release proof.
+2. Design and locally validate full-coverage web shards around independent crate batches and
+   presentation tests, with a build-once handoff where outputs actually match each consumer.
+   Measure artifact creation, transfer/restore, per-shard compilation and longest shard, not just
+   summed execution. Preserve isolation (`run-wasm-tests --all` remains split), browser setup,
+   failure reporting and aggregate required-check semantics. Ticket [04](issues/04-web-split-design.md)
+   remains the human design decision; do not make it depend on reducing the PR tier.
+3. Shorten native concurrently: investigate the 640s CAD lane's repeated compile and safe build
+   reuse, and split independent lint/test work only where it preserves every check and count.
+   Measure whether shared outputs are compatible and whether setup, linking, memory and CPU
+   contention erase savings. A warm lane already exceeds 600s before the other native steps.
+4. Validate cache reachability and provenance before relying on warm performance: current
+   checkout saves Rust caches only on main/dev; the scoped cache proposal and its quota and
+   cold-transition risks are documented in [01](issues/01-cache-readiness.md) and
+   [12](issues/12-land-cache-change.md). PR #13 was recorded there as open with CI pending at
+   handoff; no current GitHub status is asserted. A probe rerun's exact-key hit does not prove
+   a new PR can restore a trusted base cache. Check scope, key/toolchain/profile inputs, hit
+   rates, transfer cost, eviction, and untrusted/fork write boundaries; never trade correctness
+   for a hit. Cold fallback must still run the complete gate.
+5. Only after the local phase and the user's return to GitHub work, agree the required-check
+   topology and run comparable hosted same-head before/after receipts for the small and core-touch
+   reference changes. Record cold and warm cache states, scopes, restore/save time, setup,
+   queue/transfer and all shard/job walls, counts and failures. Shards must collectively execute
+   the same tests, with missing or failed shards blocking the gate; release dependencies and
+   branch protection must not accidentally accept a partial run.
+
+**Success:** all required native and web checks are green on the same head, with unchanged
+coverage, and the hosted end-to-end full required gate wall is approximately 10 minutes, with
+cold versus warm explicitly identified and comparable receipts. Include other required checks
+and queue/setup/aggregation in the overall wall if they determine completion. Report cold and
+warm separately; a warm hit is not evidence that cold meets the target. Neither local timings
+nor the existing warm probe establish that this is achievable on current hosted resources.
+
+Planning arithmetic, not a forecast: even ideal division of 19.2 minutes of warm browser work
+over three equal concurrent shards leaves about 6.4 minutes per shard before setup, build,
+handoff and imbalance; a shared 6.1-minute build serialized ahead of those shards already
+exceeds ten. Build overlap/reuse or a different partition is therefore required, and the native
+CAD compile must also be reduced or moved off its critical path without dropping it. Runner
+capacity, cache access, artifact compatibility and real shard balance remain unknown.
+
+## Earlier destination (historical)
 
 PR validation — the PR-gate tier of the `native` and `web` jobs — completes in under 17 minutes
 on a warm cache (about half the 33m37s cold full-gate baseline) for both reference change sets:
@@ -59,9 +122,8 @@ attributable from the log alone.
   gate; check-speed candidates (check-speed tickets 11–13) are re-measured with fresh receipts, never claimed
   on old numbers; `run-wasm-tests --all` stays split (OOM/SIGKILL risk); lockfile-changing removals
   land after 03 scores the warm baseline and re-measure after.
-- Tiering policy: the PR gate runs the minimal viable set (10/09); the full suite stays required
-  on the main/release path, so no test stops blocking before release — it stops blocking every
-  PR push.
+- Historical tiering policy (superseded for the full-gate goal above): the PR gate would run the
+  minimal viable set (10/09), with the full suite required on the main/release path.
 - Sessions consult the [check-speed map](../check-speed/map.md) and tickets
   [11](../check-speed/issues/11-browser-measure.md),
   [12](../check-speed/issues/12-browser-quick-wins.md),

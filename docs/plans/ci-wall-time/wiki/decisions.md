@@ -41,3 +41,12 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
   Record actual claim and status changes in the plan and ticket, keeping them consistent.
   Source: user direction in the parent conversation, 2026-10-29. The focused local-only,
   no-matrix and no-hosted-run constraints remain in force.
+- On 2026-10-29, the user changed the target to approximately **10 minutes for the overall full
+  required PR gate**, with native and web both green on the same head and no reduced coverage or
+  unsafe cache. This supersedes the 17-minute tiered destination and its coverage reduction, not
+  the historical measurements or existing claims. Work remains local-first; no new hosted CI,
+  PRs, merges, or ticket 15 tuning matrix until the user returns to GitHub. Success requires a
+  comparable hosted end-to-end measurement after the local phase, identifying cold and warm
+  cache states. The [map](../map.md#full-gate-destination-and-sequence--2026-10-29) records the
+  practical sequence, resource and trust constraints, and unproven assumptions; the
+  [baseline](baseline.md) records the measured anchors. Source: user direction, 2026-10-29.
