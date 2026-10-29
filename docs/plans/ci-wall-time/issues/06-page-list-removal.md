@@ -25,6 +25,10 @@ part of the 17-minute arithmetic.
 
 ## Answer
 
+2026-10-29: the current implementation session has claimed the page-list integration portion
+of check-speed 12 on `research/page-list-stamp-integration`, based on `8d6bbd0fe`. This
+evidence ticket remains resolved; the integration and new measurement are not yet complete.
+
 Evidence supports check-speed 12's claim. Removal (serial page `--list` launch plus the dead
 `--keep-going` prerequisite special-case and now-unused `wasm_pack` prefix var; `test-check.py`
 keep-going test updated, 31/31 green) keeps the executed set identical: three consecutive local

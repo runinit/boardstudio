@@ -1,9 +1,14 @@
 # 12: Browser step quick wins
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [11](11-browser-measure.md), [34 (typed-core-edits)](../../typed-core-edits/issues/34-test-speed-browser.md)
 Map: [map.md](../map.md)
+
+Claim, 2026-10-29: focused local integration of the existing page `--list` removal only,
+by the current implementation session, on `research/page-list-stamp-integration` from
+`research/cad-build-stamp-safety` at `8d6bbd0fe`. Other candidates remain unclaimed. No
+hosted runs, PR or merge; original acceptance remains open pending comparable evidence.
 
 ## Request
 

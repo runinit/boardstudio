@@ -29,6 +29,11 @@ claim and status changes in the relevant ticket and keep this map consistent. Se
    build or a CI measurement. No credible local wall-time benefit justified a more complex
    selective copy. Revisit only with representative evidence that packaging is material.
 
+The current implementation session has claimed only the page-list integration portion of
+[check-speed 12](../check-speed/issues/12-browser-quick-wins.md), on
+`research/page-list-stamp-integration` from `8d6bbd0fe`; existing evidence is in ticket 06.
+The other quick-win candidates are not claimed by this session.
+
 See [decisions](wiki/decisions.md) and [baseline](wiki/baseline.md) for dated context and
 existing measurements. Hosted CI receipts and the original gate criteria remain necessary when
 GitHub work resumes; the local check is not a substitute.
