@@ -11,6 +11,10 @@ PRs, runs, reports) are cited, never copied in.
   focused evidence and combined review; local decision resolved 2026-10-29. Complete browser and
   full-gate verification remain blocked in [22](../issues/22-node-free-gate-verification.md);
   [19](../issues/19-node-free-ergogen-oracle.md) is the next Node-free sequence frontier.
+- [Ergogen original-parser prototype](../issues/19-node-free-ergogen-oracle.md#local-original-parser-prototype--2026-10-29):
+  at `research/chromiumoxide-web-split@0f5d8ae1`, Chromium matched the separately run Node
+  reference and full committed fixture for 42 cases using lock-verified local archives; the real
+  Node-free CLI, safety parity, distribution provenance and independent review remain open.
 - [Native topology follow-up](../issues/17-native-topology.md): ownership, the local CAD reuse
   observation and experimental opt-in probe at `1d314a45cbd3395aa9ccaf077a92170d81da65c7`;
   real parity and comparable cold/warm measurements remain pending (2026-10-29).
