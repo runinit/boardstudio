@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run generate.py with Node masked, loopback-only networking and a minimal filesystem view.
 
-Before entering the sandbox: build cad-provider-pages from this checkout, verify the installed
+Before entering the sandbox: validate inputs, build cad-provider-pages, verify the installed
 Chrome for Testing tree byte-for-byte against the pinned archive, and copy only the locked npm
 archives into a private run directory. Chrome itself still runs with --no-sandbox (shared driver);
 this outer namespace is the boundary. Requires an existing pinned checkout (no fetch inside).
@@ -74,25 +74,24 @@ def locked_archives(npm_cache, destination):
 
 
 def command(run, checkout, driver, chrome, output, check):
-    """unshare/bwrap argv: loopback only, Node masked, read-only inputs, one writable output dir.
+    """unshare/bwrap argv: loopback only, Node masked, read-only inputs, one writable staging dir.
 
     TMPDIR is the sandbox's private /tmp: short enough for Chrome's singleton socket path.
     """
-    output_dir = os.path.realpath(output.parent)
+    output_dir = os.path.realpath(run / 'output')
     binds = ['--ro-bind', '/usr', '/usr', '--ro-bind', '/etc', '/etc',
              *(arg for link in ('bin', 'sbin', 'lib', 'lib64') for arg in ('--symlink', os.readlink('/' + link), '/' + link)),
              '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/dev/shm', '--tmpfs', '/tmp',
              '--ro-bind', str(ROOT), str(ROOT), '--ro-bind', str(checkout), str(checkout),
              '--ro-bind', str(chrome.parent), str(chrome.parent), '--ro-bind', str(driver), str(driver),
-             '--ro-bind' if check else '--bind', output_dir, output_dir,
+             '--bind', output_dir, output_dir,
              '--ro-bind', str(run / 'npm'), '/npm', '--ro-bind', '/dev/null', '/usr/bin/node']
     inner = ['bwrap', '--die-with-parent', '--unshare-pid', '--unshare-ipc', '--unshare-uts', *binds,
              '--clearenv', '--setenv', 'PATH', '/usr/bin', '--setenv', 'HOME', '/tmp', '--setenv', 'TMPDIR', '/tmp',
              '--setenv', 'LANG', 'C.UTF-8', '--setenv', 'PYTHONDONTWRITEBYTECODE', '1', '--setenv', 'CHROME_BIN', str(chrome),
              '/bin/sh', '-euc', 'if command -v node || command -v nodejs; then echo "node reachable" >&2; exit 97; fi; exec "$@"', 'sh',
              '/usr/bin/python3', '-I', str(Path(__file__).with_name('generate.py')), '--cache', str(checkout),
-             '--output', os.path.join(output_dir, output.name), '--npm-cache', '/npm', '--driver', str(driver),
-             *(('--check',) if check else ())]
+             '--output', os.path.join(output_dir, 'fixture.json'), '--npm-cache', '/npm', '--driver', str(driver)]
     network = ('ip link set lo up; test "$(ip -o link show | cut -d: -f2 | tr -d " ")" = lo; '
                'test -z "$(ip route)"; test -z "$(ip -6 route)"; exec "$@"')
     return ['unshare', '--user', '--map-root-user', '--net', '/bin/sh', '-euc', network, 'sh', *inner]
@@ -111,13 +110,37 @@ def main():
         parent = args.temp_parent.resolve(strict=True)
         if generate.inside(str(parent), os.path.realpath(ROOT)) or generate.inside(str(parent), str(checkout)):
             raise ValueError('Temporary parent must be outside the repository and checkout')
+        output = Path(os.path.abspath(args.output))
+        destination = generate.real_destination(output)
+        if destination == generate.real_destination(generate.LEGACY):
+            raise ValueError('Refusing to overwrite the current projection oracle before its replacement is wired')
+        if generate.inside(destination, str(checkout)):
+            raise ValueError('Fixture output must not modify the pinned source checkout')
         chrome = verified_chrome()
-        os.environ['CHROME_BIN'] = str(chrome)
-        driver = generate.build_driver()
-        with tempfile.TemporaryDirectory(prefix='ergogen-sandbox-', dir=parent) as run:
-            run = Path(run)
+        with tempfile.TemporaryDirectory(prefix='ergogen-sandbox-', dir=parent) as directory:
+            run = Path(directory)
+            (run / 'output').mkdir()
             locked_archives(args.npm_cache, run / 'npm')
-            return subprocess.run(command(run, checkout, driver, chrome, Path(os.path.abspath(args.output)), args.check)).returncode
+            with verified_runtime.verified_runtime(checkout, run / 'npm', parent):
+                pass
+            os.environ['CHROME_BIN'] = str(chrome)
+            driver = generate.build_driver()
+            status = subprocess.run(command(run, checkout, driver, chrome, output, args.check)).returncode
+            if status:
+                return status
+            fd = os.open(run / 'output/fixture.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(fd, 'rb') as file:
+                if not stat.S_ISREG(os.fstat(file.fileno()).st_mode):
+                    raise ValueError('Sandbox output is not a regular file')
+                result = file.read()
+            if args.check:
+                if output.read_bytes() != result:
+                    raise ValueError(f'Fixture differs: {output}')
+                print(f'Fixture is reproducible: {output}')
+            else:
+                generate.write_fixture(output, result.decode('utf-8'))
+                print(f'Wrote {output}')
+            return 0
     except Exception as error:
         print(f'Ergogen sandbox failed: {error}', file=sys.stderr)
         return 1

@@ -57,10 +57,10 @@ Python ports. Output is written atomically and never to the legacy oracle or the
 
 `python3 scripts/ergogen-parity/sandbox_generate.py --cache CHECKOUT --temp-parent DIR [--check]`
 first verifies the Chrome for Testing tree byte-for-byte against the pinned archive
-(`BOARDSTUDIO_CFT_ZIP`), builds the driver, then runs the generator in a user/network namespace
+(`BOARDSTUDIO_CFT_ZIP`), validates the checkout and copied archives, builds the driver, then runs the generator in a user/network namespace
 with loopback only, Node masked, a cleared environment and a read-only view of `/usr`, `/etc`, the
-repository, checkout, browser, driver and only the locked archives; only the output directory is
-writable (read-only for `--check`). The checkout must already exist. Chrome itself still runs with
+repository, checkout, browser, driver and only the locked archives; only a private staging directory is writable. After success the wrapper compares or
+atomically publishes the staged result outside the sandbox. The checkout must already exist. Chrome itself still runs with
 `--no-sandbox` (shared driver), so this namespace, not Chrome, is the boundary; it is not a secure
 JavaScript sandbox for hostile code, and identity is checked against the local pin and lock, not
 publisher signatures. Keep the checkout, lockfile and temporary parent private and stable.
@@ -70,7 +70,9 @@ publisher signatures. Keep the checkout, lockfile and temporary parent private a
 `cases.cjs` in Chrome and rebuilds the committed fixture byte-for-byte from its recorded poses, which
 also catches source edits without regeneration. `--upstream` (with `ERGOGEN_CHECKOUT`) runs the real
 parser through the CLI. `test_verified_runtime.py` and `test_host_probe.py` cover the preparer and
-browser host. Licences and notices of extracted packages are not redistributed.
+browser host. The host tests require `ERGOGEN_CHECKOUT`, `CAD_PROVIDER_PAGES_DRIVER`, `TMPDIR`
+and `ERGOGEN_HOST_REFERENCE`; set `ERGOGEN_NPM_CACHE` when using a non-default cache.
+Licences and notices of extracted packages are not redistributed.
 
 ## Fixture contract
 

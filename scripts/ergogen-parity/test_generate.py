@@ -253,6 +253,26 @@ class GeneratorContractTests(unittest.TestCase):
         self.assertEqual(sorted(path.name for path in self.root.iterdir()), ['checkout', 'fixture.json'])
 
 
+    def test_sandbox_rejects_invalid_inputs_before_build(self):
+        import sandbox_generate
+        with mock.patch.object(sandbox_generate, 'verified_chrome', return_value=Path('/chrome')), \
+                mock.patch.object(sandbox_generate, 'locked_archives'), \
+                mock.patch.object(sandbox_generate.verified_runtime, 'verified_runtime', side_effect=ValueError('corrupt')), \
+                mock.patch.object(generate, 'build_driver') as build, \
+                mock.patch.object(sys, 'argv', ['sandbox_generate.py', '--cache', str(self.checkout),
+                                               '--temp-parent', str(self.root), '--check']), \
+                contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(sandbox_generate.main(), 1)
+        build.assert_not_called()
+
+    def test_sandbox_never_binds_destination_writable(self):
+        import sandbox_generate
+        staging = self.root / 'scratch'
+        argv = sandbox_generate.command(staging, self.checkout, Path('/d'), Path('/c/chrome'), self.output, False)
+        writable = [argv[i + 1] for i, item in enumerate(argv[:-1]) if item == '--bind']
+        self.assertNotIn(str(self.output.parent), writable)
+        self.assertEqual(writable, [str(staging / 'output')])
+
     def test_sandbox_verifies_chrome_and_isolates_the_run(self):
         import hashlib
         import zipfile
@@ -284,8 +304,8 @@ class GeneratorContractTests(unittest.TestCase):
         self.assertIn('--clearenv', argv)
         self.assertNotIn('--share-net', argv)
         self.assertEqual(argv[argv.index('/usr/bin/node') - 2:argv.index('/usr/bin/node')], ['--ro-bind', '/dev/null'])
-        self.assertEqual(argv[argv.index(str(self.root)) - 1], '--ro-bind')  # --check never gets a writable output
-        self.assertEqual(argv[-1], '--check')
+        self.assertEqual(argv[argv.index(str(self.root / 'output')) - 1], '--bind')  # private staging only
+        self.assertNotIn('--check', argv)
 
 
 def divergence_of(value):
