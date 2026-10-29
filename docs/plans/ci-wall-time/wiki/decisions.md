@@ -18,7 +18,11 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
 - On 2026-10-29, the user ordered the heartbeat logging merged after PR #9
   (`stack/03-toolbar-polish`) lands. The change is committed as `3e5dd5f` on branch
   `ci/heartbeat-logging` (pushed, no PR); see ticket 07 for the remaining retry-policy half.
-- On 2026-10-29, the effort adopted delegate routing: default key first, one retry on a 403,
+- On 2026-10-29, the user set delegate routing: terra 6.1 xhigh for implementation (normal
+  speed tier); Opus is reserved for hard planning or troubleshooting only. Provider mapping:
+  terra 6.1 lives on Codex (`gpt-6.1-terra`, reasoning effort xhigh, default service tier),
+  not on the pi provider. This supersedes the 2026-10-29 Opus-fallback rule, which applied
+  while the default key denied launches; keep the one-retry-then-reroute discipline.
   then Opus (`claude-opus-5-5`) or Codex for the retry. Rationale: the default key began denying
   every new delegate launch (`client_attestation_denied`) while Opus succeeds first time;
   Opus is reserved for implementation, reviews, and anything that already failed once —
