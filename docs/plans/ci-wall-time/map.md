@@ -102,6 +102,10 @@ update; missing or unrecognized captures fail. The reported regression was red b
 then 38 native guard and 35 scheduler tests passed. This does not prove individual captures are
 fully complete. It is not in production; real CAD parity, hosted required-check behavior and
 cold performance remain open.
+One local `lint test` run at `perf/native-ci-topology@90411c08` passed in 400.8s, with cold
+target directories but warm registry/Git caches; its test critical path was 265.1s. See
+[17](issues/17-native-topology.md#comments) for lane walls, counts, environment and log. This is
+not a same-head CI comparison, CAD name parity, capture completeness or a cold full-gate proof.
 See tickets [04](issues/04-web-split-design.md), [16](issues/16-web-partition-proof.md) and
 [17](issues/17-native-topology.md). No full-gate speedup is established.
 
@@ -116,7 +120,7 @@ See tickets [04](issues/04-web-split-design.md), [16](issues/16-web-partition-pr
    measurement and topology decisions. Ticket [17](issues/17-native-topology.md) tracks the
    native follow-up, claimed by the ongoing parent effort for the experimental opt-in probe at
    `1d314a45cbd3395aa9ccaf077a92170d81da65c7`. No gate changed; full qualification reference,
-   real CAD parity and cold/warm timings remain pending.
+   real CAD parity and comparable cold/warm timings remain pending despite the single local run above.
 3. Present measured full-coverage native and web topology and artifact options for human decision
    ([17](issues/17-native-topology.md), [04](issues/04-web-split-design.md)). A single noisy
    shared-target comparison did not establish a gate saving. Only then implement and locally
@@ -228,7 +232,8 @@ attributable from the log alone.
 - [16: Web partition completeness prototype](issues/16-web-partition-proof.md): resolved as a
   local, non-executing proof; ticket 04's human design decision remains open.
 - [17: Native topology and critical path](issues/17-native-topology.md): claimed by the ongoing
-  parent effort; isolated experiments, with real parity and measurements pending, not resolved.
+  parent effort; one local native run recorded, with real parity and comparable measurements
+  pending, not resolved.
 
 ## Historical decisions and results
 

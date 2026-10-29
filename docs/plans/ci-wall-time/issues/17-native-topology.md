@@ -109,3 +109,15 @@ correctness review. Cold versus warm target, runner capacity and cache quota are
   these were not independently rerun here. This does not prove each individual capture is fully
   complete. The branch is not in production; real CAD parity, hosted required-check behavior
   and comparable cold performance remain open.
+- 2026-10-29: One local `python3 scripts/check.py lint test` run at
+  `perf/native-ci-topology@90411c08` passed (exit 0) in 400.8s: lint 135.6s and test 265.1s.
+  The parallel test lanes reported workspace 133.1s, footprints 27.6s and CAD 265.0s. The native
+  guard confirmed 2,104 baselined tests; CAD reported 514 passed and 2 ignored, with seven
+  nonzero selections. Target directories were absent before the run, but registry and Git caches
+  were warm. Defaults were 12 Cargo jobs and 4 scheduler jobs; the workflow's
+  `CARGO_PROFILE_DEV_DEBUG=line-tables-only` environment setting was not set. Source: local run
+  handoff and gitignored log at
+  `/home/chris/.t3/worktrees/ts-boardstudio2/t3-84998151/.evidence/native-critical-path-90411c08-vj2r0nxA.log`.
+  This is not a same-head CI comparison, real CAD name-parity proof, 10-minute cold full-gate
+  proof, or proof of capture completeness. The ticket remains claimed and unresolved; no speedup
+  is claimed.
