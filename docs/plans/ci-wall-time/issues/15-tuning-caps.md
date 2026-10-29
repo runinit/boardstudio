@@ -1,6 +1,6 @@
 # 15: Compile-demand tuning caps
 
-Status: claimed
+Status: needs-info
 Type: task
 Parent: [CI wall time map](../map.md)
 Related: [05: Provider-build parallelism](05-provider-parallelism.md)
@@ -48,3 +48,10 @@ tuning demand down, since 05 proved the box is oversubscribed, not starved?
   05's figure was provider-phase only; the other ~136s is the cold `dx` page build. Lane A
   (4× wasm-pack) is the critical path at 135.7s, 99s of it core-worker; lane B overlaps only
   its first 46s. Knobs temporary until the winner is picked.
+
+## Comments
+
+- 2026-10-29: user cancelled the matrix re-run; interim findings above stand as 15's output.
+  No branch was pushed, no code changed. Re-running needs fresh user approval (near-term focus
+  defers further tuning matrices). 05's local A/B (-16.7s fast / -77.6s shipped) is the result
+  of record.

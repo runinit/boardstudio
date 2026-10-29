@@ -116,3 +116,7 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
   [22](../issues/22-node-free-gate-verification.md); the current browser step still invokes seven
   Node regressions, and the user prohibits Node anywhere in the full gate. This is not approval to
   skip them or a claim of full-gate success. See [18](../issues/18-face-completeness-replacement.md#answer).
+- On 2026-10-29, the user replaced the Opus fallback: Opus is not usable right now. Routing is
+  terra 6.1 xhigh for implementation at normal speed, and meta spark wonder (`meta/muse-wonder-1.0`
+  on the pi provider) for hard planning or troubleshooting. Keeps the one-retry-then-reroute
+  discipline and the default-key-first order for read-only work.
