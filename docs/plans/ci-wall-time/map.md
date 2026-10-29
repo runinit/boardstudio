@@ -171,6 +171,8 @@ attributable from the log alone.
   native run and set per-step budgets.
 - [15: Compile-demand tuning caps](issues/15-tuning-caps.md): existing jobs × lanes work and
   claim preserved; further matrix work deferred under the near-term focus above.
+- [16: Web partition completeness prototype](issues/16-web-partition-proof.md): claimed for a
+  local, non-executing proof; ticket 04's human design decision remains open.
 
 ## Decisions so far
 
