@@ -1,6 +1,6 @@
 # 19: Node-free Ergogen oracle
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: [Face-completeness replacement](18-face-completeness-replacement.md)
 Parent: [CI wall time map](../map.md)
@@ -154,3 +154,10 @@ host has not run all 42 cases or the real `--check`, nor established generation,
 and protected-path controls. No hosted run, full gate, Node independence or timing proof follows.
 The existing Node Ergogen gate stays in place; this ticket remains unresolved and
 [22](22-node-free-gate-verification.md) remains blocked on it.
+
+## Comments
+
+- Claimed 2026-10-29 for terra-xhigh implementation delegate
+  (step 2: all 42 cases + negative controls + sandbox assessment; branch
+  `research/ergogen-oracle` from `0c562aa6d`, no PR; fixture regen and weaker-sandbox calls
+  are user decisions, not the delegate's).
