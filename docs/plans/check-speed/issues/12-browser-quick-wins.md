@@ -1,14 +1,27 @@
 # 12: Browser step quick wins
 
-Status: claimed
+Status: ready-for-agent
 Type: build
 Blocked by: [11](11-browser-measure.md), [34 (typed-core-edits)](../../typed-core-edits/issues/34-test-speed-browser.md)
 Map: [map.md](../map.md)
 
-Claim, 2026-10-29: focused local integration of the existing page `--list` removal only,
-by the current implementation session, on `research/page-list-stamp-integration` from
-`research/cad-build-stamp-safety` at `8d6bbd0fe`. Other candidates remain unclaimed. No
-hosted runs, PR or merge; original acceptance remains open pending comparable evidence.
+2026-10-29: the implementation session claimed only the page `--list` integration, then
+released the claim on finding a compatibility blocker. The other candidates were not claimed.
+Experimental cherry-pick `c78aaa367` on `research/page-list-stamp-integration`, based on
+`8d6bbd0fe`, must not be promoted as-is: the removed page listing uses `--locked` and streams
+its output; `run-wasm-tests.py` lists without `--locked`, suppresses successful listing output,
+and reports only the last 30 lines on listing failure. It also uses `--mode no-install` and
+checks for a cached runner before listing, unlike the removed launch. Equal historical test
+multisets do not establish those behaviors are equivalent.
+On the experimental cherry-pick, `test-check.py` passed 31/31, `test-run-wasm-tests.py`
+41/41, and `test-verification-receipt.py` 37/37; these do not cover the identified differences.
+
+Next: preserve locked dependency resolution and full listing/failure diagnostics, account for
+the runner installation/preflight difference, and add focused regression tests; then compare
+the unchanged and corrected versions under the same warm browser-check conditions, including
+test-name multisets and failures. This checkout has no staged browser assets or warm target;
+no new browser timing was taken. The original acceptance remains open. No hosted runs, PR or
+merge were made.
 
 ## Request
 

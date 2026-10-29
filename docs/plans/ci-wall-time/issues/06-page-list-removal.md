@@ -25,9 +25,11 @@ part of the 17-minute arithmetic.
 
 ## Answer
 
-2026-10-29: the current implementation session has claimed the page-list integration portion
-of check-speed 12 on `research/page-list-stamp-integration`, based on `8d6bbd0fe`. This
-evidence ticket remains resolved; the integration and new measurement are not yet complete.
+2026-10-29: the implementation session claimed then released the page-list integration portion
+of check-speed 12 after finding non-equivalent locking, listing diagnostics and runner preflight.
+See [check-speed 12](../../check-speed/issues/12-browser-quick-wins.md) for the blocker and
+next steps. Experimental cherry-pick `c78aaa367` is not ready to promote. This evidence ticket
+remains resolved; no fresh browser timing or new coverage-parity run was taken.
 
 Evidence supports check-speed 12's claim. Removal (serial page `--list` launch plus the dead
 `--keep-going` prerequisite special-case and now-unused `wasm_pack` prefix var; `test-check.py`

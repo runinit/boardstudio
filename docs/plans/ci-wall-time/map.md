@@ -29,10 +29,11 @@ claim and status changes in the relevant ticket and keep this map consistent. Se
    build or a CI measurement. No credible local wall-time benefit justified a more complex
    selective copy. Revisit only with representative evidence that packaging is material.
 
-The current implementation session has claimed only the page-list integration portion of
-[check-speed 12](../check-speed/issues/12-browser-quick-wins.md), on
-`research/page-list-stamp-integration` from `8d6bbd0fe`; existing evidence is in ticket 06.
-The other quick-win candidates are not claimed by this session.
+The page-list integration portion of [check-speed 12](../check-speed/issues/12-browser-quick-wins.md)
+was claimed then released: experimental cherry-pick `c78aaa367` changes locking and listing
+diagnostics and needs the documented compatibility work before promotion. No fresh warm browser
+comparison was taken; prior evidence remains in ticket 06. The other quick-win candidates were
+not claimed by this session.
 
 See [decisions](wiki/decisions.md) and [baseline](wiki/baseline.md) for dated context and
 existing measurements. Hosted CI receipts and the original gate criteria remain necessary when
