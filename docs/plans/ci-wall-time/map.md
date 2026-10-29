@@ -1,5 +1,28 @@
 # Map: CI wall time on stack PRs
 
+## Near-term focus — 2026-10-29
+
+Prioritize quick local web-build improvements and fixes for real failing tests; keep the CI
+destination and tickets below as historical and later work, not the current execution queue.
+Do not weaken or remove checks to make failures pass. No new tuning matrix, hosted runs, or
+merges until the user returns to GitHub work; do not touch PR #8 or `stack/*` branches. This
+does not change existing ticket claims or imply that active work has finished or stopped.
+
+1. Reuse the existing provider parallelism on `research/local-web-builds` at `0f7c63087`.
+   No trivial safe repeat-`wasm-opt` skip was found; do not copy the existing CAD stamp
+   shortcut. Investigate its stale-output risk as a focused correctness item, with regression
+   coverage for changed build flags and missing JS output, before proposing a fix.
+2. Reproduce and fix actual test failures locally, keeping the relevant checks intact. Verify
+   each fix with its focused test and any directly affected checks.
+3. When no competing build is active, measure one representative warm local web build before
+   and after a candidate with the same command, inputs and cache state; record full end-to-end
+   wall, revision, result and relevant test counts. Keep changes only with evidence of benefit
+   and passing focused tests. Do not present provider-phase timings as end-to-end timings.
+
+See [decisions](wiki/decisions.md) and [baseline](wiki/baseline.md) for dated context and
+existing measurements. Hosted CI receipts and the original gate criteria remain necessary when
+GitHub work resumes; the local check is not a substitute.
+
 ## Destination
 
 PR validation — the PR-gate tier of the `native` and `web` jobs — completes in under 17 minutes
@@ -67,8 +90,8 @@ attributable from the log alone.
   `false` on CI, same-head A/B; owned here, cross-linked with check-speed 12.
 - [14: Native warm wall and budgets](issues/14-native-warm-wall.md): break down the first warm
   native run and set per-step budgets.
-- [15: Compile-demand tuning caps](issues/15-tuning-caps.md): jobs × lanes matrix on 05's
-  implementation, winner folds into 05 before its CI receipt.
+- [15: Compile-demand tuning caps](issues/15-tuning-caps.md): existing jobs × lanes work and
+  claim preserved; further matrix work deferred under the near-term focus above.
 
 ## Decisions so far
 
@@ -102,8 +125,8 @@ attributable from the log alone.
 - Conditional-skip policy (`--skip-providers`/page on untouched paths): needs an artifact cache
   first; graduates after 04, must respect the 10 tier map, and any cross-run artifact cache
   written by PR code needs 01's scope rules.
-- Job-count tuning matrix (`BOARDSTUDIO_CHECK_JOBS`, cargo jobs on 4 vCPUs): needs the warm
-  baseline as comparison; graduates after 03.
+- Job-count tuning matrix (`BOARDSTUDIO_CHECK_JOBS`, cargo jobs on 4 vCPUs): deferred; any
+  future work needs the warm baseline as comparison.
 - Pooling drag smoke with the page crate batch (check-speed 12's top item, ~50–70s est.):
   check-speed-12-owned; counts toward the wall only via 12's own receipts, cited here as a dependency.
 

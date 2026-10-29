@@ -31,3 +31,8 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
   `research/*` branches (pushed, no PR): `research/cache-readiness` (`70eedc93`),
   `research/provider-overlap` (`3efcce2`), `research/tier-map` (`d5cc9d2`). Tickets depending on
   them must promote load-bearing content to `dev` before closing.
+- On 2026-10-29, the user redirected near-term work toward quick local web-build improvements
+  and fixing real failing tests without weakening checks. Defer any new tuning matrix, hosted
+  runs and merges until the user returns to GitHub work; do not touch PR #8 or `stack/*`.
+  Existing claims and historical CI acceptance criteria remain intact. Concrete local actions
+  and verification are in the [map](../map.md#near-term-focus--2026-10-29).

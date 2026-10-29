@@ -19,3 +19,16 @@ and cache restore, from GitHub-hosted Ubuntu runners with 4 vCPUs.
 - Cold build split (web job): `dx` page ~311s, core-worker ~162s, cad-wasm ~99s, rest ~50s.
   Cold browser split: crate batches ~432s / ~264s / ~226s serial, page `--list` ~36s,
   `run-wasm-tests --all` ~314s for 107 tests.
+- On 2026-10-29, [ticket 05](../issues/05-provider-parallelism.md) reported local cold
+  **provider-phase**, not end-to-end, walls on `research/provider-parallelism` (`8bf8ebf63`):
+  `--fast` 150.3 → 133.6s and shipped 433.3 → 355.7s. The local build branch
+  `research/local-web-builds` at `0f7c63087b6b488a5ad340e0e31ed9c135f8fd7d` reuses that
+  implementation and added focused scheduling tests (10/10 reported passing). No fresh
+  end-to-end before/after timing was reported for that branch; no new build timing was taken
+  while tuning was active. Do not equate `--fast` with a shipped build.
+- On 2026-10-29, the repeat-`wasm-opt` investigation reported no safe trivial unchanged-input
+  skip. Its isolated mocked check on `research/local-web-builds` at `0f7c63087` found the CAD
+  build still skipped when `RUSTFLAGS` changed and its JS output was missing. The source at that
+  revision, `cad/scripts/cad_build.py` (`wasm_inputs_digest` and `build_wasm`), hashes selected
+  inputs but checks only the WASM output and stamp before skipping. This is an existing
+  stale-output risk, not a safe cache pattern to copy; the check was mocked, not a build timing.
