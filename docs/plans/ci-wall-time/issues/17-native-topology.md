@@ -150,3 +150,15 @@ correctness review. Cold versus warm target, runner capacity and cache quota are
   Any inventory implementation must validate its selection, configuration and identity assumptions,
   reject ambiguous or unsupported cases, and keep observed-frame completeness distinct from
   verified launch inventory.
+- 2026-10-29: `perf/native-ci-topology@e597f4be65a4538b41c76d5d078f2e789defa74f` rejects
+  combining receipt publication and native-baseline updates, and stages baseline updates for
+  atomic publication. The handoff reports 46 native-guard, 43 receipt and 39 check-runner tests
+  passing. Symlinked, hard-linked or extended-attribute baselines are rejected; concurrent
+  changes are checked but not locked. `@f3f6c893a28b9c6d36c2fbe561200f346763c2d8` labels
+  accepted CAD observations provisional and adds omitted-binary, omitted-doctest and duplicate
+  header fixtures. The handoff reports 20 CAD evidence, 16 CAD driver, 43 receipt, 39 check-runner
+  and 46 native-guard hermetic tests passing. These tests were not independently rerun for this
+  entry. Inventory verification and a complete reference remain blocked: the capture lacks
+  contemporaneous metadata and validated effective configuration, and separate streams do not
+  establish unambiguous header/result pairing. Cancellation and receipt-pair limitations also
+  remain. No real Cargo run, hosted CI, parity or speedup was reported.
