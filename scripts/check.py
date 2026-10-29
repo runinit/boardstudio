@@ -606,7 +606,10 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
             # Match the page runner's bounded budget for direct wasm-pack crate batches.
             environment.setdefault("WASM_BINDGEN_TEST_TIMEOUT", "120")
             # Test wasm without DWARF is about a seventh of the size, which is most of a launch.
-            environment.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
+            # Forced (not setdefault): the workflow sets `line-tables-only` globally and
+            # Swatinem rust-cache folds `CARGO_*` env vars into its key, so the job-level
+            # value must stay put for the native cache while browser launches opt out here.
+            environment["CARGO_PROFILE_DEV_DEBUG"] = "false"
         captured: list[tuple[Command, str]] | None = [] if name == "test" else None
         cwd = ROOT / "web" if name == "layout-test-css" else ROOT
         elapsed, passed = run_commands(

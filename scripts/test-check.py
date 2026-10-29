@@ -229,6 +229,12 @@ class CheckTests(unittest.TestCase):
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             os.environ.pop("CARGO_PROFILE_DEV_DEBUG", None)
             self.assertEqual(check.run(["browser"]), 0)
+            # The CI workflow exports `line-tables-only` globally; the browser step
+            # forces it back to `false` (Swatinem folds `CARGO_*` into its cache key,
+            # so the job-level value must stay put).
+            os.environ["CARGO_PROFILE_DEV_DEBUG"] = "line-tables-only"
+            self.assertEqual(check.run(["browser"]), 0)
+            os.environ.pop("CARGO_PROFILE_DEV_DEBUG", None)
             # Other steps, and the caller's own environment, keep the normal profile.
             self.assertEqual(check.run(["tooling"]), 1)
             self.assertNotIn("CARGO_PROFILE_DEV_DEBUG", os.environ)
