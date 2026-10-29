@@ -102,3 +102,10 @@ correctness review. Cold versus warm target, runner capacity and cache quota are
   followed by 37 native guard and 35 scheduler tests passing; not independently rerun here.
   The production gate is unchanged. Hosted required-check behavior and trust protections,
   real CAD parity and comparable cold performance remain unverified; no speedup is claimed.
+- 2026-10-29: Experimental `perf/native-ci-topology@90411c08` requires each required full-run
+  Cargo command to have a capture containing a recognized binary before the normal guard or a
+  baseline update; a missing or unrecognized per-command capture fails. The handoff reports the
+  regression observed red before the fix, then 38 native guard and 35 scheduler tests passing;
+  these were not independently rerun here. This does not prove each individual capture is fully
+  complete. The branch is not in production; real CAD parity, hosted required-check behavior
+  and comparable cold performance remain open.

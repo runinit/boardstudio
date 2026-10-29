@@ -96,6 +96,12 @@ timings remain unverified.
 The subsequent guard fixes on `perf/native-ci-topology@ea94881c` and `@ad8a81a3` address
 unrecognized output and entirely empty captures in full native steps; independent review and
 recheck findings, reported regression evidence and remaining blockers are recorded in ticket 17.
+On 2026-10-29, experimental `perf/native-ci-topology@90411c08` additionally requires a capture
+with a recognized binary for each required full-run Cargo command before the guard or baseline
+update; missing or unrecognized captures fail. The reported regression was red before the fix,
+then 38 native guard and 35 scheduler tests passed. This does not prove individual captures are
+fully complete. It is not in production; real CAD parity, hosted required-check behavior and
+cold performance remain open.
 See tickets [04](issues/04-web-split-design.md), [16](issues/16-web-partition-proof.md) and
 [17](issues/17-native-topology.md). No full-gate speedup is established.
 

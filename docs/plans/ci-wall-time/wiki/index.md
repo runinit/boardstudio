@@ -17,5 +17,9 @@ PRs, runs, reports) are cited, never copied in.
   `perf/native-ci-topology@59de2f4ec`; isolated workflow split and stable aggregator at
   `perf/native-ci-topology@954c2d4b16d8f9325b8e031be0ffc0b7dfdbc170` remain unverified for
   promotion; full native guard fixes at `perf/native-ci-topology@ea94881c` and `@ad8a81a3`
-  follow independent review and recheck. None changes the production gate; hosted trust,
-  real CAD parity and cold performance remain unverified, and no speedup is claimed (2026-10-29).
+  follow independent review and recheck. On 2026-10-29, `perf/native-ci-topology@90411c08`
+  requires a recognized binary in each required full-run Cargo command's capture before the guard
+  or baseline update; missing or unrecognized captures fail. The reported regression was red
+  before the fix, then 38 native guard and 35 scheduler tests passed. Individual capture
+  completeness is not proven. None changes the production gate; hosted required-check behavior
+  and trust, real CAD parity and cold performance remain unverified, and no speedup is claimed.
