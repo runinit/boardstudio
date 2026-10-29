@@ -118,6 +118,9 @@ now include a trusted-branch wasm-pack cache writer and standard-tooling workflo
 deployed; protection, hosted behavior, parity and cold timing remain open. Independent analysis
 of the native reference found missing explicit nested CAD command boundaries and numeric exits;
 per-invocation evidence and a fresh unsharded reference are still needed before split parity.
+Experimental CAD evidence at `perf/native-ci-topology@3017199c` remains provisional because it
+cannot verify the expected launch inventory. An isolated Cargo toy investigation and the remaining
+failure-path limitations are recorded in [17](issues/17-native-topology.md#comments).
 
 1. Finish the focused web-build correctness and measurement work above; compare equivalent
    end-to-end commands and retain all tests. The blocked page-list candidate is not a priority.

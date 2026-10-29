@@ -128,3 +128,25 @@ correctness review. Cold versus warm target, runner capacity and cache quota are
   Existing receipts also exclude doc-tests. A fresh unsharded reference with per-invocation,
   fail-closed evidence is required before split parity can be established; instrumentation is
   under investigation. The log is local diagnostic evidence, not authenticated CI provenance.
+- 2026-10-29: `perf/native-ci-topology@866e104a` adds opt-in framed per-invocation CAD
+  observations; `@3017199c` hardens failure handling. An independent re-review found observed
+  frames can reconcile while an entire expected binary is missing: `inventory_verified` remains
+  false, so accepted receipts are provisional, not complete parity references. It also identified
+  baseline-update publication, cancellation and receipt-pair limitations. The handoff reports
+  18 CAD evidence, 16 CAD driver, 39 scheduler, 15 quick-planning, 38 native guard and 42 receipt
+  hermetic tests passing after hardening; these were not independently rerun for this entry.
+- 2026-10-29: Static manifest and Cargo-source analysis predicted 14 binary and two doctest
+  launches across the nine invocations at `3017199c`; this is a prediction, not a hardcoded
+  inventory or verified reference. An isolated toy project with Rust 1.98.0 and its own target
+  exercised Cargo offline: default and explicit selectors, zero doctests, name filters,
+  required features, `test = false`, `harness = false`, a test-enabled example and renamed
+  targets. It found metadata omits the harness setting, explicit selectors override test/doctest
+  flags, a default name filter suppresses the doctest header, and source-path headers can be
+  ambiguous across packages. Captures used separate stdout and stderr; cross-stream ordering was
+  not established. A synthetic removal of one complete launch showed why observed frames alone
+  are insufficient; it did not exercise the repository parser. The toy and captures are at
+  `/home/chris/.cache/tmp/opencode/cad-cargo-inventory-vsd1tee9`; offline mode was requested but
+  network isolation was not independently instrumented. No real CAD reference or parity is proven.
+  Any inventory implementation must validate its selection, configuration and identity assumptions,
+  reject ambiguous or unsupported cases, and keep observed-frame completeness distinct from
+  verified launch inventory.
