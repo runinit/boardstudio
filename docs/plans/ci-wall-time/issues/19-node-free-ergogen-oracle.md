@@ -196,6 +196,10 @@ gate intact.
   Branch `research/ergogen-closeout` pushed (`3a616419`), no PR. Next: redesign direction
   (user + Wonder) — e.g. noexec scratch proven against Chrome/pip needs, scratch elimination,
   or nobody+seccomp execve denial — then re-run the full battery before any cutover talk.
+- User decision 2026-10-29: path (a) — harden, don't redesign yet. Terra dispatched same day
+  (branch `research/ergogen-noexec`): noexec scratch, prove Chrome/pip/driver still function,
+  full battery + C1/C3/C4; a Chrome refusal is evidence forcing path (b), not a cue for
+  workarounds.
 - C1–C4 result 2026-10-29: REJECT trigger hit — containment battery denied fixture/checkout/
   repo writes, egress (`1.1.1.1:53` unreachable), and node exec, but a write to the sandbox's
   private `/tmp` tmpfs SUCCEEDED against a "only staging writable" condition. Nothing was
