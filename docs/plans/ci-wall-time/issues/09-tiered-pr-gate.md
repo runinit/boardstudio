@@ -29,7 +29,7 @@ full suite on the same head.
 
 ## Comments
 
-- Claimed for implementation delegate
-  `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3A9f903478-42c1-41e7-989a-40533aecdf97`
+- Claimed for implementation delegate (moved to Opus after a provider 403 on the default key)
+  `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3A37676941-30cf-449b-a631-3e4006798da2`
   (implement + local verify; branch `research/tiered-gate`, no PR; CI measurement waits on a
   separate draft-PR approval).

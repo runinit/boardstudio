@@ -84,6 +84,9 @@ attributable from the log alone.
 - [10: Tier map driven by rules](issues/10-tier-map.md): PR-gate ~12 min warm for the
   canonical small PR, ~full wall for core-touch (gate stays lint+build bound); 1 proven
   redundant test, 3 must-not-remove, browser smoke pins are placeholders pending runs.
+- [14: Native warm wall and budgets](issues/14-native-warm-wall.md): native FITS — warm
+  14m41s with 57s headroom at budget; CAD lane sets the wall (~20s margin); no follow-up
+  required for 17.
 - [08: Dead dependencies](issues/08-dead-dependencies.md): 16 removable edges, ~zero wall
   saving (all stay reachable via other edges) — hygiene only; catalogue loading and
   mechanical-settings fields re-scoped as non-Cargo follow-ups.

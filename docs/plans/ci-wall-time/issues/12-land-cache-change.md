@@ -25,6 +25,6 @@ stack PRs.
 
 ## Comments
 
-- Claimed for implementation delegate
-  `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3A3299a0bb-cb70-4117-bd98-dbd623df0808`
+- Claimed for implementation delegate (moved to Opus after a provider 403 on the default key)
+  `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3A52057115-c695-471f-9e63-a57ba37c1ce5`
   (cherry-pick onto current dev, PR, CI to green; merge is the user's click).
