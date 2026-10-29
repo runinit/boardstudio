@@ -25,6 +25,15 @@ build subprocesses and the hosted-action runtime boundary?
 
 ## Comments
 
+- 2026-10-29: completion plan landed on `research/node-free-plan` (`aba5deff`, pushed, no
+  PR): 10 ordered steps (reconcile dirty WIP → Ergogen oracle → independent review → cutover
+  → model-lookup parity → cutover + drop `node --version` → full local gate → hosted audit →
+  perf baseline → landing). Critical path runs through the Ergogen oracle (long pole). Top
+  risk: no demonstrated sandbox boundary yet — every prototype so far runs Chrome with
+  `--no-sandbox`, and a rejection there stalls 19→21→22→23 with no
+  fallback designed. Corrected count: two `.cjs` tooling tests remain at HEAD (22's "three"
+  is stale post-CAD-worker-cutover); manual download validator explicitly out of scope.
+
 - 2026-10-29: [18](18-face-completeness-replacement.md#answer) is resolved only for the local
   face decision, not integrated gate verification. Claude Opus recommended a complete browser step
   before face closure; it remains required here, along with the complete local gate. The current
