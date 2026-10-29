@@ -87,8 +87,12 @@ rejects every nonzero page invocation; focused tests passed, but browser parity,
 assets and authenticated provenance remain blockers. Native direct helpers at
 `perf/native-gate-topology@77e1e28e3` fail closed until Cargo configuration and the compiler can
 be controlled; split-planning tests at `perf/native-ci-topology@59de2f4ec` preserve the full
-command and guard. Further native implementation is active; production gates are unchanged, and
-required-check aggregation, branch protection, real CAD parity and timing remain unresolved.
+command and guard. The isolated workflow experiment at
+`perf/native-ci-topology@954c2d4b16d8f9325b8e031be0ffc0b7dfdbc170` splits repo tooling and
+lint test with a stable `native` aggregator; the handoff reports 35 scheduler, 16 CAD driver,
+34 native guard and 37 receipt hermetic tests passed. Production gates are unchanged; branch
+protection, GitHub skip/cancel/rerun semantics, real CAD parity, prerequisite isolation and cold
+timings remain unverified.
 See tickets [04](issues/04-web-split-design.md), [16](issues/16-web-partition-proof.md) and
 [17](issues/17-native-topology.md). No full-gate speedup is established.
 
@@ -215,7 +219,7 @@ attributable from the log alone.
 - [16: Web partition completeness prototype](issues/16-web-partition-proof.md): resolved as a
   local, non-executing proof; ticket 04's human design decision remains open.
 - [17: Native topology and critical path](issues/17-native-topology.md): claimed by the ongoing
-  parent effort; opt-in probe only, with real parity and measurements pending, not resolved.
+  parent effort; isolated experiments, with real parity and measurements pending, not resolved.
 
 ## Historical decisions and results
 

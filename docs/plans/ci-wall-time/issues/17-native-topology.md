@@ -81,3 +81,11 @@ correctness review. Cold versus warm target, runner capacity and cache quota are
   native workflow command and workspace-name guard. Further implementation is active; the
   production gate is unchanged. Fail-closed required-check aggregation, branch-protection
   policy, real CAD parity and timing remain unresolved; no speedup is claimed.
+- 2026-10-29: The isolated workflow experiment at
+  `perf/native-ci-topology@954c2d4b16d8f9325b8e031be0ffc0b7dfdbc170` splits repo tooling and
+  lint test into separate jobs and retains a stable `native` aggregator. The handoff reports
+  35 scheduler, 16 CAD driver, 34 native guard and 37 verification receipt hermetic tests
+  passed; these were not independently rerun for this update. No production gate or hosted CI
+  changed. Branch protection and GitHub skip, cancellation and rerun semantics are unverified;
+  real CAD parity, isolated prerequisites and comparable cold timings remain unverified. The
+  ticket remains claimed and unresolved, and no speedup is claimed.
