@@ -141,3 +141,8 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
   affected tests re-validated, independent review before it counts toward the gate, and the
   material impact recorded. Silent fixture edits remain forbidden; Panasonic/infused-kim edits
   additionally require their CAD tests re-passing, since those fixtures anchor shared suites.
+- On 2026-10-29, the user chose refinement over redesign for the C2 trigger: sandbox-private
+  scratch is allowed IFF proven private to the sandbox and destroyed with it; any host-visible
+  write stays forbidden. Wonder ratifies the refinement (it set the trigger); terra then
+  re-runs the battery plus C1/C3/C4 under the surviving rule. A battery failure under the
+  refined rule, or any host-visible write, remains REJECT-pending-redesign.
