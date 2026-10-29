@@ -9,8 +9,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 fn validate_url(url: &str) -> Result<()> {
-    let port = url.strip_prefix("http://127.0.0.1:").and_then(|s| s.strip_suffix('/'));
-    if port.and_then(|s| s.parse::<u16>().ok()).filter(|port| *port > 0).is_none() {
+    let port = url
+        .strip_prefix("http://127.0.0.1:")
+        .and_then(|s| s.strip_suffix('/'));
+    if port
+        .and_then(|s| s.parse::<u16>().ok())
+        .filter(|port| *port > 0)
+        .is_none()
+    {
         return Err(Error("expected loopback URL http://127.0.0.1:PORT/".into()));
     }
     Ok(())
@@ -18,7 +24,9 @@ fn validate_url(url: &str) -> Result<()> {
 
 fn validate_result(value: &Value) -> Result<()> {
     if *value != json!([{"suite": "step-face-completeness", "case": "sliver", "ok": true}]) {
-        return Err(Error(format!("invalid face completeness suite/case result: {value}")));
+        return Err(Error(format!(
+            "invalid face completeness suite/case result: {value}"
+        )));
     }
     Ok(())
 }
@@ -33,8 +41,12 @@ async fn main() {
 
 async fn run() -> Result<()> {
     let mut args = std::env::args().skip(1);
-    let url = args.next().ok_or_else(|| Error("missing loopback URL".into()))?;
-    if args.next().is_some() { return Err(Error("expected one loopback URL".into())); }
+    let url = args
+        .next()
+        .ok_or_else(|| Error("missing loopback URL".into()))?;
+    if args.next().is_some() {
+        return Err(Error("expected one loopback URL".into()));
+    }
     validate_url(&url)?;
     let chrome = std::env::var("CHROME_BIN").map_err(|_| Error("set CHROME_BIN".into()))?;
     let root = std::env::var("TMPDIR").unwrap_or_else(|_| "/tmp".into());
@@ -63,16 +75,32 @@ async fn run() -> Result<()> {
             (Ok(value), Ok(())) => Ok(value),
         }
     }.await;
-    let (closed, confirmed) = shutdown::finish_browser(browser, drain, &handler_errors, outcome.is_ok()).await;
-    let cleanup = if confirmed { shutdown::remove_profile(&dirs) } else {
-        eprintln!("browser termination unconfirmed; preserving profile at {}", dirs.profile_dir.display());
+    let (closed, confirmed) =
+        shutdown::finish_browser(browser, drain, &handler_errors, outcome.is_ok()).await;
+    let cleanup = if confirmed {
+        shutdown::remove_profile(&dirs)
+    } else {
+        eprintln!(
+            "browser termination unconfirmed; preserving profile at {}",
+            dirs.profile_dir.display()
+        );
         std::mem::forget(dirs);
         Ok(())
     };
     let page = page_errors.fail_if_any();
-    let errors: Vec<String> = [outcome.as_ref().err(), closed.as_ref().err(), cleanup.as_ref().err(), page.as_ref().err()]
-        .into_iter().flatten().map(ToString::to_string).collect();
-    if !errors.is_empty() { return Err(Error(errors.join("; "))); }
+    let errors: Vec<String> = [
+        outcome.as_ref().err(),
+        closed.as_ref().err(),
+        cleanup.as_ref().err(),
+        page.as_ref().err(),
+    ]
+    .into_iter()
+    .flatten()
+    .map(ToString::to_string)
+    .collect();
+    if !errors.is_empty() {
+        return Err(Error(errors.join("; ")));
+    }
     println!("{}", outcome?);
     Ok(())
 }
@@ -84,7 +112,13 @@ mod tests {
     #[test]
     fn url_is_loopback_and_unambiguous() {
         assert!(validate_url("http://127.0.0.1:1234/").is_ok());
-        for value in ["", "http://localhost:1234/", "http://127.0.0.1:0/", "http://127.0.0.1:1234/path", "http://127.0.0.1:1234/?x=1"] {
+        for value in [
+            "",
+            "http://localhost:1234/",
+            "http://127.0.0.1:0/",
+            "http://127.0.0.1:1234/path",
+            "http://127.0.0.1:1234/?x=1",
+        ] {
             assert!(validate_url(value).is_err(), "{value}");
         }
     }
@@ -93,9 +127,14 @@ mod tests {
     fn exactly_one_successful_suite_and_case_is_required() {
         let good = json!({"suite":"step-face-completeness","case":"sliver","ok":true});
         assert!(validate_result(&json!([good.clone()])).is_ok());
-        for value in [json!(null), json!([]), json!([good.clone(), good.clone()]), json!([{}]),
+        for value in [
+            json!(null),
+            json!([]),
+            json!([good.clone(), good.clone()]),
+            json!([{}]),
             json!([{"suite":"step-face-completeness","case":"sliver","ok":false}]),
-            json!([{"suite":"other","case":"sliver","ok":true}])] {
+            json!([{"suite":"other","case":"sliver","ok":true}]),
+        ] {
             assert!(validate_result(&value).is_err(), "{value}");
         }
     }
