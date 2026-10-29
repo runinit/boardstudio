@@ -85,8 +85,9 @@ Prioritized local-first work, respecting existing ownership:
 2026-10-29 experiment update: web execution at `feat/dependency-aware-web-execution@932bce6f2`
 rejects every nonzero page invocation; focused tests passed. One unsharded local build/browser
 baseline passed in 746.5s; its [conditions and evidence](wiki/baseline.md#local-web-baseline--2026-10-29)
-do not establish split parity, isolation, fresh assets or authenticated provenance, which remain
-blockers. Native direct helpers at
+alone did not establish split parity. A subsequent [independent local comparison](issues/04-web-split-design.md#local-same-head-split-parity--2026-10-29)
+found same-head test-result parity; isolation, fresh assets and authenticated provenance remain
+blockers, and sequential lane timings do not establish a speedup. Native direct helpers at
 `perf/native-gate-topology@77e1e28e3` fail closed until Cargo configuration and the compiler can
 be controlled; split-planning tests at `perf/native-ci-topology@59de2f4ec` preserve the full
 command and guard. The isolated workflow experiment at

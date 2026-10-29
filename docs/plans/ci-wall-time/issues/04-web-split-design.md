@@ -32,7 +32,7 @@ On `feat/dependency-aware-web-execution` at `932bce6f2`, the experimental runner
 nonzero page invocation. Pinned wasm-bindgen 0.2.129 can suppress the post-summary console-read
 warning and emit the ordinary failure chain, so that chain is not proof of completion. This is
 deliberately stricter than the intended allowlisted-failure policy; the allowlist is presently
-empty. The handoff reports 44 runner, 11 lane and 38 receipt tests passed. Real-browser parity,
+empty. The handoff reports 44 runner, 11 lane and 38 receipt tests passed. At that handoff real-browser parity,
 enforced isolated targets and fresh assets, and authenticated receipt/run provenance remain
 promotion blockers. This is local experimental work, not a production gate change or topology
 approval; no speedup is established.
@@ -44,4 +44,27 @@ One unsharded `python3 scripts/check.py build browser` passed at
 (build 299.6s, browser 446.6s). The [baseline record](../wiki/baseline.md#local-web-baseline--2026-10-29)
 links the log and results and records counts and cache conditions. This is not a same-head split
 comparison, hosted CI speed claim, or fully cold-cache full-gate result. The human design decision
-and split execution parity, isolation, fresh assets and provenance remain open.
+and split execution parity, isolation, fresh assets and provenance remained open at that point.
+
+## Local same-head split parity — 2026-10-29
+
+Independent reviewer thread `f53c3ba4-2c72-4101-8558-5900b098eaea` compared the unsharded
+baseline at `feat/dependency-aware-web-execution@932bce6f266b395fc6bf3649a14587ad261f08f9`
+with sequential local site and crate lanes, run ID `websplit-932bce6f-20261029-local-01`.
+Names and outcomes matched for 14 crate launches and 587 tests, including both filtered launch
+pairs; 77 page names across three filters; 13 ordered drag checks; 364 ordered CAD browser checks
+including repeated descriptions; and eight provider Node tests. The existing aggregate accepted
+the lane receipts against the current plan; it does **not** compare them to the baseline.
+
+Sources: [baseline log](/home/chris/.t3/worktrees/ts-boardstudio2/t3-897cd35c/.evidence/web-baseline-932bce6f-wyru0xk7.log),
+[site receipt](/home/chris/.t3/worktrees/ts-boardstudio2/t3-9e9e2b3a/.evidence/site-websplit-932bce6f-20261029-local-01.json),
+and [crate receipt](/home/chris/.t3/worktrees/ts-boardstudio2/t3-71bb0344/.evidence/crates-websplit-932bce6f-20261029-local-01.json).
+These local artifacts may not be available elsewhere. Site took 506.9s and crates 439.970s,
+sequentially; the 746.5s unsharded baseline is not a comparable full-gate or CI speed measurement,
+and these runs establish no parallel speedup.
+
+This is local, unauthenticated test-result parity: source identity was locally clean, receipts do
+not authenticate provenance, and the baseline did not record per-command numeric exit codes.
+Drag build digests differed; the matching empty-change digest is not a source-tree hash. Enforced
+isolation, fresh assets, authenticated provenance, the human topology decision, and comparable
+hosted full-gate evidence remain open. No production gate change or CI readiness is claimed.

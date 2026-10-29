@@ -14,8 +14,10 @@ targets were initially absent; Cargo registry/Git and wasm-pack caches were popu
 were 12 and the scheduler used 4; CI's `playwright-core@1.62.1` was installed in an isolated tools
 directory. Sources: [baseline log](/home/chris/.t3/worktrees/ts-boardstudio2/t3-897cd35c/.evidence/web-baseline-932bce6f-wyru0xk7.log)
 (including the drag receipt) and [page results](/home/chris/.t3/worktrees/ts-boardstudio2/t3-897cd35c/web/target/test-results/browser.json).
-These are local, gitignored artifacts and may not be available elsewhere. This single run is not a
-same-head split comparison, hosted CI speed claim, or fully cold-cache full-gate result. See
+These are local, gitignored artifacts and may not be available elsewhere. This single run alone is
+not a same-head split comparison, hosted CI speed claim, or fully cold-cache full-gate result. A
+later [local comparison](../issues/04-web-split-design.md#local-same-head-split-parity--2026-10-29)
+found same-head test-result parity, subject to its stated limitations. See
 [04](../issues/04-web-split-design.md) and [16](../issues/16-web-partition-proof.md).
 
 ## Hosted and other anchors

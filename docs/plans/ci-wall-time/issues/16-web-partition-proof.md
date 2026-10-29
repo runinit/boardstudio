@@ -33,8 +33,8 @@ observed completed launches and independently established source and unique run 
 preserve the existing runner's failure, known-failure, listing and isolation semantics and
 verify test-name parity. Independent execution needs isolated writable targets and browser
 sessions, prerequisite ordering, and artifact compatibility/provenance checks before reuse.
-Ticket 04's human topology and artifact-sharing decision, actual browser parity and measured
-shard/transfer walls remain open. No speed gain is claimed.
+At this prototype's completion, ticket 04's human topology and artifact-sharing decision, actual
+browser parity and measured shard/transfer walls remained open. No speed gain is claimed.
 
 ## Subsequent experiment — 2026-10-29
 
@@ -42,7 +42,7 @@ The separate execution experiment `feat/dependency-aware-web-execution@932bce6f2
 nonzero page invocation because the pinned wasm-bindgen 0.2.129 warning can be suppressed even
 when the ordinary failure chain appears. This is stricter than the intended allowlisted-failure
 policy; the allowlist is currently empty. Its handoff reports 44 runner, 11 lane and 38 receipt
-tests passed. Real-browser parity, enforced isolated targets and fresh assets, and authenticated
+tests passed. At that handoff real-browser parity, enforced isolated targets and fresh assets, and authenticated
 receipt/run provenance remain promotion blockers. This does not retroactively make this ticket's
 accounting prototype execution proof or change the production gate; see [04](04-web-split-design.md).
 
@@ -51,3 +51,7 @@ On 2026-10-29, one unsharded local build/browser baseline at
 746.5s. See the [baseline record](../wiki/baseline.md#local-web-baseline--2026-10-29) for source
 artifacts, coverage and conditions. It is not a split comparison or execution proof for this
 prototype, a hosted CI speed claim, or a fully cold-cache full-gate result; ticket 04 remains open.
+
+The later [local same-head comparison](04-web-split-design.md#local-same-head-split-parity--2026-10-29)
+on 2026-10-29 found test-result parity for the separate execution experiment. It does not turn
+this ticket's non-executing prototype into execution proof or resolve ticket 04.

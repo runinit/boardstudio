@@ -13,7 +13,9 @@ PRs, runs, reports) are cited, never copied in.
   `feat/dependency-aware-web-execution@932bce6f2` and promotion blockers (2026-10-29); the
   earlier [partition proof](../issues/16-web-partition-proof.md) remains non-executing. One
   [local unsharded baseline](baseline.md#local-web-baseline--2026-10-29) passed in 746.5s;
-  split parity and comparable hosted performance remain unproven.
+  [local same-head test-result parity](../issues/04-web-split-design.md#local-same-head-split-parity--2026-10-29)
+  was independently reviewed on 2026-10-29; authenticated provenance and comparable hosted
+  performance remain unproven.
 - [Native experiments](../issues/17-native-topology.md): blocked direct measurements at
   `perf/native-gate-topology@77e1e28e3` and split-planning tests at
   `perf/native-ci-topology@59de2f4ec`; isolated workflow split and stable aggregator at
