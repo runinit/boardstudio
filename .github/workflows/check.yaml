@@ -51,10 +51,25 @@ jobs:
         with:
           path: ~/.cache/.wasm-pack
           key: wasm-pack-0.15.0-wasm-bindgen-0.2.129
+      - name: Read pinned Chrome-for-Testing version
+        run: |
+          echo "CFT_VERSION=$(python3 -c 'import json; print(json.load(open("scripts/chrome-for-testing.json"))["version"])')" >> "$GITHUB_ENV"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/chrome-for-testing
+          key: cft-${{ env.CFT_VERSION }}
+      - name: Install pinned Chrome for Testing
+        run: |
+          BOARDSTUDIO_CFT_DIR="$RUNNER_TEMP/chrome-for-testing" bash scripts/install-chrome-for-testing.sh
+          echo "CHROME_BIN=$RUNNER_TEMP/chrome-for-testing/chrome-linux64/chrome" >> "$GITHUB_ENV"
+          echo "CHROMEDRIVER=$RUNNER_TEMP/chrome-for-testing/chromedriver-linux64/chromedriver" >> "$GITHUB_ENV"
       - name: Verify headless Chrome tools
         run: |
-          google-chrome --version
-          chromedriver --version
+          "$CHROME_BIN" --version
+          "$CHROMEDRIVER" --version
+          version=$(python3 -c 'import json; print(json.load(open("scripts/chrome-for-testing.json"))["version"])')
+          test "$("$CHROME_BIN" --version | awk '{print $NF}')" = "$version"
+          test "$("$CHROMEDRIVER" --version | awk '{print $2}')" = "$version"
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: |

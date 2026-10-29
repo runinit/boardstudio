@@ -129,11 +129,12 @@ pub fn position_resolver(
                 .iter()
                 .map(|selected_id| {
                     let selected = part_of(document, selected_id).expect("checked above");
+                    let board_at = boardstudio_core::evaluated_part_pose(document, selected).at;
                     Position {
                         id: selected.id.clone(),
                         at: Vec2 {
-                            x: selected.pose.at.x + delta.x,
-                            y: selected.pose.at.y + delta.y,
+                            x: board_at.x + delta.x,
+                            y: board_at.y + delta.y,
                         },
                     }
                 })
@@ -654,8 +655,9 @@ pub fn part_anchor_follow_resolver(part_id: String, follow: Follow) -> EditResol
     )
 }
 
-/// Ticket 13: retarget the anchor key (or anchor a detached part) in one Undo
-/// entry via SetPartAnchor, keeping the pose.
+/// Ticket 13, retarget rule 04: retarget the anchor key (or anchor a
+/// detached part) in one Undo entry via SetPartAnchor. The stored values
+/// ride along, so the part moves to the fresh placement from the new key.
 pub fn part_anchor_pick_resolver(
     part_id: String,
     matrix_id: String,

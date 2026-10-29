@@ -1,4 +1,5 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
+pub(crate) use boardstudio_web_layout::anchor_badge;
 pub(crate) use boardstudio_web_layout::board_inspector;
 pub(crate) use boardstudio_web_ui_shared::canvas_layers;
 pub(crate) use boardstudio_web_ui_shared::canvas_navigation::{
@@ -6025,6 +6026,21 @@ fn Editor() -> Element {
         selected.scope == render_scope
             && selection::context_is_current(&model, &selected.scope, &selected.context)
     });
+    // Ticket 02: the anchor badge and the "Placed from" readout share one
+    // projection of the displayed scene. It clears with the selection, and
+    // the canvas ring reads the same value through its scene prop.
+    let canvas_anchor_badge = (!(layer_visibility.hidden)().contains("Keys"))
+        .then(|| {
+            selected_tree_context.as_ref().and_then(|selected| {
+                let scene_refs: Vec<_> = canvas_source.scene.matrix_scenes.iter().collect();
+                anchor_badge::anchor_badge(
+                    &canvas_source.document,
+                    &scene_refs,
+                    Some(&selected.context),
+                )
+            })
+        })
+        .flatten();
     // Ticket 18: the live spacing ghost, if it still describes this paint —
     // the revision and selection it was born with, and no drag preview up.
     // The revision check covers the paint between a commit landing and the
@@ -6091,6 +6107,51 @@ fn Editor() -> Element {
         .zip(transform_projection)
         .zip(selected_tree_context.as_ref())
         .map(|((matrix, projection), selected)| (matrix, projection, selected.context.clone()));
+    // Ticket 07: the part rail facts for an independent part selection behind
+    // `transform_tools` and the part rail below. Members and companions keep
+    // their matrix's tools: the facts name them and the pure list stays empty.
+    let part_rail_selection =
+        selected_tree_context
+            .as_ref()
+            .and_then(|selected| match &selected.context {
+                objects::TreeContext::Component {
+                    part_id: Some(part_id),
+                    matrix_id: None,
+                    ..
+                } => {
+                    let part = document.parts.iter().find(|part| &part.id == part_id)?;
+                    Some((
+                        part_id.clone(),
+                        boardstudio_web_layout::part_rail::PartRailFacts {
+                            anchored: part.anchor.is_some(),
+                            anchor_column: part.anchor.as_ref().map_or(0, |anchor| anchor.column),
+                            locked: part.locked == Some(true),
+                            member_or_companion: document
+                                .matrices
+                                .iter()
+                                .any(|matrix| matrix.part_ids.contains(part_id)),
+                        },
+                    ))
+                }
+                _ => None,
+            });
+    // Ticket 07: the part rail drag snap: anchored drags snap in the anchor
+    // matrix's pitch, like the matrix tools snap in their own.
+    let part_rail_snap = part_rail_selection.as_ref().map(|(part_id, _)| {
+        let anchor_pitch = document
+            .parts
+            .iter()
+            .find(|part| &part.id == part_id)
+            .and_then(|part| part.anchor.as_ref())
+            .and_then(|anchor| {
+                document
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.id == anchor.matrix_id)
+            })
+            .map(|matrix| matrix.pitch);
+        objects::gesture_snap_inputs(&layout_snap_settings.read().clone(), anchor_pitch, None)
+    });
     let transform_tool_owner = (
         layout_owner.scope.clone(),
         layout_owner.generation,
@@ -6411,6 +6472,7 @@ fn Editor() -> Element {
                     snap_fraction: snap.snap_fraction,
                     geometry_snap: snap.geometry_snap,
                     gap: snap.gap,
+                    pixels_per_world: None,
                     alt: pointer.alt_key(),
                 });
                 let fresh = runtime.model();
@@ -6434,6 +6496,7 @@ fn Editor() -> Element {
             runtime.submit(Event::GestureSample {
                 pointer_id: current.pointer,
                 positions: moved(&current, point),
+                pixels_per_world: None,
                 alt: pointer.alt_key(),
             });
         }
@@ -6585,6 +6648,7 @@ fn Editor() -> Element {
                 runtime.submit(Event::GestureEnd {
                     pointer_id: current.pointer,
                     final_positions: moved(&current, point),
+                    pixels_per_world: None,
                     alt: pointer.alt_key(),
                 });
             } else if current.active {
@@ -9498,6 +9562,9 @@ fn Editor() -> Element {
                             spacing_ghost: spacing_ghost_prop.clone(),
                             selected_ids: model.selected_part_ids.clone(),
                             selected_context: selected_tree_context.clone(),
+                            view_width_world: width,
+                            surface_width_px: zoom_surface_size().0,
+                            anchor_badge: canvas_anchor_badge.clone(),
                             keys_visible: !(layer_visibility.hidden)().contains("Keys"),
                             components_visible: !(layer_visibility.hidden)().contains("Components"),
                             keycaps_visible: !(layer_visibility.hidden)().contains("Keycaps"),
@@ -9561,7 +9628,33 @@ fn Editor() -> Element {
                             && !layout_assembly_3d()
                             && let Some((matrix, projection, context)) = layout_transform_target.clone()
                         {
-                            for tool in layout_canvas::transform_tools(&context, layout_transform_tool(), layout_state.transform_handles()()) {
+                            for tool in layout_canvas::transform_tools(&context, layout_transform_tool(), layout_state.transform_handles()(), None) {
+                            // Ticket 08: the anchored matrix's Anchor token
+                            // arms canvas pick mode instead of a drag; an
+                            // unanchored matrix offers no token.
+                            if tool == objects::LayoutTransformTool::Anchor && matrix.anchor.is_some() {
+                            objects::LayoutAnchorPickOverlay {
+                                key: "{tool:?}",
+                                runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                                svg: objects::LayoutTransformSvg(svg.clone()),
+                                arbiter: canvas_interaction.clone(),
+                                owner: layout_owner.clone(),
+                                selected_context: adapter.selected_context,
+                                scope_generation: adapter.generation,
+                                surface_size: Some(zoom_surface_size),
+                                workspace,
+                                pick_owner: objects::AnchorPickOwner::Matrix {
+                                    matrix: matrix.clone(),
+                                    projection: projection.clone(),
+                                    context: context.clone(),
+                                },
+                                view_x,
+                                view_y,
+                                width,
+                                height,
+                            }
+                            }
+                            if tool != objects::LayoutTransformTool::Anchor {
                             objects::LayoutTransformToolOverlay {
                                 key: "{tool:?}",
                                 runtime: objects::LayoutTransformRuntime(runtime.clone()),
@@ -9586,12 +9679,94 @@ fn Editor() -> Element {
                                 on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
                             }
                             }
+                            }
+                        }
+                        // Ticket 07: the independent part's own rail. Move and
+                        // Rotate edit the local Offset and Rotation; Spread and
+                        // Stagger edit the values carried from the anchor key.
+                        // The strip above is unchanged: it keeps offering
+                        // Position for a part selection.
+                        if active_workspace == "Layout"
+                            && !layout_assembly_3d()
+                            && let Some((part_id, facts)) = part_rail_selection.clone()
+                            && let Some(selected) = selected_tree_context.clone()
+                            && let Some(part_snap) = part_rail_snap
+                        {
+                            {
+                                let part_context = selected.context.clone();
+                                rsx! {
+                                    for tool in layout_canvas::transform_tools(&part_context, layout_transform_tool(), layout_state.transform_handles()(), Some(facts)) {
+                                    // Ticket 08: the part rail ends in the
+                                    // Anchor token, which arms canvas pick
+                                    // mode instead of a drag.
+                                    if tool == objects::LayoutTransformTool::Anchor {
+                                    objects::LayoutAnchorPickOverlay {
+                                        key: "{tool:?}",
+                                        runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                                        svg: objects::LayoutTransformSvg(svg.clone()),
+                                        arbiter: canvas_interaction.clone(),
+                                        owner: layout_owner.clone(),
+                                        selected_context: adapter.selected_context,
+                                        scope_generation: adapter.generation,
+                                        workspace,
+                                        surface_size: Some(zoom_surface_size),
+                                        pick_owner: objects::AnchorPickOwner::Part {
+                                            part_id: part_id.clone(),
+                                        },
+                                        view_x,
+                                        view_y,
+                                        width,
+                                        height,
+                                    }
+                                    }
+                                    if tool != objects::LayoutTransformTool::Anchor {
+                                    objects::LayoutPartToolOverlay {
+                                        key: "{tool:?}",
+                                        runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                                        svg: objects::LayoutTransformSvg(svg.clone()),
+                                        arbiter: canvas_interaction.clone(),
+                                        owner: layout_owner.clone(),
+                                        selected_context: adapter.selected_context,
+                                        scope_generation: adapter.generation,
+                                        workspace,
+                                        surface_size: Some(zoom_surface_size),
+                                        part_id: part_id.clone(),
+                                        tool,
+                                        snap: part_snap,
+                                        view_x,
+                                        view_y,
+                                        width,
+                                        height,
+                                        on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
+                                        on_focus_half: {
+                                            let document = document.clone();
+                                            let mut split_focus = split_focus;
+                                            let part_context = part_context.clone();
+                                            EventHandler::new(move |_| {
+                                                if let Some(half) = boardstudio_web_ui_model::split_focus::context_half(&document, &part_context)
+                                                    && half != split_focus()
+                                                {
+                                                    split_focus.set(half);
+                                                }
+                                            })
+                                        },
+                                    }
+                                    }
+                                    }
+                                }
+                            }
                         }
                         if let Some(placement) = part_placement.projection.as_ref() {
                             { let definition = placement.pending.definition.clone();
                               let at = placement.pending.part.pose.at;
                               let courtyard = polygon_points(&definition.courtyard);
                               let reference = placement.pending.part.reference.clone();
+                              // Ticket 02: the preview name keeps the part-label
+                              // rule: at the top of the part at a fixed 11 px.
+                              let preview_courtyard_top = definition.courtyard.iter().map(|point| point.y).fold(f64::NEG_INFINITY, f64::max);
+                              let preview_courtyard_top = if preview_courtyard_top.is_finite() { preview_courtyard_top } else { 0.0 };
+                              let preview_label_font = boardstudio_web_layout::screen_scale::px_to_world(11.0, width, zoom_surface_size().0);
+                              let preview_label_y = preview_courtyard_top - boardstudio_web_layout::screen_scale::px_to_world(12.0, width, zoom_surface_size().0);
                               rsx! {
                                 g {
                                     class: "m1-part-placement-preview",
@@ -9610,7 +9785,7 @@ fn Editor() -> Element {
                                             if let Some(drill) = pad.drill { circle { class: "m1-part-drill", r: "{drill / 2.0}" } }
                                         }
                                     }
-                                    text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{reference}" }
+                                    text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", style: "font-size:{preview_label_font}px", x: "0", y: "{preview_label_y}", "{reference}" }
                                 }
                               }
                             }
@@ -9695,6 +9870,18 @@ fn Editor() -> Element {
                         && let Some(state) = field_preview() {
                         div { class: "m1-canvas-field-preview-hint", role: "status",
                             "{state.hint}"
+                        }
+                    }
+                    // Ticket 02: the "Placed from" readout (prototype variant
+                    // D) names what the selection is placed from at the
+                    // canvas's bottom left. It shares the canvas ring's badge
+                    // projection and clears with the selection.
+                    if active_workspace == "Layout"
+                        && !layout_assembly_3d()
+                        && let Some(badge) = canvas_anchor_badge.as_ref()
+                    {
+                        div { class: "m1-canvas-anchor-readout",
+                            "Placed from {badge.label}"
                         }
                     }
                 }

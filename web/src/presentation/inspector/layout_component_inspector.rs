@@ -336,8 +336,10 @@ pub enum LayoutComponentInspectorAction {
         owner: LayoutComponentInspectorOwner,
         follow: Follow,
     },
-    /// Ticket 13: retarget an anchored part's anchor key (Pick), keeping its
-    /// pose, or anchor a detached part, keeping its drop point.
+    /// Ticket 13, retarget rule 04: retarget an anchored part's anchor key
+    /// (Pick), keeping its stored values so the part moves to the fresh
+    /// placement from the new key — or anchor a detached part, which lands
+    /// on the picked key with the submitted values.
     SetPartAnchor {
         owner: LayoutComponentInspectorOwner,
         matrix_id: String,

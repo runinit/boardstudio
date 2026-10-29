@@ -1333,11 +1333,11 @@ async fn mounted_probe_configured(
 }
 
 async fn mounted_group_probe(root_id: &'static str) -> (MountedProbe, web_sys::Element) {
-    // Isolate group translation from adaptive spacing (see rapid-XY test):
-    // a legacy pair would adopt and re-space on the position commit.
+    // Keep group translation independent of linked-half adoption and spacing.
     mounted_runtime_probe(
         root_id,
         |document| {
+            document.layouts[0].part_ids.clear();
             for layout in document.layouts.iter_mut() {
                 layout.mirror_link = None;
             }
@@ -1666,6 +1666,7 @@ async fn mounted_part_mirror_toggle_mirrors_and_unmirrors_with_undo() {
         &["selected-part"],
     )
     .await;
+    settle_mounted_component_inspector(&probe).await;
 
     fn part_mirror(probe: &MountedProbe) -> Option<bool> {
         probe
@@ -2035,7 +2036,11 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
 
 #[wasm_bindgen_test]
 async fn mounted_component_inspector_production_handler_rejects_selection_aba_and_unmount() {
-    let (probe, root) = mounted_probe("layout-component-inspector-aba-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-inspector-aba-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     let old_projection = probe.projection.borrow().clone().unwrap();
     let old_action = *probe.action.borrow().as_ref().unwrap();
@@ -2222,7 +2227,11 @@ async fn mounted_component_margin_enter_commits_and_escape_restores_the_accepted
 #[wasm_bindgen_test]
 async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur_uses_latest_owner()
 {
-    let (probe, root) = mounted_probe("layout-component-inspector-refresh-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-inspector-refresh-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     let document = web_sys::window().unwrap().document().unwrap();
     let input = |label: &str| {
@@ -2372,6 +2381,8 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
     let (probe, root) = mounted_probe_configured(
         "layout-component-position-queued-xy-test-root",
         |document| {
+            // This test isolates queued edits from linked-half frame adoption.
+            document.layouts[0].part_ids.clear();
             let part = document
                 .parts
                 .iter_mut()
@@ -2453,9 +2464,79 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
 }
 
 #[wasm_bindgen_test]
+async fn mounted_linked_queued_xy_edits_preserve_board_position_across_adoption_and_undo() {
+    let (probe, root) =
+        mounted_probe_configured("layout-component-linked-queued-xy-test-root", |document| {
+            document.matrices[0].origin.x = -30.0;
+            document.matrices[1].origin.x = 30.0;
+            document.parts[0].pose.at = Vec2 { x: -50.0, y: 3.0 };
+        })
+        .await;
+    settle_mounted_component_inspector(&probe).await;
+    let x = position_input(probe.root_id, "X mm");
+    let y = position_input(probe.root_id, "Y mm");
+    let (entered, release) =
+        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+    try_commit_position(&x, "-40");
+    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    entered.await.expect("the X edit reached Core");
+    try_commit_position(&y, "8");
+    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    release.send(()).expect("release the held X reply");
+    accept_pending(&probe).await;
+
+    let board_position = || {
+        let model = probe.runtime.model();
+        let document = &model.accepted.as_ref().unwrap().document;
+        let part = document
+            .parts
+            .iter()
+            .find(|part| part.id == "selected-part")
+            .unwrap();
+        boardstudio_core::evaluated_part_pose(document, part).at
+    };
+    let model = probe.runtime.model();
+    let document = &model.accepted.as_ref().unwrap().document;
+    assert!(
+        document.layouts[1]
+            .mirror_link
+            .as_ref()
+            .unwrap()
+            .split_gap
+            .is_some(),
+        "X edit adopts the half frame"
+    );
+    assert_ne!(
+        document.parts[0].pose.at.x,
+        board_position().x,
+        "adoption gives the part a nonzero half offset"
+    );
+    assert_eq!(
+        board_position(),
+        Vec2 { x: -40.0, y: 8.0 },
+        "queued Y preserves the accepted board-space X"
+    );
+
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    accept_pending(&probe).await;
+    assert_eq!(
+        board_position(),
+        Vec2 { x: -40.0, y: 3.0 },
+        "one Undo removes only Y"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
 async fn mounted_component_inspector_view_unmount_retires_held_field_observation_and_remount_refreshes()
  {
-    let (probe, root) = mounted_probe("layout-component-position-unmount-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-position-unmount-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     let (entered, release) =
         crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
@@ -2505,7 +2586,11 @@ async fn mounted_component_inspector_view_unmount_retires_held_field_observation
 
 #[wasm_bindgen_test]
 async fn mounted_edit_retires_when_the_part_becomes_locked_before_execution() {
-    let (probe, root) = mounted_probe("layout-component-position-retire-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-position-retire-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     // Hold the lock edit's Core reply so the position edit queues behind it.
     let (entered, release) =

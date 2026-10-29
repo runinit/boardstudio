@@ -691,9 +691,33 @@ canvas bounds or camera and retains keyboard focus behavior.
 Layer swatches distinguish
 Action blue keys, amber components, neutral keycaps, violet footprints, and
 teal boards using the existing theme tokens.
-Selection types have direct icon shortcuts. Stagger, Offset, Splay, and Origin activate
-explicit canvas tools; Ctrl held at pointer-down turns a Stagger drag into a quick
-Offset of its column; handles remain hidden outside those tools. Origin snapping
+Selection types have direct icon shortcuts. Stagger, Offset, Shift, Bend, Splay, and
+Origin activate explicit canvas tools; Ctrl held at pointer-down turns a Stagger drag
+into a quick Offset of its column; handles remain hidden outside those tools. Column,
+Row, Key and Matrix tools draw as 18 px tokens in one 22 px rail 10 px above the
+selection, with a row offering Offset next to Shift and Bend and a key offering Shift
+and Bend. A selected independent part draws its own rail centred on it in part
+order — Move, Rotate, Spread, Stagger, Anchor — where Move and Rotate edit the local
+Offset and Rotation and Spread and Stagger edit the values carried from the
+anchor key; a detached part offers Move, Rotate and Anchor, and a member or
+companion keeps its matrix's tools. Anchor arms canvas pick mode and never
+starts a drag. The selected part's outline turns accent
+while unselected part outlines stay violet.
+centred on it at screen size in every zoom; Origin stays a 6 px ringed point on
+the canvas. A token rests muted, previews its movers in amber on hover with a
+selection-surface fill, and turns accent while it drags as its peers dim to 35%.
+The rail of an anchored matrix ends in an Anchor token, as does the rail of an
+independent part after its drag tools; pressing it arms canvas Anchor pick mode
+instead of a drag. Every committable key draws a violet 4.5 px ring (6 px on
+hover, 24 px hit area) with its label, the current anchor fills a white dot,
+and loop-forming targets draw no ring; prototype major targets (parts, the half
+origin) render dimmed and never commit, because Core anchors name keys only.
+Hovering a ring previews the Core-evaluated post-commit pose in amber, and the
+anchor popup pins to the canvas's top-right corner. Clicking commits one
+SetMatrixAnchor or SetPartAnchor Undo entry — the new anchor moves the item
+with its current values, like the Inspector retarget — with a toast naming the
+item and both anchors; Escape or a second token press leaves with no revision.
+Origin snapping
 uses component origins, corners, midpoints, and physical edges before the grid. PCB draws pad
 shapes and drills at their authored positions and rotations, plus supported
 bundled footprint graphics. Its collapsible Layers list groups the available
@@ -707,6 +731,16 @@ marks, pad numbers, and each previewed part. These controls affect only the
 preview; they do not edit the component or export. Missing or failed model
 previews use explicit text and a retry or import action instead of a perpetual
 loading state.
+
+Layout canvas chrome keeps fixed screen sizes at every zoom: technical labels
+(dimmed-half, spacing note, part names) draw at 11 px mono, and the anchor
+ring draws at 7 px violet, each mapped from screen pixels to canvas units for
+the current view. The badge label lives outside the canvas in a "Placed from"
+readout at the canvas's bottom left, in 11 px mono violet. Violet is only for
+anchoring — the ring, the tie, the readout and part outlines, with a selected
+part turning accent. Amber is only for keys that move — the field and drag
+previews — and the spacing note. Key hover is a 1.5 px accent stroke over a
+60% selection fill, and solid muted on the dimmed half.
 
 ### Motion and browser surfaces
 

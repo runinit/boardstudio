@@ -1573,6 +1573,7 @@ fn affects_outline(op: &EditOperation) -> bool {
             | EditOperation::SetPartAnchorFollow { .. }
             | EditOperation::DetachPartAnchor { .. }
             | EditOperation::SetPartAnchorValues { .. }
+            | EditOperation::SetPartRotation { .. }
             | EditOperation::SetConstraint { .. }
             | EditOperation::RemoveConstraint { .. }
             | EditOperation::ReplaceDocument { .. }
@@ -2054,6 +2055,9 @@ fn apply_with_ledger(
         EditOperation::DetachPartAnchor { part_id } => matrix::part_anchors::detach(doc, part_id),
         EditOperation::SetPartAnchorValues { part_id, change } => {
             matrix::part_anchors::set_value(doc, part_id, change)
+        }
+        EditOperation::SetPartRotation { part_id, rotation } => {
+            layout::set_detached_part_rotation(doc, part_id, *rotation)
         }
         EditOperation::RemoveMatrix { id } => {
             let ids = doc

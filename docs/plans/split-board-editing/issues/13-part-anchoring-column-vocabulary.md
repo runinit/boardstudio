@@ -13,7 +13,7 @@ X/Y/rotation, plus **Spread, Stagger, Splay** carried from that anchor and **Off
 for the part alone. Pick anchor key and Detach keep the part's pose; Detach places it from the
 half origin. A dropped part anchors to the nearest key of its half and keeps the drop point,
 upright. Dragging edits Spread/Stagger. Editing the anchor column or key moves the part. This
-extends ADR-0034's matrix anchors to parts, which needs an ADR update and a GLOSSARY entry.
+extends ADR-0036's matrix anchors to parts, which needs an ADR update and a GLOSSARY entry.
 
 Placement math decided in the prototype:
 
@@ -87,7 +87,7 @@ Web (`anchor_badge.rs`, `matrix_relations.rs`, part Inspector, `presentation.rs`
   matrix/row/column + Follow form, Detach), all committing through the new ops.
   Typed X/Y edits read the evaluated pose for anchored parts.
 
-Docs: ADR-0038 (`docs/adr/0038-part-anchoring-column-vocabulary.md`),
+Docs: ADR-0040 (`docs/adr/0040-part-anchoring-column-vocabulary.md`),
 GLOSSARY "Part anchor", scoped prototype-reference cleanup only.
 
 Evidence: Core integration 895 pass (incl. 7 new); web-layout lib 140 pass

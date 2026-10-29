@@ -17,15 +17,7 @@ pub fn coordinates(
     width: f64,
     height: f64,
 ) -> Option<Vec2> {
-    coordinates_at(
-        svg,
-        pointer.client_x(),
-        pointer.client_y(),
-        x,
-        y,
-        width,
-        height,
-    )
+    coordinates_with_scale(svg, pointer, x, y, width, height).map(|(world, _)| world)
 }
 
 pub fn coordinates_at(
@@ -37,9 +29,45 @@ pub fn coordinates_at(
     width: f64,
     height: f64,
 ) -> Option<Vec2> {
+    coordinates_at_with_scale(svg, client_x, client_y, x, y, width, height).map(|(world, _)| world)
+}
+
+pub fn coordinates_with_scale(
+    svg: &Rc<RefCell<Option<SvgElement>>>,
+    pointer: &web_sys::PointerEvent,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Option<(Vec2, f64)> {
+    coordinates_at_with_scale(
+        svg,
+        pointer.client_x(),
+        pointer.client_y(),
+        x,
+        y,
+        width,
+        height,
+    )
+}
+
+pub fn coordinates_at_with_scale(
+    svg: &Rc<RefCell<Option<SvgElement>>>,
+    client_x: i32,
+    client_y: i32,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Option<(Vec2, f64)> {
     let surface = svg.borrow();
     let rect = surface.as_ref()?.get_bounding_client_rect();
-    pointer_location(&rect, client_x, client_y, x, y, width, height).map(|location| location.world)
+    let scale = (rect.width() / width).min(rect.height() / height);
+    if !scale.is_finite() || scale <= 0.0 {
+        return None;
+    }
+    pointer_location(&rect, client_x, client_y, x, y, width, height)
+        .map(|location| (location.world, scale))
 }
 
 pub fn pointer_location(

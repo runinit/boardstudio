@@ -543,22 +543,57 @@ class RunWasmTestsTests(unittest.TestCase):
                 runner.selection_for_listed_files(
                     ["web/src/presentation/objects/matrix_transform_inspector.rs"], {}, self.dir)
 
+    def test_pinned_cft_install_supplies_chromedriver_and_chrome_binary(self):
+        pin_dir = self.dir / "fake-cft"
+        chrome = pin_dir / "chrome-linux64" / "chrome"
+        driver = pin_dir / "chromedriver-linux64" / "chromedriver"
+        chrome.parent.mkdir(parents=True)
+        driver.parent.mkdir(parents=True)
+        chrome.write_text("#!/bin/sh\necho chrome\n")
+        driver.write_text("#!/bin/sh\necho chromedriver\n")
+        chrome.chmod(0o755)
+        driver.chmod(0o755)
+        saved = {key: os.environ.get(key) for key in
+                 ("BOARDSTUDIO_CFT_DIR", "CHROMEDRIVER", "CHROME_BIN", runner.WEBDRIVER_CONFIG_ENV)}
+        os.environ["BOARDSTUDIO_CFT_DIR"] = str(pin_dir)
+        for key in ("CHROMEDRIVER", "CHROME_BIN", runner.WEBDRIVER_CONFIG_ENV):
+            os.environ.pop(key, None)
+        try:
+            def fake_which(name):
+                return "/usr/bin/wasm-pack" if name == "wasm-pack" else None
+            with patch.object(runner.shutil, "which", side_effect=fake_which), \
+                 patch.object(runner, "wasm_bindgen_dir", return_value=Path("/tmp/test-runner")):
+                env = runner.runner_environment(root=self.dir)
+            self.assertEqual(env["CHROMEDRIVER"], str(driver))
+            with runner.desktop_webdriver_config(env, root=self.dir) as cfg_env:
+                config = json.loads(Path(cfg_env[runner.WEBDRIVER_CONFIG_ENV]).read_text())
+                self.assertEqual(config["goog:chromeOptions"]["binary"], str(chrome))
+                self.assertIn("--window-size=1280,900", config["goog:chromeOptions"]["args"])
+                self.assertEqual(cfg_env["CHROMEDRIVER"], str(driver))
+        finally:
+            for key, value in saved.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
     def test_desktop_webdriver_config_is_wide_and_preserves_explicit_override(self):
-        with runner.desktop_webdriver_config({}) as env:
-            config_path = Path(env[runner.WEBDRIVER_CONFIG_ENV])
-            self.assertEqual(json.loads(config_path.read_text()), {
-                "goog:chromeOptions": {"args": ["--window-size=1280,900"]}
-            })
-        self.assertFalse(config_path.exists())
-        supplied = self.dir / "caller-webdriver.json"
-        supplied.write_text('{"goog:chromeOptions":{"args":["--window-size=1440,1000"]}}')
-        with runner.desktop_webdriver_config({runner.WEBDRIVER_CONFIG_ENV: str(supplied)}) as env:
-            self.assertEqual(env[runner.WEBDRIVER_CONFIG_ENV], str(supplied))
-        crate_config = self.dir / "web/webdriver.json"
-        crate_config.parent.mkdir(parents=True, exist_ok=True)
-        crate_config.write_text('{"goog:chromeOptions":{"args":["--window-size=1360,900"]}}')
-        with runner.desktop_webdriver_config({}, self.dir) as env:
-            self.assertEqual(env[runner.WEBDRIVER_CONFIG_ENV], str(crate_config.resolve()))
+        with patch.object(runner, "resolve_chrome_binary", return_value=None):
+            with runner.desktop_webdriver_config({}) as env:
+                config_path = Path(env[runner.WEBDRIVER_CONFIG_ENV])
+                self.assertEqual(json.loads(config_path.read_text()), {
+                    "goog:chromeOptions": {"args": ["--window-size=1280,900"]}
+                })
+            self.assertFalse(config_path.exists())
+            supplied = self.dir / "caller-webdriver.json"
+            supplied.write_text('{"goog:chromeOptions":{"args":["--window-size=1440,1000"]}}')
+            with runner.desktop_webdriver_config({runner.WEBDRIVER_CONFIG_ENV: str(supplied)}) as env:
+                self.assertEqual(env[runner.WEBDRIVER_CONFIG_ENV], str(supplied))
+            crate_config = self.dir / "web/webdriver.json"
+            crate_config.parent.mkdir(parents=True, exist_ok=True)
+            crate_config.write_text('{"goog:chromeOptions":{"args":["--window-size=1360,900"]}}')
+            with runner.desktop_webdriver_config({}, self.dir) as env:
+                self.assertEqual(env[runner.WEBDRIVER_CONFIG_ENV], str(crate_config.resolve()))
 
     def test_first_failure_summary_surfaces_raw_wasm_trap_before_harness_timeout(self):
         test_name = "presentation::x::tests::traps_in_wasm"

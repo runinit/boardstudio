@@ -244,6 +244,55 @@ fn change_anchor_retargets_dependants_with_preview_cancel_and_undo() {
     assert_eq!(redone(&mut engine).matrices, committed.matrices);
 }
 
+#[test]
+fn reanchoring_a_matrix_moves_it_and_keeps_its_stored_frame() {
+    let (mut engine, doc) = anchored_fixture();
+    let origin_before = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "thumb")
+        .expect("thumb matrix")
+        .origin;
+    let anchor_before = anchor_of(&doc, "thumb");
+    let key_before = at(&doc, &member("thumb", 0, 0));
+    let moved = MatrixAnchor {
+        matrix_id: "main".into(),
+        row: 0,
+        column: 0,
+        follow: Follow {
+            x: true,
+            y: true,
+            rotation: true,
+        },
+        aggregate: None,
+    };
+    let (_, committed) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrixAnchor {
+            matrix_id: "thumb".into(),
+            anchor: moved.clone(),
+        },
+    );
+    // Re-anchoring moves the matrix onto the new anchor but keeps its stored
+    // frame: Origin is untouched.
+    assert_eq!(anchor_of(&committed, "thumb"), Some(moved));
+    assert_eq!(
+        committed
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "thumb")
+            .expect("thumb matrix")
+            .origin,
+        origin_before
+    );
+    assert_ne!(at(&committed, &member("thumb", 0, 0)), key_before);
+    // One Undo entry restores the old anchor and pose.
+    let undone_doc = undone(&mut engine);
+    assert_eq!(anchor_of(&undone_doc, "thumb"), anchor_before);
+    assert_eq!(at(&undone_doc, &member("thumb", 0, 0)), key_before);
+}
+
 fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
     scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() })).1
 }
