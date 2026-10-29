@@ -47,6 +47,8 @@ class CheckTests(unittest.TestCase):
             "scripts/test-drag-browser-deep-home-timeout.py": "Linux CI process cleanup control",
             "scripts/test-drag-browser-deep-home.py": "Linux CI deep HOME browser controls",
             "scripts/test-graphite-controls.py": "manual Graphite browser failure controls against a built site",
+            # Temporary: another lane's unregistered model-lookup browser pilot; it registers or retires it.
+            "scripts/test-model-lookup-pilot.py": "opt-in model-lookup browser pilot controls, owned by the model-lookup lane",
         }
         self.assertEqual(scripts, registered | opt_in.keys())
         self.assertTrue(all(opt_in.values()))

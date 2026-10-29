@@ -44,6 +44,34 @@ pose diffs before committing; never bless a different pin or moving tag accident
 An optional existing-cache check is `node scripts/test-ergogen-parity.cjs /path/to/checkout`;
 it creates/removes only its own untracked probe to verify the cleanliness guard.
 
+### Node-free generator (experimental; the Node commands above remain the required path)
+
+`python3 scripts/ergogen-parity/generate.py [--cache CHECKOUT] [--output JSON] [--check]` has the
+same CLI contract as the Node generator without running Node. `verified_runtime.py` validates the
+checkout (pin, clean status, no Git filters or hidden index changes) and extracts the pinned Git
+object plus every SHA-512-verified locked archive from the local npm cache (`--npm-cache`; never
+downloaded) into a private temporary tree. Only then is `cad-provider-pages` built from this
+checkout, and Chrome runs the actual pinned `points.parse` and evaluates `cases.cjs`
+(`host_probe.mjs`). Assembly, validation and `JSON.stringify(fixture, null, 2)`-exact output are
+Python ports. Output is written atomically and never to the legacy oracle or the checkout.
+
+`python3 scripts/ergogen-parity/sandbox_generate.py --cache CHECKOUT --temp-parent DIR [--check]`
+first verifies the Chrome for Testing tree byte-for-byte against the pinned archive
+(`BOARDSTUDIO_CFT_ZIP`), builds the driver, then runs the generator in a user/network namespace
+with loopback only, Node masked, a cleared environment and a read-only view of `/usr`, `/etc`, the
+repository, checkout, browser, driver and only the locked archives; only the output directory is
+writable (read-only for `--check`). The checkout must already exist. Chrome itself still runs with
+`--no-sandbox` (shared driver), so this namespace, not Chrome, is the boundary; it is not a secure
+JavaScript sandbox for hostile code, and identity is checked against the local pin and lock, not
+publisher signatures. Keep the checkout, lockfile and temporary parent private and stable.
+
+`python3 scripts/ergogen-parity/test_generate.py --hermetic` ports every offline group of
+`test-ergogen-parity.cjs` (no browser, network, npm, Cargo or upstream). `--source` evaluates
+`cases.cjs` in Chrome and rebuilds the committed fixture byte-for-byte from its recorded poses, which
+also catches source edits without regeneration. `--upstream` (with `ERGOGEN_CHECKOUT`) runs the real
+parser through the CLI. `test_verified_runtime.py` and `test_host_probe.py` cover the preparer and
+browser host. Licences and notices of extracted packages are not redistributed.
+
 ## Fixture contract
 
 `cases.cjs` independently authors the Ergogen config and equivalent BoardStudio
