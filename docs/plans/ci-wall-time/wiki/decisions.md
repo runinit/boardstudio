@@ -18,7 +18,13 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
 - On 2026-10-29, the user ordered the heartbeat logging merged after PR #9
   (`stack/03-toolbar-polish`) lands. The change is committed as `3e5dd5f` on branch
   `ci/heartbeat-logging` (pushed, no PR); see ticket 07 for the remaining retry-policy half.
+- On 2026-10-29, the effort adopted delegate routing: default key first, one retry on a 403,
+  then Opus (`claude-opus-5-5`) or Codex for the retry. Rationale: the default key began denying
+  every new delegate launch (`client_attestation_denied`) while Opus succeeds first time;
+  Opus is reserved for implementation, reviews, and anything that already failed once —
+  read-only research stays on the cheapest working key.
 - On 2026-10-29, the effort adopted the rule that research evidence lives on off-tree
+  `research/*` branches (pushed, no PR): `research/cache-readiness` (`70eedc93`),
   `research/*` branches (pushed, no PR): `research/cache-readiness` (`70eedc93`),
   `research/provider-overlap` (`3efcce2`), `research/tier-map` (`d5cc9d2`). Tickets depending on
   them must promote load-bearing content to `dev` before closing.
