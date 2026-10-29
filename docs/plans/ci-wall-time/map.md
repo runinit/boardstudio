@@ -30,11 +30,9 @@ attributable from the log alone.
 - Green baseline: run [40791505198](https://github.com/runinit/boardstudio/actions/runs/40791505198),
   head `d650e1ddf` — web 33m37s (build 624.3s + browser 1363.4s), native 30m19s, both cold.
   Receipt: `.evidence/web-ci-green-baseline-d650e1dd/receipt.md` (gitignored).
-- Checkpoints: 03 scores real warm walls; then 10's predicted PR-gate wall for BOTH reference
-  sets is the go/no-go for 17 minutes. Current gap: ~22–27 min warm predicted, so ~5–10 min
-  must come from tiering or the split. Worst case is in scope by user decision 2026-10-29: if
-  the worst-case set cannot clear 17 through tiering, the lint/build phase graduates from
-  tickets 10 and 14.
+- Checkpoints: 03 scored — warm web 26m03s / native 14m41s (native fits 17; web needs ~9 min
+  more). 10's predicted PR-gate wall (~12 min typical) is the go/no-go for 17 on the typical
+  set; the worst-case set needs the split or a lint/build phase.
 - Evidence for resolved research lives on off-tree `research/*` branches (pushed, no PR), not on
   `dev`; tickets 03 and 05 depend on those branches surviving — promote anything load-bearing
   to `dev` before closing them out.
@@ -80,6 +78,9 @@ attributable from the log alone.
 - [02: Provider-build overlap](issues/02-provider-overlap.md): conditional GO for three-lane
   overlap (serial wasm-pack lane, concurrent CAD-WASM + ergogen lanes, no target-dir
   isolation) — predicted ~90–110s off the cold build.
+- [03: Warm-baseline measurement](issues/03-warm-baseline-measure.md): scored on draft PR #11
+  — cold native 29m22s / web 42m17s, warm native **14m41s** / web **26m03s** (inside the
+  predicted 22–27; 17 needs ~9 more min from split/workload).
 - [10: Tier map driven by rules](issues/10-tier-map.md): PR-gate ~12 min warm for the
   canonical small PR, ~full wall for core-touch (gate stays lint+build bound); 1 proven
   redundant test, 3 must-not-remove, browser smoke pins are placeholders pending runs.

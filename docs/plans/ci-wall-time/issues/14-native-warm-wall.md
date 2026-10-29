@@ -1,6 +1,6 @@
 # 14: Native warm wall and budgets
 
-Status: needs-info
+Status: ready-for-agent
 Type: research
 Blocked by: [03: Warm-baseline measurement](03-warm-baseline-measure.md)
 Parent: [CI wall time map](../map.md)

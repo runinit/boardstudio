@@ -1,6 +1,6 @@
 # 03: Warm-baseline measurement
 
-Status: claimed
+Status: resolved
 Type: task
 Blocked by: [01: Cache-branch readiness](01-cache-readiness.md)
 Parent: [CI wall time map](../map.md)
@@ -24,11 +24,22 @@ receipt that every later speedup compares against.
   executed test counts (107 presentation tests plus all crate launches), green full gate, quota
   inventory.
 
-## Comments
+## Answer
 
-- Claimed for probe-branch prep delegate
-  `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3A8f05dfbe-b82d-498b-9096-38c1c357cfc3`
-  (work stops before the draft PR — that needs user approval).
+Warm baseline scored on draft PR #11 (head `008cb78f`, open draft, never to merge).
+Cold (transition, red cache, all green): native 29m22s (rust-cache MISS, saved 1.47 GiB in
+~17s), web 42m17s (MISS, saved 1.41 GiB in ~19s; wasm-pack HIT), audit 6m34s.
+Warm (attempt 4, same head, GREEN steady state): native **14m41s** (exact-key HIT, 1.47 GiB
+in ~5.6s, no re-upload), web **26m03s** (HIT, 1.41 GiB in ~6.9s; build ~6.1 min, browser
+~19.2 min), audit 6m28s. Tests identical cold and warm: 2870 native passed / 0 failed /
+18 ignored; 364 browser checks, 659 wasm unit, 5/5 drag-smoke. Quota unchanged (~8.56 GiB,
+10 caches); warm runs downloaded ~3.0 GiB, uploaded nothing.
+Web 26m03s lands inside the predicted 22–27 min (upper end) — 17 is NOT met by caching alone;
+web needs ~9 more minutes from split/workload. Attempts 2–3 red on the same head with
+timing-sensitive flakes (native `test-serve-web.py` 0.2s localhost timeout; web drag-smoke
+translate diff); cold passed both, failed runs saved no caches, warm receipt stands.
+Full receipt: `.evidence/warm-baseline-probe/receipt.md` (delegate worktree, gitignored —
+key numbers preserved here).
 - Probe ready 2026-10-29: `ci/probe-warm-baseline` pushed at `008cb78f` — `d650e1ddf` plus
   exactly the five cache commits (`git log d650e1ddf..HEAD` shows only those five; 4 files
   touched). One conflict in `scripts/check.py` (probe head's `TOOLING_TESTS` lacks the

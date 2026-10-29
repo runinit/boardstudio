@@ -10,9 +10,12 @@ and cache restore, from GitHub-hosted Ubuntu runners with 4 vCPUs.
   `.evidence/web-ci-green-baseline-d650e1dd/receipt.md` (gitignored, main checkout only).
 - The previous red run 40776517605 failed at 47m02s; red-run timeouts and the
   panic-hook cascade inflated the wall by about 13.5 minutes versus green.
-- Warm anchors (not same-head comparisons, direction only): PR 7's warm web job took 22m52s
-  with a dev-cache restore (run 40730153041). No warm native run has ever been observed as of
-  2026-10-29.
+- Warm anchors were PR 7's web 22m52s with a dev-cache restore (run 40730153041), same-head
+  only for direction. Scored 2026-10-29 on draft PR #11 (probe head `008cb78f` = `d650e1ddf`
+  plus five cache commits): cold native 29m22s / web 42m17s (transition, red cache), warm
+  native **14m41s** / web **26m03s** (same head, green). Tests identical: 2870 native passed,
+  364 browser checks, 659 wasm unit, 5/5 drag-smoke. Two same-head reds on the way (0.2s
+  localhost timeout; drag-smoke translate diff) — flakes, receipt stands.
 - Cold build split (web job): `dx` page ~311s, core-worker ~162s, cad-wasm ~99s, rest ~50s.
   Cold browser split: crate batches ~432s / ~264s / ~226s serial, page `--list` ~36s,
   `run-wasm-tests --all` ~314s for 107 tests.

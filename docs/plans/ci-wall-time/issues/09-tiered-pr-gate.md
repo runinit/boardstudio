@@ -1,6 +1,6 @@
 # 09: Implement tiered PR gate
 
-Status: needs-info
+Status: ready-for-agent
 Type: task
 Blocked by: [03: Warm-baseline measurement](03-warm-baseline-measure.md), [10: Tier map driven by rules](10-tier-map.md)
 Parent: [CI wall time map](../map.md)
