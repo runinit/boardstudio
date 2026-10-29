@@ -66,6 +66,10 @@ the user returns to GitHub work. See the [dated decision](wiki/decisions.md) and
 On 2026-10-29 the user authorized the chief-of-staff to decide cache and runner policies; this
 does not itself select a policy or authorize purchases, provisioning, or hosted CI. Existing
 local-first constraints and claims remain in force. See the [dated grant](wiki/decisions.md).
+The subsequent [starting policy](wiki/decisions.md) retains the complete cold-miss gate and
+trusted main/dev Rust-cache saves, defers new PR-scoped saves pending validation, and starts with
+standard hosted runner classes and measured independent parallelism. It is reversible, does not
+claim the cold target is met, and does not authorize hosted runs or provisioning.
 
 Measured anchors: on the green cold baseline, native and web ran concurrently at 30m19s and
 33m37s; native tooling/lint/test were 143/477/1095s and web build/browser 624/1363s. The
@@ -127,8 +131,8 @@ replacing CAD's 640s with the existing 426s workspace lane would still leave rou
 including historical serial steps and setup; that is counterfactual arithmetic, not a measurement
 or a proof that a particular split works. Runner capacity, cache access, artifact compatibility,
 contention and real shard balance remain unknown. The user has not preselected runner size,
-cost policy, cache layout, artifacts, or a specific native/web topology; the chief-of-staff may
-decide cache and runner policies under the dated grant above.
+cost policy, cache layout, artifacts, or a specific native/web topology; the reversible starting
+cache and runner policy is recorded above under the dated grant.
 
 ## Earlier destination (historical)
 

@@ -60,3 +60,20 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
   to purchase or provision resources or trigger hosted CI. No specific policy is selected by
   this grant; full coverage, cache trust and the local-first constraints remain in force.
   Source: user direction in the parent conversation, 2026-10-29.
+- On 2026-10-29, under that grant, the chief-of-staff selected a reversible starting policy:
+  - A cold cache miss runs the complete full gate; caches optimize but never define correctness.
+    Do not manipulate mtimes. Treat cache data as untrusted and keep secrets out.
+  - Start with Rust-cache saves on trusted main/dev as in the baseline at `aaa0787f1`;
+    introduce no new PR-scoped Rust-cache saves until scope, trust, reachability, quota and
+    eviction are validated. The PR #13 proposal remains pending, not rejected. Reuse same-run
+    artifacts only after checking source, toolchain, profile, features, provenance and transfer cost.
+    See [cache readiness](../issues/01-cache-readiness.md) and [cache change](../issues/12-land-cache-change.md).
+  - Start with existing standard hosted runner classes and measured independent job parallelism;
+    preserve every test, failure propagation and fail-closed aggregation. Revisit sizing after
+    actual availability, cost and critical-path evidence. This baseline is not claimed to meet
+    10 minutes cold.
+
+  This is not approval to run hosted CI, buy or provision runners, skip acceptance, or block
+  future improvements. The user's topology authorization, local-first constraints and separate
+  cold/warm tracking remain. Source: parent selection under the user grant of 2026-10-29; see the
+  [full-gate plan](../map.md#full-gate-destination-and-sequence--2026-10-29) and `6ec74bb`.
