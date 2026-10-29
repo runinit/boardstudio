@@ -112,3 +112,20 @@ The native workflow experiment is a separate branch: at `perf/native-ci-topology
 moves the tooling gate to `native-tooling`. Combining the experiments will require installing the
 pinned dependency in that job and updating the web contract's exact job inventory and native
 setup assertions; neither branch alone validates the combined workflow.
+
+## Chromiumoxide baseline correction — 2026-10-29
+
+The user corrected the experiment's browser baseline: the target is the Chromiumoxide migration,
+not the older Playwright path. A concurrent attempt at `932bce6f` failed site preflight because
+`NODE_PATH` was missing; crates passed in 474.6s without site running alongside it. A retry was
+stopped when the mismatch was identified. Neither is a valid migrated-gate comparison. Previous
+local parity and timings on `932bce6f` are historical results for that older source only.
+
+The user selected `stack/04-browser-migration@5a9c8ab2bdf65d8debeebabb40a9342a1a0e3a18` as
+the source for a separate experiment, without modifying the stack branch, and requires **no Node
+anywhere in the gate**. Its drag smoke uses the Rust/Chromiumoxide harness and its web-tools action
+does not install Playwright, but `cad/scripts/cad_build.py` still requires Node to run eight
+packaged-provider regression scripts; `scripts/check.py` also registers Node-based tooling tests.
+Do not remove or skip checks for a timing result. A no-Node full gate with equivalent coverage must
+be established before this performance experiment proceeds. No migrated baseline, concurrent
+timing, hosted run or speedup is established.

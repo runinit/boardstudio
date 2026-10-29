@@ -122,6 +122,14 @@ Experimental CAD evidence at `perf/native-ci-topology@f3f6c893` remains provisio
 cannot verify the expected launch inventory. An isolated Cargo toy investigation, baseline safety
 follow-up and remaining failure-path limitations are recorded in [17](issues/17-native-topology.md#comments).
 
+**Correction — 2026-10-29:** The user requires no Node anywhere in the gate and selected
+`stack/04-browser-migration@5a9c8ab2` as the source for a separate experiment. The earlier web
+parity and timing work at `932bce6f` exercises the older Playwright path, not the selected
+Chromiumoxide gate; it cannot establish migrated-gate parity or performance. The selected revision
+still runs Node for CAD packaged-provider regressions and tooling tests. Do not skip those checks;
+the performance experiment is blocked until their Node dependency is resolved without coverage loss.
+See [04](issues/04-web-split-design.md#chromiumoxide-baseline-correction--2026-10-29).
+
 1. Finish the focused web-build correctness and measurement work above; compare equivalent
    end-to-end commands and retain all tests. The blocked page-list candidate is not a priority.
    Profile the full browser and native paths locally by compile, execution, setup and wait time,
