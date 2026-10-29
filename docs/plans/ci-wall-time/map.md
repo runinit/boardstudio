@@ -3,9 +3,10 @@
 ## Destination
 
 PR validation — the PR-gate tier of the `native` and `web` jobs — completes in under 17 minutes
-on a warm cache (about half the 33m37s cold full-gate baseline), with every test explicitly
-assigned to a tier (untiered stays in the gate by default), and every hang attributable from the
-log alone.
+on a warm cache (about half the 33m37s cold full-gate baseline) for both reference change sets:
+the canonical small PR and the worst-case core-touch PR (both defined in ticket 10). Every test
+is explicitly assigned to a tier (untiered stays in the gate by default), and every hang is
+attributable from the log alone.
 
 ## Notes
 
@@ -29,9 +30,11 @@ log alone.
 - Green baseline: run [40791505198](https://github.com/runinit/boardstudio/actions/runs/40791505198),
   head `d650e1ddf` — web 33m37s (build 624.3s + browser 1363.4s), native 30m19s, both cold.
   Receipt: `.evidence/web-ci-green-baseline-d650e1dd/receipt.md` (gitignored).
-- Checkpoints: 03 scores real warm walls; then 10's predicted PR-gate wall for the reference
+- Checkpoints: 03 scores real warm walls; then 10's predicted PR-gate wall for BOTH reference
   sets is the go/no-go for 17 minutes. Current gap: ~22–27 min warm predicted, so ~5–10 min
-  must come from tiering or the split.
+  must come from tiering or the split. Worst case is in scope by user decision 2026-10-29: if
+  the worst-case set cannot clear 17 through tiering, the lint/build phase graduates from
+  tickets 10 and 14.
 - Evidence for resolved research lives on off-tree `research/*` branches (pushed, no PR), not on
   `dev`; tickets 03 and 05 depend on those branches surviving — promote anything load-bearing
   to `dev` before closing them out.
