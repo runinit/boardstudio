@@ -1,6 +1,6 @@
 # 19: Node-free Ergogen oracle
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: [Face-completeness replacement](18-face-completeness-replacement.md)
 Parent: [CI wall time map](../map.md)
@@ -22,6 +22,9 @@ filesystem and Git protections, and byte-identical output without executing Node
   remaining migrations. No push, merge or hosted CI.
 
 ## Comments
+
+- 2026-10-29: Claimed for the user-directed local implementation experiment on
+  `research/chromiumoxide-web-split@0f5d8ae1`; no hosted operations or gate removal.
 
 - 2026-10-29: Ticket 18 is resolved for the local face-replacement decision only. This ticket is
   the next eligible Node-free sequence frontier, unclaimed; the complete browser step and full gate
