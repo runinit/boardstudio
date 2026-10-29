@@ -23,6 +23,8 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
   every new delegate launch (`client_attestation_denied`) while Opus succeeds first time;
   Opus is reserved for implementation, reviews, and anything that already failed once —
   read-only research stays on the cheapest working key.
+- On 2026-10-29, the user tightened routing: fallback for implementation is terra 6.1 xhigh
+  (normal speed); Opus only for hard planning or troubleshooting.
 - On 2026-10-29, the effort adopted the rule that research evidence lives on off-tree
   `research/*` branches (pushed, no PR): `research/cache-readiness` (`70eedc93`),
   `research/*` branches (pushed, no PR): `research/cache-readiness` (`70eedc93`),
