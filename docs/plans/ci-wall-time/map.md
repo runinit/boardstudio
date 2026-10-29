@@ -134,6 +134,12 @@ all cases and behavior and keep hosted CI untouched. A read-only inventory found
 Node tooling tests, an indirect measurement probe, and eight CAD package regressions; action and
 build-tool subprocess runtimes remain unaudited.
 
+The user authorized local execution as well as planning and chose to validate the existing
+face-completeness port first, then establish Ergogen feasibility before migrating the other
+regressions. The sequence and acceptance evidence are tracked in the Node-free tickets below.
+Keep existing required checks until their replacements prove equivalent; do not push, merge or
+start hosted CI without further authorization.
+
 1. Finish the focused web-build correctness and measurement work above; compare equivalent
    end-to-end commands and retain all tests. The blocked page-list candidate is not a priority.
    Profile the full browser and native paths locally by compile, execution, setup and wait time,
@@ -273,6 +279,18 @@ attributable from the log alone.
 - [17: Native topology and critical path](issues/17-native-topology.md): claimed by the ongoing
   parent effort; one local native run recorded, with real parity and comparable measurements
   pending, not resolved.
+- [18: Face-completeness replacement](issues/18-face-completeness-replacement.md): validate the
+  existing opt-in browser port against the required regression.
+- [19: Node-free Ergogen oracle](issues/19-node-free-ergogen-oracle.md): establish whether the
+  real upstream oracle and native CLI protections can be preserved without Node.
+- [20: Remaining CAD provider regressions](issues/20-remaining-cad-provider-regressions.md):
+  establish a coverage-preserving approach for the remaining seven scripts.
+- [21: Node-free tooling tests](issues/21-node-free-tooling-tests.md): preserve the other two
+  Node-based tooling tests and their execution environments.
+- [22: Node-free gate verification](issues/22-node-free-gate-verification.md): establish complete
+  coverage and runtime evidence, including the hosted-runtime boundary.
+- [23: Migrated-gate performance baseline](issues/23-migrated-gate-performance-baseline.md):
+  measure comparable Chromiumoxide gate runs only after the Node-free gate is established.
 
 ## Historical decisions and results
 
@@ -303,6 +321,8 @@ they do not authorize test removals or reduced PR coverage.
 
 ## Not yet specified
 
+- Individual CAD provider replacement tickets: define and wire these after the approach in
+  [Remaining CAD provider regressions](issues/20-remaining-cad-provider-regressions.md) is tested.
 - `dx` page-build 311s internals: profile the cold page build before deciding anything about it.
   Follow-up from 05: the `dx` compile is provider-independent (byte-identical output
   with/without staged providers) — pipelining it ahead of the provider batch is viable.
