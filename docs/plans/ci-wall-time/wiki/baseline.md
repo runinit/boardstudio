@@ -32,3 +32,10 @@ and cache restore, from GitHub-hosted Ubuntu runners with 4 vCPUs.
   revision, `cad/scripts/cad_build.py` (`wasm_inputs_digest` and `build_wasm`), hashes selected
   inputs but checks only the WASM output and stamp before skipping. This is an existing
   stale-output risk, not a safe cache pattern to copy; the check was mocked, not a build timing.
+- On 2026-10-29, `research/cad-build-stamp-safety` at `8d6bbd0fe` removed that early skip,
+  invalidates the stamp before building, and checks both WASM and JS outputs; the commit includes
+  regression tests. This is a local research-branch fix, not a claim it landed on `dev` or in CI.
+- On 2026-10-29, the native CAD shared-target experiment at `8d6bbd0fe` observed 59.1s versus
+  68.0s for one WASM native-test comparison, with the expensive Monstertruck stack still
+  recompiling. This is one noisy local observation, not a full-gate saving. Logs, conditions,
+  uncovered freshness and qualification cases are recorded in [17](../issues/17-native-topology.md).

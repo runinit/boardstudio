@@ -5,6 +5,11 @@ Type: task
 Blocked by: [03: Warm-baseline measurement](03-warm-baseline-measure.md), [10: Tier map driven by rules](10-tier-map.md)
 Parent: [CI wall time map](../map.md)
 
+> **Suspended 2026-10-29:** The reduced-coverage PR gate below and its implementation are not
+> authorized for the [full-coverage goal](../map.md#full-gate-destination-and-sequence--2026-10-29).
+> Preserve this history and do not promote the branch. Check the recorded owner's activity before
+> changing any claim or status; no current owner state is inferred here.
+
 ## Question
 
 Wire 10's tier map into the workflow and `check.py`, and measure the PR-gate wall versus the

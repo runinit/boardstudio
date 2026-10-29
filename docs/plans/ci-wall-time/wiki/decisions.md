@@ -28,7 +28,6 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
 - On 2026-10-29, the user set research to terra medium.
 - On 2026-10-29, the effort adopted the rule that research evidence lives on off-tree
   `research/*` branches (pushed, no PR): `research/cache-readiness` (`70eedc93`),
-  `research/*` branches (pushed, no PR): `research/cache-readiness` (`70eedc93`),
   `research/provider-overlap` (`3efcce2`), `research/tier-map` (`d5cc9d2`). Tickets depending on
   them must promote load-bearing content to `dev` before closing.
 - On 2026-10-29, the user redirected near-term work toward quick local web-build improvements

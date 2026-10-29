@@ -4,6 +4,12 @@ Status: resolved
 Type: research
 Parent: [CI wall time map](../map.md)
 
+> **Superseded for execution 2026-10-29:** This resolved research and its tier assignments are
+> historical evidence, not authorization to reduce PR coverage or remove tests. The full-gate
+> goal in the [map](../map.md#full-gate-destination-and-sequence--2026-10-29) retains all checks.
+> The truncated findings and provisional browser pins below remain limitations, not implementation
+> instructions.
+
 ## Question
 
 Which tests belong in the PR gate and which in a slower tier, assigned by explicit rules that

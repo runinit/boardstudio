@@ -12,11 +12,14 @@ claim and status changes in the relevant ticket and keep this map consistent. Se
 [user decision](wiki/decisions.md).
 
 1. Reuse the existing provider parallelism on `research/local-web-builds` at `0f7c63087`.
-   No trivial safe repeat-`wasm-opt` skip was found; do not copy the existing CAD stamp
-   shortcut. Investigate its stale-output risk as a focused correctness item, with regression
-   coverage for changed build flags and missing JS output, before proposing a fix.
+   No trivial safe repeat-`wasm-opt` skip was found; do not copy the old CAD stamp shortcut.
+   The focused correctness fix exists locally on `research/cad-build-stamp-safety` at
+   `8d6bbd0fe`: it removes the skip and checks WASM and JS outputs, with regression tests.
+   It is not claimed landed on `dev` or in CI; see [baseline](wiki/baseline.md).
 2. Reproduce and fix actual test failures locally, keeping the relevant checks intact. Verify
-   each fix with its focused test and any directly affected checks.
+   each fix with its focused test and any directly affected checks. Ticket [03](issues/03-warm-baseline-measure.md)
+   records historical `test-serve-web.py` timeout and drag-smoke translate flakes; reproduce
+   before attributing current failures to them. Retry policy remains in [07](issues/07-retry-and-heartbeat-policy.md).
 3. When no competing build is active, measure one representative warm local web build before
    and after a candidate with the same command, inputs and cache state; record full end-to-end
    wall, revision, result and relevant test counts. Keep changes only with evidence of benefit
@@ -74,22 +77,27 @@ Prioritized local-first work, respecting existing ownership:
    end-to-end commands and retain all tests. The blocked page-list candidate is not a priority.
    Profile the full browser and native paths locally by compile, execution, setup and wait time,
    with test identities/counts and cache state. Do not mistake a `--fast` build for release proof.
-2. Design and locally validate full-coverage web shards around independent crate batches and
-   presentation tests, with a build-once handoff where outputs actually match each consumer.
-   Measure artifact creation, transfer/restore, per-shard compilation and longest shard, not just
-   summed execution. Preserve isolation (`run-wasm-tests --all` remains split), browser setup,
-   failure reporting and aggregate required-check semantics. Ticket [04](issues/04-web-split-design.md)
-   remains the human design decision; do not make it depend on reducing the PR tier.
-3. Shorten native concurrently: investigate the 640s CAD lane's repeated compile and safe build
-   reuse, and split independent lint/test work only where it preserves every check and count.
-   Measure whether shared outputs are compatible and whether setup, linking, memory and CPU
-   contention erase savings. A warm lane already exceeds 600s before the other native steps.
+2. Investigate CAD executed-name protection before restructuring. Measure native and web actual
+   prerequisite graphs and candidate critical paths, including setup, restore, compilation,
+   transfer and longest shard. Establish each browser consumer's real inputs; preserve
+   `run-wasm-tests --all` isolation and all existing tests. Do not build aggregation before
+   measurement and topology decisions. Ticket [17](issues/17-native-topology.md) tracks the
+   native follow-up; the coordinator must check active ownership before claiming it.
+3. Present measured full-coverage native and web topology and artifact options for human decision
+   ([17](issues/17-native-topology.md), [04](issues/04-web-split-design.md)). A single noisy
+   shared-target comparison did not establish a gate saving. Only then implement and locally
+   validate the chosen design, including observed launch and test-name parity, failure handling,
+   isolation and fail-closed required-check semantics. Evaluate existing
+   `scripts/verification_receipt.py` where suitable, but verify its separate browser and CAD gaps;
+   ticket [16](issues/16-web-partition-proof.md) is not execution proof.
 4. Validate cache reachability and provenance before relying on warm performance: current
    checkout saves Rust caches only on main/dev; the scoped cache proposal and its quota and
    cold-transition risks are documented in [01](issues/01-cache-readiness.md) and
    [12](issues/12-land-cache-change.md). PR #13 was recorded there as open with CI pending at
    handoff; no current GitHub status is asserted. A probe rerun's exact-key hit does not prove
-   a new PR can restore a trusted base cache. Check scope, key/toolchain/profile inputs, hit
+   a new PR can restore a trusted base cache. The plan checkout at `aaa0787f1` omits the CAD
+   qualification target from native's cache; probe `008cb78f` included it. Their cache setups
+   are not interchangeable. Check scope, key/toolchain/profile inputs, hit
    rates, transfer cost, eviction, and untrusted/fork write boundaries; never trade correctness
    for a hit. Cold fallback must still run the complete gate.
 5. Only after the local phase and the user's return to GitHub work, agree the required-check
@@ -97,7 +105,9 @@ Prioritized local-first work, respecting existing ownership:
    reference changes. Record cold and warm cache states, scopes, restore/save time, setup,
    queue/transfer and all shard/job walls, counts and failures. Shards must collectively execute
    the same tests, with missing or failed shards blocking the gate; release dependencies and
-   branch protection must not accidentally accept a partial run.
+   branch protection must not accidentally accept a partial run. Check whether the separate
+   security workflow is required; its warm probe audit was 6m28s ([03](issues/03-warm-baseline-measure.md)),
+   not evidence of current required-check configuration.
 
 **Success:** all required native and web checks are green on the same head, with unchanged
 coverage, and the hosted end-to-end full required gate wall is approximately 10 minutes, with
@@ -106,12 +116,13 @@ and queue/setup/aggregation in the overall wall if they determine completion. Re
 warm separately; a warm hit is not evidence that cold meets the target. Neither local timings
 nor the existing warm probe establish that this is achievable on current hosted resources.
 
-Planning arithmetic, not a forecast: even ideal division of 19.2 minutes of warm browser work
-over three equal concurrent shards leaves about 6.4 minutes per shard before setup, build,
-handoff and imbalance; a shared 6.1-minute build serialized ahead of those shards already
-exceeds ten. Build overlap/reuse or a different partition is therefore required, and the native
-CAD compile must also be reduced or moved off its critical path without dropping it. Runner
-capacity, cache access, artifact compatibility and real shard balance remain unknown.
+The 19.2-minute warm browser wall is already partly parallel, not divisible serial work; neither
+19.2/3 nor a hypothetical shard estimate predicts the new wall. In the recorded native run,
+replacing CAD's 640s with the existing 426s workspace lane would still leave roughly 11 minutes
+including historical serial steps and setup; that is counterfactual arithmetic, not a measurement
+or a proof that a particular split works. Runner capacity, cache access, artifact compatibility,
+contention and real shard balance remain unknown. The user has not decided whether the target
+applies to cold runs, runner size, cache layout, or native/web topology.
 
 ## Earlier destination (historical)
 
@@ -142,9 +153,9 @@ attributable from the log alone.
 - Green baseline: run [40791505198](https://github.com/runinit/boardstudio/actions/runs/40791505198),
   head `d650e1ddf` — web 33m37s (build 624.3s + browser 1363.4s), native 30m19s, both cold.
   Receipt: `.evidence/web-ci-green-baseline-d650e1dd/receipt.md` (gitignored).
-- Checkpoints: 03 scored — warm web 26m03s / native 14m41s (native fits 17; web needs ~9 min
-  more). 10's predicted PR-gate wall (~12 min typical) is the go/no-go for 17 on the typical
-  set; the worst-case set needs the split or a lint/build phase.
+- Historical 17-minute checkpoints, superseded for the full-gate goal: 03 scored warm web
+  26m03s / native 14m41s; 10 predicted a reduced PR gate of ~12 min for the typical set.
+  Neither establishes the current full-coverage target.
 - Evidence for resolved research lives on off-tree `research/*` branches (pushed, no PR), not on
   `dev`; tickets 03 and 05 depend on those branches surviving — promote anything load-bearing
   to `dev` before closing them out.
@@ -167,12 +178,10 @@ attributable from the log alone.
   logging and adopt an infra-retry policy.
 - [08: Dead dependencies](issues/08-dead-dependencies.md): itemized removal list with per-item
   evidence.
-- [09: Implement tiered PR gate](issues/09-tiered-pr-gate.md): wire 10's tier map into the
-  workflow and measure both tiers on the same head.
-- [10: Tier map driven by rules](issues/10-tier-map.md): PR-gate versus slower-tier assignment
-  by explicit rules, with predicted walls for the reference change sets.
-- [11: Redundant-test removals](issues/11-redundant-test-removals.md): remove what 10 proves
-  redundant, green gates on both tiers.
+- [09: Implement tiered PR gate](issues/09-tiered-pr-gate.md): suspended reduced-coverage work.
+- [10: Tier map driven by rules](issues/10-tier-map.md): resolved historical tiering research,
+  superseded for execution.
+- [11: Redundant-test removals](issues/11-redundant-test-removals.md): suspended removals.
 - [12: Land the extracted cache change on dev](issues/12-land-cache-change.md): cherry-pick the
   five commits with a green full gate.
 - [13: CI browser debug profile](issues/13-ci-debug-profile.md): set the browser profile to
@@ -183,8 +192,13 @@ attributable from the log alone.
   claim preserved; further matrix work deferred under the near-term focus above.
 - [16: Web partition completeness prototype](issues/16-web-partition-proof.md): resolved as a
   local, non-executing proof; ticket 04's human design decision remains open.
+- [17: Native topology and critical path](issues/17-native-topology.md): coordinator-owned triage
+  and coverage-preserving measurement follow-up; no implementation claim yet.
 
-## Decisions so far
+## Historical decisions and results
+
+The 17-minute tiering conclusions below are historical and superseded for the current full gate;
+they do not authorize test removals or reduced PR coverage.
 
 - [01: Cache-branch readiness](issues/01-cache-readiness.md): do not land
   `ci/improve-cache-speed` as-is (stack product code); extract the five cache commits as a
@@ -213,9 +227,8 @@ attributable from the log alone.
 - `dx` page-build 311s internals: profile the cold page build before deciding anything about it.
   Follow-up from 05: the `dx` compile is provider-independent (byte-identical output
   with/without staged providers) — pipelining it ahead of the provider batch is viable.
-- Conditional-skip policy (`--skip-providers`/page on untouched paths): needs an artifact cache
-  first; graduates after 04, must respect the 10 tier map, and any cross-run artifact cache
-  written by PR code needs 01's scope rules.
+- Conditional-skip policy (`--skip-providers`/page on untouched paths): not approved for the
+  current full-coverage gate; any future artifact reuse needs 04's decision and 01's trust rules.
 - Job-count tuning matrix (`BOARDSTUDIO_CHECK_JOBS`, cargo jobs on 4 vCPUs): deferred; any
   future work needs the warm baseline as comparison.
 - Pooling drag smoke with the page crate batch (check-speed 12's top item, ~50–70s est.):

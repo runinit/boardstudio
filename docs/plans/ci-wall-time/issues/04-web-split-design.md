@@ -2,9 +2,9 @@
 
 Status: ready-for-human
 Type: grilling
-Blocked by: [03: Warm-baseline measurement](03-warm-baseline-measure.md), [09: Implement tiered PR gate](09-tiered-pr-gate.md)
+Blocked by: [03: Warm-baseline measurement](03-warm-baseline-measure.md)
 Parent: [CI wall time map](../map.md)
-Related: [13: Browser structural](../../check-speed/issues/13-browser-structural.md)
+Related: [13: Browser structural](../../check-speed/issues/13-browser-structural.md), [16: Partition proof](16-web-partition-proof.md), [17: Native topology](17-native-topology.md)
 
 ## Question
 
@@ -13,12 +13,15 @@ shards, which artifacts are shared, and what does the transfer cost?
 
 ## Pointers
 
-- Needs 03's warm numbers first: the compile-versus-test split decides whether sharding the
-  crate batches (cold: 432s / 264s / ~226s serial) beats sharing one build. Waits on 09 as well:
-  a smaller PR tier changes the shard design — and may make this ticket unnecessary (close it
-  with a note if so).
-- Sketch: build once, upload providers/site artifact, shard crate batches plus presentation
-  across runners; each shard still needs a cache restore.
+- 2026-10-29: 03 provides warm anchors; measure the actual dependency graph and consumer inputs
+  before choosing a full-coverage topology. The reduced PR tier in 09 is superseded, not a blocker.
+  Compare independent crate batches and presentation consumers, build overlap versus build-once
+  handoff, artifact compatibility and provenance, restores, setup and the longest shard. Do not
+  assume every consumer needs the site or that a shared build is beneficial.
 - Close to check-speed 13 option A (one cargo build) but scoped differently: 13 targets local
   tooling, this targets CI runners — that distinction is why it lives here.
-- This is a human-in-the-loop decision with the user once the numbers exist.
+- Ticket 16 is non-executing accounting, not proof of launch or test-name parity. Evaluate the
+  existing `scripts/verification_receipt.py` for actual execution evidence and aggregation only
+  after choosing a topology; identify gaps for browser page, crate and smoke coverage.
+- This remains a human-in-the-loop topology and artifact decision with the user once the numbers
+  exist. Preserve all tests, isolation, prerequisites and fail-closed required-check semantics.

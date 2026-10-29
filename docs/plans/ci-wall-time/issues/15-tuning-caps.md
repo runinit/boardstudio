@@ -5,6 +5,11 @@ Type: task
 Parent: [CI wall time map](../map.md)
 Related: [05: Provider-build parallelism](05-provider-parallelism.md)
 
+> **Suspended 2026-10-29:** No further tuning matrix or promotion under the current local-first
+> [direction](../map.md#near-term-focus--2026-10-29). The claim and progress below are preserved;
+> the recorded delegate's current activity is unknown. Check with the owner before changing the
+> claim or treating the work as stopped or complete.
+
 ## Question
 
 What cargo-job and lane-overlap caps minimize the cold build wall without hurting warm builds —

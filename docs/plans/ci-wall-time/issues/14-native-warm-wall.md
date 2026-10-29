@@ -21,6 +21,11 @@ Once 03 scores a warm native run (never observed — cold is 30m19s with lint 47
 
 ## Answer
 
+**2026-10-29 scope correction:** The verdict below applies only to the old 17-minute target; it
+does not establish that native fits the full-coverage ~10-minute goal. Follow-up is tracked in
+[17](17-native-topology.md), including native topology, coverage and the F1/F2 hypotheses. The
+research's suggested savings and freshness cause remain unconfirmed, not gate receipts.
+
 **Native fits under 17 minutes**: warm 14m41s (881s), 2m19s under the wall; all steps at
 budget would take 16m03s. No follow-up ticket required for 17 — F1 (vendored CAD rebuilds,
 ~210s est.) and F2 (merge 7 qualification calls, 62s) graduate only if CAD growth trips the
