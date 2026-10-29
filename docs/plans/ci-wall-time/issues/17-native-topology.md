@@ -121,3 +121,10 @@ correctness review. Cold versus warm target, runner capacity and cache quota are
   This is not a same-head CI comparison, real CAD name-parity proof, 10-minute cold full-gate
   proof, or proof of capture completeness. The ticket remains claimed and unresolved; no speedup
   is claimed.
+- 2026-10-29: Independent analysis of the `90411c08` log reconstructs nine CAD Cargo invocations
+  with 514 passed and 2 ignored, including zero-test library and native-WASM doc-test sections.
+  The log does not explicitly record the nine nested command boundaries or numeric exits. A test
+  occurs in two qualification selections, so merging by binary and test name loses an occurrence.
+  Existing receipts also exclude doc-tests. A fresh unsharded reference with per-invocation,
+  fail-closed evidence is required before split parity can be established; instrumentation is
+  under investigation. The log is local diagnostic evidence, not authenticated CI provenance.

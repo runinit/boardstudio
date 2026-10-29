@@ -90,3 +90,20 @@ not authenticate provenance, and the baseline did not record per-command numeric
 Drag build digests differed; the matching empty-change digest is not a source-tree hash. Enforced
 isolation, fresh assets, authenticated provenance, the human topology decision, and comparable
 hosted full-gate evidence remain open. No production gate change or CI readiness is claimed.
+
+## Experimental workflow and review — 2026-10-29
+
+`ci/experimental-web-gate-topology@4e238b6f9c6253d1d7a9a25bf6fb36c74ebaf20c` implements
+the selected two-job design and stable `web` aggregate; it is not deployed. An independent review
+confirmed the planned lane inventory and aggregate structure by inspection, but identified a
+missing wasm-pack cache writer and opt-in workflow tests. Follow-up `@3d4a3bc9` adds one
+successful site-lane cache writer limited to `main`/`dev` pushes. `@54e58b336e3c4c202ef2eaf5918e1e0192586318`
+registers the workflow contract in the tooling gate, declares pinned PyYAML setup, and checks exact
+triggers. The handoffs report workflow tests 7/7, check tests 31/31, quick-selection tests 15/15,
+and lane tests 12/12 passing; the full tooling gate and `actionlint` were not run.
+
+The review's protection, hosted required-check, fork, cancellation and partial-rerun findings
+remain promotion blockers. The full-rerun policy is not enforced by the aggregate. Receipts are
+diagnostic, not authenticated proof; cache behavior, hosted parity and cold timing remain unverified.
+The package setup requires access to the pinned package or a populated pip cache. No hosted CI,
+push, merge or performance claim follows from these local changes.

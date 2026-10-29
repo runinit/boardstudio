@@ -19,6 +19,9 @@ PRs, runs, reports) are cited, never copied in.
 - [Selected web trust design](../issues/04-web-split-design.md#selected-trust-design--2026-10-29):
   independent validated lanes and a host-conclusion aggregate, subject to protected gate inputs
   and a full-rerun policy pending hosted verification; not deployed (2026-10-29).
+- [Experimental web workflow](../issues/04-web-split-design.md#experimental-workflow-and-review--2026-10-29):
+  split at `4e238b6f`, trusted cache writer at `3d4a3bc9`, and reproducible tooling-gate contract
+  at `54e58b33`; hosted trust, behavior, parity and timing remain unverified (2026-10-29).
 - [Native experiments](../issues/17-native-topology.md): blocked direct measurements at
   `perf/native-gate-topology@77e1e28e3` and split-planning tests at
   `perf/native-ci-topology@59de2f4ec`; isolated workflow split and stable aggregator at

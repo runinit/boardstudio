@@ -112,6 +112,13 @@ not a same-head CI comparison, CAD name parity, capture completeness or a cold f
 See tickets [04](issues/04-web-split-design.md), [16](issues/16-web-partition-proof.md) and
 [17](issues/17-native-topology.md). No full-gate speedup is established.
 
+The [experimental web workflow and review](issues/04-web-split-design.md#experimental-workflow-and-review--2026-10-29)
+now include a trusted-branch wasm-pack cache writer and standard-tooling workflow contract at
+`ci/experimental-web-gate-topology@54e58b336e3c4c202ef2eaf5918e1e0192586318`. It is not
+deployed; protection, hosted behavior, parity and cold timing remain open. Independent analysis
+of the native reference found missing explicit nested CAD command boundaries and numeric exits;
+per-invocation evidence and a fresh unsharded reference are still needed before split parity.
+
 1. Finish the focused web-build correctness and measurement work above; compare equivalent
    end-to-end commands and retain all tests. The blocked page-list candidate is not a priority.
    Profile the full browser and native paths locally by compile, execution, setup and wait time,
