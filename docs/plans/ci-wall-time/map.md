@@ -63,6 +63,10 @@ constraints above remain in force; no new hosted runs, PRs, merges, or ticket 15
 the user returns to GitHub work. See the [dated decision](wiki/decisions.md) and
 [baseline](wiki/baseline.md).
 
+On 2026-10-29 the user authorized the chief-of-staff to decide cache and runner policies; this
+does not itself select a policy or authorize purchases, provisioning, or hosted CI. Existing
+local-first constraints and claims remain in force. See the [dated grant](wiki/decisions.md).
+
 Measured anchors: on the green cold baseline, native and web ran concurrently at 30m19s and
 33m37s; native tooling/lint/test were 143/477/1095s and web build/browser 624/1363s. The
 same-head warm probe measured 14m41s native and 26m03s web, including setup, not a 10-minute
@@ -123,7 +127,8 @@ replacing CAD's 640s with the existing 426s workspace lane would still leave rou
 including historical serial steps and setup; that is counterfactual arithmetic, not a measurement
 or a proof that a particular split works. Runner capacity, cache access, artifact compatibility,
 contention and real shard balance remain unknown. The user has not preselected runner size,
-cost policy, cache layout, artifacts, or a specific native/web topology.
+cost policy, cache layout, artifacts, or a specific native/web topology; the chief-of-staff may
+decide cache and runner policies under the dated grant above.
 
 ## Earlier destination (historical)
 

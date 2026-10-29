@@ -55,3 +55,8 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
   approval of an unsafe cache or a particular artifact, caching, runner, or cost policy. The
   local-first and no-hosted-CI-until-later constraints above remain. Source: user direction in
   the parent conversation, 2026-10-29.
+- On 2026-10-29, the user authorized the chief-of-staff to decide cache and runner policies
+  for the approximately 10-minute cold full gate. This grants decision authority, not approval
+  to purchase or provision resources or trigger hosted CI. No specific policy is selected by
+  this grant; full coverage, cache trust and the local-first constraints remain in force.
+  Source: user direction in the parent conversation, 2026-10-29.
