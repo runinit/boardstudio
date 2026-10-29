@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Opt-in real packaged WEB step-face-completeness regression; no build is performed."""
+"""Run the packaged WEB step-face-completeness regression with a supplied driver."""
 import hashlib
 import http.server
 import importlib.util
@@ -165,7 +165,8 @@ def run():
         if result.stderr:
             sys.stderr.write(result.stderr)
         expected = [{"suite": CASE, "case": "sliver", "ok": True}]
-        if json.loads(result.stdout) != expected:
+        observed = json.loads(result.stdout)
+        if observed != expected or observed[0]['ok'] is not True:
             raise RuntimeError(f"invalid face completeness result: {result.stdout!r}")
     finally:
         server.shutdown()

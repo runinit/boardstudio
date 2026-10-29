@@ -49,7 +49,6 @@ PROVIDER_TESTS = (
     "step-zero-repair.cjs",
     "step-projected-line-repair.cjs",
     "step-planar-seam-repair.cjs",
-    "step-face-completeness.cjs",
     "step-complete-surface-preview.cjs",
     "collision-analysis.cjs",
     "qualified-analysis.cjs",

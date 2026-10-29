@@ -142,6 +142,26 @@ class BrowserToolsTests(unittest.TestCase):
             self.assertIn("failed to compile", str(error.exception))
             self.assertNotIn("secret-value", str(error.exception))
 
+    def test_face_harness_selects_current_package_artifact_only(self):
+        import json
+        package = (Path(__file__).resolve().parents[1] / "tools/browser-harness").as_uri()
+        def artifact(package_id, name, executable):
+            return json.dumps({"reason": "compiler-artifact", "package_id": package_id,
+                               "target": {"name": name, "kind": ["bin"]},
+                               "executable": executable}) + "\n"
+        correct = artifact(f"path+{package}#boardstudio-browser-harness@0.1.0", "face-completeness-web", "/built/face")
+        wrong = artifact("path+file:///elsewhere#boardstudio-browser-harness@0.1.0", "face-completeness-web", "/spoof")
+        with mock.patch.object(browser_tools.subprocess, "run", return_value=mock.Mock(
+                returncode=0, stdout=wrong + correct, stderr="")) as run:
+            self.assertEqual(browser_tools._build_harness("face-completeness-web"), Path("/built/face"))
+            self.assertIn("--locked", run.call_args.args[0])
+            self.assertIn("face-completeness-web", run.call_args.args[0])
+        for output in (wrong, correct + correct):
+            with mock.patch.object(browser_tools.subprocess, "run", return_value=mock.Mock(
+                    returncode=0, stdout=output, stderr="")):
+                with self.assertRaisesRegex(SystemExit, "cannot identify"):
+                    browser_tools._build_harness("face-completeness-web")
+
     def test_build_diagnostics_hide_non_environment_secrets(self):
         import json
         cases = (

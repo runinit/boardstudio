@@ -63,6 +63,7 @@ CARGO_TESTS: list[list[str]] = [
 ]
 TOOLING_TESTS = (
     "cad/scripts/test-cad-build.py", "cad/scripts/test-measure-cad.py",
+    "cad/scripts/test-face-completeness-gate.py",
     "cad/scripts/test-measure-cad-worker.cjs",
     "scripts/test-build-web.py", "scripts/test-serve-web.py",
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
@@ -97,6 +98,7 @@ def browser() -> list[Command]:
         [PY, "cad/scripts/test-cold-responses.py"],
         [PY, "scripts/check-wasm-tests.py"],
         [PY, "cad/scripts/test-cad-provider.py"],
+        [PY, "cad/scripts/face-completeness-gate.py"],
         [PY, "cad/scripts/test-cad-browser.py"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/host", "--locked", "--features", "page",
          "--lib"],
@@ -160,7 +162,7 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
         [PY, "-B", "scripts/test-check-adr-index.py"],
         [PY, "scripts/check-adr-index.py"],
     ]),
-    "tooling": (True, [["node", "--version"], *[
+    "tooling": (True, [["node", "--version"], [PY, "-B", "cad/scripts/test-face-completeness-web.py", "--hermetic"], *[
         ["node", script] if script.endswith(".cjs") else [PY, "-B", script]
         for script in TOOLING_TESTS]]),
     "lint": (True, LINT),
@@ -417,7 +419,7 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                outputs: list[tuple[Command, str]] | None = None) -> tuple[float, int, str, str]:
     print("$ " + shlex.join(command), flush=True)
     lock_fd = browser_tools._inherited_build_lock()
-    if not any(part in command for part in ("scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py", "scripts/build-web.py",
+    if not any(part in command for part in ("scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py", "cad/scripts/face-completeness-gate.py", "scripts/build-web.py",
                "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py")):
         environment = environment.copy()
         environment.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)

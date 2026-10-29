@@ -42,7 +42,7 @@ PAGE_SUITE = "page-suite"
 SMOKE = "smoke"
 OTHER = "other"
 
-SMOKE_SCRIPTS = {"run-drag-browser.py", "test-cad-provider.py", "test-cad-browser.py"}
+SMOKE_SCRIPTS = {"run-drag-browser.py", "test-cad-provider.py", "test-cad-browser.py", "face-completeness-gate.py"}
 
 # Terminal lines of a direct `wasm-pack test` launch.
 WASM_STATUS = re.compile(r"^test (\S+) \.\.\. (ok|FAILED|FAIL|ignored)\s*$", re.M)

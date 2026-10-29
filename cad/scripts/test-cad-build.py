@@ -197,15 +197,16 @@ class CadBuildTests(unittest.TestCase):
         self.assertEqual(run.call_count, 3)
         self.assertEqual(printed.getvalue(), failure.stdout)
 
-    def test_provider_tests_are_registered_or_explicitly_opt_in(self):
+    def test_provider_tests_are_registered_or_accounted_for(self):
         scripts = {path.name for path in (REPO_ROOT / "cad/wasm/tests").glob("*.cjs")}
         opt_in = {
             "layered-adoption.cjs": "separate layered-adoption fixture corpus",
             "layered-adoption-reachability.cjs": "Core adoption disposition replay prerequisite",
             "keycap-print-legends.cjs": "separate printable keycap export regression",
         }
-        self.assertEqual(scripts, set(build.PROVIDER_TESTS) | opt_in.keys() | {"load-provider.cjs"})
-        self.assertTrue(all(opt_in.values()))
+        mapped = {"step-face-completeness.cjs": "source for the required browser regression"}
+        self.assertEqual(scripts, set(build.PROVIDER_TESTS) | opt_in.keys() | mapped.keys() | {"load-provider.cjs"})
+        self.assertTrue(all(opt_in.values()) and all(mapped.values()))
 
     def packaged_provider(self):
         self.wasm_sources()

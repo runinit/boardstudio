@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Hermetic checks for the opt-in packaged WEB provider runner."""
+"""Checks for the packaged WEB provider face-completeness runner."""
 import contextlib
 import importlib.util
 import io
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -93,6 +94,22 @@ class FaceWebTests(unittest.TestCase):
                         face_web.run()
                         self.assertEqual(captured_out.getvalue(), '')
                         self.assertIn(stderr, captured_err.getvalue())
+
+    def test_driver_failure_and_invalid_results_fail_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            package, wasm, driver = (root / name for name in ('package.js', 'package.wasm', 'driver'))
+            package.write_text('package')
+            wasm.write_bytes(b'wasm')
+            for code, stdout in ((9, ''), (0, 'not json'), (0, '[]'),
+                                 (0, '[{"suite":"step-face-completeness","case":"sliver","ok":1}]')):
+                driver.write_text(f'#!/usr/bin/python3\nimport sys\nsys.stdout.write({stdout!r})\nsys.exit({code})\n')
+                driver.chmod(0o755)
+                with self.subTest(code=code, stdout=stdout), \
+                        mock.patch.object(face_web, 'preflight', return_value=(package, wasm)), \
+                        mock.patch.dict(os.environ, {'CAD_FACE_WEB_DRIVER': str(driver)}):
+                    with self.assertRaises((RuntimeError, ValueError)):
+                        face_web.run()
 
     @unittest.skipUnless(os.environ.get("CAD_FACE_NODE_REFERENCE"), "local Node comparison outside the browser gate")
     def test_assertion_diagnostics_match_local_node_reference(self):
@@ -279,5 +296,18 @@ nodeAssert.ok(!first.stack.includes('second failure'));
                     face_web.run()
 
 
+HERMETIC_TESTS = ('test_source_mapping_uses_original_assertions_and_release',
+                  'test_source_mapping_rejects_missing_or_duplicate_boundaries',
+                  'test_source_mapping_rejects_checks_outside_mapped_body',
+                  'test_package_preflight_requires_all_files_and_current_stamp',
+                  'test_provider_initialization_precedes_fixture_fetch',
+                  'test_driver_diagnostics_are_preserved',
+                  'test_driver_failure_and_invalid_results_fail_closed')
+NODE_REFERENCE_TEST = 'test_assertion_diagnostics_match_local_node_reference'
+
+
 if __name__ == "__main__":
+    if sys.argv[1:] == ['--hermetic']:
+        result = unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(FaceWebTests(name) for name in HERMETIC_TESTS))
+        sys.exit(0 if result.wasSuccessful() and not result.skipped and result.testsRun == len(HERMETIC_TESTS) else 1)
     unittest.main()

@@ -233,6 +233,9 @@ def observation(step, command, output, *, exit_code=0, elapsed=1.0):
 
 
 class ReceiptBoundaryTests(unittest.TestCase):
+    def test_face_regression_is_reported_as_smoke(self):
+        self.assertEqual(receipt.scope_of([check.PY, 'cad/scripts/face-completeness-gate.py']), receipt.SMOKE)
+
     def test_wasm_crate_launches_keep_separate_full_names_and_group_counts(self):
         plan = [("browser", CASE_COMMAND), ("browser", RUNTIME_COMMAND)]
         observations = [

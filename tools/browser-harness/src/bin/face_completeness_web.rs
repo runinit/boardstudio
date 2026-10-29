@@ -1,4 +1,4 @@
-//! Opt-in packaged WEB provider face-completeness regression.
+//! Packaged WEB provider face-completeness regression.
 #[path = "../shutdown.rs"]
 mod shutdown;
 

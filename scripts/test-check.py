@@ -177,9 +177,13 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
 
     def test_browser_runs_packaged_provider_regressions(self):
         self.assertIn([check.PY, "cad/scripts/test-cad-provider.py"], check.STEPS["browser"][1])
+        self.assertIn([check.PY, "cad/scripts/face-completeness-gate.py"], check.STEPS["browser"][1])
+        self.assertIn([check.PY, "-B", "cad/scripts/test-face-completeness-web.py", "--hermetic"],
+                      check.STEPS["tooling"][1])
 
     def test_browser_gate_runs_cad_capture_controls_with_the_shared_lock(self):
-        for script in ("cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py"):
+        for script in ("cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py",
+                       "cad/scripts/face-completeness-gate.py"):
             command = [check.PY, script]
             self.assertIn(command, check.STEPS["browser"][1])
             with mock.patch.object(check.browser_tools, "_inherited_build_lock", return_value=9), \
