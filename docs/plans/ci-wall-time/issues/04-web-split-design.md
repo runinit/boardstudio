@@ -169,6 +169,17 @@ against renamed or embedded runtimes. The existing eight Node tests and required
 Local evidence: `.evidence/face-web-browser.log` and `.evidence/face-web-exec-summary.txt` in
 `chromiumoxide-web-split-experiment`. No provider parity or full-gate result is established.
 
+The pinned Chrome 156 local protocol schema uses `localNetworkAccessRequestPolicy`, while the
+cached chromiumoxide 0.9.1 decoder expects `privateNetworkRequestPolicy`. Both list the same five
+values, but neither local schema documents their semantic equivalence. A redacted captured face
+event replayed against the actual typed decoder failed specifically on the missing old field;
+renaming that field in the isolated probe allowed this event to decode with session and
+`PermissionBlock` preserved. An unknown policy and missing required timing still failed. The probe
+was compiled and run offline with Node masked and traced; 24 compile and two replay exec attempts
+had no Node/npm/npx/Playwright basenames. The probe does not establish alias semantics, production
+failure handling, provider parity, or full-gate Node independence. Its source and redacted fixture
+remain in `/home/chris/.cache/tmp/opencode/cdp-replay-Ab1FrjWE`.
+
 Read-only tooling-test design found that the Chromiumoxide harness may run the actual model-lookup
 and CAD worker code with controlled fakes, but an ordinary browser realm is not the bare V8 context
 used by the existing model test. The CAD worker test also exercises the real download STL/oracle
