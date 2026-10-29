@@ -8,12 +8,19 @@ permissions:
   contents: read
 concurrency:
   # Serialize release validation, build and deploy together; unrelated checks keep their own group.
-  group: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && 'pages' || format('validation-{0}', github.run_id) }}
-  cancel-in-progress: false
+  group: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && 'pages' || (github.event_name == 'pull_request' && format('validation-pr-{0}', github.event.pull_request.number)) || format('validation-{0}', github.run_id) }}
+  # Only a newer push to the same pull request supersedes a run; dev pushes, main pushes and
+  # dispatches are never cancelled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 env:
   # Native test binaries link Core many times; full debuginfo made them (and the cache) several
   # times larger and slower to link. Line tables keep file:line in panics and backtraces.
   CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  # rust-cache hashes `rustc -vV` of every installed toolchain, so the runner image's preinstalled
+  # stable would change every key. A job-private rustup home holds only the toolchain that
+  # rust-toolchain.toml auto-installs; nothing on the image is removed. Every step runs inside
+  # the repo, where that file selects the toolchain.
+  RUSTUP_HOME: /home/runner/.rustup-pinned
 jobs:
   # Native Rust tests (including KiCad and native CAD checks). Runs beside `web` so the KiCad
   # install is off the critical path.
@@ -29,13 +36,24 @@ jobs:
           sudo apt-get install --yes --no-install-recommends kicad
           kicad-cli version | grep '^10\.'
       - run: python3 -c 'import sys, tomllib; assert sys.version_info >= (3, 11), sys.version'
+      # RUSTUP_HOME starts empty; install the toolchain rust-toolchain.toml pins explicitly rather than
+      # relying on rustup's auto-install, which rustup deprecates for most commands (rustup#4836).
+      - run: rustup toolchain install
+      # Saves on main, dev and same-repo pull requests. A pull request writes only its own
+      # refs/pull/N/merge scope, which later pushes to that pull request restore and no other ref can
+      # read, so stacked pull requests (whose base never runs this workflow) stop starting cold.
+      # Fork and Dependabot pull requests do not save, limiting pressure on the 10 GB cache quota.
+      # cache-on-failure stays off: a cancelled (superseded) first run would otherwise save a partial
+      # target under the immutable key, and every later run would exact-hit it and skip the save.
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: |
             . -> target
             cad/monstertruck -> target
+            cad/monstertruck-qualification -> target
             cad/wasm -> target
-          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
+          env-vars: ImageOS
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]') }}
       - run: python3 scripts/check.py repo tooling lint test
 
   # Release build and mounted browser tests.
@@ -43,10 +61,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: rustup target add wasm32-unknown-unknown
+      # Installs the pinned toolchain with the wasm32 target from rust-toolchain.toml into the empty RUSTUP_HOME.
+      - run: rustup toolchain install
       - run: python3 -c 'import sys, tomllib; assert sys.version_info >= (3, 11), sys.version'
       - uses: ./.github/actions/web-tools
-      # wasm-pack's own tool cache (wasm-bindgen CLI and test runner, wasm-opt).
+      # wasm-pack's own tool cache (wasm-bindgen CLI and test runner, wasm-opt). Like the Chrome cache
+      # below, it saves per ref scope, so a pull request keeps its own ~9 MB copy; not worth restricting.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/.wasm-pack
@@ -61,7 +81,8 @@ jobs:
             . -> target
             cad/wasm -> target
           shared-key: web
-          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
+          env-vars: ImageOS
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]') }}
       - run: python3 scripts/check.py build browser
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
@@ -89,7 +110,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: rustup target add wasm32-unknown-unknown
+      - run: rustup toolchain install
       - run: python3 -c 'import sys, tomllib; assert sys.version_info >= (3, 11), sys.version'
       - uses: ./.github/actions/web-tools
       # wasm-pack's own tool cache (wasm-bindgen CLI and test runner, wasm-opt).
@@ -104,6 +125,7 @@ jobs:
             . -> target
             cad/wasm -> target
           shared-key: web
+          env-vars: ImageOS
           save-if: false
       - name: Build the Dioxus release package (/boardstudio/ route)
         run: python3 scripts/build-web.py
