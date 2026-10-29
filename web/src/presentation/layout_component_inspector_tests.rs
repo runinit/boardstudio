@@ -1039,12 +1039,12 @@ impl MountedProbe {
     }
 
     /// Force a rerender of the mounted host after pending effects ran.
+    /// Tolerant of the pre-mount polls: `wait_until` evaluates the closure
+    /// before the host sets the signal, so a missing signal just retries.
     fn refresh(&self) {
-        let mut generation = self
-            .render_generation
-            .borrow()
-            .expect("mounted render-generation signal");
-        generation += 1;
+        if let Some(generation) = self.render_generation.borrow_mut().as_mut() {
+            *generation += 1;
+        }
     }
 }
 
@@ -1310,7 +1310,19 @@ async fn mounted_runtime_probe(
 }
 
 async fn mounted_probe(root_id: &'static str) -> (MountedProbe, web_sys::Element) {
-    mounted_runtime_probe(root_id, |_| {}, &["selected-part"]).await
+    // Isolate Inspector draft/lock/ABA coverage from adaptive spacing (see
+    // rapid-XY test): a legacy pair would adopt and re-space on the first
+    // commit, reframing storage mid-test. None of these probes cover pairs.
+    mounted_runtime_probe(
+        root_id,
+        |document| {
+            for layout in document.layouts.iter_mut() {
+                layout.mirror_link = None;
+            }
+        },
+        &["selected-part"],
+    )
+    .await
 }
 
 async fn mounted_probe_configured(
@@ -1321,7 +1333,18 @@ async fn mounted_probe_configured(
 }
 
 async fn mounted_group_probe(root_id: &'static str) -> (MountedProbe, web_sys::Element) {
-    mounted_runtime_probe(root_id, |_| {}, &["selected-part", "source-part"]).await
+    // Isolate group translation from adaptive spacing (see rapid-XY test):
+    // a legacy pair would adopt and re-space on the position commit.
+    mounted_runtime_probe(
+        root_id,
+        |document| {
+            for layout in document.layouts.iter_mut() {
+                layout.mirror_link = None;
+            }
+        },
+        &["selected-part", "source-part"],
+    )
+    .await
 }
 
 async fn settle_component_inspector(root_id: &str, mut generation: Signal<u64>) {
@@ -2359,6 +2382,13 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
                 x: 66.675,
                 y: -47.625,
             };
+            // Isolate queueing from adaptive spacing: this test covers
+            // queued X/Y resolution, not half-frame adoption. A legacy pair
+            // would adopt and re-space on the X commit, reframing storage
+            // mid-queue. Two independent layouts keep stored == board.
+            for layout in document.layouts.iter_mut() {
+                layout.mirror_link = None;
+            }
         },
     )
     .await;
@@ -2566,6 +2596,10 @@ async fn mounted_component_position_untouched_blur_and_escape_cancel_submit_no_e
                 x: 66.675,
                 y: -47.625,
             };
+            // Isolate from adaptive spacing (see rapid-XY test).
+            for layout in document.layouts.iter_mut() {
+                layout.mirror_link = None;
+            }
         },
     )
     .await;
@@ -3335,7 +3369,9 @@ mod matrix_relations_panel {
             probe.text()
         );
         let button = root
-            .query_selector("[data-relation-action='convert']")
+            .query_selector(
+                "[data-relation-departure='Column offset'] [data-relation-action='convert']",
+            )
             .unwrap()
             .expect("Convert is mounted");
         assert!(
@@ -3343,7 +3379,9 @@ mod matrix_relations_panel {
             "splay blocks Convert in Relations too"
         );
         let reason = root
-            .query_selector(".m1-matrix-transform-unavailable")
+            .query_selector(
+                "[data-relation-departure='Column offset'] .m1-matrix-transform-unavailable",
+            )
             .unwrap()
             .expect("the Core reason is shown");
         assert_eq!(
