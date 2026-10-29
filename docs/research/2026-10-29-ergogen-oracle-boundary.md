@@ -50,3 +50,29 @@ No runtime is bundled. No per-package redistribution review is claimed. Chrome s
 `--no-sandbox` inside the outer namespace; this result does not establish equivalence to all Node
 CLI filesystem and Git protections or constitute an independent review. The old Node test remains
 required, and the ticket remains open.
+
+## Outer CLI follow-up (local experiment)
+
+From `4d6450b62`, `sandbox_generate.py --check` exited 0 with the pinned checkout,
+verified archives and Chrome, and a fresh external Cargo target. It reported the fixture
+reproducible. Its log included a WebSocket reset and the driver's clean-shutdown message.
+The driver accepts that exact reset only after completed boundaries, a successful Chrome
+exit and clean close/drain; other errors remain failures. The host checks the driver's
+return code, and the outer wrapper checks the namespace command's return code before
+reading or publishing output. A separate mocked outer-wrapper check propagated inner
+exit codes 7 and 9, both with and without reset text, and preserved the destination.
+Thus this observed reset is teardown noise for this successful run, not a pass criterion.
+
+Direct outer CLI negatives rejected an invalid checkout, the protected legacy path, an
+untracked checkout file, and a corrupted locked archive; each exited nonzero before an
+otherwise absent isolated Cargo target was created. The unchanged generator hermetic
+suite (16 tests) and runtime suite (22 tests) passed as regression checks. They do not
+constitute full outer CLI suite coverage: most call Python functions directly, and the
+generator CLI helper invokes `generate.py`, not `sandbox_generate.py`. Running the
+unchanged suites inside the namespace through a new test-mode wrapper would not test
+the outer entry's corresponding behaviors. Full outer-entry coverage remains open.
+
+These checks do not establish full filesystem and Git protection equivalence to the
+Node CLI. The trust and stability assumptions above and lack of independent review
+remain; no weaker sandbox is proposed for acceptance. The required Node test remains
+registered. Logs are local and gitignored in `.evidence/ergogen-outer-*.log`.
