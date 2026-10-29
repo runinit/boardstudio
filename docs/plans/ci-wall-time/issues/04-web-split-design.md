@@ -139,3 +139,11 @@ JavaScript through Chromium is not a Node process. Pinned third-party action run
 subprocess trees of build tools remain unaudited. A later authorized gate run must observe its
 process tree rather than assuming a PATH shim proves the absence of Node. Do not claim migrated
 coverage or performance until validated.
+
+Read-only tooling-test design found that the Chromiumoxide harness may run the actual model-lookup
+and CAD worker code with controlled fakes, but an ordinary browser realm is not the bare V8 context
+used by the existing model test. The CAD worker test also exercises the real download STL/oracle
+helper, not just the worker. The Ergogen test additionally exercises a real CLI, filesystem and
+Git safety behavior; its upstream parser and CommonJS dependencies are not vendored. A fixture-only
+replacement would lose coverage. No-Node upstream execution, exact dependency provenance and
+byte-for-byte generator parity remain unproven; resolve these before removing existing gate paths.
