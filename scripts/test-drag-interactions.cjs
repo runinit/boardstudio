@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readProjects, waitForProjects } = require('./drag-project-poll.cjs');
 const STORAGE_DATABASE = 'boardstudio-m1-boardstudio';
 
 const stable = value => Array.isArray(value)
@@ -57,25 +58,8 @@ async function setSlider(page, name, target) {
   page.on('pageerror', error => pageErrors.push(error.message));
   const checks = [];
   const result = (name, details) => checks.push({ name, ...details });
-  const doc = async () => page.evaluate(database => Promise.race([
-    new Promise((resolve, reject) => {
-      const request = indexedDB.open(database);
-      request.onerror = () => reject(request.error);
-      request.onblocked = () => reject(Error('IndexedDB project read was blocked'));
-      request.onsuccess = () => {
-        const db = request.result;
-        try {
-          const query = db.transaction('projects').objectStore('projects').getAll();
-          query.onerror = () => { db.close(); reject(query.error); };
-          query.onsuccess = () => { db.close(); resolve(query.result); };
-        } catch (error) {
-          db.close();
-          reject(error);
-        }
-      };
-    }),
-    new Promise((_, reject) => setTimeout(() => reject(Error('IndexedDB project read timed out')), 10000)),
-  ]), STORAGE_DATABASE).then(projects => {
+  const read = timeout => readProjects(page, STORAGE_DATABASE, timeout);
+  const doc = async () => read(10000).then(projects => {
     assert.equal(projects.length, 1, 'expected one local project');
     const project = projects[0];
     const revision = project.revision;
@@ -108,34 +92,14 @@ async function setSlider(page, name, target) {
   // the pinned Playwright version instead of polling to its timeout, so the
   // wait must re-evaluate here. Same 20 s bound and match, compared with the
   // same canonicalization the assertions use.
-  const readProjects = () => page.evaluate(database => new Promise((resolve, reject) => {
-    const request = indexedDB.open(database);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const db = request.result;
-      try {
-        const query = db.transaction('projects').objectStore('projects').getAll();
-        query.onerror = () => { db.close(); reject(query.error); };
-        query.onsuccess = () => { db.close(); resolve(query.result); };
-      } catch (error) {
-        db.close();
-        reject(error);
-      }
-    };
-  }), STORAGE_DATABASE);
-  const waitDocument = async signature => {
-    const deadline = Date.now() + 20000;
-    for (;;) {
-      const projects = await readProjects();
-      const project = projects[0];
-      if (project) {
-        delete project.revision;
-        if (JSON.stringify(stable(project)) === signature) return true;
-      }
-      if (Date.now() >= deadline) throw new Error('timed out waiting for the saved document');
-      await new Promise(resolve => setTimeout(resolve, 200));
+  const waitDocument = signature => waitForProjects(read, projects => {
+    const project = projects[0];
+    if (project) {
+      delete project.revision;
+      if (JSON.stringify(stable(project)) === signature) return true;
     }
-  };
+    return false;
+  }, 20000, 'timed out waiting for the saved document');
   const matrixState = (project, matrixId, row, column) => {
     const matrix = project.matrices.find(item => item.id === matrixId);
     assert.ok(matrix, `matrix ${matrixId} exists in the saved document`);
@@ -236,30 +200,25 @@ async function setSlider(page, name, target) {
     // Poll from Node for the same Playwright reason as waitDocument: same
     // 20 s bound and the same per-field change check, evaluated here instead
     // of in a promise-returning pageFunction.
-    {
-      const deadline = Date.now() + 20000;
-      for (;;) {
-        const projects = await readProjects();
-        const project = projects[0];
-        const matrix = project?.matrices?.find(item => item.id === identity.matrixId);
-        if (matrix) {
-          const cells = matrix.cells || [];
-          const cell = cells.find(item => item.row === identity.row && item.column === identity.column);
-          const state = {
-            offset: matrix.columnLayout?.[identity.column]?.offset || { x: 0, y: 0 },
-            stagger: matrix.columnLayout?.[identity.column]?.stagger || 0,
-            cellOffset: cell?.offset || { x: 0, y: 0 },
-            columnCellOffsets: Array.from({ length: matrix.rows }, (_, cellRow) =>
-              cells.find(item => item.row === cellRow && item.column === identity.column)?.offset || { x: 0, y: 0 }),
-            origin: matrix.origin || { x: 0, y: 0 },
-          };
-          if (expectedFields.every(field =>
-            JSON.stringify(state[field]) !== JSON.stringify(expected[field]))) break;
-        }
-        if (Date.now() >= deadline) throw new Error(`timed out waiting for the changed matrix cells (${config.name})`);
-        await new Promise(resolve => setTimeout(resolve, 200));
+    await waitForProjects(read, projects => {
+      const project = projects[0];
+      const matrix = project?.matrices?.find(item => item.id === identity.matrixId);
+      if (matrix) {
+        const cells = matrix.cells || [];
+        const cell = cells.find(item => item.row === identity.row && item.column === identity.column);
+        const state = {
+          offset: matrix.columnLayout?.[identity.column]?.offset || { x: 0, y: 0 },
+          stagger: matrix.columnLayout?.[identity.column]?.stagger || 0,
+          cellOffset: cell?.offset || { x: 0, y: 0 },
+          columnCellOffsets: Array.from({ length: matrix.rows }, (_, cellRow) =>
+            cells.find(item => item.row === cellRow && item.column === identity.column)?.offset || { x: 0, y: 0 }),
+          origin: matrix.origin || { x: 0, y: 0 },
+        };
+        if (expectedFields.every(field =>
+          JSON.stringify(state[field]) !== JSON.stringify(expected[field]))) return true;
       }
-    }
+      return false;
+    }, 20000, `timed out waiting for the changed matrix cells (${config.name})`);
     const durableAt = await page.evaluate(() => performance.now());
     const after = await doc();
     assert.notEqual(after.signature, before.signature, `${config.name}: edit was durably saved`);
