@@ -189,8 +189,9 @@ gate intact.
   step 4; a C2 battery failure or an exit-0-with-incomplete-boundaries finding → REJECT pending
   redesign. Non-blocking: F1 licence review (only for bundled distribution), F2 step-4
   inventory note, F3 ticket-22 audit untouched.
-- C1–C4 implementation delegated 2026-10-29 (terra xhigh, branch `research/ergogen-c1c4` from
-  `9d8c99c6`; no PR; user gate unchanged).
+- C1–C4 close-out delegated 2026-10-29 (terra xhigh, branch `research/ergogen-closeout` from
+  `9d8c99c6`; no PR): full battery under the ratified rule + C1/C3/C4; any failure or
+  host-visible write reinstates REJECT with no further ratification.
 - C1–C4 result 2026-10-29: REJECT trigger hit — containment battery denied fixture/checkout/
   repo writes, egress (`1.1.1.1:53` unreachable), and node exec, but a write to the sandbox's
   private `/tmp` tmpfs SUCCEEDED against a "only staging writable" condition. Nothing was
@@ -201,6 +202,16 @@ gate intact.
   Wonder ratifies the refinement; terra re-runs the battery plus C1/C3/C4 under the surviving
   rule. A battery failure under the refined rule, or any host-visible write, remains
   REJECT-pending-redesign.
+- C2 refinement RATIFIED 2026-10-29 (Wonder, narrowed scope): private-/tmp write violates the
+  letter, not the intent — trigger intent was not-weaker-than-Node-CLI (which runs unconfined),
+  and a private destroyed-with-sandbox tmpfs grants none of that. Conditions to discharge C2:
+  (1) privacy demonstrated (private mount namespace, not shared with host /tmp, host cannot
+  see/read/write it); (2) destruction demonstrated (clean, failing, and killed exits — nothing
+  survives, host /tmp unchanged); (3) full battery re-run with staging + private tmpfs as the
+  complete declared writable set, all prior denials holding; (4) no trust path through scratch
+  (nothing executed from tmpfs, nothing published except via validated staging/atomic-publish).
+  "Equivalent" stays out of the record; claim is "not weaker on enumerated axes". Any failure
+  or host-visible write reinstates REJECT automatically, no further ratification.
 - Outer-CLI slice 2026-10-29 (`research/ergogen-outer-cli`, pushed, no PR): real outer
   `--check` exits 0 and reproduces the fixture; direct outer-entry checks reject invalid
   checkout, protected path, untracked file, corrupt archive. But full suites still bypass the
