@@ -1,6 +1,6 @@
 # 03: Warm-baseline measurement
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: [01: Cache-branch readiness](01-cache-readiness.md)
 Parent: [CI wall time map](../map.md)
@@ -23,3 +23,9 @@ receipt that every later speedup compares against.
 - Receipt: web and native walls, cache hit/miss plus bytes plus restore/save times per job,
   executed test counts (107 presentation tests plus all crate launches), green full gate, quota
   inventory.
+
+## Comments
+
+- Claimed for probe-branch prep delegate
+  `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3A8f05dfbe-b82d-498b-9096-38c1c357cfc3`
+  (work stops before the draft PR — that needs user approval).

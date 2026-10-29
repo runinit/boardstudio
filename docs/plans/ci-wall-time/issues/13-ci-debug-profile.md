@@ -1,6 +1,6 @@
 # 13: CI browser debug profile
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Parent: [CI wall time map](../map.md)
 Related: [12: Browser quick wins](../../check-speed/issues/12-browser-quick-wins.md)
@@ -24,3 +24,9 @@ owns the item because check-speed excludes CI changes.
   require both arms at equal cache state (both warm, or one cold pair plus one warm pair).
 - Ordering: if this lands before 03 scores the baseline, the warm baseline moves — say which
   baseline the A/B compares against.
+
+## Comments
+
+- Claimed for implementation delegate
+  `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3Abaf24831-b75e-4a87-8cdb-b4a582ab37b1`
+  (local A/B; branch `research/debug-profile-step`, no PR).
