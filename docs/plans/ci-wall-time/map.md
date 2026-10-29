@@ -29,6 +29,16 @@ claim and status changes in the relevant ticket and keep this map consistent. Se
    build or a CI measurement. No credible local wall-time benefit justified a more complex
    selective copy. Revisit only with representative evidence that packaging is material.
 
+   2026-10-29 web fixture investigation: `research/web-build-fixture-extraction` at
+   `8d6bbd0fe` passed 10/10 focused `test-build-web.py` tests. No extraction was made: the
+   setups serve distinct scenarios and a shared helper would add indirection. No speed gain is
+   claimed; no ticket was needed for the no-change investigation.
+
+   2026-10-29 native test simplification: `research/native-test-simplification` at `ae73cf0a`,
+   based on `8d6bbd0fe`, removed an unnecessary command mock and added a missing-WASM assertion.
+   All 17 tests passed before and after with the same names; single runs of 0.237s and 0.250s are
+   too noisy to establish a speedup. No matching existing ticket, full gate or hosted CI run.
+
 The page-list integration portion of [check-speed 12](../check-speed/issues/12-browser-quick-wins.md)
 was claimed then released: experimental cherry-pick `c78aaa367` changes locking and listing
 diagnostics and needs the documented compatibility work before promotion. No fresh warm browser
@@ -171,7 +181,7 @@ attributable from the log alone.
   native run and set per-step budgets.
 - [15: Compile-demand tuning caps](issues/15-tuning-caps.md): existing jobs × lanes work and
   claim preserved; further matrix work deferred under the near-term focus above.
-- [16: Web partition completeness prototype](issues/16-web-partition-proof.md): claimed for a
+- [16: Web partition completeness prototype](issues/16-web-partition-proof.md): resolved as a
   local, non-executing proof; ticket 04's human design decision remains open.
 
 ## Decisions so far
