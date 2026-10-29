@@ -84,6 +84,9 @@ attributable from the log alone.
 - [08: Dead dependencies](issues/08-dead-dependencies.md): 16 removable edges, ~zero wall
   saving (all stay reachable via other edges) — hygiene only; catalogue loading and
   mechanical-settings fields re-scoped as non-Cargo follow-ups.
+- [06: Page `--list` removal](issues/06-page-list-removal.md): evidence supports check-speed
+  12 — executed set identical (77/77 x4), warm saving ~5s, cold compile relocates to the
+  runner.
 
 ## Not yet specified
 
