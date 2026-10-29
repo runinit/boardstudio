@@ -22,3 +22,8 @@ failures.
 - Open policy call: which log signature counts as infra (exit 143 with no test failure?) and
   where a retry lives (workflow-level rerun, not test-level repeat).
 - Resolve with the user: confirm the merge after PR #9 lands, decide the retry rule together.
+- Policy decided 2026-10-29 (user): retry signature is exit 143 / runner shutdown with no test
+  failure in the logs (D1a-a; broad silence-timeouts rejected — heartbeat makes silence
+  attributable, auto-retrying real hangs would burn ~35 min relearning it); retries are manual
+  human re-runs on that signature, documented not coded (D1b-a; automate only if infra kills
+  recur). Ticket stays open until the heartbeat PR merges.
