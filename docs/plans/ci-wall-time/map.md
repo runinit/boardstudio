@@ -91,7 +91,9 @@ Prioritized local-first work, respecting existing ownership:
    transfer and longest shard. Establish each browser consumer's real inputs; preserve
    `run-wasm-tests --all` isolation and all existing tests. Do not build aggregation before
    measurement and topology decisions. Ticket [17](issues/17-native-topology.md) tracks the
-   native follow-up; the coordinator must check active ownership before claiming it.
+   native follow-up, claimed by the ongoing parent effort for the experimental opt-in probe at
+   `1d314a45cbd3395aa9ccaf077a92170d81da65c7`. No gate changed; full qualification reference,
+   real CAD parity and cold/warm timings remain pending.
 3. Present measured full-coverage native and web topology and artifact options for human decision
    ([17](issues/17-native-topology.md), [04](issues/04-web-split-design.md)). A single noisy
    shared-target comparison did not establish a gate saving. Only then implement and locally
@@ -202,8 +204,8 @@ attributable from the log alone.
   claim preserved; further matrix work deferred under the near-term focus above.
 - [16: Web partition completeness prototype](issues/16-web-partition-proof.md): resolved as a
   local, non-executing proof; ticket 04's human design decision remains open.
-- [17: Native topology and critical path](issues/17-native-topology.md): coordinator-owned triage
-  and coverage-preserving measurement follow-up; no implementation claim yet.
+- [17: Native topology and critical path](issues/17-native-topology.md): claimed by the ongoing
+  parent effort; opt-in probe only, with real parity and measurements pending, not resolved.
 
 ## Historical decisions and results
 

@@ -1,15 +1,16 @@
 # 17: Native topology and critical path
 
-Status: needs-triage
+Status: claimed
 Type: research
 Parent: [CI wall time map](../map.md)
 Related: [14: Native warm wall](14-native-warm-wall.md), [04: Web-split design](04-web-split-design.md)
 
 ## Ownership and scope
 
-2026-10-29: The chief-of-staff/coordinator owns triage and handoff for this follow-up; no
-implementation delegate is claimed here. Check active ownership and build activity before
-claiming or using either existing worktree: `research/native-cad-artifact-reuse` and
+2026-10-29: The chief-of-staff/coordinator owns triage and handoff for this follow-up. The
+ongoing parent effort claims this ticket for the native topology probe; no separate delegate or
+session ID is asserted. Check active ownership and build activity before using either existing
+worktree: `research/native-cad-artifact-reuse` and
 `research/native-cad-reuse-experiment` were both at `8d6bbd0fe` when inspected, but branch
 presence does not establish owner liveness. Do not delete or overwrite either. The local-first,
 no-hosted-run and no-tuning-matrix constraints in the [map](../map.md#near-term-focus--2026-10-29)
@@ -63,3 +64,13 @@ selections, nonzero-test guards and failure propagation.
 Reject mtime rewrites such as `touch` or `git-restore-mtime` to force Cargo cache hits. No
 content-keyed mtime manipulation is approved; any cache proposal requires a separate trust and
 correctness review. Cold versus warm target, runner capacity and cache quota are human decisions.
+
+## Comments
+
+- 2026-10-29: Claimed for the ongoing parent effort. Experimental, opt-in local CAD topology probe
+  on `perf/native-gate-topology` at `1d314a45cbd3395aa9ccaf077a92170d81da65c7`; its author
+  report is `docs/research/2026-10-29-native-topology-probe.md` at that commit. It is not a gate
+  replacement and changes no required gate. The handoff reports 134 focused tests passed; this
+  is not real CAD execution parity. No full qualification reference or real CAD timings were
+  obtained. Real unsharded parity and comparable cold/warm measurements remain pending; the
+  ticket is not resolved and no speedup or full-gate result is claimed.
