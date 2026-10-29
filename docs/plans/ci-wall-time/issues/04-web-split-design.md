@@ -140,6 +140,13 @@ subprocess trees of build tools remain unaudited. A later authorized gate run mu
 process tree rather than assuming a PATH shim proves the absence of Node. Do not claim migrated
 coverage or performance until validated.
 
+On the separate `research/chromiumoxide-web-split` branch, `2a2e30e5c4bb0884b9829f1375be43b624fa9c80`
+removes the `node --version` environment probe from CAD measurement capture and explicitly logs
+that it was not probed. Other probes and `NODE_PATH` provenance remain. The handoff reports all
+30 focused Python tests passed, with mocked negative controls for bare and absolute Node paths;
+these were not independently rerun for this entry. No Node-based gate test was removed or replaced
+by this change; the full gate and its subprocesses remain unaudited.
+
 Read-only tooling-test design found that the Chromiumoxide harness may run the actual model-lookup
 and CAD worker code with controlled fakes, but an ordinary browser realm is not the bare V8 context
 used by the existing model test. The CAD worker test also exercises the real download STL/oracle
