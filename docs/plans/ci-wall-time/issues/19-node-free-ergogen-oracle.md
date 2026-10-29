@@ -169,3 +169,10 @@ The existing Node Ergogen gate stays in place; this ticket remains unresolved an
   `docs/research/2026-10-29-ergogen-oracle-boundary.md`. Remainder delegated same day
   (terra xhigh, branch `research/ergogen-boundary` from `7a976b1f`): confine + validate-first
   ordering, outer-CLI verification, setup fix, licence review only if bundling.
+- Boundary hardened 2026-10-29 on `research/ergogen-boundary` (`4d6450b6`, pushed, no PR):
+  private staging dir, atomic publish, validate-before-build; dirty-checkout + corrupt-archive
+  rejected pre-build, protected-fixture write fails read-only, 16 generator + 22 runtime +
+  9 host-probe green. Gap: full suites ran via namespace command, not the outer CLI entry —
+  follow-up delegated same day (terra xhigh, branch `research/ergogen-outer-cli` from
+  `4d6450b6`). WebSocket reset after clean exit under investigation (exit codes decide).
+  No runtime bundled, no fixture changed; sandbox not yet accepted as equivalent.
