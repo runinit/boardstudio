@@ -107,3 +107,8 @@ remain promotion blockers. The full-rerun policy is not enforced by the aggregat
 diagnostic, not authenticated proof; cache behavior, hosted parity and cold timing remain unverified.
 The package setup requires access to the pinned package or a populated pip cache. No hosted CI,
 push, merge or performance claim follows from these local changes.
+
+The native workflow experiment is a separate branch: at `perf/native-ci-topology@90411c08` it
+moves the tooling gate to `native-tooling`. Combining the experiments will require installing the
+pinned dependency in that job and updating the web contract's exact job inventory and native
+setup assertions; neither branch alone validates the combined workflow.
