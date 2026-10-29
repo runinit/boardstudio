@@ -27,6 +27,6 @@ tuning demand down, since 05 proved the box is oversubscribed, not starved?
 
 ## Comments
 
-- Claimed for implementation delegate
-  `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3Abc32678e-0a8d-48cc-88d4-4b0bbd83d61d`
+- Claimed for implementation delegate (retry after a provider 403 on the first attempt)
+  `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3Add8bf3db-9d73-4ea1-b40c-a06dea8b3a83`
   (jobs × lanes matrix + warm check; branch `research/tuning-caps`, no PR).
