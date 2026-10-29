@@ -55,5 +55,6 @@ not new measurements — 09 confirms same-head on hosted CI.
 - 2026-10-29: the committed findings doc is truncated at §5 (file ends with a truncation
   marker) — §§6–8 (reference-set details, provisional pins, mutation evidence) are missing
   from git. 09 implemented from §§3–5 plus the ticket Answer without blocking. Recovery, in
-  order: (a) read the 10 delegate's thread transcript for the full text; (b) regenerate the
-  redundancy list during 11, which needs the mutation evidence anyway.
+  order: (a) read the 10 delegate's thread transcript for the full text — CLOSED 2026-10-29,
+  thread no longer retained; (b) regenerate the redundancy list during 11, which needs the
+  mutation evidence anyway. Do not treat the truncated file as complete.
