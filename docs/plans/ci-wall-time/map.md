@@ -91,6 +91,8 @@ attributable from the log alone.
 ## Not yet specified
 
 - `dx` page-build 311s internals: profile the cold page build before deciding anything about it.
+  Follow-up from 05: the `dx` compile is provider-independent (byte-identical output
+  with/without staged providers) — pipelining it ahead of the provider batch is viable.
 - Conditional-skip policy (`--skip-providers`/page on untouched paths): needs an artifact cache
   first; graduates after 04, must respect the 10 tier map, and any cross-run artifact cache
   written by PR code needs 01's scope rules.
