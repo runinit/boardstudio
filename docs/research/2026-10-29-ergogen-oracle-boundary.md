@@ -76,3 +76,35 @@ These checks do not establish full filesystem and Git protection equivalence to 
 Node CLI. The trust and stability assumptions above and lack of independent review
 remain; no weaker sandbox is proposed for acceptance. The required Node test remains
 registered. Logs are local and gitignored in `.evidence/ergogen-outer-*.log`.
+
+## Refined containment rule: rejection
+
+At `research/ergogen-closeout` base `9d8c99c6acc417e83357313b82ce406390eb5647`,
+proof 4 failed: a binary copied into the sandbox's private `/tmp` executed successfully.
+The following ran locally from the repository root, using `command()` to construct the
+production namespace and replacing only the inner payload. It printed
+`scratch-execution-succeeded` and `containment probe exit: 0` (the outer Python command
+also exited 0):
+
+```sh
+python3 -B - <<'PY'
+import sys, tempfile, subprocess
+from pathlib import Path
+sys.path.insert(0, 'scripts/ergogen-parity')
+import sandbox_generate as s
+with tempfile.TemporaryDirectory(prefix='ergogen-proof-') as d:
+    run = Path(d)
+    (run / 'output').mkdir()
+    (run / 'npm').mkdir()
+    cmd = s.command(run, s.ROOT, Path('/usr/bin/true'), Path('/usr/bin/true'), run / 'out', False)
+    i = cmd.index('/usr/bin/python3')
+    cmd[i:] = ['/bin/sh', '-euc', 'cp /usr/bin/true /tmp/scratch-exec; /tmp/scratch-exec; echo scratch-execution-succeeded']
+    result = subprocess.run(cmd)
+    print('containment probe exit:', result.returncode, flush=True)
+PY
+```
+
+The refined rule therefore reinstates REJECT. This probe does not establish a host-visible
+write. Privacy, destruction, the other denial checks, parity reruns, and the committed
+outer-entry and reset regression suites were not completed. The required Node test and
+fixtures remain untouched; step-4 cutover remains blocked.
