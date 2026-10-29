@@ -12,8 +12,9 @@ browser checks, 14 crate launches with 587 passing tests, and 77/77 page tests a
 existing isolated filters, with no incomplete or duplicate results reported. Workspace and CAD
 targets were initially absent; Cargo registry/Git and wasm-pack caches were populated. Cargo jobs
 were 12 and the scheduler used 4; CI's `playwright-core@1.62.1` was installed in an isolated tools
-directory. Sources: [baseline log](/home/chris/.t3/worktrees/ts-boardstudio2/t3-897cd35c/.evidence/web-baseline-932bce6f-wyru0xk7.log)
-(including the drag receipt) and [page results](/home/chris/.t3/worktrees/ts-boardstudio2/t3-897cd35c/web/target/test-results/browser.json).
+directory. Sources: baseline log `.evidence/web-baseline-932bce6f-wyru0xk7.log`
+(including the drag receipt) and page results `web/target/test-results/browser.json`
+(paths are worktree-local and gitignored, not links).
 These are local, gitignored artifacts and may not be available elsewhere. This single run alone is
 not a same-head split comparison, hosted CI speed claim, or fully cold-cache full-gate result. A
 later [local comparison](../issues/04-web-split-design.md#local-same-head-split-parity--2026-10-29)
