@@ -206,6 +206,14 @@ gate intact.
 - Round 2b: first retry stopped cleanly — `research/ergogen-noexec` is already checked out in
   another session's worktree (created from the wrong base, empty, left untouched). Re-dispatched
   same day on fresh branch `research/ergogen-noexec-2` from `3a616419`.
+- Round 2b result 2026-10-29: STOPPED on environment, zero work performed. Fresh worktree
+  arrived already on `t3/fb729f00`, then showed `research/ergogen-noexec-2` at the worktree HEAD
+  instead of the required base — stopped before fetch per tripwire. Third environment failure
+  in this lane (branch-jump, name collision, pre-named wrong-base branch). Nothing committed
+  anywhere; no code changed. Lane parked: do NOT re-dispatch into T3-provisioned worktrees
+  blind. Options on the table: (a) implementer works directly in a manually-managed checkout,
+  (b) hand the close-out to the session that owns the experiment worktree, (c) wait and retry
+  the harness later.
 - C1–C4 result 2026-10-29: REJECT trigger hit — containment battery denied fixture/checkout/
   repo writes, egress (`1.1.1.1:53` unreachable), and node exec, but a write to the sandbox's
   private `/tmp` tmpfs SUCCEEDED against a "only staging writable" condition. Nothing was
