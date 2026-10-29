@@ -134,3 +134,10 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
   terra 6.1 xhigh for implementation at normal speed, and meta spark wonder (`meta/muse-wonder-1.0`
   on the pi provider) for hard planning or troubleshooting. Keeps the one-retry-then-reroute
   discipline and the default-key-first order for read-only work.
+- On 2026-10-29, the user relaxed fixture immutability: fixtures (including the Ergogen
+  committed output and, where justified, vendor STEP files) MAY change or be refactored in the
+  process when it makes sense. This supersedes "preserve without editing" as a blanket rule.
+  What carries forward unchanged: every fixture change needs an explicit justification, the
+  affected tests re-validated, independent review before it counts toward the gate, and the
+  material impact recorded. Silent fixture edits remain forbidden; Panasonic/infused-kim edits
+  additionally require their CAD tests re-passing, since those fixtures anchor shared suites.

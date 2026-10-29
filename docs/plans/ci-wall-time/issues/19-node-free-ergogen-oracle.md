@@ -191,6 +191,13 @@ gate intact.
   inventory note, F3 ticket-22 audit untouched.
 - C1–C4 implementation delegated 2026-10-29 (terra xhigh, branch `research/ergogen-c1c4` from
   `9d8c99c6`; no PR; user gate unchanged).
+- C1–C4 result 2026-10-29: REJECT trigger hit, step-4 cutover is NO-GO pending redesign OR
+  condition refinement (user decision below). Containment battery: fixture/checkout/repo writes
+  denied, egress denied (`1.1.1.1:53` unreachable), node exec denied — but a write to the
+  sandbox's private `/tmp` tmpfs SUCCEEDED, and the specified condition was "only staging
+  writable". Per the agreed rule that is a REJECT. Nothing was committed (branch clean at
+  base); C1/C3/C4 were not attempted after the trigger; parity suites not rerun. Required Node
+  test still registered; review and cutover remain blocked.
 - Outer-CLI slice 2026-10-29 (`research/ergogen-outer-cli`, pushed, no PR): real outer
   `--check` exits 0 and reproduces the fixture; direct outer-entry checks reject invalid
   checkout, protected path, untracked file, corrupt archive. But full suites still bypass the
