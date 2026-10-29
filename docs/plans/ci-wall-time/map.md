@@ -81,6 +81,9 @@ attributable from the log alone.
 - [10: Tier map driven by rules](issues/10-tier-map.md): PR-gate ~12 min warm for the
   canonical small PR, ~full wall for core-touch (gate stays lint+build bound); 1 proven
   redundant test, 3 must-not-remove, browser smoke pins are placeholders pending runs.
+- [08: Dead dependencies](issues/08-dead-dependencies.md): 16 removable edges, ~zero wall
+  saving (all stay reachable via other edges) — hygiene only; catalogue loading and
+  mechanical-settings fields re-scoped as non-Cargo follow-ups.
 
 ## Not yet specified
 

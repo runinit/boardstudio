@@ -1,6 +1,6 @@
 # 08: Dead dependencies
 
-Status: claimed
+Status: resolved
 Type: research
 Parent: [CI wall time map](../map.md)
 
@@ -19,9 +19,15 @@ Which dependencies can go without losing protection, itemized with per-item evid
   lockfile churn lands after 03 scores the warm baseline and re-measures after.
 - Deliverable: the itemized list with evidence per item, so removals need no further research.
 
-## Comments
+## Answer
 
-- Claimed for read-only research delegate
-  `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3Afbfc6f4e-f656-4738-a312-a2dcbd3a3b11`
-  (findings go to `docs/research/2026-10-29-dead-deps.md` on branch `research/dead-deps`,
-  pushed, no PR).
+16 removable dependency edges across 8 crates, all with per-item evidence in
+`docs/research/2026-10-29-dead-deps.md` on branch `research/dead-deps` (pushed, no PR) — but
+predicted wall-time saving is **~zero**: `cargo tree -i` proves every candidate package stays
+reachable through another workspace edge (e.g. runtime pulls `sha2` unconditionally), so no
+lockfile package and no compile unit leaves any graph. Value is hygiene/audit-surface, not the
+wall. Lead corrections: the `cgmath-0.18.0` fallback is already gone; full-catalogue loading and
+repetitive mechanical-settings fields are real costs but not Cargo dependencies (re-scoped as
+follow-ups); documented a `rename`-with-dash grep trap (`dioxus-primitives` is used) and a
+kept-list (`three-d`/`lyon`/`i_overlay`, `libm`, core `js-sys`) so nothing gets re-researched
+blindly.
