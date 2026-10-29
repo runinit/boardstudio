@@ -124,15 +124,17 @@ fn pad_path(at: Vec2, size: Vec2, shape: &PadShape, rotation: f64) -> Vec<Vec2> 
     }
     points
 }
-fn world(part: &Part, points: &[Vec2]) -> Path {
-    let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
+fn world(doc: &ProjectDoc, part: &Part, points: &[Vec2]) -> Path {
+    // Ticket 12: half-frame parts validate at their evaluated board pose.
+    let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
+    let (sin, cos) = pose.rotation.to_radians().sin_cos();
     points
         .iter()
         .map(|p| {
             let x = if part.side == Side::Back { -p.x } else { p.x };
             [
-                part.pose.at.x + x * cos - p.y * sin,
-                part.pose.at.y + x * sin + p.y * cos,
+                pose.at.x + x * cos - p.y * sin,
+                pose.at.y + x * sin + p.y * cos,
             ]
         })
         .collect()
@@ -414,7 +416,7 @@ pub(crate) fn validate(
             }
             let required: Vec<_> = support[definition.id.as_str()]
                 .iter()
-                .map(|path| world(part, path))
+                .map(|path| world(doc, part, path))
                 .collect();
             if let Some(Some(Err(error))) = native.get(definition.id.as_str()) {
                 report(
@@ -424,7 +426,7 @@ pub(crate) fn validate(
                         part.reference, error.message
                     ),
                     Some(&part.id),
-                    vec![contour(world(part, &definition.courtyard))],
+                    vec![contour(world(doc, part, &definition.courtyard))],
                     Severity::Error,
                 );
             }
@@ -447,7 +449,7 @@ pub(crate) fn validate(
                     Severity::Error,
                 );
             }
-            let body = world(part, &definition.courtyard);
+            let body = world(doc, part, &definition.courtyard);
             if definition.courtyard.len() >= 3 && !geometry::valid_polygon(&definition.courtyard) {
                 report(
                     format!("body-source:{}", part.id),
@@ -494,7 +496,11 @@ pub(crate) fn validate(
             if definition.kind == PartKind::Switch
                 && let Some(size) = part.keycap.or(definition.keycap)
             {
-                let keycap = world(part, &pad_path(Vec2::default(), size, &PadShape::Rect, 0.0));
+                let keycap = world(
+                    doc,
+                    part,
+                    &pad_path(Vec2::default(), size, &PadShape::Rect, 0.0),
+                );
                 if missing(&keycap, &material, 0.0) {
                     report(
                         format!("keycap:{}", part.id),
@@ -611,7 +617,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                         .as_ref()
                         .and_then(|id| doc.parts.iter().find(|part| &part.id == id))
                     {
-                        contour(world(part, &points)).points
+                        contour(world(doc, part, &points)).points
                     } else {
                         points.clone()
                     }
@@ -629,7 +635,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                         .as_ref()
                         .and_then(|id| doc.parts.iter().find(|part| &part.id == id))
                     {
-                        contour(world(part, &points)).points
+                        contour(world(doc, part, &points)).points
                     } else {
                         points
                     }
@@ -669,7 +675,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                         .iter()
                         .find(|definition| definition.id == part.definition_id)
                         .filter(|definition| !definition.courtyard.is_empty())
-                        .map(|definition| contour(world(part, &definition.courtyard)))
+                        .map(|definition| contour(world(doc, part, &definition.courtyard)))
                 })
                 .collect();
             if !contours.is_empty() {

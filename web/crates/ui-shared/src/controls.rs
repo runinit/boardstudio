@@ -241,7 +241,10 @@ pub fn BoardNumberField(
     #[props(default)] error: Option<String>,
     #[props(default)] class: String,
     #[props(default)] oninput: EventHandler<FormEvent>,
+    #[props(default)] onfocus: EventHandler<FocusEvent>,
     #[props(default)] onblur: EventHandler<FocusEvent>,
+    #[props(default)] onpointerenter: EventHandler<PointerEvent>,
+    #[props(default)] onpointerleave: EventHandler<PointerEvent>,
     #[props(default)] onkeydown: EventHandler<KeyboardEvent>,
 ) -> Element {
     let scope = dioxus::core::current_scope_id().0;
@@ -264,7 +267,7 @@ pub fn BoardNumberField(
                     aria_label: aria_label.unwrap_or(label),
                     aria_invalid: error.is_some(),
                     aria_describedby: described_by,
-                    oninput, onblur, onkeydown,
+                    oninput, onfocus, onblur, onpointerenter, onpointerleave, onkeydown,
                 }
                 if !unit.is_empty() { small { id: unit_id, "{unit}" } }
             }

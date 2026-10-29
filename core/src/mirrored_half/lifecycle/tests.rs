@@ -4030,7 +4030,9 @@ fn pad_world(document: &ProjectDoc, part_id: &str, pad_id: &str) -> Vec2 {
         .find(|d| d.id == part.definition_id)
         .unwrap();
     let pad = definition.pads.iter().find(|p| p.id == pad_id).unwrap();
-    crate::outline_controls::world(pad.at, part)
+    // Ticket 12: pad world positions evaluate half-frame parts at board.
+    let pose = crate::matrix::layout::evaluated_part_pose(document, part);
+    crate::outline_controls::world(pad.at, &pose, part.side.clone())
 }
 
 fn mirror_electrical(document: &ProjectDoc) -> &ElectricalBoardConfiguration {

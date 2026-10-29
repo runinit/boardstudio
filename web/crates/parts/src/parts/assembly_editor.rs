@@ -1462,6 +1462,7 @@ fn AssemblyMemberFields(
                         rotation: 0.0,
                     },
                     side: member.side.clone(),
+                    anchor: None,
                     locked: None,
                     properties: None,
                     generator_parameters: Some(std::mem::take(&mut generator_parameters)),
