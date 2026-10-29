@@ -214,6 +214,12 @@ gate intact.
   blind. Options on the table: (a) implementer works directly in a manually-managed checkout,
   (b) hand the close-out to the session that owns the experiment worktree, (c) wait and retry
   the harness later.
+- User decision 2026-10-29: option (b) — close-out handed to the owner of the experiment
+  worktree (`research/chromiumoxide-web-split` checkout, quiet at handoff, last commit
+  `0c562aa6d`). Rationale: owner is already set up at the right base with full context.
+  Worktree verified clean (no uncommitted changes outstanding). Owner's spec: ratified battery
+  + C1/C3/C4 per this ticket; report verdict back here. No hosted runs, no PRs, no stack
+  branches.
 - C1–C4 result 2026-10-29: REJECT trigger hit — containment battery denied fixture/checkout/
   repo writes, egress (`1.1.1.1:53` unreachable), and node exec, but a write to the sandbox's
   private `/tmp` tmpfs SUCCEEDED against a "only staging writable" condition. Nothing was
