@@ -77,3 +77,23 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
   future improvements. The user's topology authorization, local-first constraints and separate
   cold/warm tracking remain. Source: parent selection under the user grant of 2026-10-29; see the
   [full-gate plan](../map.md#full-gate-destination-and-sequence--2026-10-29) and `6ec74bb`.
+- On 2026-10-29, under the user's delegated topology, cache and runner authority, the selected
+  minimal web design is independent standard GitHub-hosted site and crates jobs, each with a fresh
+  workspace and complete local lane validation. The stable `web` aggregate must require both direct
+  GitHub job conclusions to be `success`; skipped, cancelled or failed jobs must not pass. Receipts
+  and failure artifacts are diagnostic only, with no receipt or artifact transfer on the
+  merge-critical path. Preserve release dependencies on `native` and `web` and least token
+  privileges. This selects a design, not deployment or ticket completion; see
+  [04](../issues/04-web-split-design.md#selected-trust-design--2026-10-29).
+
+  This depends on enforceable review/ruleset protection for the gate workflow **and all**
+  gate-defining PR scripts, fixtures, configuration and allowlists. A host job conclusion does
+  not prove untrusted PR code honestly performed validation; hostile test code needs stronger
+  isolation. Actual branch protection and rulesets are unknown. `needs.result` alone does not
+  bind results to the same run attempt on partial reruns: require a full workflow rerun policy
+  pending hosted verification, without claiming strict same-attempt evidence. Source: user
+  delegation and parent research, 2026-10-29. GitHub documents
+  [needs results](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#needs-context),
+  [reruns](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs),
+  [rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets),
+  and [token permissions](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication#permissions-for-the-github_token).

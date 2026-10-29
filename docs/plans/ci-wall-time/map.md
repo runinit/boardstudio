@@ -124,8 +124,9 @@ See tickets [04](issues/04-web-split-design.md), [16](issues/16-web-partition-pr
    native follow-up, claimed by the ongoing parent effort for the experimental opt-in probe at
    `1d314a45cbd3395aa9ccaf077a92170d81da65c7`. No gate changed; full qualification reference,
    real CAD parity and comparable cold/warm timings remain pending despite the single local run above.
-3. Present measured full-coverage native and web topology and artifact options for human decision
-   ([17](issues/17-native-topology.md), [04](issues/04-web-split-design.md)). A single noisy
+3. Present measured full-coverage native and web topology and artifact options for decision
+   ([17](issues/17-native-topology.md), [04](issues/04-web-split-design.md)); the later selected
+   web starting design is recorded below. A single noisy
    shared-target comparison did not establish a gate saving. Only then implement and locally
    validate the chosen design, including observed launch and test-name parity, failure handling,
    isolation and fail-closed required-check semantics. Evaluate existing
@@ -162,9 +163,22 @@ The 19.2-minute warm browser wall is already partly parallel, not divisible seri
 replacing CAD's 640s with the existing 426s workspace lane would still leave roughly 11 minutes
 including historical serial steps and setup; that is counterfactual arithmetic, not a measurement
 or a proof that a particular split works. Runner capacity, cache access, artifact compatibility,
-contention and real shard balance remain unknown. The user has not preselected runner size,
+contention and real shard balance remain unknown. The user did not preselect runner size,
 cost policy, cache layout, artifacts, or a specific native/web topology; the reversible starting
-cache and runner policy is recorded above under the dated grant.
+policies selected under the dated grant are recorded here and below.
+
+### Selected web trust design — 2026-10-29
+
+The [dated decision](wiki/decisions.md) selects independent standard hosted site and crates jobs
+with complete lane validation and a stable `web` aggregate requiring both direct host job
+conclusions to succeed. Receipts and artifacts are diagnostic only, not merge-critical; retain
+release dependencies on `native` and `web` and least token privileges. The decision is conditional
+on enforceable protection of the workflow and all gate-defining PR inputs; current rulesets and
+branch protection are unknown. Host success does not prove untrusted code honest. Require full
+workflow reruns pending hosted verification because `needs.result` alone does not establish
+same-attempt evidence. See [04](issues/04-web-split-design.md#selected-trust-design--2026-10-29)
+for remaining parity, isolation, failure and performance checks. This is not deployment or a
+claim that local parity or sequential timings meet the approximately ten-minute cold target.
 
 ## Earlier destination (historical)
 
@@ -233,7 +247,7 @@ attributable from the log alone.
 - [15: Compile-demand tuning caps](issues/15-tuning-caps.md): existing jobs × lanes work and
   claim preserved; further matrix work deferred under the near-term focus above.
 - [16: Web partition completeness prototype](issues/16-web-partition-proof.md): resolved as a
-  local, non-executing proof; ticket 04's human design decision remains open.
+  local, non-executing proof; the later selected design and its validation remain in ticket 04.
 - [17: Native topology and critical path](issues/17-native-topology.md): claimed by the ongoing
   parent effort; one local native run recorded, with real parity and comparable measurements
   pending, not resolved.

@@ -37,6 +37,28 @@ enforced isolated targets and fresh assets, and authenticated receipt/run proven
 promotion blockers. This is local experimental work, not a production gate change or topology
 approval; no speedup is established.
 
+## Selected trust design — 2026-10-29
+
+The selected design under the user's delegated authority is recorded in the
+[dated decision](../wiki/decisions.md): independent site and crates jobs on standard hosted
+runners, fresh workspaces and complete local lane validation; stable `web` requires both direct
+host job conclusions to succeed. Receipts and failure uploads are diagnostic, not acceptance
+evidence; no artifact transfer is merge-critical. Preserve release's `native`/`web` dependencies
+and least token privileges. This does not change the gate, ownership or ticket status.
+
+The trust and full-rerun policy assumptions in that decision are prerequisites, not established
+facts. In particular, workflow and gate-defining PR scripts, fixtures, config and allowlist must
+all have enforceable review protection; a host conclusion cannot prove hostile PR code honest.
+Actual protections and partial-rerun behavior need hosted verification. Validate independent
+writable targets, fresh assets, full command and named-result parity, failure/skip/cancellation
+handling, required-check configuration, and comparable cold and warm end-to-end walls before
+promotion. Continue the existing trusted-branch cache policy; no new PR-scoped Rust-cache saves
+until scope, trust, reachability, quota and eviction are validated. Cold misses run the full gate.
+
+The page runner's nonzero-exit fail-closed behavior described below remains stricter than the
+intended allowlist policy; the allowlist is empty. Local parity and sequential timings do not
+establish the aspirational approximately ten-minute cold full-gate target.
+
 ## Local baseline — 2026-10-29
 
 One unsharded `python3 scripts/check.py build browser` passed at
