@@ -129,3 +129,13 @@ packaged-provider regression scripts; `scripts/check.py` also registers Node-bas
 Do not remove or skip checks for a timing result. A no-Node full gate with equivalent coverage must
 be established before this performance experiment proceeds. No migrated baseline, concurrent
 timing, hosted run or speedup is established.
+
+The user authorized a local Node-free migration on a separate experimental branch, preserving
+test cases and behavior; hosted CI remains untouched. Read-only inventory identified three
+direct Node tooling tests, an indirect `node --version` measurement probe, and the eight
+packaged-provider regressions as explicit blockers. Migration must retain the actual behavior
+checks, eight named zero-repair cases, package freshness and failure propagation; browser-side
+JavaScript through Chromium is not a Node process. Pinned third-party action runtimes and the
+subprocess trees of build tools remain unaudited. A later authorized gate run must observe its
+process tree rather than assuming a PATH shim proves the absence of Node. Do not claim migrated
+coverage or performance until validated.

@@ -129,6 +129,10 @@ Chromiumoxide gate; it cannot establish migrated-gate parity or performance. The
 still runs Node for CAD packaged-provider regressions and tooling tests. Do not skip those checks;
 the performance experiment is blocked until their Node dependency is resolved without coverage loss.
 See [04](issues/04-web-split-design.md#chromiumoxide-baseline-correction--2026-10-29).
+The user authorized the Node-free migration locally on a separate experimental branch; retain
+all cases and behavior and keep hosted CI untouched. A read-only inventory found three direct
+Node tooling tests, an indirect measurement probe, and eight CAD package regressions; action and
+build-tool subprocess runtimes remain unaudited.
 
 1. Finish the focused web-build correctness and measurement work above; compare equivalent
    end-to-end commands and retain all tests. The blocked page-list candidate is not a priority.
