@@ -25,6 +25,9 @@ stack PRs.
 
 ## Comments
 
-- Claimed for implementation delegate (moved to Opus after a provider 403 on the default key)
-  `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3A52057115-c695-471f-9e63-a57ba37c1ce5`
-  (cherry-pick onto current dev, PR, CI to green; merge is the user's click).
+- PR opened 2026-10-29: https://github.com/runinit/boardstudio/pull/13 (`ci/land-cache-warm` →
+  `dev`, head `ab0a13b`), five commits only, body warns of the cold transition run. One conflict
+  (`TOOLING_TESTS`, resolved dev-tree plus the cache test — matches the probe exactly); wiring
+  verified (`test-ci-workflow.py` 11 tests, `test-check.py` 31 green). CI pending at handoff
+  (GitGuardian passed; audit/native/web queued — expect ~30 min cold); merge is the user's
+  click once green.
