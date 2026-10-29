@@ -37,3 +37,7 @@ receipt that every later speedup compares against.
   `RUSTUP_HOME`, `ImageOS`, qualification target all present. Next: draft PR against `dev`
   (user approval), then re-run for cold→warm on the probe head; the transition run will be
   cold and is not steady state.
+- CI delegate
+  `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3Afd270442-2586-442f-af93-6db38e28c3bd`
+  (draft-PR approval granted 2026-10-29; open draft, cold run, re-run warm, record receipt;
+  never merge).

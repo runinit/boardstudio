@@ -1,6 +1,6 @@
 # 05: Provider-build parallelism
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: [02: Provider-build overlap](02-provider-overlap.md)
 Parent: [CI wall time map](../map.md)
@@ -20,5 +20,12 @@ gate.
   it. Warm-run savings shrink with caches and must be reported separately.
 - Acceptance: before/after walls on the same head, test counts unchanged, green full gate.
   `BOARDSTUDIO_CHECK_JOBS` interplay and target-dir contention must be in the receipt.
+
+## Comments
+
+- Claimed for implementation delegate
+  `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3Aa9cea27e-50b2-49d7-9c11-6150f2e42c9d`
+  (three lanes + H1/H2 + local A/B; branch `research/provider-parallelism`, no PR;
+  CI receipt queued behind a later draft-PR approval).
 - CI receipts come from a draft PR with user approval (outward-facing — pushing a branch alone
   triggers no CI), or from 03's probe PR once it exists.

@@ -10,6 +10,8 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
 - On 2026-10-29, the user approved tiering with no human in the loop for the lane: tickets 08
   through 11 and 13–14 run as agent work with mechanical rules. Human decisions stay only in
   tickets 04 (web-split design) and 07 (retry policy).
+- On 2026-10-29, PR #9 (`stack/03-toolbar-polish`) merged, lifting the hold on the heartbeat
+  logging merge (ticket 07) and unblocking the completion wave (03 draft PR, 05 local A/B).
 - On 2026-10-29, the user ordered: no changes to the `stack/02-split-board` branch (PR #8) from
   this effort; every workflow change ships with same-head before/after receipts plus a green full
   gate; check-speed tickets 11–13 are re-measured, never claimed on old numbers.
