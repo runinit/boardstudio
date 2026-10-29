@@ -15,10 +15,11 @@ pub(super) use companion_placement::{
     CompanionPlacementProjection,
 };
 pub(super) use layout_component_inspector::{
-    BoardPartChoice, ComponentPositionAxis, LayoutChoice, LayoutComponentInspector,
-    LayoutComponentInspectorAction, LayoutComponentInspectorLifetime,
+    AnchorKeyChoice, BoardPartChoice, ComponentPositionAxis, LayoutChoice,
+    LayoutComponentInspector, LayoutComponentInspectorAction, LayoutComponentInspectorLifetime,
     LayoutComponentInspectorOwner, LayoutComponentInspectorOwnerKey,
     LayoutComponentInspectorProjection, LayoutConstraintValues, MirroredHalfProjection,
+    PartAnchorProjection,
 };
 
 #[derive(Clone)]
@@ -412,6 +413,7 @@ mod tests {
                 rotation: 0.0,
             },
             side: Side::Front,
+            anchor: None,
             locked: None,
             keycap: None,
             outline: None,

@@ -7276,6 +7276,8 @@ fn legacy_layout_link_syncs_components_without_changing_an_unrelated_layout() {
                 exceptions: vec![],
                 source_id: "legacy-source-layout".into(),
                 axis_x: 50.0,
+                split_gap: None,
+                spacing: None,
             }),
         },
         Layout {
@@ -11282,6 +11284,8 @@ fn repair_fresh_refuses_native_and_legacy_matrix_overlap() {
                 exceptions: vec![],
                 source_id: "legacy-source-layout".into(),
                 axis_x: 10.0,
+                split_gap: None,
+                spacing: None,
             }),
         },
     ];

@@ -19,6 +19,7 @@ pub(crate) fn logical_matrix<'a>(id: &str, doc: &'a ProjectDoc) -> Result<Cow<'a
                 &link.correspondences,
                 &link.exceptions,
                 super::layout::axis_mapping(link.axis_x),
+                link.split_gap,
             )
         })
         .chain(
@@ -26,12 +27,17 @@ pub(crate) fn logical_matrix<'a>(id: &str, doc: &'a ProjectDoc) -> Result<Cow<'a
                 .iter()
                 .flat_map(|hardware| &hardware.pairs)
                 .filter_map(|pair| {
-                    pair.halves
-                        .as_ref()
-                        .map(|halves| (&halves.correspondences, &halves.exceptions, pair.mapping))
+                    pair.halves.as_ref().map(|halves| {
+                        (
+                            &halves.correspondences,
+                            &halves.exceptions,
+                            pair.mapping,
+                            None,
+                        )
+                    })
                 }),
         );
-    for (records, exceptions, mapping) in links {
+    for (records, exceptions, mapping, gap) in links {
         let Some(record) = records
             .iter()
             .find(|record| record.kind == MirroredItemKind::Matrix && record.mirror_id == id)
@@ -67,7 +73,8 @@ pub(crate) fn logical_matrix<'a>(id: &str, doc: &'a ProjectDoc) -> Result<Cow<'a
                 .mirror_id
                 .clone();
         }
-        return super::layout::reflected(source, &target, mapping, false).map(Cow::Owned);
+        return super::layout::reflected(source, &target, mapping, false, gap.is_some())
+            .map(Cow::Owned);
     }
     Err(format!("Logical matrix {id} is missing"))
 }
@@ -234,7 +241,16 @@ fn resolve(
     } else {
         RawAnchorContext::World
     };
-    let result = kernel::evaluate(&input(matrix), context).map_err(str::to_owned);
+    let mut layout_input = input(matrix);
+    if matrix.anchor.is_none()
+        && let Some(offset) = super::layout::half_offset(doc, &matrix.id)
+    {
+        // Half-frame origins place each half from the split axis by the stored
+        // gap. Anchored matrices inherit their anchor's offset instead.
+        layout_input.origin.x += offset.x;
+        layout_input.origin.y += offset.y;
+    }
+    let result = kernel::evaluate(&layout_input, context).map_err(str::to_owned);
     visiting.remove(&matrix.id);
     result
 }

@@ -676,6 +676,7 @@ mod tests {
                 rotation: 0.0,
             },
             side: Side::Front,
+            anchor: None,
             locked: None,
             properties: None,
             generator_parameters: None,
@@ -1429,6 +1430,8 @@ mod tests {
                 exceptions: vec![],
                 source_id: left.id.clone(),
                 axis_x: 0.0,
+                split_gap: None,
+                spacing: None,
             });
         let right_matrix_index = document
             .matrices

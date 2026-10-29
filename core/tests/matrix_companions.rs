@@ -99,6 +99,7 @@ fn assembly(id: &str, definition: &str, x: f64, y: f64) -> MatrixAssembly {
 
 fn companion_part() -> Part {
     Part {
+        anchor: None,
         id: "anchor".into(),
         definition_id: "switch".into(),
         reference: "ANCHOR".into(),
@@ -516,6 +517,8 @@ fn linked_halves_list_their_own_companions() {
                     exceptions: vec![],
                     source_id: "left-layout".into(),
                     axis_x: 10.0,
+                    split_gap: None,
+                    spacing: None,
                 }),
             },
             matrix: Box::new(matrix),
@@ -560,7 +563,18 @@ fn linked_halves_list_their_own_companions() {
         .find(|matrix| matrix.id == "left-matrix")
         .unwrap()
         .clone();
-    moved_matrix.origin = Vec2 { x: 4.0, y: 2.0 };
+    // Ticket 09: creation stored the half frame (source frame at x = 9), so
+    // the board intent (4, 2) is authored as (-5, 2) in storage. Ticket 11:
+    // creation stores max(requested 2 mm, 40 mm default, minimum), so the
+    // stored gap is 40 mm while the origins still convert with the request.
+    let stored_gap = authored
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "right-layout")
+        .and_then(|layout| layout.mirror_link.as_ref())
+        .and_then(|link| link.split_gap);
+    assert_eq!(stored_gap, Some(40.0));
+    moved_matrix.origin = Vec2 { x: -5.0, y: 2.0 };
     let (_, carried) = edit(
         &mut engine,
         &authored,
@@ -569,10 +583,23 @@ fn linked_halves_list_their_own_companions() {
             definitions: None,
         },
     );
+    // Ticket 10: the authored placement overlaps the halves (key envelopes
+    // meet at clear -8 mm), so the committed edit re-spaces in the same Undo
+    // entry. Ticket 11: the floor is now the stored 40 mm, which already
+    // covers the 20 mm minimum, so no spacing is stored. The authored diode
+    // was placed at (8, 9) against the creation key, which now evaluates 19
+    // mm farther out, so the rigidly carried offset grows by the same 19 mm.
+    let carried_gap = carried
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "right-layout")
+        .and_then(|layout| layout.mirror_link.as_ref())
+        .and_then(|link| link.spacing);
+    assert_eq!(carried_gap, None);
     assert_eq!(pose(&carried, &source_diode).at, Vec2 { x: 12.0, y: 11.0 });
     assert_eq!(
         pose(&carried, &member("right-matrix", 0, 0)).at,
-        Vec2 { x: 16.0, y: 2.0 }
+        Vec2 { x: 35.0, y: 2.0 }
     );
     assert!(
         carried

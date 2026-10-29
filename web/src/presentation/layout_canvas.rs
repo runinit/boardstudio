@@ -4,6 +4,8 @@ use boardstudio_core::model::{
     Matrix, MatrixScene, Part, PartDefinition, PartKind, Pose2, ProjectDoc, SceneDelta, Side,
     Transform, Vec2,
 };
+use boardstudio_web_layout::anchor_badge;
+use boardstudio_web_ui_model::split_focus::{self, SplitHalf};
 use dioxus::prelude::*;
 use std::{
     collections::{BTreeMap, HashSet},
@@ -46,6 +48,7 @@ pub(super) fn transform_tools(
 pub(super) fn snap_origins(
     document: &ProjectDoc,
     board_id: &str,
+    scene: &SceneDelta,
 ) -> Vec<super::outline_snapping::Origin> {
     let board_parts: HashSet<_> = document
         .boards
@@ -90,17 +93,25 @@ pub(super) fn snap_origins(
             } else {
                 definition.map_or_else(Vec::new, |definition| definition.courtyard.clone())
             };
-            let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
+            // Ticket 12: snap half-frame parts at their evaluated board pose,
+            // like the canvas draws them.
+            let pose = scene
+                .transforms
+                .iter()
+                .find(|transform| transform.id == part.id)
+                .map(|transform| transform.pose)
+                .unwrap_or_else(|| boardstudio_core::evaluated_part_pose(document, part));
+            let (sin, cos) = pose.rotation.to_radians().sin_cos();
             let world = local
                 .into_iter()
                 .map(|point| Vec2 {
-                    x: part.pose.at.x + point.x * cos - point.y * sin,
-                    y: part.pose.at.y + point.x * sin + point.y * cos,
+                    x: pose.at.x + point.x * cos - point.y * sin,
+                    y: pose.at.y + point.x * sin + point.y * cos,
                 })
                 .collect();
             super::outline_snapping::Origin {
                 reference: part.reference.clone(),
-                center: part.pose.at,
+                center: pose.at,
                 polygon: super::outline_snapping::convex_hull(world),
             }
         })
@@ -122,6 +133,25 @@ impl PartialEq for SceneSource {
     }
 }
 
+/// Ticket 18: ghost of the previous spacing. After a committed edit changes a
+/// split pair's evaluated spacing, this carries the pre-commit scene plus the
+/// spacing delta and the pair axis so the canvas can draw the dashed ghost of
+/// the keys at the previous spacing with its "+N mm" / "−N mm" axis note.
+#[derive(Clone, Debug)]
+pub(super) struct SpacingGhost {
+    pub(super) scene: Arc<SceneDelta>,
+    pub(super) delta_mm: f64,
+    pub(super) axis_x: f64,
+}
+
+impl PartialEq for SpacingGhost {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.scene, &other.scene)
+            && self.delta_mm == other.delta_mm
+            && self.axis_x == other.axis_x
+    }
+}
+
 #[derive(Props, Clone)]
 pub(super) struct SceneProps {
     source: SceneSource,
@@ -131,8 +161,16 @@ pub(super) struct SceneProps {
     /// The accepted scene behind the preview: keys whose accepted pose
     /// differs render a dashed ghost. Only `Some` while previewing.
     accepted_scene: Option<Arc<SceneDelta>>,
+    /// Ticket 18: the previous spacing's ghost. Only `Some` while no preview
+    /// is up; a drag preview takes precedence and hides the spacing ghost.
+    #[props(default)]
+    pub(super) spacing_ghost: Option<SpacingGhost>,
     selected_ids: Vec<String>,
     selected_context: Option<super::objects::ScopedTreeContext>,
+    /// Ticket 14: view-only editing focus. `Some` dims the other half in
+    /// Layout only; `None` (no split, or PCB/Case) draws everything solid.
+    #[props(default)]
+    focused_half: Option<SplitHalf>,
     keys_visible: bool,
     components_visible: bool,
     keycaps_visible: bool,
@@ -151,8 +189,10 @@ impl PartialEq for SceneProps {
                 (None, None) => true,
                 _ => false,
             }
+            && self.spacing_ghost == other.spacing_ghost
             && self.selected_ids == other.selected_ids
             && self.selected_context == other.selected_context
+            && self.focused_half == other.focused_half
             && self.keys_visible == other.keys_visible
             && self.components_visible == other.components_visible
             && self.keycaps_visible == other.keycaps_visible
@@ -214,14 +254,32 @@ pub(super) fn Scene(props: SceneProps) -> Element {
         .iter()
         .map(|matrix| (matrix.matrix_id.as_str(), matrix))
         .collect();
-    let accepted_matrix_scenes: Option<BTreeMap<&str, &MatrixScene>> =
-        props.accepted_scene.as_ref().map(|accepted| {
-            accepted
-                .matrix_scenes
-                .iter()
-                .map(|matrix| (matrix.matrix_id.as_str(), matrix))
-                .collect()
-        });
+    // Ticket 18: the ghost source is the accepted scene behind a drag preview,
+    // otherwise the pre-commit scene of the previous spacing. The accepted
+    // scene always wins when present (a preview takes precedence and hides
+    // the spacing ghost while it is up); the caller only passes the spacing
+    // ghost while no preview is up.
+    let spacing_source: Option<&Arc<SceneDelta>> = (!props.preview_active)
+        .then(|| props.spacing_ghost.as_ref().map(|ghost| &ghost.scene))
+        .flatten();
+    let ghost_source: Option<&Arc<SceneDelta>> = props.accepted_scene.as_ref().or(spacing_source);
+    let ghost_matrix_scenes: Option<BTreeMap<&str, &MatrixScene>> = ghost_source.map(|source| {
+        source
+            .matrix_scenes
+            .iter()
+            .map(|matrix| (matrix.matrix_id.as_str(), matrix))
+            .collect()
+    });
+    // The axis note only reads while the spacing ghost does: never on a drag
+    // preview, where the amber preview ghosts own the canvas.
+    let spacing_note: Option<(f64, f64)> = if props.preview_active {
+        None
+    } else {
+        props
+            .spacing_ghost
+            .as_ref()
+            .map(|ghost| (ghost.axis_x, ghost.delta_mm))
+    };
     let input = LayoutCanvasInput {
         document,
         visible_indices: &visible_indices,
@@ -230,10 +288,12 @@ pub(super) fn Scene(props: SceneProps) -> Element {
         definitions: &definitions,
         matrices: &matrices,
         matrix_scenes: &matrix_scenes,
-        accepted_matrix_scenes: accepted_matrix_scenes.as_ref(),
+        accepted_matrix_scenes: ghost_matrix_scenes.as_ref(),
+        spacing_ghost_note: spacing_note,
         transforms: &scene_data.transforms,
         selected_ids: &props.selected_ids,
         selected_context: props.selected_context.as_ref(),
+        focused_half: props.focused_half,
         keys_visible: props.keys_visible,
         components_visible: props.components_visible,
         keycaps_visible: props.keycaps_visible,
@@ -273,9 +333,14 @@ pub(super) struct LayoutCanvasInput<'a> {
     pub(super) matrices: &'a [&'a Matrix],
     pub(super) matrix_scenes: &'a BTreeMap<&'a str, &'a MatrixScene>,
     pub(super) accepted_matrix_scenes: Option<&'a BTreeMap<&'a str, &'a MatrixScene>>,
+    /// Ticket 18: `(axis_x, delta_mm)` while the spacing ghost reads.
+    /// `None` on drag previews and settled scenes, where the ghost rects
+    /// above (if any) keep the preview styling.
+    pub(super) spacing_ghost_note: Option<(f64, f64)>,
     pub(super) transforms: &'a [Transform],
     pub(super) selected_ids: &'a [String],
     pub(super) selected_context: Option<&'a super::objects::ScopedTreeContext>,
+    pub(super) focused_half: Option<SplitHalf>,
     pub(super) keys_visible: bool,
     pub(super) components_visible: bool,
     pub(super) keycaps_visible: bool,
@@ -334,10 +399,43 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
         input.matrix_scenes,
         input.transforms,
     );
-    // Dashed ghosts of accepted (pre-drag) key poses, drawn only for matrix
-    // keys whose preview pose moved. Computed up front: rsx flow takes no
-    // bare `let` bindings.
+    // Ticket 14: the half without editing focus dims. Focus is Layout-only
+    // workspace state, so a `None` focus (no split, PCB/Case) draws solid.
+    let dimmed_half = input
+        .focused_half
+        .map(|focused| focused.other())
+        .filter(|_| split_focus::has_split(input.document));
+    // Inline click-to-edit label anchor (prototype variant B): the centroid of
+    // the dimmed half's enabled cells, drawn just above its topmost key.
+    let dim_label_anchor = dimmed_half.and_then(|dimmed| {
+        let mut count = 0_u32;
+        let (mut sum_x, mut top_y) = (0.0, f64::NEG_INFINITY);
+        for matrix in input.matrices {
+            if split_focus::matrix_half(input.document, &matrix.id) != Some(dimmed) {
+                continue;
+            }
+            if let Some(projected) = input.matrix_scenes.get(matrix.id.as_str()) {
+                for cell in projected.cells.iter().filter(|cell| cell.enabled) {
+                    count += 1;
+                    sum_x += cell.pose.at.x;
+                    top_y = top_y.max(cell.pose.at.y);
+                }
+            }
+        }
+        (count > 0 && top_y.is_finite()).then(|| (dimmed, sum_x / f64::from(count), top_y))
+    });
+    // Dashed ghosts of the ghost-source key poses, drawn only for matrix keys
+    // whose displayed pose moved: the pre-drag pose behind a preview, or the
+    // previous spacing behind a spacing change (ticket 18). Computed up
+    // front: rsx flow takes no bare `let` bindings.
     let mut ghosts: Vec<(String, u32, u32, Pose2, Vec2)> = Vec::new();
+    // Ticket 18: spacing ghosts read grey dashed (prototype variant B), like
+    // the dimmed half; drag previews keep the existing ghost styling.
+    let ghost_class = if input.spacing_ghost_note.is_some() {
+        "m1-spacing-ghost"
+    } else {
+        "m1-scene-ghost"
+    };
     if let Some(accepted_scenes) = input.accepted_matrix_scenes {
         for matrix in input.matrices {
             if let (Some(displayed), Some(accepted)) = (
@@ -376,6 +474,41 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
             }
         }
     }
+    // Ticket 17: the anchor badge for the selection (prototype variant B):
+    // what the selection is placed from, with a violet dashed target and a
+    // dashed tie to the selection. It reads the selected half, dimmed or not,
+    // and clears with the selection; parts resolve in ticket 13.
+    let scene_refs: Vec<&MatrixScene> = input.matrix_scenes.values().copied().collect();
+    let badge = input.keys_visible.then(|| {
+        input.selected_context.and_then(|selected| {
+            anchor_badge::anchor_badge(input.document, &scene_refs, Some(&selected.context))
+        })
+    });
+    let badge = badge.flatten();
+    let badge_highlight: Vec<String> = badge
+        .as_ref()
+        .map(|badge| badge.highlight.clone())
+        .unwrap_or_default();
+    // Ticket 18: the axis note sits above the displayed keys, so the refit
+    // view (which pads the content by 12 mm on every side) always shows it.
+    let spacing_note_anchor: Option<(f64, f64, String)> =
+        input.spacing_ghost_note.and_then(|(axis_x, delta_mm)| {
+            let mut top_y = f64::NEG_INFINITY;
+            for matrix in input.matrices {
+                if let Some(projected) = input.matrix_scenes.get(matrix.id.as_str()) {
+                    for cell in projected.cells.iter().filter(|cell| cell.enabled) {
+                        top_y = top_y.max(cell.pose.at.y);
+                    }
+                }
+            }
+            top_y.is_finite().then(|| {
+                (
+                    axis_x,
+                    top_y + 6.0,
+                    boardstudio_web_ui_model::spacing_ghost::spacing_note(delta_mm),
+                )
+            })
+        });
     rsx! {
         if input.keys_visible {
             for matrix in input.matrices {
@@ -402,16 +535,28 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                                             if matrix_id == &matrix.id && *row == cell.row && *column == cell.column
                                     )
                                 });
+                            // Ticket 17: the badge target keeps the violet
+                            // dashed reference while the selection stands,
+                            // distinct from the transient hover highlight.
+                            let anchor_target = cell
+                                .member_id
+                                .as_ref()
+                                .is_some_and(|id| badge_highlight.contains(id));
                             let on_pointer_down = input.on_matrix_pointer_down;
                             let matrix_id = matrix.id.clone();
                             let row = cell.row;
                             let column = cell.column;
                             let part_id = cell.member_id.clone();
+                            let dimmed = dimmed_half.is_some_and(|dimmed| {
+                                split_focus::matrix_half(input.document, &matrix.id) == Some(dimmed)
+                            });
                             rsx! {
                                 layout_matrix_relations::RelationMatrixKey {
                                     key: "{matrix.id}-{cell.row}-{cell.column}",
                                     part_id: cell.member_id.clone(),
                                     selected,
+                                    anchor_target,
+                                    dimmed,
                                     x: -size.x / 2.0,
                                     y: -size.y / 2.0,
                                     width: size.x,
@@ -439,12 +584,91 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
         for (matrix_id, row, column, pose, size) in &ghosts {
             rect {
                 key: "ghost-{matrix_id}-{row}-{column}",
-                class: "m1-scene-ghost",
+                class: "{ghost_class}",
                 x: "{-size.x / 2.0}",
                 y: "{-size.y / 2.0}",
                 width: "{size.x}",
                 height: "{size.y}",
                 transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})",
+            }
+        }
+        if let Some((axis_x, note_y, note)) = spacing_note_anchor {
+            // Prototype variant B: short delta note on the axis above the
+            // keys. The canvas parent flips y, so the text counter-flips to
+            // read upright like the split-focus label.
+            text {
+                key: "spacing-ghost-note-{axis_x}",
+                transform: "translate({axis_x} {note_y}) scale(1,-1)",
+                text_anchor: "middle",
+                class: "m1-spacing-ghost-note",
+                "{note}"
+            }
+        }
+        if let Some((dimmed, label_x, label_top)) = dim_label_anchor {
+            // Prototype variant B inline label. The canvas parent flips y, so
+            // the text counter-flips to read upright like part labels.
+            text {
+                key: "{dimmed.label()}-focus-label",
+                transform: "translate({label_x} {label_top + 12.0}) scale(1,-1)",
+                text_anchor: "middle",
+                class: "m1-split-focus-label",
+                "data-dimmed-half": "{dimmed.label()}",
+                "{dimmed.dim_label()}"
+            }
+        }
+        if let Some(badge) = badge.as_ref() {
+            // Prototype variant B anchor badge: the authored icon sits at the
+            // anchor point with a short label, and a dashed tie runs to the
+            // selection base. Read-only chrome: it never takes pointer events,
+            // so canvas clicks (including dimmed-half focus) pass through.
+            // The canvas parent flips y, so the label counter-flips to read
+            // upright; the rect mirrors the prototype's measured label box.
+            {
+                // The label box mirrors the prototype's measured box: 2.9px
+                // mono at ~1.38 mm per character plus 3 mm padding.
+                let label_width = badge.label.chars().count() as f64 * 1.38 + 3.0;
+                let anchor_x = badge.anchor.x;
+                let anchor_y = badge.anchor.y;
+                let selection_x = badge.selection.x;
+                let selection_y = badge.selection.y;
+                rsx! {
+                    if badge.tied {
+                        line {
+                                                        class: "m1-anchor-tie",
+                            x1: "{anchor_x}", y1: "{anchor_y}",
+                            x2: "{selection_x}", y2: "{selection_y}",
+                        }
+                        circle {
+                                                        class: "m1-anchor-tie-dot",
+                            cx: "{selection_x}", cy: "{selection_y}", r: "0.9",
+                        }
+                    }
+                    g {
+                                                class: "m1-anchor-badge",
+                        transform: "translate({anchor_x} {anchor_y})",
+                        "aria-hidden": "true",
+                        circle { class: "m1-anchor-badge-dot", r: "3" }
+                        g {
+                            class: "m1-anchor-badge-icon",
+                            fill: "none", stroke_width: ".45", stroke_linecap: "round",
+                            circle { cy: "-1.55", r: ".5" }
+                            path { d: "M0-1v2.6M-1.1-.3h2.2M-1.6.7a1.6 1.6 0 0 0 3.2 0" }
+                        }
+                    }
+                    g {
+                                                transform: "translate({anchor_x + 4.0} {anchor_y + 4.5}) scale(1,-1)",
+                        "aria-hidden": "true",
+                        rect {
+                            class: "m1-anchor-badge-label-box",
+                            x: "0", y: "-4.6", width: "{label_width}", height: "4.6", rx: "1",
+                        }
+                        text {
+                            class: "m1-anchor-badge-label",
+                            x: "1.5", y: "-1.35",
+                            "{badge.label}"
+                        }
+                    }
+                }
             }
         }
         for (part_index, part) in input.visible_indices.iter().zip(input.visible) {
@@ -473,6 +697,12 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                 let footprints_on = input.footprints_visible;
                 let on_pointer_down = input.on_part_pointer_down;
                 let part_id = part.id.clone();
+                let dimmed = dimmed_half.is_some_and(|dimmed| {
+                    split_focus::part_half(input.document, &part.id) == Some(dimmed)
+                });
+                // Ticket 17: badge targets keep the violet dashed reference on
+                // the part outline too, matching the key rect above.
+                let anchor_target = badge_highlight.contains(&part.id);
                 rsx! {
                     if layer_visible || show_keycap.is_some() {
                         g {
@@ -488,7 +718,7 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                                     document: input.document.clone(), part_index: *part_index,
                                     definition_index: input.definition_indices.get(part.definition_id.as_str()).copied(),
                                 },
-                                selected, layer_visible, footprints_on, show_keycap,
+                                selected, dimmed, layer_visible, footprints_on, show_keycap, anchor_target,
                             }
                         }
                     }
@@ -517,9 +747,11 @@ impl PartialEq for PartSource {
 fn PartContents(
     source: PartSource,
     selected: bool,
+    dimmed: bool,
     layer_visible: bool,
     footprints_on: bool,
     show_keycap: Option<Vec2>,
+    #[props(default)] anchor_target: bool,
 ) -> Element {
     #[cfg(test)]
     PART_CONTENT_RENDERS.with(|count| count.set(count.get() + 1));
@@ -533,7 +765,7 @@ fn PartContents(
     rsx! {
         if layer_visible {
             layout_matrix_relations::RelationPartOutline {
-                key: "{part.id}", part_id: part.id.clone(), selected, points: courtyard
+                key: "{part.id}", part_id: part.id.clone(), selected, dimmed, anchor_target, points: courtyard
             }
         }
         if layer_visible && footprints_on {
@@ -1168,6 +1400,307 @@ mod ghost_tests {
         assert!(
             root.query_selector(".m1-scene-ghost").unwrap().is_none(),
             "clearing the preview retires its ghosts"
+        );
+        root.remove();
+    }
+}
+
+/// Ticket 18: the spacing ghost renders the previous spacing's keys grey
+/// dashed with a "+N mm" / "−N mm" note on the axis, and only while no drag
+/// preview is up.
+#[cfg(test)]
+mod spacing_ghost_render_tests {
+    use super::*;
+    use boardstudio_core::model::SceneDelta;
+    use serde_json::json;
+    use std::sync::Arc;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    fn spacing_fixture() -> (Arc<ProjectDoc>, Arc<SceneDelta>, Arc<SceneDelta>) {
+        let mut document = ProjectDoc::empty("canvas", "Canvas");
+        for (half, part_id) in [("left", "matrix/left/r0c0"), ("right", "matrix/right/r0c0")] {
+            document.parts.push(
+                serde_json::from_value(json!({
+                    "id": part_id, "definitionId": "switch", "reference": "SW1",
+                    "pose": {"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0}, "side": "front",
+                    "keycap": {"x": 18.0, "y": 18.0}
+                }))
+                .unwrap(),
+            );
+            document.matrices.push(
+                serde_json::from_value(json!({
+                    "id": half, "rows": 1, "columns": 1,
+                    "pitch": {"x": 19.05, "y": 19.05}, "origin": {"x": 0.0, "y": 0.0},
+                    "definitionId": "switch", "partIds": [part_id], "boardId": "board",
+                    "cells": [{"row": 0, "column": 0, "enabled": true, "definitionId": "switch", "assemblies": []}]
+                }))
+                .unwrap(),
+            );
+        }
+        document.definitions.push(
+            serde_json::from_value(json!({
+                "id": "switch", "name": "Switch", "kind": "switch", "courtyard": [], "pads": []
+            }))
+            .unwrap(),
+        );
+        document.boards.push(
+            serde_json::from_value(json!({
+                "id": "board", "name": "Board",
+                "partIds": ["matrix/left/r0c0", "matrix/right/r0c0"],
+                "outlineIds": [], "netIds": [], "thickness": 1.6
+            }))
+            .unwrap(),
+        );
+        let document = Arc::new(document);
+        let cell = |matrix: &str, x: f64| {
+            json!({
+                "row": 0, "column": 0, "enabled": true,
+                "memberId": format!("matrix/{matrix}/r0c0"),
+                "pose": {"at": {"x": x, "y": 0.0}, "rotation": 0.0},
+                "shiftFrame": {"origin": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0}},
+                "offsetFrame": {"origin": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0}}
+            })
+        };
+        let scene_with = |half_gap: f64| -> Arc<SceneDelta> {
+            Arc::new(
+                serde_json::from_value(json!({
+                    "revision": 0, "transactionId": "fixture", "changedIds": [], "transforms": [],
+                    "matrixScenes": [
+                        {"matrixId": "left", "cells": [cell("left", -half_gap)],
+                         "columns": [{"column": 0, "base": {"x": 0.0, "y": 0.0}, "rotation": 0.0,
+                                      "relativeOrigin": {"x": 0.0, "y": 0.0},
+                                      "splayOrigin": {"x": 0.0, "y": 0.0}, "splayAngle": 0.0, "customOrigin": false,
+                                      "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0},
+                                      "staggerAxis": {"x": 0.0, "y": 1.0}}]},
+                        {"matrixId": "right", "cells": [cell("right", half_gap)],
+                         "columns": [{"column": 0, "base": {"x": 0.0, "y": 0.0}, "rotation": 0.0,
+                                      "relativeOrigin": {"x": 0.0, "y": 0.0},
+                                      "splayOrigin": {"x": 0.0, "y": 0.0}, "splayAngle": 0.0, "customOrigin": false,
+                                      "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0},
+                                      "staggerAxis": {"x": 0.0, "y": 1.0}}]}
+                    ],
+                    "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
+                    "readiness": {"layout": true, "outline": false, "pcb": false, "case": false}
+                }))
+                .unwrap(),
+            )
+        };
+        // Narrow spacing (keys at ±30) and the widened spacing (keys at ±35).
+        (document, scene_with(30.0), scene_with(35.0))
+    }
+
+    #[derive(Props, Clone, PartialEq)]
+    struct SpacingCaseProps {
+        document: Arc<ProjectDoc>,
+        displayed: Arc<SceneDelta>,
+        accepted: Option<Arc<SceneDelta>>,
+        ghost: Option<SpacingGhost>,
+        preview: bool,
+    }
+
+    #[component]
+    fn RenderSpacingCase(props: SpacingCaseProps) -> Element {
+        let highlight = use_signal(|| None::<Vec<String>>);
+        use_context_provider(|| super::super::RelationHighlight(highlight));
+        rsx! {
+            svg {
+                Scene {
+                    source: SceneSource { document: props.document, scene: props.displayed, board_id: "board".into() },
+                    preview_active: props.preview,
+                    accepted_scene: props.accepted,
+                    spacing_ghost: props.ghost,
+                    selected_ids: Vec::new(), selected_context: None,
+                    keys_visible: true, components_visible: true, keycaps_visible: true, footprints_visible: false,
+                    on_matrix_pointer_down: |_| {}, on_part_pointer_down: |_| {},
+                }
+            }
+        }
+    }
+
+    async fn mount_case(
+        displayed: Arc<SceneDelta>,
+        accepted: Option<Arc<SceneDelta>>,
+        ghost: Option<SpacingGhost>,
+        preview: bool,
+    ) -> web_sys::Element {
+        let (document, _, _) = spacing_fixture();
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new_with_props(
+                RenderSpacingCase,
+                SpacingCaseProps {
+                    document,
+                    displayed,
+                    accepted,
+                    ghost,
+                    preview,
+                },
+            ),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(5).await;
+        root
+    }
+
+    fn ghost_transforms(root: &web_sys::Element) -> Vec<String> {
+        let nodes = root.query_selector_all(".m1-spacing-ghost").unwrap();
+        (0..nodes.length())
+            .filter_map(|index| {
+                nodes
+                    .item(index)?
+                    .dyn_into::<web_sys::SvgElement>()
+                    .ok()?
+                    .get_attribute("transform")
+            })
+            .collect()
+    }
+
+    /// RED: widening draws the previous (narrow) keys dashed with a +N note.
+    #[wasm_bindgen_test]
+    async fn widening_ghosts_the_narrow_keys_with_a_plus_note() {
+        let (_, narrow, wide) = spacing_fixture();
+        let root = mount_case(
+            wide,
+            None,
+            Some(SpacingGhost {
+                scene: narrow,
+                delta_mm: 10.0,
+                axis_x: 0.0,
+            }),
+            false,
+        )
+        .await;
+        let transforms = ghost_transforms(&root);
+        assert_eq!(
+            transforms.len(),
+            2,
+            "both halves ghost at the previous spacing"
+        );
+        assert!(
+            transforms
+                .iter()
+                .any(|transform| transform.contains("translate(-30 0)")),
+            "the left ghost sits on its narrow pose, got {transforms:?}"
+        );
+        assert!(
+            transforms
+                .iter()
+                .any(|transform| transform.contains("translate(30 0)")),
+            "the right ghost sits on its narrow pose, got {transforms:?}"
+        );
+        let note = root
+            .query_selector(".m1-spacing-ghost-note")
+            .unwrap()
+            .expect("the axis carries the widening delta");
+        assert_eq!(note.text_content().as_deref(), Some("+10.0 mm"));
+        assert!(
+            note.get_attribute("transform")
+                .as_deref()
+                .unwrap_or_default()
+                .contains("translate(0 6)"),
+            "the note sits on the axis above the keys"
+        );
+        root.remove();
+    }
+
+    /// RED: narrowing draws the previous (wide) keys dashed with a −N note.
+    #[wasm_bindgen_test]
+    async fn narrowing_ghosts_the_wide_keys_with_a_minus_note() {
+        let (_, narrow, wide) = spacing_fixture();
+        let root = mount_case(
+            narrow,
+            None,
+            Some(SpacingGhost {
+                scene: wide,
+                delta_mm: -6.0,
+                axis_x: 0.0,
+            }),
+            false,
+        )
+        .await;
+        let transforms = ghost_transforms(&root);
+        assert_eq!(transforms.len(), 2, "both halves ghost at the wide poses");
+        assert!(
+            transforms
+                .iter()
+                .any(|transform| transform.contains("translate(-35 0)")),
+            "the left ghost sits on its wide pose, got {transforms:?}"
+        );
+        let note = root
+            .query_selector(".m1-spacing-ghost-note")
+            .unwrap()
+            .expect("the axis carries the narrowing delta");
+        assert_eq!(note.text_content().as_deref(), Some("−6.0 mm"));
+        root.remove();
+    }
+
+    /// RED: a settled scene with no ghost prop draws no ghost elements.
+    #[wasm_bindgen_test]
+    async fn settled_scene_without_ghost_draws_nothing() {
+        let (_, _, wide) = spacing_fixture();
+        let root = mount_case(wide, None, None, false).await;
+        assert!(
+            root.query_selector_all(".m1-spacing-ghost")
+                .unwrap()
+                .length()
+                == 0,
+            "no ghost prop means no ghost rects"
+        );
+        assert!(
+            root.query_selector(".m1-spacing-ghost-note")
+                .unwrap()
+                .is_none(),
+            "no ghost prop means no axis note"
+        );
+        root.remove();
+    }
+
+    /// RED: a drag preview keeps the amber preview ghosts and hides the
+    /// spacing ghost and its note.
+    #[wasm_bindgen_test]
+    async fn drag_preview_preempts_the_spacing_ghost() {
+        let (_, narrow, wide) = spacing_fixture();
+        let root = mount_case(
+            wide,
+            Some(narrow.clone()),
+            Some(SpacingGhost {
+                scene: narrow,
+                delta_mm: 10.0,
+                axis_x: 0.0,
+            }),
+            true,
+        )
+        .await;
+        assert!(
+            root.query_selector(".m1-scene-ghost").unwrap().is_some(),
+            "the preview still ghosts the pre-drag pose"
+        );
+        assert!(
+            root.query_selector_all(".m1-spacing-ghost")
+                .unwrap()
+                .length()
+                == 0,
+            "the spacing ghost hides while a preview is up"
+        );
+        assert!(
+            root.query_selector(".m1-spacing-ghost-note")
+                .unwrap()
+                .is_none(),
+            "the axis note hides while a preview is up"
         );
         root.remove();
     }

@@ -49,7 +49,8 @@ fn remap_controls(points: &mut [OutlineControlPoint], changes: &PartChanges, bef
             && changes.get(id) == Some(&None)
             && let Some(part) = before.iter().find(|part| &part.id == id)
         {
-            point.at = crate::outline_controls::world(point.at, part);
+            // Matrix members and companions carry world poses through removal.
+            point.at = crate::outline_controls::world(point.at, &part.pose, part.side.clone());
         }
         remap_option(&mut point.part_id, changes);
     }
@@ -88,7 +89,9 @@ fn remap_outline(features: &mut [OutlineFeature], changes: &PartChanges, before:
                     && changes.get(id) == Some(&None)
                     && let Some(part) = before.iter().find(|part| &part.id == id)
                 {
-                    *center = crate::outline_controls::world(*center, part);
+                    // Matrix members and companions carry world poses.
+                    *center =
+                        crate::outline_controls::world(*center, &part.pose, part.side.clone());
                     *rotation = Some(
                         part.pose.rotation
                             + rotation.unwrap_or(0.0)
@@ -106,8 +109,10 @@ fn remap_outline(features: &mut [OutlineFeature], changes: &PartChanges, before:
                     && changes.get(id) == Some(&None)
                     && let Some(part) = before.iter().find(|part| &part.id == id)
                 {
+                    // Matrix members and companions carry world poses.
                     for point in points {
-                        *point = crate::outline_controls::world(*point, part);
+                        *point =
+                            crate::outline_controls::world(*point, &part.pose, part.side.clone());
                     }
                 }
                 remap_option(anchor_part_id, changes);
@@ -610,6 +615,7 @@ mod framed_constraint_deletion_tests {
 
     fn part(id: &str) -> Part {
         Part {
+            anchor: None,
             id: id.into(),
             definition_id: "key".into(),
             reference: id.into(),

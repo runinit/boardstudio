@@ -169,8 +169,7 @@ pub(crate) fn evaluate(doc: &ProjectDoc, part: &Part) -> Option<Pose2> {
 /// Solve the carried and local values that realize `board` from `anchor`:
 /// the anchor-frame offset becomes Spread/Stagger, Splay and Offset reset,
 /// and Rotation absorbs the heading difference. The pose-preserving answer
-/// for Follow changes and the drop anchor (Pick keeps the stored values and
-/// moves instead).
+/// for Pick, Follow changes and the drop anchor.
 fn solve_for_pose(anchor: &PartAnchor, key: Pose2, board: Pose2) -> PartAnchor {
     let base = filtered(anchor, key);
     let local = rotate(sub(board.at, base.at), -base.rotation, zero());
@@ -397,29 +396,21 @@ fn anchor_owner(doc: &ProjectDoc, part_id: &str) -> Result<Part, String> {
         .ok_or_else(|| format!("Unknown part {part_id}"))
 }
 
-/// Pick: retarget the anchor key (and Follow subset), keeping the stored
-/// carried and local values so the part moves to the fresh placement from
-/// the new anchor. A part with no anchor yet stores the incoming values as
-/// given. One Undo entry.
+/// Pick: retarget the anchor key (and Follow subset), re-solving the carried
+/// and local values so the evaluated pose is unchanged. One Undo entry.
 pub(crate) fn set_anchor(
     doc: &mut ProjectDoc,
     part_id: &str,
     anchor: &PartAnchor,
 ) -> Result<Vec<String>, String> {
-    // Only the target and Follow subset move here; the stored carried/local
-    // values ride along, so the evaluated pose is placed freshly from the
-    // new anchor key.
+    // Incoming carried/local values are re-solved below, so only the target
+    // and Follow subset matter here; values that do not reproduce the pose
+    // are never stored.
     let part = anchor_owner(doc, part_id)?;
-    validate_target(doc, &part, anchor)?;
-    let mut next = anchor.clone();
-    if let Some(existing) = part.anchor.as_ref() {
-        next.spread = existing.spread;
-        next.stagger = existing.stagger;
-        next.splay = existing.splay;
-        next.offset = existing.offset;
-        next.rotation = existing.rotation;
-    }
-    write_anchor(doc, part_id, &next)
+    let (_, key) = validate_target(doc, &part, anchor)?;
+    let current = layout::evaluated_part_pose(doc, &part);
+    let solved = solve_for_pose(anchor, key, current);
+    write_anchor(doc, part_id, &solved)
 }
 
 /// Change the Follow subset, re-solving the carried and local values so the

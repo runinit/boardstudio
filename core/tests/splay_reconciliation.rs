@@ -7,7 +7,11 @@ fn matrix() -> Matrix {
         rows: 1,
         columns: 3,
         pitch: Vec2 { x: 20.0, y: 20.0 },
-        origin: Vec2 { x: 0.0, y: 0.0 },
+        // Ticket 11: create at a UI-reachable requested gap (R = 100 mm, so
+        // the stored gap is 100 mm with room for the splay to breathe). A
+        // negative requested gap stalls the minimum search at the coincident
+        // start, which the setup form never produces (gap >= 0).
+        origin: Vec2 { x: -59.5, y: 0.0 },
         definition_id: "switch".into(),
         part_ids: vec![],
         board_id: None,
@@ -167,11 +171,11 @@ fn custom_origin_and_linked_following_change_are_preserved() {
     )));
     assert_eq!(
         doc.matrices[0].column_layout[1].splay_origin,
-        Vec2 { x: -17.0, y: 4.0 }
+        Vec2 { x: 42.5, y: 4.0 }
     );
     assert_eq!(
         doc.matrices[1].column_layout[1].splay_origin,
-        Vec2 { x: -17.0, y: 4.0 }
+        Vec2 { x: 42.5, y: 4.0 }
     );
     let left = committed
         .matrix_scenes
@@ -203,7 +207,7 @@ fn custom_origin_and_linked_following_change_are_preserved() {
     let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "u".into() }));
     assert_eq!(
         undone.matrices[0].column_layout[1].splay_origin,
-        Vec2 { x: -17.0, y: 4.0 }
+        Vec2 { x: 42.5, y: 4.0 }
     );
     let (_, redone) = scene(engine.handle(CoreRequest::Redo { id: "r".into() }));
     assert_eq!(
@@ -228,11 +232,13 @@ fn editing_the_mirrored_half_updates_both_projections() {
         *matrix_id = "right".into();
     }
     let (committed, document) = scene(engine.handle(request));
+    // Ticket 11: the mirror-targeted world converts through the mirror frame,
+    // negating the delta, so the shared records carry the negated offset.
     assert!(
         document
             .matrices
             .iter()
-            .all(|matrix| matrix.column_layout[1].splay_origin == Vec2 { x: -13.0, y: -13.0 })
+            .all(|matrix| matrix.column_layout[1].splay_origin == Vec2 { x: 46.5, y: -13.0 })
     );
     let left = &committed.matrix_scenes[0];
     let right = &committed.matrix_scenes[1];
