@@ -154,3 +154,12 @@ helper, not just the worker. The Ergogen test additionally exercises a real CLI,
 Git safety behavior; its upstream parser and CommonJS dependencies are not vendored. A fixture-only
 replacement would lose coverage. No-Node upstream execution, exact dependency provenance and
 byte-for-byte generator parity remain unproven; resolve these before removing existing gate paths.
+
+An additional read-only Ergogen investigation found the pinned upstream commit in local Git
+objects and reported that the locked package tarballs were present locally with matching archive
+integrity. The required clean external checkout and installed dependency tree were absent. A
+Chromiumoxide prototype loading authenticated original CommonJS sources is plausible, but the
+locked dependency graph's browser initialization and byte-identical fixture output have not been
+demonstrated. Archive integrity does not authenticate an arbitrary installed tree, and browser
+bundles require separate provenance and license review. Preserve the real upstream oracle, CLI,
+filesystem protections and exact output; do not replace them with fixture-only checks.
