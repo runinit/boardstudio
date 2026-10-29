@@ -22,6 +22,13 @@ claim and status changes in the relevant ticket and keep this map consistent. Se
    wall, revision, result and relevant test counts. Keep changes only with evidence of benefit
    and passing focused tests. Do not present provider-phase timings as end-to-end timings.
 
+   2026-10-29 packaging-copy investigation at `8d6bbd0fe`: not claimed or implemented.
+   The final overlays preserve precedence and `--skip-providers` behavior, so deleting them is
+   not equivalent. A local warm filesystem microcheck copying the 42 MiB catalogue plus 44 MiB
+   provider trees took 0.009s initially and 0.005s on two repeats; this is not an end-to-end
+   build or a CI measurement. No credible local wall-time benefit justified a more complex
+   selective copy. Revisit only with representative evidence that packaging is material.
+
 See [decisions](wiki/decisions.md) and [baseline](wiki/baseline.md) for dated context and
 existing measurements. Hosted CI receipts and the original gate criteria remain necessary when
 GitHub work resumes; the local check is not a substitute.
