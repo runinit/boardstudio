@@ -116,6 +116,20 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
   [22](../issues/22-node-free-gate-verification.md); the current browser step still invokes seven
   Node regressions, and the user prohibits Node anywhere in the full gate. This is not approval to
   skip them or a claim of full-gate success. See [18](../issues/18-face-completeness-replacement.md#answer).
+- On 2026-10-29, the user prioritized the seven remaining CAD Node removals and parallel subagent
+  work. Ergogen [19](../issues/19-node-free-ergogen-oracle.md) was a scheduling preference, not a
+  technical prerequisite for CAD. The user authorized removing or updating nonessential
+  regressions and redundant behavior while retaining meaningful failure detection and safety;
+  record material impacts rather than preserving incidental behavior solely for parity. Keep
+  required checks until replacements are validated and reviewed. This supersedes earlier blanket
+  statements against any test removal, not the requirement for a defensible full gate.
+- On 2026-10-29, the CAD plan uses a shared-batched runner, superseding the direct single-suite
+  gate wrapper WIP. Sequence A (shared foundation and collision) before parallel B (five STEP
+  ports) and C (qualified analysis), then E (integration and cutover); see
+  [20](../issues/20-remaining-cad-provider-regressions.md#shared-batch-direction-and-exception-control--2026-10-29).
+  Preserve without editing the Panasonic and infused-kim vendor fixture paths during this work.
+  Focused pilot evidence is neither full-gate verification nor a hosted-action audit or timing claim;
+  [22](../issues/22-node-free-gate-verification.md) retains the separate verification obligations.
 - On 2026-10-29, the user replaced the Opus fallback: Opus is not usable right now. Routing is
   terra 6.1 xhigh for implementation at normal speed, and meta spark wonder (`meta/muse-wonder-1.0`
   on the pi provider) for hard planning or troubleshooting. Keeps the one-retry-then-reroute

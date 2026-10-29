@@ -59,3 +59,10 @@ build subprocesses and the hosted-action runtime boundary?
   Three tooling `.cjs` tests and `node --version` remain; the shared package is stale and the private
   stamp does not authenticate output. The approximately 10-minute cold full-gate target is not
   established; its performance baseline also remains blocked in [23](23-migrated-gate-performance-baseline.md).
+
+- 2026-10-29: The CAD worker protocol now runs as a browser-gate suite at implementation `9d76fb00`
+  (local; see [21](21-node-free-tooling-tests.md#comments)), so earlier "three tooling `.cjs`
+  tests" counts become two, plus `node --version`; model-lookup is pending. Three early Node
+  STL/oracle checks were removed from the gate with user approval; the manual download checker
+  remains Node-based. No full gate, hosted-action audit or timing result follows. This ticket stays
+  blocked.

@@ -103,3 +103,54 @@ and prove full test-name and behavior parity before replacing the required test.
 browser sandboxing and fail closed on browser/module errors; do not import the older broad CDP
 suppression. No full gate, Node-free process-tree audit, packaged distribution/license review,
 or independent review has been performed. The ticket is released for the next agent, not resolved.
+
+- 2026-10-29: The user's later prioritization supersedes the earlier sequencing instruction above:
+  this ticket is not a technical prerequisite for the seven CAD ports. It remains open and is a
+  separate prerequisite for [full-gate verification](22-node-free-gate-verification.md).
+
+### Input preparation and one-case host experiment — 2026-10-29
+
+The following is uncommitted experimental work in
+`/home/chris/.local/share/opencode/worktree/3ca6f9/chromiumoxide-web-split-experiment`,
+at `research/chromiumoxide-web-split@3d816250c5e5658f74d19800a83904c12f0ca517`.
+It does not replace the existing Node Ergogen gate. Evidence paths below are relative to that
+checkout, gitignored and potentially ephemeral.
+
+`scripts/ergogen-parity/verified_runtime.py` prepares the pinned source and locked local npm
+archives. Its bounded range handling accepts canonical exact versions, caret ranges and `*` only;
+it checks direct and transitive dependency closure, archive name/version/metadata and integrity,
+and rejects nested `node_modules`, archive links and invalid paths. It rejects Git filter
+configuration before checking status, validates the no-optional-lock index, and checks the
+temporary parent against protected paths before probing it with `tempfile`. This is validation of
+the reviewed current lock, not general npm support: unsupported features fail rather than being
+approximated. The local pin and lock establish identity against those local inputs, not publisher
+authentication. The temporary parent must be trusted and the checkout and lockfile stable during
+preparation; concurrent modification is not excluded.
+
+- `.evidence/ergogen19-safety-recheck-green.log`: 22 tests passed;
+  `.evidence/ergogen19-safety-recheck-real.log` records preparation using the actual locally pinned
+  checkout and cached archives.
+- `.evidence/ergogen19-semver-reference.log`: 2,496 canonical release/range comparisons against a
+  local Node semver reference, with zero mismatches; Node was used outside the gate only.
+  `.evidence/ergogen19-lock-mutations.log`: three range mutants killed.
+
+The experimental `host_probe.py`, `host_probe.mjs` and `test_host_probe.py` use the real verified
+prepared source and archives and the pinned parser for **one case only**. An independent host
+review found no isolation guarantee in the earlier run (host networking and unsandboxed Chrome),
+loose successful-JSON validation, an untrusted driver and failed modules remaining cached. The
+parent subsequently tightened the one-case output to an exact finite schema with boolean and mode
+validation, rejected nonfinite JSON and evicted failed modules from the cache. The red and green
+boundary logs (`.evidence/ergogen-host-boundary-red.log` and
+`.evidence/ergogen-host-boundary-green.log`) record the initial two failing tests and their fix;
+`.evidence/ergogen-host-boundary-browser.log` records seven passing tests, including cache retry
+and the actual parser. That browser run used `bubblewrap --unshare-net`, masked Node and a clear
+environment, but exposed the read-only host filesystem and ran Chrome with `--no-sandbox`.
+`.evidence/ergogen-host-cache-mutation.log` records the cached-failed-module mutant killed.
+
+The driver and browser paths remain operator-supplied and are not authenticated against current
+source; the sandbox remains inadequate for untrusted inputs. These experiments make no broad
+isolation claim and the limited host review is not a final review of a replacement. This one-case
+host has not run all 42 cases or the real `--check`, nor established generation, atomic filesystem
+and protected-path controls. No hosted run, full gate, Node independence or timing proof follows.
+The existing Node Ergogen gate stays in place; this ticket remains unresolved and
+[22](22-node-free-gate-verification.md) remains blocked on it.
