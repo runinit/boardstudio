@@ -134,11 +134,41 @@ all cases and behavior and keep hosted CI untouched. A read-only inventory found
 Node tooling tests, an indirect measurement probe, and eight CAD package regressions; action and
 build-tool subprocess runtimes remain unaudited.
 
-The user authorized local execution as well as planning and chose to validate the existing
+The user authorized local execution as well as planning and initially chose to validate the existing
 face-completeness port first, then establish Ergogen feasibility before migrating the other
-regressions. The sequence and acceptance evidence are tracked in the Node-free tickets below.
-Keep existing required checks until their replacements prove equivalent; do not push, merge or
-start hosted CI without further authorization.
+regressions. On 2026-10-29 the user reprioritized all seven remaining provider regressions now;
+ticket 19 remains open and was a scheduling preference, not a technical dependency of ticket 20.
+Ticket 20 began with a local collision-analysis pilot; the later local replacement decision is
+recorded below. The acceptance evidence is tracked in the Node-free tickets below.
+The user clarified that safe removal of unnecessary optional or redundant behavior is authorized;
+record substantive impacts and preserve meaningful regression detection and safety. The opt-in
+[collision pilot](issues/20-remaining-cad-provider-regressions.md#collision-pilot--2026-10-29)
+has focused local positive and negative evidence; its initial follow-up and registration were open
+at the pilot handoff. The latest direction permits nonessential regression removal or
+adaptation while retaining meaningful failure detection and safety; record substantive impacts.
+Keep existing required checks until their replacements are validated and independently reviewed;
+do not push, merge or start hosted CI without further authorization.
+
+The selected CAD sequence is collision/shared foundation A ([20](issues/20-remaining-cad-provider-regressions.md)),
+then five STEP ports B ([20a](issues/20a-step-provider-ports.md)) and qualified analysis C
+([20b](issues/20b-qualified-analysis-port.md)) in parallel, followed by shared integration and
+cutover E ([20c](issues/20c-shared-batch-cutover.md)). The shared-batched runner supersedes the
+direct single-suite gate wrapper WIP; neither was registered at the pilot handoff. Preserve the
+Panasonic and infused-kim vendor STEP paths and do not edit either fixture during parallel work.
+[19](issues/19-node-free-ergogen-oracle.md)
+is not a technical prerequisite for this sequence. A complete local Node-free gate and hosted-action
+runtime audit remain separate requirements in [22](issues/22-node-free-gate-verification.md); no
+full-gate or timing result follows from the collision pilot.
+
+**Local replacement decision — 2026-10-29:** At `research/chromiumoxide-web-split@3d816250`,
+the seven-suite shared batch is registered and the seven `.cjs` scripts removed. Following the
+reported independent Opus final recheck, [20](issues/20-remaining-cad-provider-regressions.md#answer),
+[20a](issues/20a-step-provider-ports.md#answer), [20b](issues/20b-qualified-analysis-port.md#answer)
+and [20c](issues/20c-shared-batch-cutover.md#answer) are resolved **only for the local replacement
+decision**. Focused evidence and limitations are recorded in 20. [22](issues/22-node-free-gate-verification.md)
+remains blocked: no complete browser or full gate, Node independence, hosted-action audit or cold
+10-minute result is claimed; three tooling `.cjs` tests and `node --version` remain. The shared
+package is stale and the private stamp does not authenticate output.
 
 1. Finish the focused web-build correctness and measurement work above; compare equivalent
    end-to-end commands and retain all tests. The blocked page-list candidate is not a priority.
@@ -283,11 +313,14 @@ attributable from the log alone.
   existing opt-in browser port against the required regression; resolved for the local replacement
   decision only on 2026-10-29, with complete browser and full-gate verification in [22](issues/22-node-free-gate-verification.md).
 - [19: Node-free Ergogen oracle](issues/19-node-free-ergogen-oracle.md): establish whether the
-  real upstream oracle and native CLI protections can be preserved without Node; next unclaimed
-  frontier in the approved Node-free sequence after 18's local decision, not a full-gate clearance.
+  real upstream oracle and native CLI protections can be preserved without Node; open and released,
+  not a full-gate clearance.
 - [20: Remaining CAD provider regressions](issues/20-remaining-cad-provider-regressions.md):
-  establish a coverage-preserving approach for the remaining seven scripts.
-- [21: Node-free tooling tests](issues/21-node-free-tooling-tests.md): preserve the other two
+  resolved for the local replacement decision only.
+- [20a: Five STEP provider ports](issues/20a-step-provider-ports.md): resolved locally only.
+- [20b: Qualified analysis provider port](issues/20b-qualified-analysis-port.md): resolved locally only.
+- [20c: Shared CAD batch integration and cutover](issues/20c-shared-batch-cutover.md): resolved locally only.
+- [21: Node-free tooling tests](issues/21-node-free-tooling-tests.md): preserve the three
   Node-based tooling tests and their execution environments.
 - [22: Node-free gate verification](issues/22-node-free-gate-verification.md): establish complete
   coverage and runtime evidence, including the hosted-runtime boundary.
@@ -323,8 +356,6 @@ they do not authorize test removals or reduced PR coverage.
 
 ## Not yet specified
 
-- Individual CAD provider replacement tickets: define and wire these after the approach in
-  [Remaining CAD provider regressions](issues/20-remaining-cad-provider-regressions.md) is tested.
 - `dx` page-build 311s internals: profile the cold page build before deciding anything about it.
   Follow-up from 05: the `dx` compile is provider-independent (byte-identical output
   with/without staged providers) — pipelining it ahead of the provider batch is viable.

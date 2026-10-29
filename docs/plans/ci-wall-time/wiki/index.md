@@ -10,7 +10,24 @@ PRs, runs, reports) are cited, never copied in.
   opt-in port at `research/chromiumoxide-web-split@0d7ba8f5` and integration at `@0f5d8ae1` have
   focused evidence and combined review; local decision resolved 2026-10-29. Complete browser and
   full-gate verification remain blocked in [22](../issues/22-node-free-gate-verification.md);
-  [19](../issues/19-node-free-ergogen-oracle.md) is the next Node-free sequence frontier.
+  [19](../issues/19-node-free-ergogen-oracle.md) remains open; on 2026-10-29 the user
+  reprioritized the seven remaining provider regressions; their later local decision is in [20](../issues/20-remaining-cad-provider-regressions.md#answer).
+- [Collision pilot](../issues/20-remaining-cad-provider-regressions.md#collision-pilot--2026-10-29):
+  an uncommitted, opt-in browser mapping on `research/chromiumoxide-web-split@0f5d8ae1` passed
+  focused real-package and negative controls on 2026-10-29. Independent review identified blockers;
+  the [follow-up](../issues/20-remaining-cad-provider-regressions.md#shared-batch-direction-and-exception-control--2026-10-29)
+  records 6/6 control groups and the no-op exception-helper negative control. At that pilot handoff,
+  re-review, integration and the other ports remained open; full-gate verification remains open.
+- [CAD batch sequence](../issues/20-remaining-cad-provider-regressions.md#shared-batch-direction-and-exception-control--2026-10-29):
+  A foundation, then [B](../issues/20a-step-provider-ports.md) and
+  [C](../issues/20b-qualified-analysis-port.md) in parallel, then
+  [E](../issues/20c-shared-batch-cutover.md); preserve both vendor fixture paths. The detailed
+  planner thread was unavailable to this documentation pass (2026-10-29).
+- [Seven-suite local replacement decision](../issues/20-remaining-cad-provider-regressions.md#answer):
+  registered at `research/chromiumoxide-web-split@3d816250`, resolved locally after the reported
+  independent final recheck (2026-10-29). The earlier pilot and WIP entries describe prior states.
+  Complete browser/full-gate verification and hosted audit remain in [22](../issues/22-node-free-gate-verification.md);
+  cold timing remains unproven. The private stamp does not authenticate output and the shared package is stale.
 - [Ergogen original-parser prototype](../issues/19-node-free-ergogen-oracle.md#local-original-parser-prototype--2026-10-29):
   at `research/chromiumoxide-web-split@0f5d8ae1`, Chromium matched the separately run Node
   reference and full committed fixture for 42 cases using lock-verified local archives; the real
