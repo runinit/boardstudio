@@ -69,6 +69,8 @@ attributable from the log alone.
   `false` on CI, same-head A/B; owned here, cross-linked with check-speed 12.
 - [14: Native warm wall and budgets](issues/14-native-warm-wall.md): break down the first warm
   native run and set per-step budgets.
+- [15: Compile-demand tuning caps](issues/15-tuning-caps.md): jobs × lanes matrix on 05's
+  implementation, winner folds into 05 before its CI receipt.
 
 ## Decisions so far
 
