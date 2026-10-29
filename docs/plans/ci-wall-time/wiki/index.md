@@ -16,4 +16,6 @@ PRs, runs, reports) are cited, never copied in.
   `perf/native-gate-topology@77e1e28e3` and split-planning tests at
   `perf/native-ci-topology@59de2f4ec`; isolated workflow split and stable aggregator at
   `perf/native-ci-topology@954c2d4b16d8f9325b8e031be0ffc0b7dfdbc170` remain unverified for
-  promotion. None changes the production gate; no speedup is claimed (2026-10-29).
+  promotion; full native guard fixes at `perf/native-ci-topology@ea94881c` and `@ad8a81a3`
+  follow independent review and recheck. None changes the production gate; hosted trust,
+  real CAD parity and cold performance remain unverified, and no speedup is claimed (2026-10-29).

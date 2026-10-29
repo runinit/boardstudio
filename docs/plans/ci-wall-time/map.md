@@ -93,6 +93,9 @@ lint test with a stable `native` aggregator; the handoff reports 35 scheduler, 1
 34 native guard and 37 receipt hermetic tests passed. Production gates are unchanged; branch
 protection, GitHub skip/cancel/rerun semantics, real CAD parity, prerequisite isolation and cold
 timings remain unverified.
+The subsequent guard fixes on `perf/native-ci-topology@ea94881c` and `@ad8a81a3` address
+unrecognized output and entirely empty captures in full native steps; independent review and
+recheck findings, reported regression evidence and remaining blockers are recorded in ticket 17.
 See tickets [04](issues/04-web-split-design.md), [16](issues/16-web-partition-proof.md) and
 [17](issues/17-native-topology.md). No full-gate speedup is established.
 

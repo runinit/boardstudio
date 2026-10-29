@@ -89,3 +89,16 @@ correctness review. Cold versus warm target, runner capacity and cache quota are
   changed. Branch protection and GitHub skip, cancellation and rerun semantics are unverified;
   real CAD parity, isolated prerequisites and comparable cold timings remain unverified. The
   ticket remains claimed and unresolved, and no speedup is claimed.
+- 2026-10-29: An independent review of `perf/native-ci-topology@954c2d4b` identified a
+  fail-open full-workspace name guard when no test binary was recognized, alongside unresolved
+  hosted required-check/trust and real CAD parity gaps. On the experimental branch,
+  `ea94881c` fails full runs with no recognized binary; an independent recheck found normal
+  capture paths protected but identified a remaining empty-capture bypass. `ad8a81a3` also
+  fails full steps with entirely empty captures, without changing partial empty behavior or
+  overwriting the baseline. An independent recheck of `ad8a81a3` confirmed the empty-capture
+  fix and noted a hypothetical lost individual capture could leave an explicit baseline update
+  incomplete; current runners capture each Cargo test command. The handoff reports regressions
+  observed red before the fixes,
+  followed by 37 native guard and 35 scheduler tests passing; not independently rerun here.
+  The production gate is unchanged. Hosted required-check behavior and trust protections,
+  real CAD parity and comparable cold performance remain unverified; no speedup is claimed.
