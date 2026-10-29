@@ -205,53 +205,8 @@ class CadBuildTests(unittest.TestCase):
             "keycap-print-legends.cjs": "separate printable keycap export regression",
         }
         mapped = {"step-face-completeness.cjs": "source for the required browser regression"}
-        self.assertEqual(scripts, set(build.PROVIDER_TESTS) | opt_in.keys() | mapped.keys() | {"load-provider.cjs"})
+        self.assertEqual(scripts, opt_in.keys() | mapped.keys() | {"load-provider.cjs"})
         self.assertTrue(all(opt_in.values()) and all(mapped.values()))
-
-    def packaged_provider(self):
-        self.wasm_sources()
-        package = self.root / "wasm/pkg"
-        package.mkdir()
-        (package / "boardstudio_cad_wasm.js").write_text("// WEB bindings")
-        (package / "boardstudio_cad_wasm_bg.wasm").write_bytes(b"wasm")
-        stamp = self.root / ".cache/cad/wasm-build.sha256"
-        stamp.parent.mkdir(parents=True)
-        stamp.write_text(build.wasm_inputs_digest(no_opt=True))
-        return package, stamp
-
-    def test_provider_runner_requires_node_and_current_complete_web_package(self):
-        with patch.object(build.shutil, "which", return_value=None):
-            with self.assertRaisesRegex(RuntimeError, "require Node"):
-                build.test_provider()
-        with patch.object(build.shutil, "which", return_value="node"), patch.object(build, "run") as run:
-            with self.assertRaisesRegex(RuntimeError, "missing"):
-                build.test_provider()
-            package, stamp = self.packaged_provider()
-            stamp.write_text("stale")
-            with self.assertRaisesRegex(RuntimeError, "stale"):
-                build.test_provider()
-            stamp.write_text(build.wasm_inputs_digest(no_opt=True))
-            (package / "boardstudio_cad_wasm.js").unlink()
-            with self.assertRaisesRegex(RuntimeError, "missing"):
-                build.test_provider()
-            run.assert_not_called()
-
-    def test_provider_runner_uses_web_package_and_propagates_regression_failures(self):
-        package, stamp = self.packaged_provider()
-        for no_opt in (True, False):
-            stamp.write_text(build.wasm_inputs_digest(no_opt=no_opt))
-            with self.subTest(no_opt=no_opt), patch.object(build.shutil, "which", return_value="node"), \
-                    patch.object(build, "run") as run:
-                build.test_provider()
-                self.assertEqual([call.args[0] for call in run.call_args_list], [
-                    ["node", str(self.root / "wasm/tests" / script),
-                     str(package / "boardstudio_cad_wasm.js"), "--web"] for script in build.PROVIDER_TESTS
-                ])
-        with patch.object(build.shutil, "which", return_value="node"), \
-                patch.object(build, "run", side_effect=subprocess.CalledProcessError(9, "node")) as run:
-            with self.assertRaises(subprocess.CalledProcessError):
-                build.test_provider()
-            run.assert_called_once()
 
 
 class CadWorkspaceTests(unittest.TestCase):

@@ -1,33 +1,33 @@
-// Actual packaged provider: node this-file /absolute/path/to/package.js [--web].
-const assert = require('node:assert/strict');
-const crypto = require('node:crypto');
-const fs = require('node:fs');
-const path = require('node:path');
-(async () => {
-const cad = await require('./load-provider.cjs')(process.argv[2]);
-const fixtures = path.resolve(__dirname, '../../monstertruck/tests/fixtures');
-const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
-function fixture(name) {
-  const bytes = fs.readFileSync(path.join(fixtures, name));
-  const text = bytes.toString('utf8');
-  assert.deepEqual(Buffer.from(text), bytes, 'fixture decoding must retain the original bytes');
+// Actual packaged provider, exercised in an isolated browser page.
+import { assert, readBytes, decodeText, encodeText, sha256Hex, runCases } from './provider-support.mjs';
+
+export async function run(cad, memory) {
+return await runCases('step-repair-accounting', [['main', async () => {
+const sha = bytes => sha256Hex(bytes);
+
+async function fixture(path) {
+  const bytes = await readBytes(path);
+  const text = decodeText(bytes);
+  assert.deepEqual(encodeText(text), bytes, 'fixture decoding must retain the original bytes');
   return text;
 }
+
 function replaceOnce(text, before, after) {
   assert.equal(text.split(before).length - 1, 1, `unique original fixture entity: ${before}`);
   const changed = text.replace(before, after);
-  assert.notEqual(sha(Buffer.from(changed)), sha(Buffer.from(text)), 'mutation must change source identity');
+  assert.notEqual(changed, text, 'mutation must change source identity');
   assert.equal(changed.split(before).length - 1, after.split(before).length - 1,
     'only occurrences deliberately retained by the replacement may remain');
   assert(changed.includes(after));
   return changed;
 }
-function check(text, options, expectedBounds, occurrences, sourceBounds = true) {
-  const bytes = Buffer.from(text), original = Buffer.from(bytes);
-  const digest = sha(bytes);
+
+async function check(text, options, expectedBounds, occurrences, sourceBounds = true) {
+  const bytes = encodeText(text), original = new Uint8Array(bytes);
+  const digest = await sha(bytes);
   const input = new Uint8Array(bytes);
   const result = cad.read_step_model(input, {sourceSha256: digest, ...options});
-  assert.deepEqual(Buffer.from(input), original);
+  assert.deepEqual(new Uint8Array(input), original);
   const vendor = result.vendorStep;
   assert.equal(vendor.sourceSha256, digest);
   assert.equal(vendor.accuracy.analysisErrorBoundMm, null);
@@ -58,41 +58,48 @@ function check(text, options, expectedBounds, occurrences, sourceBounds = true) 
   result.vendorStep.analysisHandle.free();
   return result;
 }
-const tetra = fixture('tetra-mm.step');
+
+const tetra = await fixture('cad/monstertruck/tests/fixtures/tetra-mm.step');
 const tetraBounds = [[0, 0, 0], [2, 3, 4]];
-check(tetra, {}, tetraBounds, 1);
+await check(tetra, {}, tetraBounds, 1);
 const line = "#22=LINE('',#1,#21);";
 const shiftedLine = "#310=CARTESIAN_POINT('',(0.,0.001953125,0.));#22=LINE('',#310,#21);";
-check(replaceOnce(tetra, line, shiftedLine), {}, tetraBounds, 1);
+await check(replaceOnce(tetra, line, shiftedLine), {}, tetraBounds, 1);
 const metreAssembly = replaceOnce(
-  replaceOnce(fixture('two-occurrences-mm.step'), line, shiftedLine),
+  replaceOnce(await fixture('cad/monstertruck/tests/fixtures/two-occurrences-mm.step'), line, shiftedLine),
   'SI_UNIT(.MILLI.,.METRE.)', 'SI_UNIT($,.METRE.)');
 // Independently authored placements: (10-y,20+x,30+z) and (x-5,y+7,z+11), in metres.
-assert.throws(() => cad.read_step_model(new Uint8Array(Buffer.from(metreAssembly)),
-  {sourceSha256: sha(Buffer.from(metreAssembly))}), error =>
+const metreBytes = encodeText(metreAssembly);
+const metreDigest = await sha(metreBytes);
+assert.throws(() => cad.read_step_model(new Uint8Array(metreBytes),
+  {sourceSha256: metreDigest}), error =>
     typeof error === 'string' && error.includes('finite LINE repair') && error.includes('repair budget 0.02'));
-check(metreAssembly, {previewRepairBudgetMm: 2}, [[-5000, 7000, 11000], [10000, 22000, 34000]], 2);
-const finite = fixture('repair-finite-domain.step');
-const finiteBytes = new Uint8Array(Buffer.from(finite));
+await check(metreAssembly, {previewRepairBudgetMm: 2}, [[-5000, 7000, 11000], [10000, 22000, 34000]], 2);
+const finite = await fixture('cad/monstertruck/tests/fixtures/repair-finite-domain.step');
+const finiteBytes = new Uint8Array(encodeText(finite));
+const finiteDigest = await sha(encodeText(finite));
 function refusesFinite(options) {
   assert.throws(() => cad.read_step_model(finiteBytes,
-    {sourceSha256: sha(Buffer.from(finite)), ...options}), error =>
+    {sourceSha256: finiteDigest, ...options}), error =>
       typeof error === 'string' && error.includes('finite LINE repair') && error.includes('exceeds repair budget'));
 }
 refusesFinite({});
 refusesFinite({previewRepairBudgetMm: 0.031249999999999997});
 for (const allowance of [0.03125, 0.03125000000000001]) {
-  const accepted = check(finite, {previewRepairBudgetMm: allowance}, tetraBounds, 1);
+  const accepted = await check(finite, {previewRepairBudgetMm: allowance}, tetraBounds, 1);
   assert.equal(accepted.vendorStep.accuracy.selectedRepairBudgetMm, allowance);
 }
-assert.deepEqual(Buffer.from(finiteBytes), Buffer.from(finite), 'refused/accepted calls retain immutable original bytes');
-check(replaceOnce(finite, '(0.,0.03125,0.)', '(0.,0.015625,0.)'), {}, tetraBounds, 1);
+assert.deepEqual(new Uint8Array(finiteBytes), new Uint8Array(encodeText(finite)),
+  'refused/accepted calls retain immutable original bytes');
+await check(replaceOnce(finite, '(0.,0.03125,0.)', '(0.,0.015625,0.)'), {}, tetraBounds, 1);
 const unrelatedNumeric = replaceOnce(finite, 'ENDSEC;END-ISO-10303-21;',
   "#4000=DIRECTION('',(1.E-100,1.,0.));#4001=VECTOR('',#4000,1.);#4002=LINE('',#1,#4001);#4003=EDGE_CURVE('',#11,#12,#4002,.T.);ENDSEC;END-ISO-10303-21;");
-assert.throws(() => cad.read_step_model(new Uint8Array(Buffer.from(unrelatedNumeric)),
-  {sourceSha256: sha(Buffer.from(unrelatedNumeric))}), error =>
+const unrelatedBytes = encodeText(unrelatedNumeric);
+const unrelatedDigest = await sha(unrelatedBytes);
+assert.throws(() => cad.read_step_model(new Uint8Array(unrelatedBytes),
+  {sourceSha256: unrelatedDigest}), error =>
     typeof error === 'string' && error.includes('finite LINE repair edge #23'));
-check(unrelatedNumeric, {previewRepairBudgetMm: 0.03125}, tetraBounds, 1);
+await check(unrelatedNumeric, {previewRepairBudgetMm: 0.03125}, tetraBounds, 1);
 
 let gap = replaceOnce(tetra,
   "#103=(REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102)));",
@@ -101,9 +108,11 @@ gap = replaceOnce(gap, 'ENDSEC;END-ISO-10303-21;',
   "#300=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.001),#102,'distance_accuracy_value',$);ENDSEC;END-ISO-10303-21;");
 gap = replaceOnce(gap, "#57=AXIS2_PLACEMENT_3D('',#1,#55,#56);",
   "#310=CARTESIAN_POINT('',(0.,0.,0.025));#57=AXIS2_PLACEMENT_3D('',#310,#55,#56);");
+const gapBytes = encodeText(gap);
+const gapDigest = await sha(gapBytes);
 for (const options of [{}, {previewRepairBudgetMm: 0.024}]) {
-  assert.throws(() => cad.read_step_model(new Uint8Array(Buffer.from(gap)),
-    {sourceSha256: sha(Buffer.from(gap)), ...options}), error => {
+  assert.throws(() => cad.read_step_model(new Uint8Array(gapBytes),
+    {sourceSha256: gapDigest, ...options}), error => {
     assert.equal(typeof error, 'string');
     assert(error.includes('SourceConnectivityRefused'));
     const limit = options.previewRepairBudgetMm ?? 0.02;
@@ -112,19 +121,19 @@ for (const options of [{}, {previewRepairBudgetMm: 0.024}]) {
   });
 }
 // An admitted off-plane attachment still fails exact source-bound certification.
-const admitted = check(gap, {previewRepairBudgetMm: 0.03}, tetraBounds, 1, false);
+const admitted = await check(gap, {previewRepairBudgetMm: 0.03}, tetraBounds, 1, false);
 assert.equal(admitted.vendorStep.accuracy.selectedRepairBudgetMm, 0.03);
 assert.equal(admitted.vendorStep.importOptions.previewRepairBudgetMm, 0.03);
 assert(admitted.vendorStep.faceOccurrences.every(face => face.sourceUncertaintyMm === 0.001));
-const curved = check(fixture('unsupported-non-ruled-sphere.step'), {}, [[0, 0, 0], [1, 1, 1]], 1, false);
+const curved = await check(await fixture('cad/monstertruck/tests/fixtures/unsupported-non-ruled-sphere.step'), {}, [[0, 0, 0], [1, 1, 1]], 1, false);
 assert(curved.vendorStep.sourceFaces.some(face => face.supportKind !== 'PLANE'));
 // The same literal producer fixture exercises actual native spline restriction
 // and the concrete whole-domain certifier inside the rebuilt WASM importer.
-const partialBytes = fs.readFileSync(path.resolve(__dirname,
-  '../../monstertruck-qualification/vendor/monstertruck-io/tests/input/partial_closed_spline/solid32377-source.step'));
+const partialBytes = await readBytes('cad/monstertruck-qualification/vendor/monstertruck-io/tests/input/partial_closed_spline/solid32377-source.step');
+const partialDigest = await sha(partialBytes);
 const partialInput = new Uint8Array(partialBytes);
-const partial = cad.read_step_model(partialInput, {sourceSha256: sha(partialBytes)});
-assert.deepEqual(Buffer.from(partialInput), partialBytes);
+const partial = cad.read_step_model(partialInput, {sourceSha256: partialDigest});
+assert.deepEqual(new Uint8Array(partialInput), partialBytes);
 assert.equal(partial.vendorStep.sourceFaces.length, 12);
 assert.equal(partial.vendorStep.faceOccurrences.length, 12);
 assert.equal(new Set(partial.vendorStep.triangleFaceOccurrenceIndices).size, 12);
@@ -134,4 +143,5 @@ assert.equal(partial.vendorStep.sourceQualification.state, 'unknown');
 partial.vendorStep.analysisHandle.free();
 console.log('PASS actual native spline 12-face path and complete finite LINE operation default/equality/nextdown budget enforcement; incomplete asset remains Unknown; repair accounting provider: original/shifted LINE, metre occurrences, default/.024 refusal, .03 admission, curved Unknown, computed SHA/provenance/bounds and null movement/accuracy');
 
-})().catch(error => { console.error(error); process.exitCode = 1; });
+}]]);
+}

@@ -1,10 +1,9 @@
-// Actual packaged provider: node this-file /absolute/path/to/package.js [--web].
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-(async () => {
-const cad = await require('./load-provider.cjs')(process.argv[2]);
-const contract = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/generated-analysis-contract.json')));
+// Actual packaged provider, exercised in an isolated browser page.
+import { assert, readBytes, readText, runCases } from './provider-support.mjs';
+
+export async function run(cad) {
+return runCases('collision-analysis', [['main', async () => {
+const contract = JSON.parse(await readText('cad/wasm/tests/fixtures/generated-analysis-contract.json'));
 const fieldSet = value => Object.keys(value).sort();
 const isU32 = value => Number.isInteger(value) && value >= 0 && value <= 0xffffffff;
 function checkContract(payload, deflectionMm) {
@@ -64,7 +63,7 @@ for (const key of ['geometryIdentity', 'sourceSha256', 'generatedAnalysis', 'ven
 for (const invalid of [null, undefined, [], 0, 'options', true, () => {}]) {
   assert.throws(() => cad.analyze_generated_body(contract.preparedBody, invalid));
 }
-const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, '../../test/fixtures/holed-plate.json')));
+const fixture = JSON.parse(await readText('cad/test/fixtures/holed-plate.json'));
 const selected = fixture.bodies[0];
 const body = {
   revision: selected.revision,
@@ -76,7 +75,7 @@ const body = {
   }],
 };
 const result = cad.analyze_generated_body(body, {});
-const pcb = JSON.parse(fs.readFileSync(path.join(__dirname, '../../monstertruck/tests/fixtures/pcb-source/circle-tracer.json')));
+const pcb = JSON.parse(await readText('cad/monstertruck/tests/fixtures/pcb-source/circle-tracer.json'));
 const pcbDefault = cad.analyze_generated_body(pcb, {});
 const pcbRefined = cad.analyze_generated_body(pcb, {targetDeflectionMm: 0.01});
 assert.equal(pcbRefined.bodyId, pcb.body.id);
@@ -149,7 +148,7 @@ for (const positions of [new Float64Array(9), new Float64Array([0,0,0,1,1,1,2,2,
 const open = {positions: unit.positions.slice(18), tags: unit.tags.slice(2)};
 assert.equal(pair(open, cube([3,0,0], [5,2,2])).surfaceDistanceMm, 1);
 
-const tetra = fs.readFileSync(path.join(__dirname, '../../monstertruck/tests/fixtures/tetra-mm.step'));
+const tetra = await readBytes('cad/monstertruck/tests/fixtures/tetra-mm.step');
 const imported = cad.read_step_model(new Uint8Array(tetra), {sourceSha256: 'a'.repeat(64), previewRepairBudgetMm: 0.03, targetDeflectionMm: 0.01});
 assert.equal(imported.vendorStep.accuracy.selectedRepairBudgetMm, 0.03);
 assert.equal(imported.vendorStep.accuracy.maxRepairDisplacementMm, null);
@@ -159,4 +158,5 @@ assert(imported.vendorStep.faceOccurrences.every(face => face.repairDisplacement
 for (const asset of [result, refined, pcbDefault, pcbRefined, imported.vendorStep]) asset.analysisHandle.free();
 console.log('WASM shared generated-analysis contract, vendor options, analytical collision fixtures and validation passed');
 
-})().catch(error => { console.error(error); process.exitCode = 1; });
+}]]);
+}

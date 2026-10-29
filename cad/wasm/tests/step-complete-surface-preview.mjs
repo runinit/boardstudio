@@ -1,22 +1,19 @@
-// Actual packaged provider: node this-file /absolute/path/to/package.js [--web].
-const assert = require('node:assert/strict');
-const crypto = require('node:crypto');
-const fs = require('node:fs');
-const path = require('node:path');
-(async () => {
-const cad = await require('./load-provider.cjs')(process.argv[2]);
-const root = path.resolve(__dirname, '../../..');
-const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
+// Actual packaged provider, exercised in an isolated browser page.
+import { assert, decodeText, readBytes, sha256Hex, runCases } from './provider-support.mjs';
 
-function check(bytes, expectedBounds, expectedFaces, solidId, occurrences = 1, unitAreas = false) {
-  const original = Buffer.from(bytes), input = new Uint8Array(bytes), digest = sha(bytes);
-  const text = bytes.toString('utf8');
+export async function run(cad, memory) {
+return await runCases('step-complete-surface-preview', [['main', async () => {
+const sha = bytes => sha256Hex(bytes);
+
+async function check(bytes, expectedBounds, expectedFaces, solidId, occurrences = 1, unitAreas = false) {
+  const original = new Uint8Array(bytes), input = new Uint8Array(bytes), digest = await sha(bytes);
+  const text = decodeText(bytes);
   const source = [...text.matchAll(/#(\d+)\s*=\s*ADVANCED_FACE\('[^']*',\([^)]*\),#(\d+),\.[TF]\.\)/g)];
   assert.equal(source.length, expectedFaces);
   const faceSupports = new Map(source.map(match => [match[1], match[2]]));
   assert.equal(faceSupports.size, expectedFaces, 'distinct original source face IDs');
   const result = cad.read_step_model(input, {sourceSha256: digest});
-  assert.deepEqual(Buffer.from(input), original, 'provider preserves transferred original bytes');
+  assert.deepEqual(new Uint8Array(input), original, 'provider preserves transferred original bytes');
   const v = result.vendorStep;
   assert.equal(v.sourceSha256, digest);
   assert.equal(v.accuracy.meshClosedOriented, false);
@@ -76,15 +73,13 @@ function check(bytes, expectedBounds, expectedFaces, solidId, occurrences = 1, u
   v.analysisHandle.free();
 }
 
-const file = path.join(root, 'ergogen/library/vendor/kicad/3d_models/Panasonic_EVQPUL_EVQPUC.step');
-const panasonic = fs.readFileSync(file);
+const panasonic = await readBytes('ergogen/library/vendor/kicad/3d_models/Panasonic_EVQPUL_EVQPUC.step');
 assert.equal(panasonic.length, 123401);
-assert.equal(sha(panasonic), 'c30e15d8da5c3856f0a5b19ab62f22eef9b06d69161963e77cdf6c0b09a7ac8c');
-assert.equal([...panasonic.toString('utf8').matchAll(/=LINE\(/g)].length, 353);
-check(panasonic, [[-3.2,-1.75,-0.5],[3.2,2.75,1.65]], 155, 15);
-assert.deepEqual(fs.readFileSync(file), panasonic);
-const boxes = fs.readFileSync(path.join(root, 'cad/monstertruck/tests/fixtures/touching-unit-boxes.step'));
-check(boxes, [[0,0,0],[2,2,1]], 12, 2001, 1, true);
+assert.equal(await sha(panasonic), 'c30e15d8da5c3856f0a5b19ab62f22eef9b06d69161963e77cdf6c0b09a7ac8c');
+assert.equal([...decodeText(panasonic).matchAll(/=LINE\(/g)].length, 353);
+await check(panasonic, [[-3.2,-1.75,-0.5],[3.2,2.75,1.65]], 155, 15);
+const boxes = await readBytes('cad/monstertruck/tests/fixtures/touching-unit-boxes.step');
+await check(boxes, [[0,0,0],[2,2,1]], 12, 2001, 1, true);
 console.log('PASS Panasonic V1 untimed functional preview admission; no triangle-count or performance oracle');
-
-})().catch(error => { console.error(error); process.exitCode = 1; });
+}]]);
+}

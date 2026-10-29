@@ -79,16 +79,10 @@ class FaceGateTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'skipped'):
                 gate.run_checks(Path('/built/face'))
 
-    def test_inventory_keeps_other_node_regressions(self):
-        import cad_build
-        original = {
-            'step-repair-accounting.cjs', 'step-zero-repair.cjs',
-            'step-projected-line-repair.cjs', 'step-planar-seam-repair.cjs',
-            'step-face-completeness.cjs', 'step-complete-surface-preview.cjs',
-            'collision-analysis.cjs', 'qualified-analysis.cjs',
-        }
-        self.assertEqual(set(cad_build.PROVIDER_TESTS) | {'step-face-completeness.cjs'}, original)
-        self.assertNotIn('step-face-completeness.cjs', cad_build.PROVIDER_TESTS)
+    def test_face_source_remains_separate_from_provider_suites(self):
+        import provider_pages
+        self.assertTrue((provider_pages.TESTS / 'step-face-completeness.cjs').is_file())
+        self.assertNotIn('step-face-completeness', provider_pages.SUITES)
 
 
 if __name__ == '__main__':

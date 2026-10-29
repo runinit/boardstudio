@@ -1,20 +1,15 @@
 // Actual sealed-handle tests. Expected reports are oracles, never proof inputs.
-// node this-file /absolute/path/to/wasm-pack-node-package.js
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const crypto = require('node:crypto');
-const {performance} = require('node:perf_hooks');
-(async () => {
-const webBinding = process.argv.includes('--web');
-const cad = await require('./load-provider.cjs')(process.argv[2], webBinding);
-const capSelection = process.argv.slice(3).find(arg => arg === 'triangle' || arg === 'exponent');
-const fixture = JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/generated-analysis-contract.json')));
+import { assert, readBytes, readText, sha256Hex, runCases } from './provider-support.mjs';
+
+export async function run(cad, memory) {
+return await runCases('qualified-analysis', [['main', async () => {
+const fixture = JSON.parse(await readText('cad/wasm/tests/fixtures/generated-analysis-contract.json'));
 const v2 = fixture.qualificationV2, activation = v2.activation;
 const clone = x => JSON.parse(JSON.stringify(x));
 const fields = x => Object.keys(x).sort();
 const started = performance.now();
-const memoryBefore = process.memoryUsage();
+const memoryUsage = () => ({wasmMemoryBytes: memory.memory.buffer.byteLength, usedJSHeapSize: performance.memory?.usedJSHeapSize ?? null});
+const memoryBefore = memoryUsage();
 const context = clone(activation.providerContextExample);
 const preparedAt = performance.now();
 const plate = cad.analyze_generated_body(fixture.preparedBody,fixture.options);
@@ -77,7 +72,7 @@ const queryMs=performance.now()-queryAt;
 assert.equal(plane.observation.kind,'surface-separated');
 assert.equal(plane.observation.surfaceDistanceMm,1);
 const planeEvidence=plane.queryQualification;
-for(const [override,reason] of [[{maxTriangles:1},'triangle cap'],[{maximumExponent:0},'exponent cap']].filter(([,reason])=>!capSelection||reason.startsWith(capSelection))) {
+for(const [override,reason] of [[{maxTriangles:1},'triangle cap'],[{maximumExponent:0},'exponent cap']]) {
   const capped=clone(planeQuery);Object.assign(capped.qualificationLimits,override);
   const response=checked(plate,plate,capped),q=response.queryQualification;
   assert.equal(response.observation.kind,'surface-separated');assert.equal(response.observation.surfaceDistanceMm,1);
@@ -129,8 +124,9 @@ const rawWitness=plane.observation.closestPoints;
 pointOnTriangle(rawWitness.point1Mm,triangle(plate,rawWitness.triangles.left.triangleIndex,planeQuery.left.rowTransformF64));
 pointOnTriangle(rawWitness.point2Mm,triangle(plate,rawWitness.triangles.right.triangleIndex,planeQuery.right.rowTransformF64));
 
-const sourceBytes=fs.readFileSync(path.resolve(__dirname,'../../..',activation.directVendorRecipe.originalAsset));
-const sourceSha256=crypto.createHash('sha256').update(sourceBytes).digest('hex');
+assert.equal(activation.directVendorRecipe.originalAsset,'ergogen/library/vendor/infused-kim/3d_models/SMD_0805_Capacitor.step');
+const sourceBytes=await readBytes('ergogen/library/vendor/infused-kim/3d_models/SMD_0805_Capacitor.step');
+const sourceSha256=await sha256Hex(sourceBytes);
 const vendorAt=performance.now();
 const vendorRoot=cad.read_step_model(new Uint8Array(sourceBytes),{sourceSha256});
 const vendorPrepareMs=performance.now()-vendorAt;
@@ -168,8 +164,8 @@ assert(accuracy(vendorPair)<=0.1 && accuracy(vendorPair)>0.01);
 const wrongDerivation=clone(vendorQuery);wrongDerivation.left.analysisRef.derivationIdentity+='x';assert.throws(()=>invoke(vendor,vendor,wrongDerivation));
 const tight=clone(vendorQuery); tight.requestedAccuracyMm=0.01;
 assert(accuracy(checked(vendor,vendor,tight).queryQualification)>0.01,'tight budget remains Unknown in assessment');
-const unsupportedBytes=fs.readFileSync(path.resolve(__dirname,'../../monstertruck/tests/fixtures/touching-unit-boxes.step'));
-const unsupportedSha=crypto.createHash('sha256').update(unsupportedBytes).digest('hex');
+const unsupportedBytes=await readBytes('cad/monstertruck/tests/fixtures/touching-unit-boxes.step');
+const unsupportedSha=await sha256Hex(unsupportedBytes);
 const unsupported=cad.read_step_model(new Uint8Array(unsupportedBytes),{sourceSha256:unsupportedSha}).vendorStep;
 assert.equal(unsupported.sourceQualification.state,'unknown');
 assert(unsupported.triangleFaceOccurrenceIndices.length>1);
@@ -228,6 +224,8 @@ for(const key of activation.rejectedQueryKeys) {
   // These are forbidden page-owned proof assertions, wherever supplied.
   if(typeof key==='string'){const query=clone(planeQuery);query[key]={};assert.throws(()=>invoke(plate,plate,query));}
 }
+assert(globalThis.crossOriginIsolated, 'SharedArrayBuffer rejection requires a cross-origin isolated page');
+assert.equal(typeof SharedArrayBuffer, 'function', 'SharedArrayBuffer must be available');
 for(const mutate of [
  b=>b.leftPositions[0]+=1,b=>b.leftPositions[0]=-0,b=>b.leftPositions[0]=NaN,b=>b.leftTags[0]++,
  b=>b.leftPositions=new Float32Array(b.leftPositions),b=>b.leftTags=new Int32Array(b.leftTags),
@@ -272,8 +270,9 @@ for(const name of ['cylinderDefault','cylinderRefined']) {
  cylinderTimes.push({name,prepareAndQueryMs:performance.now()-at,triangles:cylinder.triangleFaceOccurrenceIndices.length,retainedBytes:cylinder.analysisHandle.retainedStorageBytes(),meshDistance:pair.meshDistance.state,accuracyBudgetMm:accuracy(pair)});
  cylinder.analysisHandle.free();
 }
-console.log(JSON.stringify({profile:webBinding?'release,no wasm-opt,web binding in Node':'release,no wasm-opt,nodejs',preparedMs,queryMs,vendorPrepareMs,vendorQueryMs,plateRetainedBytes:retained,vendorRetainedBytes:vendor.analysisHandle.retainedStorageBytes(),plateTriangles:plateCopy.triangleFaceOccurrenceIndices.length,vendorTriangles:vendor.triangleFaceOccurrenceIndices.length,limits:activation.queryLimits,cylinderTimes,totalMs:performance.now()-started,memoryBefore,memoryAfter:process.memoryUsage()}));
+console.log(JSON.stringify({profile:'web binding in Chrome',preparedMs,queryMs,vendorPrepareMs,vendorQueryMs,plateRetainedBytes:retained,vendorRetainedBytes:vendor.analysisHandle.retainedStorageBytes(),plateTriangles:plateCopy.triangleFaceOccurrenceIndices.length,vendorTriangles:vendor.triangleFaceOccurrenceIndices.length,limits:activation.queryLimits,cylinderTimes,totalMs:performance.now()-started,memoryBefore,memoryAfter:memoryUsage()}));
 plate.analysisHandle.free();plateCopy.analysisHandle.free();vendor.analysisHandle.free();
 console.log('qualified analysis: actual handles, SAME fixture activation, pair bands, caps, binding, copies and detachment passed');
 
-})().catch(error => { console.error(error); process.exitCode = 1; });
+}]]);
+}

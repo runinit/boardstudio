@@ -43,6 +43,10 @@ name = "face-completeness-web"
 path = "src/bin/face_completeness_web.rs"
 
 [[bin]]
+name = "cad-provider-pages"
+path = "src/bin/cad_provider_pages.rs"
+
+[[bin]]
 name = "cad-capture"
 path = "src/bin/cad_capture.rs"
 

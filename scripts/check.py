@@ -162,7 +162,9 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
         [PY, "-B", "scripts/test-check-adr-index.py"],
         [PY, "scripts/check-adr-index.py"],
     ]),
-    "tooling": (True, [["node", "--version"], [PY, "-B", "cad/scripts/test-face-completeness-web.py", "--hermetic"], *[
+    "tooling": (True, [["node", "--version"], [PY, "-B", "cad/scripts/test-face-completeness-web.py", "--hermetic"],
+                       [PY, "-B", "cad/scripts/test-provider-pages.py", "--hermetic"],
+                       [PY, "-B", "cad/scripts/test-cad-provider-gate.py"], *[
         ["node", script] if script.endswith(".cjs") else [PY, "-B", script]
         for script in TOOLING_TESTS]]),
     "lint": (True, LINT),
@@ -419,7 +421,7 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                outputs: list[tuple[Command, str]] | None = None) -> tuple[float, int, str, str]:
     print("$ " + shlex.join(command), flush=True)
     lock_fd = browser_tools._inherited_build_lock()
-    if not any(part in command for part in ("scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py", "cad/scripts/face-completeness-gate.py", "scripts/build-web.py",
+    if not any(part in command for part in ("scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py", "cad/scripts/face-completeness-gate.py", "cad/scripts/test-cad-provider.py", "scripts/build-web.py",
                "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py")):
         environment = environment.copy()
         environment.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
