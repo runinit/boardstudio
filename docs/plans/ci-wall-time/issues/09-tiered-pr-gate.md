@@ -1,6 +1,6 @@
 # 09: Implement tiered PR gate
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: [03: Warm-baseline measurement](03-warm-baseline-measure.md), [10: Tier map driven by rules](10-tier-map.md)
 Parent: [CI wall time map](../map.md)
@@ -26,3 +26,10 @@ full suite on the same head.
   a full-tier run.
 - Acceptance: same-head before/after walls for both tiers, every test assigned to a tier
   (untiered means PR gate), green full gate on both tiers.
+
+## Comments
+
+- Claimed for implementation delegate
+  `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3A9f903478-42c1-41e7-989a-40533aecdf97`
+  (implement + local verify; branch `research/tiered-gate`, no PR; CI measurement waits on a
+  separate draft-PR approval).

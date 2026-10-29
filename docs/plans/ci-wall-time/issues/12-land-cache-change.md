@@ -1,6 +1,6 @@
 # 12: Land the extracted cache change on dev
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: [03: Warm-baseline measurement](03-warm-baseline-measure.md)
 Parent: [CI wall time map](../map.md)
@@ -22,3 +22,9 @@ stack PRs.
 - Landing day invalidates existing `dev` caches: say so in the merge, expect one cold transition
   run, then re-score the warm wall.
 - Acceptance: green full gate on `dev`, cache-hit receipts on the next stack-PR run.
+
+## Comments
+
+- Claimed for implementation delegate
+  `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3A3299a0bb-cb70-4117-bd98-dbd623df0808`
+  (cherry-pick onto current dev, PR, CI to green; merge is the user's click).
