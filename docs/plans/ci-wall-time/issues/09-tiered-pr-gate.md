@@ -1,6 +1,6 @@
 # 09: Implement tiered PR gate
 
-Status: claimed
+Status: needs-info
 Type: task
 Blocked by: [03: Warm-baseline measurement](03-warm-baseline-measure.md), [10: Tier map driven by rules](10-tier-map.md)
 Parent: [CI wall time map](../map.md)
@@ -24,6 +24,13 @@ full suite on the same head.
 - Measure against 10's reference change sets (canonical small PR plus worst-case core-touch PR).
 - Tier moves never touch the count-guard baseline; only a real removal updates it, and only from
   a full-tier run.
+- Open points for the CI arm: (1) this branch's own diff can't exercise tiering (quick can't
+  map `.github/`+`scripts/` to a crate) — the measurement draft PR needs the Set A/B change
+  sets layered on top; (2) `contracts/` is treated as data by quick, so a contracts change
+  gets only smoke tests — one-line fix in `check_quick.py` proposed, awaiting approval as it's
+  outside 10's map; (3) the guard's success message overstates partial runs ("all 2104
+  executed") — wording fix folded into the CI arm. (4) 10's findings doc is truncated at §5
+  in git (§§6–8 missing incl. mutation evidence) — recovery noted on ticket 10; 11 needs it.
 - Acceptance: same-head before/after walls for both tiers, every test assigned to a tier
   (untiered means PR gate), green full gate on both tiers.
 
@@ -33,3 +40,10 @@ full suite on the same head.
   `node:delegated-task:command%3Amcp%3A4a120a31-63bc-4bf2-95d6-d041fca261b3%3Adelegate-task%3A37676941-30cf-449b-a631-3e4006798da2`
   (implement + local verify; branch `research/tiered-gate`, no PR; CI measurement waits on a
   separate draft-PR approval).
+- Implemented 2026-10-29 on `research/tiered-gate` (`e1046a9ad`, pushed, no PR): gate runs
+  only on `pull_request` as `quick --gate native|web`; full commands on dev/main pushes and
+  dispatch; job names unchanged; `--base`/`BOARDSTUDIO_QUICK_BASE` diff base with fail-closed
+  missing base; `build --fast` first in the web half; count guard hardened (smoke runs never
+  checked, `--update-native-baseline` refuses non-full runs, `--gate`+baseline combo rejected).
+  Local green: test-check 31, test-check-quick 23 (13 new), test-check-native-tests 35;
+  8/8 mutants killed; Set A native test step actually run green in 170.7s cold.

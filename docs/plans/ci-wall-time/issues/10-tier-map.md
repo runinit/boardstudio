@@ -43,3 +43,11 @@ common-mode mutants) and static candidates for 11's expanded sampling. Limits: 4
 in 1 of 18 packages (`boardstudio-contracts`); core's 1,517 tests unsampled; zero browser runs, so
 browser smoke pins are placeholders; walls are arithmetic over cold walls plus cited warm anchors,
 not new measurements — 09 confirms same-head on hosted CI.
+
+## Comments
+
+- 2026-10-29: the committed findings doc is truncated at §5 (file ends with a truncation
+  marker) — §§6–8 (reference-set details, provisional pins, mutation evidence) are missing
+  from git. 09 implemented from §§3–5 plus the ticket Answer without blocking. Recovery, in
+  order: (a) read the 10 delegate's thread transcript for the full text; (b) regenerate the
+  redundancy list during 11, which needs the mutation evidence anyway.
