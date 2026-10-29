@@ -39,6 +39,10 @@ name = "cad-response-probe"
 path = "src/bin/cad_response_probe.rs"
 
 [[bin]]
+name = "face-completeness-web"
+path = "src/bin/face_completeness_web.rs"
+
+[[bin]]
 name = "cad-capture"
 path = "src/bin/cad_capture.rs"
 
