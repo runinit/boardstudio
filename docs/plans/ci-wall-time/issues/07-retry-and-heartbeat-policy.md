@@ -1,6 +1,6 @@
 # 07: Retry-and-heartbeat policy
 
-Status: ready-for-human
+Status: resolved
 Type: grilling
 Parent: [CI wall time map](../map.md)
 
@@ -28,4 +28,5 @@ failures.
   failure in the logs (D1a-a; broad silence-timeouts rejected — heartbeat makes silence
   attributable, auto-retrying real hangs would burn ~35 min relearning it); retries are manual
   human re-runs on that signature, documented not coded (D1b-a; automate only if infra kills
-  recur). Ticket stays open until the heartbeat PR merges.
+  recur). Merged 2026-10-29 as PR #12 (`550d1b3f`, CI green after one infra-kill re-run).
+Ticket closed — future hangs are attributable from the log alone.

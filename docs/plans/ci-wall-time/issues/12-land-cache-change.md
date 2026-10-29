@@ -1,6 +1,6 @@
 # 12: Land the extracted cache change on dev
 
-Status: claimed
+Status: resolved
 Type: task
 Blocked by: [03: Warm-baseline measurement](03-warm-baseline-measure.md)
 Parent: [CI wall time map](../map.md)
@@ -31,3 +31,9 @@ stack PRs.
   verified (`test-ci-workflow.py` 11 tests, `test-check.py` 31 green). CI pending at handoff
   (GitGuardian passed; audit/native/web queued — expect ~30 min cold); merge is the user's
   click once green.
+
+## Answer
+
+Done 2026-10-29: cache PR #13 merged (`773446d2`). Landing day invalidated existing `dev`
+caches as predicted — one cold transition run, then steady-state warm holds. Next: watch quota
+(8.56/10 GB at last count) and re-score the warm wall on the next stack-PR runs.

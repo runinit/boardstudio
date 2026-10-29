@@ -322,6 +322,8 @@ attributable from the log alone.
 - [20c: Shared CAD batch integration and cutover](issues/20c-shared-batch-cutover.md): resolved locally only.
 - [21: Node-free tooling tests](issues/21-node-free-tooling-tests.md): preserve the three
   Node-based tooling tests and their execution environments.
+  The CAD worker protocol moved to a browser-gate suite at implementation `9d76fb00` (local only);
+  model-lookup, two `.cjs` checks and `node --version` remain, so this stays unresolved.
 - [22: Node-free gate verification](issues/22-node-free-gate-verification.md): establish complete
   coverage and runtime evidence, including the hosted-runtime boundary.
 - [23: Migrated-gate performance baseline](issues/23-migrated-gate-performance-baseline.md):
@@ -353,6 +355,11 @@ they do not authorize test removals or reduced PR coverage.
 - [06: Page `--list` removal](issues/06-page-list-removal.md): evidence supports check-speed
   12 — executed set identical (77/77 x4), warm saving ~5s, cold compile relocates to the
   runner.
+- [07: Retry-and-heartbeat policy](issues/07-retry-and-heartbeat-policy.md): heartbeat PR #12
+  merged 2026-10-29 (`550d1b3f`, CI green after one infra-kill re-run); manual re-run policy
+  adopted for the 143-no-failure signature.
+- [12: Land the extracted cache change on dev](issues/12-land-cache-change.md): cache PR #13
+  merged 2026-10-29 (`773446d2`); dev holds warm caches, transition run behind us.
 
 ## Not yet specified
 
