@@ -74,3 +74,10 @@ correctness review. Cold versus warm target, runner capacity and cache quota are
   is not real CAD execution parity. No full qualification reference or real CAD timings were
   obtained. Real unsharded parity and comparable cold/warm measurements remain pending; the
   ticket is not resolved and no speedup or full-gate result is claimed.
+- 2026-10-29: `perf/native-gate-topology@77e1e28e3` makes direct probe helpers fail closed until
+  effective Cargo configuration and the compiler can be controlled. The handoff reports 17
+  probe tests passed; no timing or real CAD parity was obtained. This remains experimental.
+- 2026-10-29: `perf/native-ci-topology@59de2f4ec` adds split-planning tests retaining the full
+  native workflow command and workspace-name guard. Further implementation is active; the
+  production gate is unchanged. Fail-closed required-check aggregation, branch-protection
+  policy, real CAD parity and timing remain unresolved; no speedup is claimed.

@@ -35,3 +35,13 @@ verify test-name parity. Independent execution needs isolated writable targets a
 sessions, prerequisite ordering, and artifact compatibility/provenance checks before reuse.
 Ticket 04's human topology and artifact-sharing decision, actual browser parity and measured
 shard/transfer walls remain open. No speed gain is claimed.
+
+## Subsequent experiment — 2026-10-29
+
+The separate execution experiment `feat/dependency-aware-web-execution@932bce6f2` rejects every
+nonzero page invocation because the pinned wasm-bindgen 0.2.129 warning can be suppressed even
+when the ordinary failure chain appears. This is stricter than the intended allowlisted-failure
+policy; the allowlist is currently empty. Its handoff reports 44 runner, 11 lane and 38 receipt
+tests passed. Real-browser parity, enforced isolated targets and fresh assets, and authenticated
+receipt/run provenance remain promotion blockers. This does not retroactively make this ticket's
+accounting prototype execution proof or change the production gate; see [04](04-web-split-design.md).

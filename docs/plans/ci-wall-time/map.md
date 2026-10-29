@@ -82,6 +82,16 @@ were about 6.1/19.2 minutes. Provider overlap's local provider-phase savings and
 
 Prioritized local-first work, respecting existing ownership:
 
+2026-10-29 experiment update: web execution at `feat/dependency-aware-web-execution@932bce6f2`
+rejects every nonzero page invocation; focused tests passed, but browser parity, isolation, fresh
+assets and authenticated provenance remain blockers. Native direct helpers at
+`perf/native-gate-topology@77e1e28e3` fail closed until Cargo configuration and the compiler can
+be controlled; split-planning tests at `perf/native-ci-topology@59de2f4ec` preserve the full
+command and guard. Further native implementation is active; production gates are unchanged, and
+required-check aggregation, branch protection, real CAD parity and timing remain unresolved.
+See tickets [04](issues/04-web-split-design.md), [16](issues/16-web-partition-proof.md) and
+[17](issues/17-native-topology.md). No full-gate speedup is established.
+
 1. Finish the focused web-build correctness and measurement work above; compare equivalent
    end-to-end commands and retain all tests. The blocked page-list candidate is not a priority.
    Profile the full browser and native paths locally by compile, execution, setup and wait time,

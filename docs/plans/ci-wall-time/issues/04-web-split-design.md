@@ -25,3 +25,14 @@ shards, which artifacts are shared, and what does the transfer cost?
   after choosing a topology; identify gaps for browser page, crate and smoke coverage.
 - This remains a human-in-the-loop topology and artifact decision with the user once the numbers
   exist. Preserve all tests, isolation, prerequisites and fail-closed required-check semantics.
+
+## Execution experiment — 2026-10-29
+
+On `feat/dependency-aware-web-execution` at `932bce6f2`, the experimental runner rejects every
+nonzero page invocation. Pinned wasm-bindgen 0.2.129 can suppress the post-summary console-read
+warning and emit the ordinary failure chain, so that chain is not proof of completion. This is
+deliberately stricter than the intended allowlisted-failure policy; the allowlist is presently
+empty. The handoff reports 44 runner, 11 lane and 38 receipt tests passed. Real-browser parity,
+enforced isolated targets and fresh assets, and authenticated receipt/run provenance remain
+promotion blockers. This is local experimental work, not a production gate change or topology
+approval; no speedup is established.

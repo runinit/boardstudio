@@ -9,3 +9,9 @@ PRs, runs, reports) are cited, never copied in.
 - [Native topology follow-up](../issues/17-native-topology.md): ownership, the local CAD reuse
   observation and experimental opt-in probe at `1d314a45cbd3395aa9ccaf077a92170d81da65c7`;
   real parity and cold/warm measurements remain pending (2026-10-29).
+- [Web execution experiment](../issues/04-web-split-design.md): fail-closed runner policy at
+  `feat/dependency-aware-web-execution@932bce6f2` and promotion blockers (2026-10-29); the
+  earlier [partition proof](../issues/16-web-partition-proof.md) remains non-executing.
+- [Native experiments](../issues/17-native-topology.md): blocked direct measurements at
+  `perf/native-gate-topology@77e1e28e3` and split-planning tests at
+  `perf/native-ci-topology@59de2f4ec`; neither changes the production gate (2026-10-29).
