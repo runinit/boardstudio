@@ -147,6 +147,18 @@ that it was not probed. Other probes and `NODE_PATH` provenance remain. The hand
 these were not independently rerun for this entry. No Node-based gate test was removed or replaced
 by this change; the full gate and its subprocesses remain unaudited.
 
+The first opt-in face-completeness port was initially blocked by absent generated WEB outputs and
+an unavailable tracer. With the user's approval, a distribution-signed `strace` was downloaded,
+checked against local package metadata and keyring, and extracted privately; controls observed
+descendant `execve` and `execveat`. A fresh `--no-opt` CAD WEB build at `2a2e30e5` completed in
+47.094s in an offline network namespace with `/usr/bin/node` masked. The JS, WASM and input stamp
+exist and the stamp matches. The wrapper exited 1 because its initial scan incorrectly matched
+47 command-line arguments and paths containing `npm` or the Node-mask path; a subsequent scan of
+all 1,211 recorded executable paths found no executable named Node, npm, npx or Playwright.
+Evidence is local at `chromiumoxide-web-split-experiment/.evidence/cad-web-no-node-20261029T140203Z-f137af59-*`.
+This is not proof against embedded or renamed runtimes, a full-gate Node-independence claim, a
+real-provider regression result, or a timing comparison. The face-completeness port continues.
+
 Read-only tooling-test design found that the Chromiumoxide harness may run the actual model-lookup
 and CAD worker code with controlled fakes, but an ordinary browser realm is not the bare V8 context
 used by the existing model test. The CAD worker test also exercises the real download STL/oracle
