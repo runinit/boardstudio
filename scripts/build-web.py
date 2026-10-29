@@ -8,6 +8,7 @@ import base64
 import hashlib
 import time
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import shutil
 import subprocess
@@ -183,9 +184,48 @@ def build(output: Path, *, release: bool = True, prepare_providers: bool = True,
     return output
 
 
+def provider_lanes(fast: bool = False) -> tuple[list[tuple[list[str], Path]], ...]:
+    """Split provider commands into the three overlap lanes (research 02).
+
+    Lane A keeps the four `wasm-pack` builds serial: they share the workspace
+    target dir, where Cargo's single target-dir lock would serialize them
+    anyway. Lane B (CAD WASM) builds in its own isolated target dir; lane C
+    (ergogen staging) runs no cargo at all. There is deliberately NO per-lane
+    `CARGO_TARGET_DIR` isolation: lane A stays on the shared target dir.
+    """
+    lanes: dict[str, list[tuple[list[str], Path]]] = {"A": [], "B": [], "C": []}
+    for pair in provider_commands(fast):
+        command, _ = pair
+        text = " ".join(command)
+        if command[:2] == ["wasm-pack", "build"]:
+            lanes["A"].append(pair)
+        elif "build-cad-wasm.py" in text:
+            lanes["B"].append(pair)
+        elif "stage-ergogen-models.py" in text:
+            lanes["C"].append(pair)
+        else:
+            raise ValueError(f"unassigned provider command: {text}")
+    if not (len(lanes["A"]) == 4 and len(lanes["B"]) == 1 and len(lanes["C"]) == 1):
+        raise ValueError("provider lanes changed shape: " +
+                         ", ".join(f"{name}={len(lane)}" for name, lane in lanes.items()))
+    return (lanes["A"], lanes["B"], lanes["C"])
+
+
 def prepare_runtime_providers(fast: bool = False) -> None:
-    for command, cwd in provider_commands(fast):
-        run(command, cwd=cwd)
+    lanes = provider_lanes(fast)
+
+    def run_lane(lane: list[tuple[list[str], Path]], name: str) -> None:
+        started = time.time()
+        print(f"--- provider lane {name}: {len(lane)} command(s) ---", flush=True)
+        for command, cwd in lane:
+            run(command, cwd=cwd)
+        print(f"--- provider lane {name}: done in {time.time() - started:.1f}s ---", flush=True)
+
+    with ThreadPoolExecutor(max_workers=len(lanes), thread_name_prefix="provider-lane") as pool:
+        futures = [pool.submit(run_lane, lane, name)
+                   for lane, name in zip(lanes, ("A", "B", "C"))]
+        for future in futures:
+            future.result()
     shutil.copy2(ROOT / "catalogue/modules/imported-modules.json",
                  WEB / "assets/imported-modules.json")
     stage_runtime_assets()
