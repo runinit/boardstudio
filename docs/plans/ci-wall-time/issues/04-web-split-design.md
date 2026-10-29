@@ -159,6 +159,16 @@ Evidence is local at `chromiumoxide-web-split-experiment/.evidence/cad-web-no-no
 This is not proof against embedded or renamed runtimes, a full-gate Node-independence claim, a
 real-provider regression result, or a timing comparison. The face-completeness port continues.
 
+The subsequent opt-in face-completeness attempt left uncommitted work in the experimental
+checkout. The handoff reports three Python and two Rust driver tests passed, but the real-package
+browser case and browser-side negative controls did not pass: Chrome 156 emitted
+`Network.requestWillBeSentExtraInfo` messages that the current Chromiumoxide decoder could not
+parse, and the shared handler treated those errors as fatal. The traced Cargo/browser runs recorded
+815 parsed exec attempts with no Node/npm/npx/Playwright executable basenames; that is not proof
+against renamed or embedded runtimes. The existing eight Node tests and required gate are unchanged.
+Local evidence: `.evidence/face-web-browser.log` and `.evidence/face-web-exec-summary.txt` in
+`chromiumoxide-web-split-experiment`. No provider parity or full-gate result is established.
+
 Read-only tooling-test design found that the Chromiumoxide harness may run the actual model-lookup
 and CAD worker code with controlled fakes, but an ordinary browser realm is not the bare V8 context
 used by the existing model test. The CAD worker test also exercises the real download STL/oracle
