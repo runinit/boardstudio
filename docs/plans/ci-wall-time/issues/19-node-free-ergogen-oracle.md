@@ -176,3 +176,11 @@ The existing Node Ergogen gate stays in place; this ticket remains unresolved an
   follow-up delegated same day (terra xhigh, branch `research/ergogen-outer-cli` from
   `4d6450b6`). WebSocket reset after clean exit under investigation (exit codes decide).
   No runtime bundled, no fixture changed; sandbox not yet accepted as equivalent.
+- Outer-CLI slice 2026-10-29 (`research/ergogen-outer-cli`, pushed, no PR): real outer
+  `--check` exits 0 and reproduces the fixture; direct outer-entry checks reject invalid
+  checkout, protected path, untracked file, corrupt archive. But full suites still bypass the
+  outer entry (unit-level + namespace-command only) — coverage gap stands. WebSocket reset
+  proven teardown noise (mocked check: nonzero exits propagate regardless). Sandbox
+equivalence still unproven. Independent review (Wonder, step 3) delegated same day to weigh
+  exactly this: unit-plus-spot-check sufficiency, sandbox adequacy, fixture/vendor
+  untouched — verdict lands on the ticket.
