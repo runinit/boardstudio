@@ -7,6 +7,9 @@ destination and tickets below as historical and later work, not the current exec
 Do not weaken or remove checks to make failures pass. No new tuning matrix, hosted runs, or
 merges until the user returns to GitHub work; do not touch PR #8 or `stack/*` branches. This
 does not change existing ticket claims or imply that active work has finished or stopped.
+The chief-of-staff thread may claim related work after checking active ownership; record actual
+claim and status changes in the relevant ticket and keep this map consistent. See the dated
+[user decision](wiki/decisions.md).
 
 1. Reuse the existing provider parallelism on `research/local-web-builds` at `0f7c63087`.
    No trivial safe repeat-`wasm-opt` skip was found; do not copy the existing CAD stamp

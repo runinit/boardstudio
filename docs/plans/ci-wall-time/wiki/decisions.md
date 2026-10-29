@@ -36,3 +36,8 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
   runs and merges until the user returns to GitHub work; do not touch PR #8 or `stack/*`.
   Existing claims and historical CI acceptance criteria remain intact. Concrete local actions
   and verification are in the [map](../map.md#near-term-focus--2026-10-29).
+- On 2026-10-29, the user authorized the chief-of-staff thread to take ownership and claim
+  related tickets, after checking active ownership and without silently displacing a live owner.
+  Record actual claim and status changes in the plan and ticket, keeping them consistent.
+  Source: user direction in the parent conversation, 2026-10-29. The focused local-only,
+  no-matrix and no-hosted-run constraints remain in force.
