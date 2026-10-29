@@ -395,30 +395,31 @@ class CheckTests(unittest.TestCase):
         self.assertIn("step 'browser (only: library, case, parts)' failed", stderr)
 
         # In a parallel batch with --keep-going, a failed crate launch continues to trailing
-        # independent browser commands unless the page `--list` prerequisite itself fails.
+        # independent browser commands; with the duplicate serial page `--list` removed, the page
+        # runner lists the suite itself, so a failed serial command continues to it as well.
         seen.clear()
         launches = [["wasm-pack", "test", "--headless", "--chrome", f"web/crates/{name}", "--locked", "--lib"]
                     for name in ("library", "case")]
-        page_list = ["wasm-pack", "test", "--headless", "--chrome", "web", "--bin", "boardstudio-web", "--", "--list"]
         page_run = [sys.executable, "scripts/run-wasm-tests.py", "--all"]
         with mock.patch.object(check.subprocess, "run", side_effect=fake), \
                 mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), \
-                mock.patch.dict(check.STEPS, {"browser": (True, [*launches, page_list, page_run])}), \
+                mock.patch.dict(check.STEPS, {"browser": (True, [*launches, page_run])}), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(check.run(["browser"], keep_going=True), 1)
         self.assertIn(page_run, seen)
 
         seen.clear()
+        serial_probe = [sys.executable, "-c", "probe the page runner prerequisite"]
 
-        def fail_list(command, **kwargs):
+        def fail_serial(command, **kwargs):
             seen.append(command)
-            return mock.Mock(returncode=1 if "--list" in command else 0, stdout="")
+            return mock.Mock(returncode=1 if command == serial_probe else 0, stdout="")
 
-        with mock.patch.object(check.subprocess, "run", side_effect=fail_list), \
-                mock.patch.dict(check.STEPS, {"browser": (True, [*launches, page_list, page_run])}), \
+        with mock.patch.object(check.subprocess, "run", side_effect=fail_serial), \
+                mock.patch.dict(check.STEPS, {"browser": (True, [serial_probe, page_run])}), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(check.run(["browser"], keep_going=True), 1)
-        self.assertNotIn(page_run, seen, "page suite does not run when its --list prerequisite failed")
+        self.assertIn(page_run, seen, "the page suite runs without a serial --list prerequisite")
 
     def test_wasm_failure_summary_distinguishes_raw_wasm_trap_rust_panic_cascade_and_timeout(self):
         trap_log = """\

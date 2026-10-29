@@ -83,7 +83,6 @@ def typecheck() -> list[Command]:
 
 
 def browser() -> list[Command]:
-    wasm_pack = ["wasm-pack", "test", "--headless", "--chrome", "web", "--locked", *WASM_PAGE]
     return [
         DRAG_SMOKE,
         [PY, "scripts/check-wasm-tests.py"],
@@ -107,7 +106,7 @@ def browser() -> list[Command]:
         # webdriver.json gives it the desktop viewport it needs.
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "--skip", "setup_guide::"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "setup_guide::"],
-        [*wasm_pack, "--bin", "boardstudio-web", "--", "--list"],
+        # The page runner lists the page suite itself, so no serial `--list` launch here.
         [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
          "--result-json", "web/target/test-results/browser.json"],
     ]
@@ -518,8 +517,7 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
                 if is_wasm_pack_test(command) and (summary := format_wasm_failure_summary(text)):
                     print("check: " + summary, file=sys.stderr)
                 return total, False
-            # The page `--list` command is the prerequisite for `run-wasm-tests.py --all`.
-            if not keep_going or not browser_step or (is_wasm_pack_test(command) and "--list" in command):
+            if not keep_going or not browser_step:
                 return total, False
             any_failed = True
         index += 1
