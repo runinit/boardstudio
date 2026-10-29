@@ -45,3 +45,9 @@ policy; the allowlist is currently empty. Its handoff reports 44 runner, 11 lane
 tests passed. Real-browser parity, enforced isolated targets and fresh assets, and authenticated
 receipt/run provenance remain promotion blockers. This does not retroactively make this ticket's
 accounting prototype execution proof or change the production gate; see [04](04-web-split-design.md).
+
+On 2026-10-29, one unsharded local build/browser baseline at
+`feat/dependency-aware-web-execution@932bce6f266b395fc6bf3649a14587ad261f08f9` passed in
+746.5s. See the [baseline record](../wiki/baseline.md#local-web-baseline--2026-10-29) for source
+artifacts, coverage and conditions. It is not a split comparison or execution proof for this
+prototype, a hosted CI speed claim, or a fully cold-cache full-gate result; ticket 04 remains open.

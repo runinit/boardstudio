@@ -36,3 +36,12 @@ empty. The handoff reports 44 runner, 11 lane and 38 receipt tests passed. Real-
 enforced isolated targets and fresh assets, and authenticated receipt/run provenance remain
 promotion blockers. This is local experimental work, not a production gate change or topology
 approval; no speedup is established.
+
+## Local baseline — 2026-10-29
+
+One unsharded `python3 scripts/check.py build browser` passed at
+`feat/dependency-aware-web-execution@932bce6f266b395fc6bf3649a14587ad261f08f9` in 746.5s
+(build 299.6s, browser 446.6s). The [baseline record](../wiki/baseline.md#local-web-baseline--2026-10-29)
+links the log and results and records counts and cache conditions. This is not a same-head split
+comparison, hosted CI speed claim, or fully cold-cache full-gate result. The human design decision
+and split execution parity, isolation, fresh assets and provenance remain open.

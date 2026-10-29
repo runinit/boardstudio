@@ -1,7 +1,24 @@
 # Baseline
 
-The numbers every receipt in this effort compares against. Walls are job walls including setup
-and cache restore, from GitHub-hosted Ubuntu runners with 4 vCPUs.
+Baseline observations for this effort. Hosted job walls include setup and cache restore on
+GitHub-hosted Ubuntu runners with 4 vCPUs; the local observation below is separate.
+
+## Local web baseline — 2026-10-29
+
+One unsharded `python3 scripts/check.py build browser` run passed on the clean experimental
+worktree at `feat/dependency-aware-web-execution@932bce6f266b395fc6bf3649a14587ad261f08f9`:
+746.5s wall, with reported build 299.6s and browser 446.6s. It reported 13 drag checks, 364 CAD
+browser checks, 14 crate launches with 587 passing tests, and 77/77 page tests across the three
+existing isolated filters, with no incomplete or duplicate results reported. Workspace and CAD
+targets were initially absent; Cargo registry/Git and wasm-pack caches were populated. Cargo jobs
+were 12 and the scheduler used 4; CI's `playwright-core@1.62.1` was installed in an isolated tools
+directory. Sources: [baseline log](/home/chris/.t3/worktrees/ts-boardstudio2/t3-897cd35c/.evidence/web-baseline-932bce6f-wyru0xk7.log)
+(including the drag receipt) and [page results](/home/chris/.t3/worktrees/ts-boardstudio2/t3-897cd35c/web/target/test-results/browser.json).
+These are local, gitignored artifacts and may not be available elsewhere. This single run is not a
+same-head split comparison, hosted CI speed claim, or fully cold-cache full-gate result. See
+[04](../issues/04-web-split-design.md) and [16](../issues/16-web-partition-proof.md).
+
+## Hosted and other anchors
 
 - On 2026-10-29, run [40791505198](https://github.com/runinit/boardstudio/actions/runs/40791505198)
   on head `d650e1ddf` went fully green: `native` 30m19s (`repo` 3.5s, `tooling` 143s, `lint`
