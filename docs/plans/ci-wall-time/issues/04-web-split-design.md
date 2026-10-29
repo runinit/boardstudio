@@ -78,9 +78,10 @@ pairs; 77 page names across three filters; 13 ordered drag checks; 364 ordered C
 including repeated descriptions; and eight provider Node tests. The existing aggregate accepted
 the lane receipts against the current plan; it does **not** compare them to the baseline.
 
-Sources: [baseline log](/home/chris/.t3/worktrees/ts-boardstudio2/t3-897cd35c/.evidence/web-baseline-932bce6f-wyru0xk7.log),
-[site receipt](/home/chris/.t3/worktrees/ts-boardstudio2/t3-9e9e2b3a/.evidence/site-websplit-932bce6f-20261029-local-01.json),
-and [crate receipt](/home/chris/.t3/worktrees/ts-boardstudio2/t3-71bb0344/.evidence/crates-websplit-932bce6f-20261029-local-01.json).
+Sources: baseline log `.evidence/web-baseline-932bce6f-wyru0xk7.log`,
+site receipt `.evidence/site-websplit-932bce6f-20261029-local-01.json`,
+and crate receipt `.evidence/crates-websplit-932bce6f-20261029-local-01.json`
+(paths are worktree-local and gitignored, not links).
 These local artifacts may not be available elsewhere. Site took 506.9s and crates 439.970s,
 sequentially; the 746.5s unsharded baseline is not a comparable full-gate or CI speed measurement,
 and these runs establish no parallel speedup.
