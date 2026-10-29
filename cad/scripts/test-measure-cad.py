@@ -12,7 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 sys.dont_write_bytecode = True
 SPEC = importlib.util.spec_from_file_location("measure_cad", Path(__file__).with_name("measure-cad.py"))
@@ -185,8 +185,63 @@ class MemorySamplingTests(unittest.TestCase):
 
 
 class CaptureLockTests(unittest.TestCase):
+    def test_capture_environment_probes_without_node(self):
+        versions = [(name, "--version") for name in
+                    ("rustc", "cargo", "wasm-pack", "wasm-bindgen", "wasm-opt", "dx", "chromium")]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("/proc/meminfo", "/proc/cpuinfo", "/proc/pressure/cpu",
+                         "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"):
+                path = root / name.lstrip("/")
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(f"fixture {name}\n")
+            process = MagicMock(pid=123, stdout=io.StringIO("captured output\n"))
+            process.wait.return_value = 0
+
+            def version(command, **kwargs):
+                if command[0] == "wasm-opt":
+                    raise OSError("fixture unavailable")
+                return subprocess.CompletedProcess(command, 0, "fixture version\n", "")
+
+            with patch.object(PERF, "Path", side_effect=lambda name: root / str(name).lstrip("/")), \
+                 patch.object(PERF.platform, "platform", return_value="fixture platform"), \
+                 patch.object(PERF.os, "getloadavg", return_value=(1, 2, 3)), \
+                 patch.dict(PERF.os.environ, {"NODE_PATH": "/fixture/modules"}, clear=True), \
+                 patch.object(PERF.subprocess, "run", side_effect=version) as run, \
+                 patch.object(PERF.subprocess, "check_output", return_value="fixture processes\n") as ps, \
+                 patch.object(PERF.subprocess, "Popen", return_value=process) as popen, \
+                 patch.object(PERF.browser_tools, "_inherited_build_lock", return_value=None), \
+                 patch.object(PERF, "sample_tree", return_value=[]):
+                code, _ = PERF.capture(["/fixture/controller"], root, root, 10)
+            self.assertEqual(code, 0)
+            commands = [call.args[0] for mock in (run, ps, popen) for call in mock.call_args_list]
+            self.assertFalse(any(Path(command[0]).name == "node" for command in commands))
+            self.assertEqual([call.args[0] for call in run.call_args_list], versions * 2)
+            self.assertEqual(ps.call_count, 2)
+            for call in ps.call_args_list:
+                self.assertEqual(call.args[0], ["ps", "-eo", "pid,ppid,comm,pcpu,pmem", "--sort=-pcpu"])
+            popen.assert_called_once()
+            for name in ("environment-before.log", "environment-after.log"):
+                log = (root / name).read_text()
+                for expected in ("platform=fixture platform", "python=", "load=(1, 2, 3)",
+                                 "fixture /proc/meminfo", "env_NODE_PATH=/fixture/modules",
+                                 "node=NOT_PROBED", "wasm-opt=UNAVAILABLE fixture unavailable",
+                                 "fixture /proc/cpuinfo", "fixture /proc/pressure/cpu",
+                                 "fixture /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor",
+                                 "processes:\nfixture processes"):
+                    self.assertIn(expected, log)
+                for tool, _ in versions:
+                    if tool != "wasm-opt":
+                        self.assertIn(f"{tool}=fixture version  exit=0", log)
+                for key in ("CARGO_TARGET_DIR", "CARGO_BUILD_JOBS", "CARGO_INCREMENTAL",
+                            "CARGO_PROFILE_DEV_DEBUG", "RUSTFLAGS", "RUSTUP_TOOLCHAIN",
+                            "CHROME_BIN", "CADRUM_IMAGE_READY", "CADRUM_CONTAINER_RUNTIME"):
+                    self.assertIn(f"env_{key}=<unset>", log)
+            self.assertIn("captured output", (root / "command.log").read_text())
+
     def test_browser_capture_without_verified_browser_memory_is_invalid(self):
         with tempfile.TemporaryDirectory() as directory, \
+                patch.object(PERF, "environment", return_value="controlled environment\n"), \
                 patch.object(PERF, "sample_tree", return_value=[(1, "controller", 1, 1, "ok")]):
             code, _ = PERF.capture([sys.executable, "-c", "import time; time.sleep(.1)"],
                                    PERF.ROOT, Path(directory), 10, dict(PERF.os.environ, CHROME_BIN="/wrapper"))
@@ -194,7 +249,8 @@ class CaptureLockTests(unittest.TestCase):
             self.assertIn("browser memory attribution unavailable", Path(directory, "command.log").read_text())
 
     def test_capture_inherits_build_lock_descriptor(self):
-        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryFile() as lock:
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryFile() as lock, \
+                patch.object(PERF, "environment", return_value="controlled environment\n"):
             with patch.object(PERF.browser_tools, "_inherited_build_lock", return_value=lock.fileno()):
                 code, _ = PERF.capture([sys.executable, "-c", f"import os; os.fstat({lock.fileno()})"],
                                        PERF.ROOT, Path(directory), 10)

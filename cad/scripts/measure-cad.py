@@ -309,14 +309,15 @@ def validate_page_build_receipt(capture, build, captured=None):
 
 def environment():
     lines = [f"platform={platform.platform()}", f"python={sys.version}",
-             f"load={os.getloadavg()}", "memory:\n" + Path("/proc/meminfo").read_text()]
+             f"load={os.getloadavg()}", "memory:\n" + Path("/proc/meminfo").read_text(),
+             "node=NOT_PROBED (Node version intentionally not collected)"]
     for key in ("CARGO_TARGET_DIR", "CARGO_BUILD_JOBS", "CARGO_INCREMENTAL",
                 "CARGO_PROFILE_DEV_DEBUG", "RUSTFLAGS", "RUSTUP_TOOLCHAIN", "NODE_PATH",
                 "CHROME_BIN", "CADRUM_IMAGE_READY", "CADRUM_CONTAINER_RUNTIME"):
         lines.append(f"env_{key}={os.environ.get(key, '<unset>')}")
     for command in (("rustc", "--version"), ("cargo", "--version"), ("wasm-pack", "--version"),
                     ("wasm-bindgen", "--version"), ("wasm-opt", "--version"),
-                    ("dx", "--version"), ("node", "--version"), ("chromium", "--version")):
+                    ("dx", "--version"), ("chromium", "--version")):
         try:
             result = subprocess.run(command, capture_output=True, text=True, timeout=15)
             lines.append(f"{command[0]}={result.stdout.strip()} {result.stderr.strip()} exit={result.returncode}")
