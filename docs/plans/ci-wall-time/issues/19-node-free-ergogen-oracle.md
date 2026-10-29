@@ -161,3 +161,11 @@ The existing Node Ergogen gate stays in place; this ticket remains unresolved an
   (step 2: all 42 cases + negative controls + sandbox assessment; branch
   `research/ergogen-oracle` from `0c562aa6d`, no PR; fixture regen and weaker-sandbox calls
   are user decisions, not the delegate's).
+- Step 2 partial 2026-10-29: parity proven (real sandboxed `--check`, 42/42, 212,288 bytes
+  identical; 14 generator-hermetic + 22 runtime-prep tests green) on `research/ergogen-oracle`
+  (`7a976b1f`, pushed, no PR). NOT met: sandbox verdict (Chrome can write outside scratch,
+  driver builds before checkout/archive validation), dirty-cache + corruption controls through
+  the outer CLI, host-probe `ERGOGEN_CHECKOUT` setup. Findings in
+  `docs/research/2026-10-29-ergogen-oracle-boundary.md`. Remainder delegated same day
+  (terra xhigh, branch `research/ergogen-boundary` from `7a976b1f`): confine + validate-first
+  ordering, outer-CLI verification, setup fix, licence review only if bundling.
