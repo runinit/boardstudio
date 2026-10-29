@@ -34,6 +34,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 import argparse
+import datetime
 import os
 from pathlib import Path
 import re
@@ -396,10 +397,15 @@ def format_wasm_failure_summary(output_or_summary: str | dict[str, object] | Non
     return "; ".join(parts)
 
 
+def _utcnow() -> str:
+    """Wall-clock UTC for log attribution; monotonic stays the only duration source."""
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%SZ")
+
+
 def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                captured: list[tuple[Command, str]] | None = None,
                outputs: list[tuple[Command, str]] | None = None) -> tuple[float, int]:
-    print("$ " + shlex.join(command), flush=True)
+    print(f"$ {shlex.join(command)}  [start {_utcnow()}]", flush=True)
     started = time.monotonic()
     if captured is not None and is_cargo_test(command):
         # The native test-name guard reads this output; it is printed whole once the command ends.
@@ -421,7 +427,7 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
     else:
         code = subprocess.run(command, cwd=cwd, env=environment).returncode
     elapsed = time.monotonic() - started
-    print(f"  ({elapsed:.1f}s)", flush=True)
+    print(f"  ({elapsed:.1f}s) [end {_utcnow()}]", flush=True)
     return elapsed, code
 
 
@@ -439,13 +445,17 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
 
     ordered = sorted(batch, key=launch_order)
     started = time.monotonic()
+    # Start lines flush before waiting: a launch that hangs leaves a start with no
+    # matching end, instead of today's silence where buffered output hides progress.
+    for command in ordered:
+        print(f"+ {shlex.join(command)}  [start {_utcnow()}]", flush=True)
     failed: list[Command] = []
     with ThreadPoolExecutor(max_workers=check_jobs()) as pool:
         futures = [(command, pool.submit(launch, command)) for command in ordered]
         for command, future in futures:
             code, output, elapsed = future.result()
             text = output_text(output)
-            print("$ " + shlex.join(command), flush=True)
+            print(f"$ {shlex.join(command)}  [end {_utcnow()}]", flush=True)
             print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
             print(f"  ({elapsed:.1f}s)", flush=True)
             if captured is not None and is_cargo_test(command):
