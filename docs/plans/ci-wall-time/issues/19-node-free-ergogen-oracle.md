@@ -203,6 +203,9 @@ gate intact.
 - Round 2 dispatched 2026-10-29 (first attempt stopped: worktree changed branches under it;
   base ref verified on origin at `3a616419`). Pinned base plus tripwire: abort if the worktree
   moves again.
+- Round 2b: first retry stopped cleanly — `research/ergogen-noexec` is already checked out in
+  another session's worktree (created from the wrong base, empty, left untouched). Re-dispatched
+  same day on fresh branch `research/ergogen-noexec-2` from `3a616419`.
 - C1–C4 result 2026-10-29: REJECT trigger hit — containment battery denied fixture/checkout/
   repo writes, egress (`1.1.1.1:53` unreachable), and node exec, but a write to the sandbox's
   private `/tmp` tmpfs SUCCEEDED against a "only staging writable" condition. Nothing was
