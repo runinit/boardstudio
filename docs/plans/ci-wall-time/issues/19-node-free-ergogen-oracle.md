@@ -176,6 +176,21 @@ The existing Node Ergogen gate stays in place; this ticket remains unresolved an
   follow-up delegated same day (terra xhigh, branch `research/ergogen-outer-cli` from
   `4d6450b6`). WebSocket reset after clean exit under investigation (exit codes decide).
   No runtime bundled, no fixture changed; sandbox not yet accepted as equivalent.
+- Independent review (Wonder, step 3) 2026-10-29: verdict ACCEPT WITH CONDITIONS — do not
+  cut over yet. Parity, fail-before-execute ordering, protected-path/staging/publish,
+  fixture/vendor integrity, fail-closed standards, and no-smuggled-weakening all met; old
+gate intact.
+  Blocking: (C1) committed outer-entry negative suite incl. wrong-HEAD, tracked-dirty,
+  staged-symlink/non-regular, publish/preserve semantics; (C2) sandbox claim discharged via
+  containment battery OR narrowed "not weaker than Node CLI on enumerated axes" wording with
+  user acceptance (never "equivalent" in the cutover record); (C3) commit the
+  reset-propagation regression test (7/9 with/without reset text); (C4) durable record of
+  exact outer commands, heads, exit codes on the ticket. Verdict: C1–C4 closed → ACCEPT for
+  step 4; a C2 battery failure or an exit-0-with-incomplete-boundaries finding → REJECT pending
+  redesign. Non-blocking: F1 licence review (only for bundled distribution), F2 step-4
+  inventory note, F3 ticket-22 audit untouched.
+- C1–C4 implementation delegated 2026-10-29 (terra xhigh, branch `research/ergogen-c1c4` from
+  `9d8c99c6`; no PR; user gate unchanged).
 - Outer-CLI slice 2026-10-29 (`research/ergogen-outer-cli`, pushed, no PR): real outer
   `--check` exits 0 and reproduces the fixture; direct outer-entry checks reject invalid
   checkout, protected path, untracked file, corrupt archive. But full suites still bypass the
