@@ -8,6 +8,10 @@
   check.py browser --keep-going      continue independent browser launches after a failure
   check.py quick          the routine loop: only the checks that cover your changed files
   check.py quick --files F...   the same for the named files instead of the git diff
+  check.py quick --base REF     diff against the merge base with REF instead of main
+  check.py quick --gate native|web   the tiered pull-request gate's half for that CI job:
+                          affected suites whole, the rest by their scripts/smoke-manifest.json pin,
+                          lint, the checked build and the drag smoke always (add --list to print it)
   check.py test --update-native-baseline   after the tests pass, record the executed native test
                           names as the new baseline (use when tests were removed or renamed on purpose)
   check.py --list         print every step and its commands
@@ -42,6 +46,8 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
+import functools
+import json
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -68,6 +74,9 @@ TOOLING_TESTS = (
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 ISOLATED = ("presentation::case_workspace::",)
 DRAG_SMOKE = [PY, "scripts/run-drag-browser.py"]
+FOOTPRINTS = "boardstudio-footprints"
+# The pull-request gate's smoke pins (docs/plans/ci-wall-time/issues/10-tier-map.md).
+SMOKE_MANIFEST = Path(__file__).with_name("smoke-manifest.json")
 LAYOUT_TEST_CSS: list[str] = [
     "dx", "build", "--web", "--no-default-features", "--features", "page", "--cargo-args=--locked",
 ]
@@ -172,6 +181,34 @@ FAILURE_HEADER_RE = re.compile(r"^---- (\S+) output ----$")
 PANICKED_AT_RE = re.compile(r"^\s*panicked at ([^:\n]+:\d+:\d+):\s*(.*)$")
 RUNTIME_ERROR_RE = re.compile(r"^\s*RuntimeError:\s*(.+)$")
 WASM_FRAME_RE = re.compile(r"^\s*at [^\s(]+\.wasm\.([^\s(]+)")
+
+
+@functools.cache
+def load_smoke() -> dict:
+    return json.loads(SMOKE_MANIFEST.read_text(encoding="utf-8"))
+
+
+def launch_key(command: Command) -> str:
+    """A crate launch's smoke-manifest key: the crate plus its own libtest arguments."""
+    rest = command[command.index("--") + 1:] if "--" in command else []
+    return " ".join([launch_crate(command) or "", *rest])
+
+
+def smoke_launch(command: Command, test: str) -> Command:
+    return [*(command[:command.index("--")] if "--" in command else command), "--", test]
+
+
+def smoke_missed(command: Command, text: str) -> bool:
+    """A smoke launch whose pin did not pass: a renamed pin would otherwise run no test and pass."""
+    pins = {entry["test"] for entry in load_smoke()["browser"].values()}
+    return (is_crate_launch(command) and command[-2:-1] == ["--"] and command[-1] in pins
+            and (command[-1], "ok") not in TEST_STATUS_RE.findall(text))
+
+
+def smoke_failure(command: Command, code: int, text: str) -> tuple[int, str]:
+    if code or not smoke_missed(command, text):
+        return code, text
+    return 1, text + f"check: smoke test {command[-1]} did not pass; update scripts/smoke-manifest.json\n"
 
 
 def is_crate_launch(command: Command) -> bool:
@@ -414,10 +451,9 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
     elif outputs is not None and is_wasm_pack_test(command):
         done = subprocess.run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, text=True)
-        text = output_text(done.stdout)
+        code, text = smoke_failure(command, done.returncode, output_text(done.stdout))
         print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
         outputs.append((command, text))
-        code = done.returncode
     else:
         code = subprocess.run(command, cwd=cwd, env=environment).returncode
     elapsed = time.monotonic() - started
@@ -435,7 +471,8 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         started = time.monotonic()
         done = subprocess.run(command, cwd=ROOT, env=environment, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, text=True)
-        return done.returncode, done.stdout, time.monotonic() - started
+        code, text = smoke_failure(command, done.returncode, output_text(done.stdout))
+        return code, text, time.monotonic() - started
 
     ordered = sorted(batch, key=launch_order)
     started = time.monotonic()
@@ -570,10 +607,18 @@ def run(names: list[str], update_native_baseline: bool = False,
 def guard_native_tests(commands: list[Command], captured: list[tuple[Command, str]],
                        update: bool) -> tuple[bool, bool]:
     """The test-name guard over a passing `test` step. Returns (ok, baseline_written)."""
+    # A smoke run (`-- --exact PIN...`) runs one test per binary by design, so it is not evidence
+    # that a baselined test vanished: only whole-binary runs are guarded.
+    captured = [(command, text) for command, text in captured if "--" not in command]
     if not captured:
         return True, False
     # Only a step that ran the whole workspace plus footprints can say a baselined binary vanished.
     full = all(command in commands for command in CARGO_TESTS)
+    if update and not full:
+        print("check: --update-native-baseline records only from a full `test` step (the whole workspace "
+              "and footprints); a subset run cannot tell a removed test from one it did not run",
+              file=sys.stderr)
+        return False, False
     return check_native_tests.verify([text for _, text in captured], full=full, update=update)
 
 
@@ -638,6 +683,22 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
     return finish(0)
 
 
+def native_tests(names: set[str], full: bool) -> list[Command]:
+    """Whole `cargo test` runs of the named packages; footprints runs on its own (see CARGO_TESTS)."""
+    if full:
+        return list(CARGO_TESTS)
+    rest = sorted(names - {FOOTPRINTS})
+    native = [["cargo", "test", "--locked", *[part for name in rest for part in ("-p", name)]]] if rest else []
+    if FOOTPRINTS in names:
+        native.append(CARGO_TESTS[1])
+    return native
+
+
+def affected_crates(selection: "check_quick.Selection", packages: "dict[str, check_quick.Package]") -> set[str]:
+    return {Path(package.directory).name for name, package in packages.items()
+            if name in selection.packages and package.directory.startswith("web/crates/")}
+
+
 def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_quick.Package]") -> list[tuple[str, list[Command]]]:
     """Run affected checks and required test assets, without the full frontend build."""
     plan: list[tuple[str, list[Command]]] = [("repo", STEPS["repo"][1])]
@@ -645,16 +706,8 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
         plan.append(("tooling", STEPS["tooling"][1]))
     if selection.rust:
         plan += [("lint", LINT), ("typecheck", typecheck())]
-        if selection.full_rust:
-            native = list(CARGO_TESTS)
-        else:
-            names = sorted(selection.packages - {"boardstudio-footprints"})
-            native = [["cargo", "test", "--locked", *[part for name in names for part in ("-p", name)]]] if names else []
-            if "boardstudio-footprints" in selection.packages:
-                native.append(CARGO_TESTS[1])
-        plan.append(("test", native))
-        crates = {Path(package.directory).name for name, package in packages.items()
-                  if name in selection.packages and package.directory.startswith("web/crates/")}
+        plan.append(("test", native_tests(selection.packages, selection.full_rust)))
+        crates = affected_crates(selection, packages)
         if selection.full_rust:
             # The real-page drag smoke uses the packaged site; quick checks deliberately skip builds.
             commands = [command for command in browser() if "run-drag-browser.py" not in " ".join(command)]
@@ -672,11 +725,69 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
     return plan
 
 
+def gate_plan(selection: "check_quick.Selection", packages: "dict[str, check_quick.Package]", half: str,
+              smoke: dict, baseline: dict[str, list[str]]) -> list[tuple[str, list[Command]]]:
+    """One CI job's half of the tiered pull-request gate (docs/plans/ci-wall-time/issues/10-tier-map.md):
+    affected suites run whole, every other suite runs its smoke-manifest pin (a suite
+    without one runs whole), and lint, the checked build and the drag smoke always run."""
+    full = selection.full_rust
+    if half == "native":
+        plan: list[tuple[str, list[Command]]] = [("repo", STEPS["repo"][1])]
+        if selection.tooling:
+            plan.append(("tooling", STEPS["tooling"][1]))
+        plan.append(("lint", LINT))
+        if selection.rust:
+            plan.append(("typecheck", typecheck()))
+        whole, pins = set(selection.packages), {}
+        for name, package in packages.items():
+            binaries = package.binaries & baseline.keys()
+            if full or name in whole or not binaries:
+                continue
+            if binaries <= smoke["native"].keys():
+                pins[name] = sorted(smoke["native"][binary]["test"] for binary in binaries)
+            else:
+                whole.add(name)
+        native = native_tests(whole, full)
+        for group in (sorted(set(pins) - {FOOTPRINTS}), sorted(set(pins) & {FOOTPRINTS})):
+            if group:
+                native.append(["cargo", "test", "--locked", "--tests", *[part for name in group for part in ("-p", name)],
+                               "--", "--exact", *[test for name in group for test in pins[name]]])
+        if selection.cad:
+            native.append([PY, "cad/scripts/test-cad.py"])
+        plan.append(("test", native))
+        return plan
+    crates = affected_crates(selection, packages)
+    page = full or "boardstudio-web" in selection.packages or "layout" in crates
+    commands: list[Command] = []
+    for command in browser():
+        if full:
+            commands.append(command)
+        elif (crate := launch_crate(command)) is not None:
+            entry = smoke["browser"].get(launch_key(command))
+            commands.append(command if crate in crates or entry is None else smoke_launch(command, entry["test"]))
+        elif "--list" in command:
+            if page:
+                commands.append(command)
+        elif "scripts/run-wasm-tests.py" in command:
+            files = list(dict.fromkeys([smoke["page"]["file"], *selection.page_files]))
+            commands.append([PY, "scripts/run-wasm-tests.py", "--files", *files,
+                             "--result-json", "web/target/test-results/browser-quick.json"])
+        else:
+            # The drag smoke, the WASM test lint and the CAD provider and browser checks.
+            commands.append(command)
+    plan = [("build", STEPS["build"][1])]
+    if "layout" in crates:
+        plan.append(("layout-test-css", [LAYOUT_TEST_CSS]))
+    plan.append(("browser", commands))
+    return plan
+
+
 def quick(files: list[str] | None, update_native_baseline: bool = False,
-          *, keep_going: bool = False) -> int:
+          *, keep_going: bool = False, base: str | None = None, gate: str | None = None,
+          list_only: bool = False) -> int:
     import check_quick
 
-    chosen = files if files else check_quick.changed_files(ROOT)
+    chosen = files if files else check_quick.changed_files(ROOT, base or os.environ.get("BOARDSTUDIO_QUICK_BASE"))
     packages = check_quick.workspace_packages(ROOT)
     selection = check_quick.select(chosen, packages)
     print(f"quick: {len(chosen)} changed file(s)")
@@ -684,10 +795,23 @@ def quick(files: list[str] | None, update_native_baseline: bool = False,
         print(f"quick: {note}")
     for path in selection.unplaced:
         print(f"quick: {path}: not mapped to a crate, so every Rust check applies")
-    plan = quick_plan(selection, packages)
+    plan = (gate_plan(selection, packages, gate, load_smoke(), check_native_tests.load_baseline(check_native_tests.BASELINE))
+            if gate else quick_plan(selection, packages))
     print("quick: running " + ", ".join(dict.fromkeys(name for name, _ in plan)))
-    return (run_plan(plan, update_native_baseline, keep_going=True)
-            if keep_going else run_plan(plan, update_native_baseline))
+    if list_only:
+        for name, commands in plan:
+            print(name)
+            for command in commands:
+                print("  " + shlex.join(command))
+        return 0
+    if gate == "web":
+        # Fail before the page build, as `run` does for the drag smoke.
+        try:
+            browser_tools.locate()
+        except browser_tools.MissingBrowserTool as error:
+            print(f"check: {error}", file=sys.stderr)
+            return 1
+    return run_plan(plan, update_native_baseline, keep_going=keep_going, partial=bool(gate))
 
 
 def _main(argv: list[str] | None = None) -> int:
@@ -696,6 +820,11 @@ def _main(argv: list[str] | None = None) -> int:
     parser.add_argument("--list", action="store_true", help="print every step and its commands")
     parser.add_argument("--files", nargs="+", metavar="FILE",
                         help="with `quick`: the changed files, instead of the git diff against main")
+    parser.add_argument("--base", metavar="REF",
+                        help="with `quick`: diff against the merge base with REF instead of main "
+                        "(default $BOARDSTUDIO_QUICK_BASE; CI passes the pull-request base SHA)")
+    parser.add_argument("--gate", choices=("native", "web"),
+                        help="with `quick`: run that CI job's half of the tiered pull-request gate")
     parser.add_argument("--only", nargs="+", action="extend", metavar="CRATE",
                         help="with `browser`: run only the named presentation crate launch(es) "
                         "(partial subset; skips full page build and drag smoke)")
@@ -737,6 +866,10 @@ def _main(argv: list[str] | None = None) -> int:
         parser.error("--receipt requires execution, not --list")
     if args.files and args.steps != ["quick"]:
         parser.error("--files applies to `quick` only")
+    if (args.base or args.gate) and args.steps != ["quick"]:
+        parser.error("--base and --gate apply to `quick` only")
+    if args.gate and args.update_native_baseline:
+        parser.error("--gate never records the native baseline; record it from a full `check.py test`")
     unknown = [name for name in args.steps if name not in STEPS]
     if args.steps != ["quick"] and unknown:
         parser.error(f"unknown step(s): {', '.join(unknown)}; choose from {', '.join(STEPS)}")
@@ -752,7 +885,8 @@ def _main(argv: list[str] | None = None) -> int:
     global _RECEIPT
     _RECEIPT = receipt
     if args.steps == ["quick"]:
-        return quick(args.files, args.update_native_baseline, keep_going=args.keep_going)
+        return quick(args.files, args.update_native_baseline, keep_going=args.keep_going,
+                     base=args.base, gate=args.gate, list_only=args.list)
     if args.list:
         for name, (included, commands) in STEPS.items():
             print(f"{name}{'*' if included else ''}")

@@ -84,7 +84,17 @@ them with `--files`) and runs the documentation checks, rustfmt and Clippy, WASM
 the native tests of the changed crates and everything that depends on them, and the browser tests
 of the affected presentation crates (page tests by file). It never runs `build`. A shared input
 (`Cargo.toml`, `Cargo.lock`, `.cargo/`) or a path it cannot place falls back to every Rust check and
-says so. Documentation-only changes run only the documentation checks.
+says so. Documentation-only changes run only the documentation checks. `--base REF` diffs against
+REF instead of `main`.
+
+**Pull-request gate.** On `pull_request` CI runs `quick --gate native` and `quick --gate web`
+against the PR base SHA: the tiered gate from
+[ticket 10's tier map](docs/plans/ci-wall-time/issues/10-tier-map.md). It always runs the documentation checks,
+lint, the checked build, the drag smoke and the CAD browser checks; affected suites run whole and
+every other native binary and browser launch runs its pinned test from
+`scripts/smoke-manifest.json` (a suite without a pin runs whole). Pushes to `dev` and `main` and
+manual dispatches run the full check. Add `--list` to print the plan. The gate never records the
+native baseline: `--update-native-baseline` records only from a full `test` step.
 
 **Full check.** The default runs documentation link checks, build and content tool tests, rustfmt and
 Clippy, native Rust and provider tests, a checked web build, native/WASM boundary checks and mounted

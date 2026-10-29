@@ -27,6 +27,8 @@ class Package:
     name: str
     directory: str
     dependencies: set[str] = field(default_factory=set)
+    # Target names as libtest binaries print them (`boardstudio_core`, `integration`).
+    binaries: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -51,17 +53,29 @@ def workspace_packages(root: Path) -> dict[str, Package]:
         directory = str(Path(package["manifest_path"]).parent.relative_to(root))
         packages[package["name"]] = Package(
             package["name"], "" if directory == "." else directory,
-            {dep["name"] for dep in package["dependencies"] if dep["name"] in members})
+            {dep["name"] for dep in package["dependencies"] if dep["name"] in members},
+            {target["name"].replace("-", "_") for target in package["targets"]})
     return packages
 
 
-def changed_files(root: Path, base: str = "main") -> list[str]:
+def changed_files(root: Path, base: str | None = None) -> list[str]:
+    """Files changed since the merge base with `base` (default `main`), plus untracked files.
+
+    An explicit base (the pull-request gate passes the PR base SHA) must resolve: falling back to
+    `HEAD` in a shallow clone would select nothing and pass a gate that tested nothing.
+    """
     def git(*args: str) -> list[str]:
         done = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True)
         return done.stdout.split("\n") if done.returncode == 0 else []
 
-    merge_base = next((line for ref in (base, f"origin/{base}")
-                       if (line := (git("merge-base", "HEAD", ref) or [""])[0])), "HEAD")
+    ref = base or "main"
+    merge_base = next((line for candidate in (ref, f"origin/{ref}")
+                       if (line := (git("merge-base", "HEAD", candidate) or [""])[0])), None)
+    if merge_base is None:
+        if base:
+            raise SystemExit(f"quick: base {base} has no merge base with HEAD in this clone "
+                             "(CI needs `fetch-depth: 0`)")
+        merge_base = "HEAD"
     files = set(git("diff", "--name-only", merge_base)) | set(git("ls-files", "--others", "--exclude-standard"))
     return sorted(file for file in files if file)
 

@@ -302,6 +302,16 @@ class CheckIntegrationTests(unittest.TestCase):
         self.assertNotIn("beta::roundtrip", json.loads(self.path.read_text())["boardstudio_core"])
         self.assertEqual(self.execute(outputs, jobs=1)[0], 0)
 
+    def test_a_smoke_run_is_not_guarded_and_a_subset_run_never_records(self):
+        smoke = ["cargo", "test", "--locked", "--tests", "-p", "core", "--", "--exact", "alpha::tests::keeps_pairs"]
+        pinned = CORE_OUTPUT.replace("test beta::roundtrip ... ok\n", "")
+        self.assertEqual(self.execute({tuple(smoke): pinned}, jobs=1, commands=[smoke])[0], 0)
+        whole = ["cargo", "test", "--locked", "-p", "core"]
+        code, errors = self.execute({tuple(whole): CORE_OUTPUT}, jobs=1, update=True, commands=[whole])
+        self.assertEqual(code, 1)
+        self.assertIn("records only from a full `test` step", errors)
+        self.assertEqual(json.loads(self.path.read_text()), EXECUTED)
+
     def test_the_update_flag_without_a_cargo_test_is_an_error(self):
         code, errors = self.execute({}, jobs=1, update=True, commands=[["python3", "-c", "pass"]])
         self.assertEqual(code, 1)

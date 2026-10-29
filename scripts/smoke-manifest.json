@@ -1,0 +1,215 @@
+{
+ "about": "PR-gate smoke set (docs/plans/ci-wall-time/issues/10-tier-map.md, rules SMOKE-1..3 in its research doc). `unpinned` entries are SMOKE-3 placeholders (lexicographically first executed test), tripwires rather than proven killers; ticket 11 backfills kill-matrix pins. A suite without an entry runs whole.",
+ "native": {
+  "boardstudio_contracts": {
+   "test": "collision::tests::sha256_accepts_only_64_lowercase_hex_digits",
+   "status": "pinned",
+   "kills": [
+    "m4-sha-len"
+   ]
+  },
+  "boardstudio_core": {
+   "test": "archive::tests::actual_read_limits_stop_at_the_first_excess_byte",
+   "status": "unpinned"
+  },
+  "boardstudio_footprints": {
+   "test": "build::tests::builds_the_same_tree_the_text_path_parses",
+   "status": "unpinned"
+  },
+  "boardstudio_renderer": {
+   "test": "geometry::clipping_regressions::clips_crossing_triangles_instead_of_erasing_visible_copper",
+   "status": "unpinned"
+  },
+  "boardstudio_web_case": {
+   "test": "case_display::tests::gasket_upper_lower_share_color_without_changing_visibility",
+   "status": "unpinned"
+  },
+  "boardstudio_web_catalogue": {
+   "test": "physical_setup::tests::a_fresh_setup_half_owns_its_configuration_instead_of_the_legacy_overlay",
+   "status": "unpinned"
+  },
+  "boardstudio_web_host": {
+   "test": "cad_jobs::generated_collision_identity_tests::collision_operand_accepts_generated_identity_without_a_step_hash_and_rejects_ambiguity",
+   "status": "unpinned"
+  },
+  "boardstudio_web_keycaps": {
+   "test": "keycaps_scene::tests::accepted_board_projection_preserves_membership_pose_and_display_fallbacks",
+   "status": "unpinned"
+  },
+  "boardstudio_web_keymap": {
+   "test": "layer_edit::tests::add_rename_and_remove_land_against_the_accepted_keymap",
+   "status": "unpinned"
+  },
+  "boardstudio_web_layout": {
+   "test": "matrix_relations::tests::a_blank_matrix_shows_structure_at_once_and_no_departures_or_constraints",
+   "status": "unpinned"
+  },
+  "boardstudio_web_library": {
+   "test": "project_name::tests::admission_rejects_unmounted_changed_owner_and_blank_drafts",
+   "status": "unpinned"
+  },
+  "boardstudio_web_parts": {
+   "test": "parts_assembly_preset_draft::tests::resolved_mx_hotswap_rgb_recipe_becomes_an_independent_editable_assembly",
+   "status": "unpinned"
+  },
+  "boardstudio_web_pcb": {
+   "test": "firmware_position_choices::tests::choices_match_reference_defaults_labels_and_order",
+   "status": "unpinned"
+  },
+  "boardstudio_web_runtime": {
+   "test": "archive_export::tests::archive_filename_uses_the_accepted_project_name",
+   "status": "unpinned"
+  },
+  "boardstudio_web_ui_model": {
+   "test": "instance_selection::tests::automatic_navigation_waits_for_real_session_open_and_save",
+   "status": "unpinned"
+  },
+  "boardstudio_web_ui_shared": {
+   "test": "footprint_forms::tests::projects_native_and_legacy_arcs_and_nested_keepouts",
+   "status": "unpinned"
+  },
+  "case_profile_region": {
+   "test": "accepts_a_strictly_inside_near_collinear_hole",
+   "status": "unpinned"
+  },
+  "choc_socket_qualification": {
+   "test": "configured_terminals_and_effective_pad_layers_are_exact_and_distinct",
+   "status": "unpinned"
+  },
+  "context": {
+   "test": "the_context_matches_the_javascript_provider",
+   "status": "unpinned"
+  },
+  "diode_sod123_qualification": {
+   "test": "absent_null_false_and_malformed_side_keep_legacy_rendering",
+   "status": "unpinned"
+  },
+  "drag_snap": {
+   "test": "gap_snap_preserves_edge_alignment_for_rotated_envelopes",
+   "status": "unpinned"
+  },
+  "durable_session": {
+   "test": "a_gesture_commit_ahead_is_not_disturbed_and_the_intent_behind_resolves_on_its_result",
+   "status": "unpinned"
+  },
+  "encoder_ec11e15244g1_qualification": {
+   "test": "declared_parameters_are_explicitly_available_for_this_pattern",
+   "status": "unpinned"
+  },
+  "framework": {
+   "test": "an_authored_courtyard_is_kept_and_a_missing_one_falls_back_to_pad_extents",
+   "status": "unpinned"
+  },
+  "generators": {
+   "test": "bundled_generators_match_the_golden_baseline",
+   "status": "unpinned"
+  },
+  "golden_forms": {
+   "test": "export_matches_apart_from_arcs_core_upgrades",
+   "status": "unpinned"
+  },
+  "integration": {
+   "test": "boundary_parity::a_mismatch_inside_an_array_names_the_entry_by_its_id",
+   "status": "unpinned"
+  },
+  "library_assertions": {
+   "test": "authored_envelopes_and_generated_keycaps",
+   "status": "unpinned"
+  },
+  "licenses": {
+   "test": "declared_licences_match_the_file_headers",
+   "status": "unpinned"
+  },
+  "mx_socket_qualification": {
+   "test": "recommended_land_sizes_match_drawing_reference_dimensions",
+   "status": "unpinned"
+  },
+  "numeric": {
+   "test": "hypot_matches_v8",
+   "status": "unpinned"
+  },
+  "outline_queue_orders": {
+   "test": "a_linked_refinement_follows_a_queued_placement_and_its_fixed_alternative_stays",
+   "status": "unpinned"
+  },
+  "parameter_check": {
+   "test": "an_undeclared_name_is_reported_and_null_is_absent",
+   "status": "unpinned"
+  },
+  "parameter_lint": {
+   "test": "a_numeric_text_exception_applies_only_to_its_generator_and_parameter",
+   "status": "unpinned"
+  },
+  "reset_switch_smd_side_qualification": {
+   "test": "boss_model_default_and_explicit_model_transforms_are_preserved",
+   "status": "unpinned"
+  },
+  "text_literal_escaping": {
+   "test": "bare_references_stay_atoms_until_quoting_is_needed",
+   "status": "unpinned"
+  }
+ },
+ "browser": {
+  "host": {
+   "test": "boundary_parity::wasm_constraint_depth_boundary_is_conservative",
+   "status": "unpinned"
+  },
+  "runtime": {
+   "test": "case_gesture_preview::tests::a_newer_move_retires_the_prior_preview_owner_and_cleanup_is_scoped",
+   "status": "unpinned"
+  },
+  "ui-model": {
+   "test": "canvas_interaction::tests::either_start_order_admits_only_the_first_canvas_owner",
+   "status": "unpinned"
+  },
+  "ui-shared --skip panels::": {
+   "test": "board_reference_effect::tests::current_failure_keeps_specific_reason_and_stale_failure_is_retryable",
+   "status": "unpinned"
+  },
+  "ui-shared panels::": {
+   "test": "panels::resize_tests::panel_drag_persists_only_its_final_width_on_pointer_cancel",
+   "status": "unpinned"
+  },
+  "keycaps": {
+   "test": "keycaps_finding_marker::tests::mounted_layout_marker_is_bound_to_focused_identity_and_accepted_owner",
+   "status": "unpinned"
+  },
+  "library": {
+   "test": "library::mounted_tests::a_failed_unchanged_project_name_restores_the_accepted_name_with_an_inline_failure",
+   "status": "unpinned"
+  },
+  "keymap": {
+   "test": "keymap::binding_controller::tests::encoder_lineage_survives_own_snapshot_advance_but_not_input_replacement",
+   "status": "unpinned"
+  },
+  "catalogue": {
+   "test": "catalogue::generator_tests::binding_schema_uses_generator_parameters",
+   "status": "unpinned"
+  },
+  "case": {
+   "test": "cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope",
+   "status": "unpinned"
+  },
+  "parts": {
+   "test": "parts::add_object_menu_tests::add_menu_uses_the_four_reference_groups_for_available_definitions",
+   "status": "unpinned"
+  },
+  "pcb": {
+   "test": "pcb_board_reference::mounted_async_tests::mounted_missing_stored_board_blob_reports_retry_and_keeps_reference",
+   "status": "unpinned"
+  },
+  "layout --skip setup_guide::": {
+   "test": "board_inspector::queued_board_name_tests::mounted_accepted_name_draft_queues_behind_an_earlier_rename",
+   "status": "unpinned"
+  },
+  "layout setup_guide::": {
+   "test": "setup_guide::tests::desktop_case_stage_opens_settings_and_keeps_the_guide_available",
+   "status": "unpinned"
+  }
+ },
+ "page": {
+  "test": "model_decode_boundary_tests::refuses_hostile_wrl_at_the_application_decoder_without_poisoning_the_shared_module",
+  "file": "web/src/model_decode_boundary_tests.rs",
+  "status": "unpinned"
+ }
+}

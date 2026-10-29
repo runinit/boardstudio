@@ -119,6 +119,106 @@ class QuickPlanTests(unittest.TestCase):
         with mock.patch.object(quick.subprocess, "run", side_effect=fake):
             self.assertEqual(quick.changed_files(ROOT), ["a.rs", "b.rs", "c.rs"])
 
+    def test_an_explicit_base_that_does_not_resolve_fails_instead_of_testing_nothing(self):
+        def fake(args, **kwargs):
+            return mock.Mock(returncode=128 if args[1] == "merge-base" else 0, stdout="")
+        with mock.patch.object(quick.subprocess, "run", side_effect=fake):
+            self.assertEqual(quick.changed_files(ROOT), [])
+            with self.assertRaises(SystemExit):
+                quick.changed_files(ROOT, "0123abc")
+
+
+# The gate fixture: Core's dependents, footprints, and a leaf crate with no pin of its own.
+GATE_PACKAGES = {package.name: package for package in (
+    quick.Package("core", "core", set(), {"core", "integration"}),
+    quick.Package("boardstudio-web-layout", "web/crates/layout", {"core"}, {"boardstudio_web_layout"}),
+    quick.Package("boardstudio-web-keymap", "web/crates/keymap", {"core"}, {"boardstudio_web_keymap"}),
+    quick.Package("boardstudio-web", "web", {"boardstudio-web-layout", "boardstudio-web-keymap"}, {"boardstudio_web"}),
+    quick.Package(check.FOOTPRINTS, "footprints", set(), {"boardstudio_footprints", "context"}),
+    quick.Package("contracts", "contracts/rust", set(), {"contracts", "region"}),
+)}
+GATE_BASELINE = {binary: [f"{binary}::a", f"{binary}::b"] for binary in (
+    "core", "integration", "boardstudio_web_layout", "boardstudio_web_keymap", "boardstudio_footprints",
+    "context", "contracts", "region")}
+GATE_SMOKE = {
+    "native": {binary: {"test": f"{binary}::a"} for binary in GATE_BASELINE if binary != "region"},
+    "browser": {key: {"test": f"{key}::pin"} for key in ("keymap", "layout --skip setup_guide::", "layout setup_guide::")},
+    "page": {"test": "page::pin", "file": "web/src/pin.rs"},
+}
+
+
+class GatePlanTests(unittest.TestCase):
+    def plan(self, files, half):
+        return dict(check.gate_plan(quick.select(files, GATE_PACKAGES), GATE_PACKAGES, half,
+                                    GATE_SMOKE, GATE_BASELINE))
+
+    def test_a_leaf_edit_runs_affected_crates_whole_and_the_rest_by_pin(self):
+        native = self.plan(["web/crates/layout/src/matrix.rs"], "native")
+        self.assertEqual(list(native), ["repo", "lint", "typecheck", "test"])
+        self.assertEqual(native["test"], [
+            ["cargo", "test", "--locked", "-p", "boardstudio-web", "-p", "boardstudio-web-layout", "-p", "contracts"],
+            ["cargo", "test", "--locked", "--tests", "-p", "boardstudio-web-keymap", "-p", "core",
+             "--", "--exact", "boardstudio_web_keymap::a", "core::a", "integration::a"],
+            ["cargo", "test", "--locked", "--tests", "-p", check.FOOTPRINTS,
+             "--", "--exact", "boardstudio_footprints::a", "context::a"],
+        ])  # contracts' `region` binary has no pin, so contracts stays whole in the gate
+        web = self.plan(["web/crates/layout/src/matrix.rs"], "web")
+        self.assertEqual(list(web), ["build", "layout-test-css", "browser"])
+        launches = [command for command in web["browser"] if check.is_crate_launch(command)]
+        self.assertEqual(launches, [
+            command if check.launch_crate(command) == "layout" else check.smoke_launch(command, "keymap::pin")
+            if check.launch_crate(command) == "keymap" else command  # no pin: untiered launches run whole
+            for command in check.browser() if check.is_crate_launch(command)])
+        self.assertIn(check.DRAG_SMOKE, web["browser"])
+        self.assertIn([check.PY, "cad/scripts/test-cad-browser.py"], web["browser"])
+        self.assertTrue(any("--list" in command for command in web["browser"]))
+        self.assertIn([check.PY, "scripts/run-wasm-tests.py", "--files", "web/src/pin.rs", "--result-json",
+                       "web/target/test-results/browser-quick.json"], web["browser"])
+
+    def test_a_core_edit_runs_everything_downstream_whole(self):
+        native = self.plan(["core/src/lib.rs"], "native")
+        self.assertEqual(native["test"][0], ["cargo", "test", "--locked", "-p", "boardstudio-web",
+                                             "-p", "boardstudio-web-keymap", "-p", "boardstudio-web-layout",
+                                             "-p", "contracts", "-p", "core"])
+        self.assertEqual(native["test"][1][-3:], ["--exact", "boardstudio_footprints::a", "context::a"])
+        web = self.plan(["core/src/lib.rs"], "web")
+        self.assertFalse(any(command[-2:] == ["--", "keymap::pin"] for command in web["browser"]))
+
+    def test_docs_only_still_lints_builds_and_runs_the_drag_smoke(self):
+        native = self.plan(["docs/x.md"], "native")
+        self.assertEqual(list(native), ["repo", "lint", "test"])
+        web = self.plan(["docs/x.md"], "web")
+        self.assertEqual(list(web), ["build", "browser"])
+        self.assertIn(check.DRAG_SMOKE, web["browser"])
+        self.assertFalse(any("--list" in command for command in web["browser"]))
+
+    def test_a_shared_input_runs_the_full_native_and_browser_commands(self):
+        self.assertEqual(self.plan(["Cargo.lock"], "native")["test"], check.CARGO_TESTS)
+        self.assertEqual(self.plan(["Cargo.lock"], "web")["browser"], check.browser())
+
+    def test_cad_and_tooling_changes_add_their_suites(self):
+        native = self.plan(["cad/wasm/src/lib.rs", "scripts/check.py"], "native")
+        self.assertIn("tooling", native)
+        self.assertEqual(native["test"][-1], [check.PY, "cad/scripts/test-cad.py"])
+
+
+class SmokeManifestTests(unittest.TestCase):
+    def test_every_baselined_binary_and_browser_launch_has_a_current_pin(self):
+        smoke = check.load_smoke()
+        baseline = check.check_native_tests.load_baseline(check.check_native_tests.BASELINE)
+        self.assertEqual(smoke["native"].keys(), baseline.keys())
+        for binary, entry in smoke["native"].items():
+            self.assertIn(entry["test"], baseline[binary], binary)
+        launches = {check.launch_key(command) for command in check.browser() if check.is_crate_launch(command)}
+        self.assertEqual(smoke["browser"].keys(), launches)
+        self.assertTrue((ROOT / smoke["page"]["file"]).is_file())
+
+    def test_a_smoke_launch_fails_when_its_pin_did_not_pass(self):
+        pin = check.load_smoke()["browser"]["host"]["test"]
+        command = check.smoke_launch(check.select_browser_crate_launches(["host"])[0], pin)
+        self.assertEqual(check.smoke_failure(command, 0, f"test {pin} ... ok\n")[0], 0)
+        self.assertEqual(check.smoke_failure(command, 0, "running 0 tests\n")[0], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

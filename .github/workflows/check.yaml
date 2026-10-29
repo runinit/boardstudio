@@ -21,6 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The pull-request gate diffs against the PR base, which a depth-1 clone lacks.
+          fetch-depth: ${{ github.event_name != 'pull_request' && 1 || 0 }}
       - name: Install KiCad 10
         run: |
           sudo add-apt-repository --yes ppa:kicad/kicad-10.0-releases
@@ -35,13 +38,23 @@ jobs:
             cad/monstertruck -> target
             cad/wasm -> target
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
-      - run: python3 scripts/check.py repo tooling lint test
+      # Pull requests run the tiered gate (docs/plans/ci-wall-time/issues/10-tier-map.md); pushes to `dev`
+      # and `main` and manual dispatches (which release) run the full check.
+      - if: github.event_name != 'pull_request'
+        run: python3 scripts/check.py repo tooling lint test
+      - if: github.event_name == 'pull_request'
+        run: python3 scripts/check.py quick --gate native
+        env:
+          BOARDSTUDIO_QUICK_BASE: ${{ github.event.pull_request.base.sha }}
 
   # Release build and mounted browser tests.
   web:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The pull-request gate diffs against the PR base, which a depth-1 clone lacks.
+          fetch-depth: ${{ github.event_name != 'pull_request' && 1 || 0 }}
       - run: rustup target add wasm32-unknown-unknown
       - run: python3 -c 'import sys, tomllib; assert sys.version_info >= (3, 11), sys.version'
       - uses: ./.github/actions/web-tools
@@ -61,7 +74,12 @@ jobs:
             cad/wasm -> target
           shared-key: web
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
-      - run: python3 scripts/check.py build browser
+      - if: github.event_name != 'pull_request'
+        run: python3 scripts/check.py build browser
+      - if: github.event_name == 'pull_request'
+        run: python3 scripts/check.py quick --gate web
+        env:
+          BOARDSTUDIO_QUICK_BASE: ${{ github.event.pull_request.base.sha }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
