@@ -20,3 +20,10 @@ filesystem and Git protections, and byte-identical output without executing Node
   Keep that test in the gate until the replacement has independently demonstrated parity.
 - Record a supported approach or a concrete blocker and its evidence before proceeding to the
   remaining migrations. No push, merge or hosted CI.
+
+## Comments
+
+- 2026-10-29: Ticket 18 is resolved for the local face-replacement decision only. This ticket is
+  the next eligible Node-free sequence frontier, unclaimed; the complete browser step and full gate
+  are not green and remain in [22](22-node-free-gate-verification.md). Proceeding here follows the
+  user-approved face-local parity then Ergogen sequence, not a claim of full Node independence.

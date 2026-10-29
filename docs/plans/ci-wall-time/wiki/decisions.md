@@ -97,3 +97,18 @@ Dated decisions. Newest last. Each entry stands until a later dated entry supers
   [reruns](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs),
   [rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets),
   and [token permissions](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication#permissions-for-the-github_token).
+- On 2026-10-29, the user clarified that tests may be adapted to a new workflow rather than kept
+  line for line, while preserving their actual protected behavior and failure detection; coverage
+  must not be removed or silently skipped for timing or Node-free goals. For face completeness,
+  browser diagnostic rendering and stacks may differ from Node if first failure, original message,
+  assertion class/code, actual/expected values (including `-0` versus `0`), and operator survive.
+  This does not relax failure detection, assertion order, output handling, CDP errors or async
+  requirements. Evaluate async/output against the real regression and intended guarantees, and
+  report material detection losses, rather than requiring parity for every artificial perturbation.
+  See [ticket 18](../issues/18-face-completeness-replacement.md#test-adaptation-and-assertion-diagnostics--2026-10-29).
+- On 2026-10-29, the face ticket was resolved solely for its local replacement decision, so the
+  user-approved face-local parity then Ergogen sequence can proceed. The complete browser step
+  recommended by the combined reviewer and the Node-free full gate remain required in
+  [22](../issues/22-node-free-gate-verification.md); the current browser step still invokes seven
+  Node regressions, and the user prohibits Node anywhere in the full gate. This is not approval to
+  skip them or a claim of full-gate success. See [18](../issues/18-face-completeness-replacement.md#answer).

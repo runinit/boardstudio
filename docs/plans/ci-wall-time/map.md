@@ -280,9 +280,11 @@ attributable from the log alone.
   parent effort; one local native run recorded, with real parity and comparable measurements
   pending, not resolved.
 - [18: Face-completeness replacement](issues/18-face-completeness-replacement.md): validate the
-  existing opt-in browser port against the required regression.
+  existing opt-in browser port against the required regression; resolved for the local replacement
+  decision only on 2026-10-29, with complete browser and full-gate verification in [22](issues/22-node-free-gate-verification.md).
 - [19: Node-free Ergogen oracle](issues/19-node-free-ergogen-oracle.md): establish whether the
-  real upstream oracle and native CLI protections can be preserved without Node.
+  real upstream oracle and native CLI protections can be preserved without Node; next unclaimed
+  frontier in the approved Node-free sequence after 18's local decision, not a full-gate clearance.
 - [20: Remaining CAD provider regressions](issues/20-remaining-cad-provider-regressions.md):
   establish a coverage-preserving approach for the remaining seven scripts.
 - [21: Node-free tooling tests](issues/21-node-free-tooling-tests.md): preserve the other two

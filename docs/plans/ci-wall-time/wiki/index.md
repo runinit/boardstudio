@@ -6,6 +6,11 @@ PRs, runs, reports) are cited, never copied in.
 
 - [Decisions](decisions.md): dated user and map decisions driving this effort.
 - [Baseline](baseline.md): the green baseline and warm anchors all receipts compare against.
+- [Face-completeness local decision](../issues/18-face-completeness-replacement.md#answer):
+  opt-in port at `research/chromiumoxide-web-split@0d7ba8f5` and integration at `@0f5d8ae1` have
+  focused evidence and combined review; local decision resolved 2026-10-29. Complete browser and
+  full-gate verification remain blocked in [22](../issues/22-node-free-gate-verification.md);
+  [19](../issues/19-node-free-ergogen-oracle.md) is the next Node-free sequence frontier.
 - [Native topology follow-up](../issues/17-native-topology.md): ownership, the local CAD reuse
   observation and experimental opt-in probe at `1d314a45cbd3395aa9ccaf077a92170d81da65c7`;
   real parity and comparable cold/warm measurements remain pending (2026-10-29).
