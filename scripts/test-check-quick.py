@@ -57,13 +57,16 @@ class QuickSelectionTests(unittest.TestCase):
         self.assertFalse(selection.rust)
 
     def test_measurement_protocol_edits_keep_the_tooling_only_quick_selection(self):
-        for path in ("cad/scripts/test-measure-cad.py", "cad/scripts/test-measure-cad-worker.cjs"):
+        for path in ("cad/scripts/test-measure-cad.py", "cad/scripts/measure-cad-worker.cjs"):
             with self.subTest(path=path):
                 selection = quick.select([path], PACKAGES)
                 self.assertEqual(check.quick_plan(selection, PACKAGES),
                                  [("repo", check.STEPS["repo"][1]),
                                   ("tooling", check.STEPS["tooling"][1])])
                 self.assertFalse(selection.rust)
+        # The worker protocol runs in the browser provider gate, which a quick run does not cover.
+        selection = quick.select(["cad/scripts/measure-cad-worker.cjs"], PACKAGES)
+        self.assertTrue(any("check.py browser" in note for note in selection.notes))
 
     def test_page_sources_select_the_page_tests_by_file(self):
         selection = quick.select(["web/src/presentation/a.rs"], PACKAGES)

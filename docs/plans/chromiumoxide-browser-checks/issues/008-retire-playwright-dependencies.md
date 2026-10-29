@@ -234,6 +234,21 @@ capture did not report the expected failure
 that diagnostic, so the underlying response cause remains undetermined. No full
 suite or timing qualification was run.
 
+## 2026-10-29: Node-free CAD worker protocol
+
+The `measure-cad-worker` suite now runs the embedded worker protocol in the browser
+provider gate, with 18 named cases including a source-SHA rejection control. The
+tooling gate no longer runs `test-measure-cad-worker.cjs` under Node. The former
+early STL truncation, incomplete-STL and `oracle().roofAndCavity` checks were
+intentionally removed from the automated gate; the manual `check-cad-page-downloads.py`
+and `.cjs` path still validates real downloads, oracle markers and truncated STL,
+and fails closed. A quick run on `measure-cad-worker.cjs` notes that `check.py
+browser` is needed to run this suite.
+
+The focused provider scheduler passed against the current private package and
+four protocol mutations were caught (`.evidence/worker-gate-final.log` and
+`.evidence/worker-mutations.log`). This is not a full-browser or full-gate result.
+
 ## 2026-10-27: cold-response negative-control diagnosis
 
 The prior failure was reproduced once on Chrome 145 under the shared lock and

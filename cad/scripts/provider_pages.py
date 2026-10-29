@@ -30,6 +30,10 @@ SUITES = {
     'step-planar-seam-repair': ['main'],
     'step-complete-surface-preview': ['main'],
     'qualified-analysis': ['main'],
+    'measure-cad-worker': [
+        'preview', 'step', 'import', 'validation', 'malformed', 'null', 'missing', 'identity', 'epoch',
+        'token', 'revision', 'mesh', 'bodies', 'failure', 'correlation', 'step-fault', 'vendor', 'source-sha',
+    ],
 }
 STATIC_ASSERT_SITES = {
     'collision-analysis': 66,
@@ -39,10 +43,14 @@ STATIC_ASSERT_SITES = {
     'step-planar-seam-repair': 16,
     'step-complete-surface-preview': 39,
     'qualified-analysis': 102,
+    'measure-cad-worker': 13,
 }
 FIXTURE_NAMES = [
     'cad/wasm/tests/fixtures/generated-analysis-contract.json',
     'cad/test/fixtures/holed-plate.json',
+    'cad/test/fixtures/performance/C1plate.json',
+    'cad/test/fixtures/followup-manifest.json',
+    'cad/scripts/measure-cad-worker.cjs',
     'cad/monstertruck/tests/fixtures/pcb-source/circle-tracer.json',
     *('cad/monstertruck/tests/fixtures/' + name for name in (
         'tetra-mm.step', 'two-occurrences-mm.step', 'repair-finite-domain.step',

@@ -102,7 +102,8 @@ def select(files: list[str], packages: dict[str, Package]) -> Selection:
             selection.notes.append(f"{path}: shared build input, every Rust check applies")
         elif path.startswith(TOOLING):
             selection.tooling = True
-            if path in ("cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py"):
+            if path in ("cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py",
+                        "cad/scripts/measure-cad-worker.cjs"):
                 selection.notes.append(f"{path}: run `check.py browser` to cover this browser control")
         elif path.startswith("cad/") and not path.startswith("cad/scripts/"):
             selection.cad = True

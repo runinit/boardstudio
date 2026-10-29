@@ -51,12 +51,14 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(scripts, registered | opt_in.keys())
         self.assertTrue(all(opt_in.values()))
 
-    def test_measurement_protocols_run_in_tooling_with_node_prerequisite(self):
+    def test_measurement_protocols_run_in_tooling_and_the_worker_protocol_in_the_provider_gate(self):
         commands = check.STEPS["tooling"][1]
         self.assertIn([check.PY, "-B", "cad/scripts/test-measure-cad.py"], commands)
-        self.assertIn(["node", "cad/scripts/test-measure-cad-worker.cjs"], commands)
-        self.assertLess(commands.index(["node", "--version"]),
-                        commands.index(["node", "cad/scripts/test-measure-cad-worker.cjs"]))
+        self.assertNotIn(["node", "cad/scripts/test-measure-cad-worker.cjs"], commands)
+        self.assertIn([check.PY, "cad/scripts/test-cad-provider.py"], check.STEPS["browser"][1])
+        # Node stays a prerequisite for the model-lookup and Ergogen parity tests.
+        self.assertIn(["node", "--version"], commands)
+        self.assertTrue(any(command[0] == "node" and command[1].endswith(".cjs") for command in commands))
 
     def test_ci_web_tools_do_not_install_playwright(self):
         # e0b517115 retired Playwright from the web-tools action. The workflow

@@ -72,7 +72,7 @@ class ProviderPagesTests(unittest.TestCase):
         ports = {'collision-analysis': 66, 'step-repair-accounting': 45,
                  'step-zero-repair': 53, 'step-projected-line-repair': 16,
                  'step-planar-seam-repair': 16, 'step-complete-surface-preview': 39,
-                 'qualified-analysis': 102}
+                 'qualified-analysis': 102, 'measure-cad-worker': 13}
         self.assertEqual(pages.STATIC_ASSERT_SITES, ports)
         fixtures = set()
         self.assertEqual(set(ports), set(pages.SUITES) - {'provider-support-controls'})

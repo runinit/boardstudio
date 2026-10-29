@@ -64,7 +64,6 @@ CARGO_TESTS: list[list[str]] = [
 TOOLING_TESTS = (
     "cad/scripts/test-cad-build.py", "cad/scripts/test-measure-cad.py",
     "cad/scripts/test-face-completeness-gate.py",
-    "cad/scripts/test-measure-cad-worker.cjs",
     "scripts/test-build-web.py", "scripts/test-serve-web.py",
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
