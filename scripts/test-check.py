@@ -7,6 +7,7 @@ import io
 import os
 from pathlib import Path
 import sys
+import threading
 import unittest
 from unittest import mock
 
@@ -298,6 +299,59 @@ class CheckTests(unittest.TestCase):
                 contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(check.run(["test"]), 0)
         self.assertEqual(launched, commands, "one job runs them in order")
+
+    def test_parallel_heartbeat_tracks_started_and_completed_workers_before_blocked_first(self):
+        first_started, second_started, third_started = (threading.Event() for _ in range(3))
+        release_first, release_second, release_third = (threading.Event() for _ in range(3))
+        second_output = threading.Event()
+
+        class Output(io.StringIO):
+            def write(self, text):
+                written = super().write(text)
+                if "second output" in text:
+                    second_output.set()
+                return written
+
+        output = Output()
+        result = []
+
+        def fake(command, **kwargs):
+            started, release = {
+                "first": (first_started, release_first),
+                "second": (second_started, release_second),
+                "third": (third_started, release_third),
+            }[command[0]]
+            started.set()
+            if not release.wait(5):
+                raise TimeoutError(command[0])
+            return mock.Mock(returncode=0, stdout=f"{command[0]} output\n")
+
+        with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), \
+                contextlib.redirect_stdout(output):
+            worker = threading.Thread(target=lambda: result.append(check.run_parallel(
+                [["first"], ["second"], ["third"]], os.environ.copy())))
+            worker.start()
+            try:
+                self.assertTrue(first_started.wait(2))
+                self.assertTrue(second_started.wait(2))
+                self.assertNotIn("+ third  [start", output.getvalue())
+                release_second.set()
+                self.assertTrue(third_started.wait(2))
+                self.assertTrue(second_output.wait(2))
+                text = output.getvalue()
+                self.assertIn("+ second  [end", text)
+                self.assertIn("+ third  [start", text)
+                self.assertNotIn("+ first  [end", text)
+            finally:
+                release_first.set()
+                release_second.set()
+                release_third.set()
+                worker.join(5)
+            self.assertFalse(worker.is_alive())
+        self.assertEqual(result[0][1], [])
+        for name in ("first", "second", "third"):
+            self.assertIn(f"$ {name}\n{name} output\n", output.getvalue())
 
     def test_browser_crates_are_derived_from_the_browser_plan_without_duplication(self):
         self.assertEqual(

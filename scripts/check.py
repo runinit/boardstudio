@@ -34,14 +34,16 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 import argparse
+import datetime
 import os
 from pathlib import Path
 import re
 import shlex
 import subprocess
 import sys
+import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -62,7 +64,7 @@ TOOLING_TESTS = (
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
     "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
-    "scripts/test-model-lookup.cjs", "scripts/test-ergogen-parity.cjs", "scripts/test-verification-receipt.py",
+    "scripts/test-model-lookup.cjs", "scripts/test-ergogen-parity.cjs", "scripts/test-drag-project-poll.cjs", "scripts/test-verification-receipt.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
     "scripts/test-ci-workflow.py",
 )
@@ -397,10 +399,15 @@ def format_wasm_failure_summary(output_or_summary: str | dict[str, object] | Non
     return "; ".join(parts)
 
 
+def _utcnow() -> str:
+    """Wall-clock UTC for log attribution; monotonic stays the only duration source."""
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%SZ")
+
+
 def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                captured: list[tuple[Command, str]] | None = None,
                outputs: list[tuple[Command, str]] | None = None) -> tuple[float, int]:
-    print("$ " + shlex.join(command), flush=True)
+    print(f"$ {shlex.join(command)}  [start {_utcnow()}]", flush=True)
     started = time.monotonic()
     if captured is not None and is_cargo_test(command):
         # The native test-name guard reads this output; it is printed whole once the command ends.
@@ -422,7 +429,7 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
     else:
         code = subprocess.run(command, cwd=cwd, env=environment).returncode
     elapsed = time.monotonic() - started
-    print(f"  ({elapsed:.1f}s)", flush=True)
+    print(f"  ({elapsed:.1f}s) [end {_utcnow()}]", flush=True)
     return elapsed, code
 
 
@@ -431,24 +438,34 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                  outputs: list[tuple[Command, str]] | None = None,
                  receipt: verification_receipt.Collector | None = None,
                  step: str = "") -> tuple[float, list[Command]]:
-    """Runs independent launches together, printing each one's output whole and in order."""
+    """Runs independent launches together, printing each one's output whole."""
+    console = threading.Lock()
+
     def launch(command: Command) -> tuple[int, str, float]:
+        with console:
+            print(f"+ {shlex.join(command)}  [start {_utcnow()}]", flush=True)
         started = time.monotonic()
-        done = subprocess.run(command, cwd=ROOT, env=environment, stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, text=True)
+        try:
+            done = subprocess.run(command, cwd=ROOT, env=environment, stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT, text=True)
+        finally:
+            with console:
+                print(f"+ {shlex.join(command)}  [end {_utcnow()}]", flush=True)
         return done.returncode, done.stdout, time.monotonic() - started
 
     ordered = sorted(batch, key=launch_order)
     started = time.monotonic()
     failed: list[Command] = []
     with ThreadPoolExecutor(max_workers=check_jobs()) as pool:
-        futures = [(command, pool.submit(launch, command)) for command in ordered]
-        for command, future in futures:
+        futures = {pool.submit(launch, command): command for command in ordered}
+        for future in as_completed(futures):
+            command = futures[future]
             code, output, elapsed = future.result()
             text = output_text(output)
-            print("$ " + shlex.join(command), flush=True)
-            print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
-            print(f"  ({elapsed:.1f}s)", flush=True)
+            with console:
+                print(f"$ {shlex.join(command)}", flush=True)
+                print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
+                print(f"  ({elapsed:.1f}s)", flush=True)
             if captured is not None and is_cargo_test(command):
                 captured.append((command, text))
             if outputs is not None:
