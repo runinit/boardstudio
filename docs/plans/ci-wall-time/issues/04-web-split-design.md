@@ -180,6 +180,12 @@ had no Node/npm/npx/Playwright basenames. The probe does not establish alias sem
 failure handling, provider parity, or full-gate Node independence. Its source and redacted fixture
 remain in `/home/chris/.cache/tmp/opencode/cdp-replay-Ab1FrjWE`.
 
+The user explicitly approved testing a strict compatibility alias for this exact Chrome 156
+Network event, despite the lack of local documentation proving semantic equivalence. This is a
+compatibility decision, not evidence that the two fields have identical meaning. It may accept the
+previously invalid event only while preserving the value and rejecting malformed, duplicate,
+conflicting, unknown or unrelated messages; broad invalid-event suppression is not approved.
+
 Read-only tooling-test design found that the Chromiumoxide harness may run the actual model-lookup
 and CAD worker code with controlled fakes, but an ordinary browser realm is not the bare V8 context
 used by the existing model test. The CAD worker test also exercises the real download STL/oracle
