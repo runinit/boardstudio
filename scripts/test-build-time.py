@@ -19,6 +19,10 @@ def load(name):
 COLD = load("cold")
 REPORT = load("report")
 
+_seed_spec = importlib.util.spec_from_file_location("seed", ROOT / "scripts" / "seed-worktree-target.py")
+SEED = importlib.util.module_from_spec(_seed_spec)
+_seed_spec.loader.exec_module(SEED)
+
 
 class ColdRefusalTests(unittest.TestCase):
     def test_refuses_when_cargo_target_dir_is_set(self):
@@ -57,6 +61,32 @@ class AttributionTests(unittest.TestCase):
     def test_attribution_of_everything_equals_active_union(self):
         attrib = REPORT.attributed_wall(self.records(), {"a", "b"})
         self.assertAlmostEqual(attrib, REPORT.active_union(self.records()))
+
+
+class SeedRefusalTests(unittest.TestCase):
+    def make_tree(self, base, toolchain="same", targets=()):
+        base.mkdir(parents=True, exist_ok=True)
+        (base / "rust-toolchain.toml").write_text(toolchain)
+        for rel in targets:
+            (base / rel).mkdir(parents=True, exist_ok=True)
+
+    def test_refuses_on_toolchain_mismatch_and_existing_target(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            donor, dest = Path(tmp) / "donor", Path(tmp) / "dest"
+            self.make_tree(donor, "a", SEED.TARGETS)
+            self.make_tree(dest, "b", ["target"])
+            reasons = SEED.refusals(donor, dest)
+            self.assertTrue(any("rust-toolchain" in r for r in reasons))
+            self.assertTrue(any("already has" in r for r in reasons))
+
+    def test_matching_empty_destination_has_no_refusal(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            donor, dest = Path(tmp) / "donor", Path(tmp) / "dest"
+            self.make_tree(donor, "a", SEED.TARGETS)
+            self.make_tree(dest, "a")
+            self.assertEqual(SEED.refusals(donor, dest), [])
 
 
 if __name__ == "__main__":

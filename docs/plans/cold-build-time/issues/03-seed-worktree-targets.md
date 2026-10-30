@@ -1,6 +1,6 @@
 # 03: Seed new worktree targets by reflink
 
-Status: claimed
+Status: resolved
 Type: prototype
 Blocked by: [02](02-measurement-kit.md)
 Parent: [map](../map.md)
@@ -76,3 +76,17 @@ stale artifact wins over changed source.
 Drop it and go to [12](12-sccache.md) if registry units are not fresh after the copy, if the gain is
 under 150 s, or if any gate or count differs from a clean run. Any wrong-artifact result is a
 permanent no: this would be a correctness bug with a very confusing failure.
+
+## Resolution (2026-10-30)
+
+Prototype passed every gate. Seeding 21 GB by reflink took 2.5 s. In the seeded worktree only
+21 units recompiled, all workspace/path crates (fresh-checkout source mtimes are newer than the
+donor fingerprints); every registry crate stayed fresh. Full seeded run: **921.8 s wall /
+877 CPU-s** against the same-day rebaseline's 1443.0 s / 2994 CPU-s, all steps passed, native
+floor held (2378 + 27), `boardstudio_core` 7× against 9×. Two further seeded worktrees behaved
+identically, and a real source edit in each recompiled exactly the edited crate. `btrfs du` on
+the seeded `target`: 27.7 GiB total, 10.1 GiB shared.
+
+Landed as `scripts/seed-worktree-target.py` (idle-donor flock with create-if-missing, toolchain
+match, no-overwrite refusals), documented in the README, with refusal tests in
+`scripts/test-build-time.py`. Ticket 12 (`sccache`) is not needed unless this breaks.
