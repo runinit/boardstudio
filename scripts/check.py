@@ -7,6 +7,7 @@
                           (partial subset; skips full page build and drag smoke)
   check.py browser --keep-going      continue independent browser launches after a failure
   check.py quick          the routine loop: only the checks that cover your changed files
+                          run the full check once after focused checks and fixes
   check.py quick --files F...   the same for the named files instead of the git diff
   check.py test --update-native-baseline   after the tests pass, record the executed native test
                           names as the new baseline (use when tests were removed or renamed on purpose)
@@ -41,7 +42,9 @@ import argparse
 import codecs
 import io
 import importlib.util
+import json
 import os
+import shutil
 from pathlib import Path
 import re
 import shlex
@@ -49,6 +52,7 @@ import signal
 import threading
 import subprocess
 import sys
+import tempfile
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime, timezone
@@ -75,7 +79,7 @@ TOOLING_TESTS = (
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
     "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
-    "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py", "scripts/test-parallel-interrupt.py",
+    "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py", "scripts/test-parallel-interrupt.py", "scripts/test-verify-no-node.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
     "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
 )
@@ -425,6 +429,12 @@ def format_wasm_failure_summary(output_or_summary: str | dict[str, object] | Non
     return "; ".join(parts)
 
 
+def launch_command(command, *, registry=None, **kwargs):
+    if registry is not None:
+        return _parallel_process(command, registry, **kwargs)
+    return subprocess.run(command, **kwargs)
+
+
 def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                captured: list[tuple[Command, str]] | None = None,
                outputs: list[tuple[Command, str]] | None = None,
@@ -443,7 +453,7 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
         if build_capture is not None:
             build_capture("before", None)
         try:
-            result = subprocess.run(*args, **kwargs)
+            result = launch_command(*args, **kwargs)
         except OSError as error:
             message = f"startup failed: {error}\n"
             if kwargs.get("stdout") != subprocess.PIPE:
@@ -561,7 +571,7 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
             child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
         if "cad/scripts/test-cad.py" not in command:
             child_env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
-        done = _parallel_process(command, registry, cwd=ROOT, env=child_env, stdout=subprocess.PIPE,
+        done = launch_command(command, registry=registry, cwd=ROOT, env=child_env, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, text=True,
                                  **({"pass_fds": (lock_fd,)} if lock_fd is not None else {}))
         if done is None:
@@ -906,10 +916,61 @@ def guard_native_tests(commands: list[Command], captured: list[tuple[Command, st
     return check_native_tests.verify([text for _, text in captured], full=full, update=update)
 
 
+def cargo_target() -> Path:
+    metadata = subprocess.run(["cargo", "metadata", "--no-deps", "--format-version", "1", "--locked"],
+                              cwd=ROOT, capture_output=True, text=True, check=True)
+    target = Path(json.loads(metadata.stdout)["target_directory"])
+    if not target.is_absolute():
+        raise ValueError("target directory is not absolute")
+    return target
+
+
+def build_preflight(*, cad: bool = False, cad_wasm: bool = False) -> bool:
+    try:
+        browser_tools._inherited_build_lock()
+    except SystemExit as error:
+        print(f"check: {error}", file=sys.stderr)
+        return False
+    def report_target(target: Path) -> None:
+        ancestor = target
+        while not ancestor.exists() and ancestor != ancestor.parent:
+            ancestor = ancestor.parent
+        free = shutil.disk_usage(ancestor).free
+        print(f"check: build target filesystem free: {free / (1024 ** 3):.1f} GiB ({target}; measured at {ancestor})", flush=True)
+
+    try:
+        report_target(cargo_target())
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as error:
+        print(f"check: build target unknown: {error}", file=sys.stderr)
+    cad_targets = (["cad/monstertruck/target", "cad/wasm/target", "cad/monstertruck-qualification/target"]
+                   if cad else ["cad/wasm/target"] if cad_wasm else [])
+    if cad_targets:
+        for target in cad_targets:
+            try:
+                report_target(ROOT / target)
+            except OSError as error:
+                print(f"check: CAD build target unknown ({target}): {error}", file=sys.stderr)
+    temporary = Path(os.environ.get("TMPDIR") or tempfile.gettempdir())
+    try:
+        free = shutil.disk_usage(temporary).free
+        print(f"check: temporary filesystem free: {free / (1024 ** 3):.1f} GiB ({temporary})", flush=True)
+    except OSError as error:
+        print(f"check: cannot determine temporary filesystem free space ({temporary}): {error}", file=sys.stderr)
+    return True
+
+
 def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool = False,
              *, keep_going: bool = False, partial: bool = False) -> int:
     if _RECEIPT is not None:
         _RECEIPT.plan_commands(plan)
+    cad_build = any("cad/scripts/test-cad.py" in command for _, commands in plan for command in commands)
+    cad_wasm = any("scripts/build-web.py" in command and "--skip-providers" not in command
+                   for _, commands in plan for command in commands)
+    if (cad_build or cad_wasm or any(commands and (name in ("build", "release", "browser", "drag-smoke", "layout-test-css")
+                         or name.startswith("browser (only:")
+                         or any(command and command[0] in ("cargo", "wasm-pack") for command in commands))
+                         for name, commands in plan)) and not build_preflight(cad=cad_build, cad_wasm=cad_wasm):
+        return 1
     direct = any(is_wasm_pack_test(command) for _, commands in plan for command in commands)
     page = not os.environ.get("BOARDSTUDIO_WASM_TEST_COMMAND") and any(
         "scripts/run-wasm-tests.py" in command for _, commands in plan for command in commands)

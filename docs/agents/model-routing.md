@@ -12,4 +12,4 @@ The user's direct requests take precedence over these defaults. Select from the 
 
 Collect research at low effort, then route synthesis according to its complexity. A long command alone does not justify an expensive model; route diagnosis by the complexity of the problem.
 
-Coordinate delegated implementation with pointers. A handoff is complete with a verified change and checks, a reproducible failure and a concrete materially different next experiment, or the exact blocker. After two inconclusive attempts, escalate the evidence and a different question rather than repeat. Respect the user's provider choices when escalating.
+Coordinate delegated implementation with pointers. Specify the exact owned files, expected regression, passing behavior, and concrete done condition or blocker in the implementation handoff. A handoff is complete with a verified change and checks, a reproducible failure and a concrete materially different next experiment, or the exact blocker. After two inconclusive attempts, restate the user goal and blocker, then escalate the evidence and a materially different next experiment. Respect the user's provider choices when escalating.

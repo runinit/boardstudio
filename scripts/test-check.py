@@ -19,16 +19,92 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("check", Path(__file__).with_name("check.py"))
 check = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(check)
+CARGO_TARGET = check.cargo_target
 
 
 class CheckTests(unittest.TestCase):
     def setUp(self):
+        target = mock.patch.object(check, "cargo_target", return_value=ROOT / "target")
+        target.start()
+        self.addCleanup(target.stop)
         driver = mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": "rust"})
         driver.start()
         self.addCleanup(driver.stop)
         chrome = mock.patch.object(check.browser_tools, "locate_chrome", return_value="chrome")
         self.chrome = chrome.start()
         self.addCleanup(chrome.stop)
+
+    def test_preflight_rejects_invalid_lock_for_focused_browser_and_quick(self):
+        import check_quick
+        selection = mock.Mock(notes=[], unplaced=[])
+        plan = [("browser", [["wasm-pack", "test", "--chrome", "web/crates/keymap"]])]
+        with mock.patch.dict(os.environ, {"BOARDSTUDIO_BUILD_LOCK_FD": "invalid"}), \
+                mock.patch.object(check, "_run_plan") as launch, \
+                mock.patch.object(check.subprocess, "run") as metadata, \
+                mock.patch.object(check_quick, "workspace_packages", return_value={}), \
+                mock.patch.object(check_quick, "select", return_value=selection), \
+                mock.patch.object(check, "quick_plan", return_value=plan), \
+                contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check.run(["browser"], only=["keymap"]), 1)
+            self.assertEqual(check.quick(["file.rs"]), 1)
+        launch.assert_not_called()
+        metadata.assert_not_called()
+
+    def test_page_build_preflight_reports_cad_wasm_target(self):
+        output = io.StringIO()
+        plan = [("build", [[check.PY, "scripts/build-web.py", "--fast"]])]
+        with mock.patch.object(check, "_run_plan", return_value=0), \
+                mock.patch.object(check.shutil, "disk_usage", return_value=mock.Mock(free=1024 ** 3)), \
+                contextlib.redirect_stdout(output):
+            self.assertEqual(check.run_plan(plan), 0)
+        self.assertIn(str(ROOT / "cad/wasm/target"), output.getvalue())
+
+    def test_cad_only_plan_reports_its_build_targets(self):
+        output = io.StringIO()
+        plan = [("cad", [[check.PY, "cad/scripts/test-cad.py"]])]
+        with mock.patch.object(check, "_run_plan", return_value=0), \
+                mock.patch.object(check.shutil, "disk_usage", return_value=mock.Mock(free=1024 ** 3)), \
+                contextlib.redirect_stdout(output):
+            self.assertEqual(check.run_plan(plan), 0)
+        for target in ("cad/monstertruck/target", "cad/wasm/target", "cad/monstertruck-qualification/target"):
+            self.assertIn(str(ROOT / target), output.getvalue())
+
+    def test_preflight_reports_configured_target_and_tmpdir(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "external" / "missing" / "target"
+            target.parent.parent.mkdir()
+            output = io.StringIO()
+            metadata = subprocess.CompletedProcess([], 0, json.dumps({"target_directory": str(target)}), "")
+            with mock.patch.dict(os.environ, {"TMPDIR": directory}, clear=True), \
+                    mock.patch.object(check, "cargo_target", side_effect=CARGO_TARGET), \
+                    mock.patch.object(check.subprocess, "run", return_value=metadata) as cargo, \
+                    mock.patch.object(check.shutil, "disk_usage", return_value=mock.Mock(free=1024 ** 3)) as usage, \
+                    mock.patch.object(check, "_run_plan", return_value=0), contextlib.redirect_stdout(output):
+                self.assertEqual(check.run_plan([("build", [["build"]])]), 0)
+            self.assertEqual(cargo.call_args.args[0][:3], ["cargo", "metadata", "--no-deps"])
+            self.assertIn(target.parent.parent, [call.args[0] for call in usage.call_args_list])
+            self.assertIn(str(target), output.getvalue())
+            self.assertIn(directory, output.getvalue())
+            self.assertIn("1.0 GiB", output.getvalue())
+
+    def test_preflight_metadata_failure_reports_unknown(self):
+        output = io.StringIO()
+        with mock.patch.dict(os.environ, {}, clear=True), \
+                mock.patch.object(check, "cargo_target", side_effect=CARGO_TARGET), \
+                mock.patch.object(check.subprocess, "run", side_effect=OSError("missing cargo")), \
+                mock.patch.object(check, "_run_plan", return_value=0), \
+                contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+            self.assertEqual(check.run_plan([("build", [["build"]])]), 0)
+        self.assertIn("build target unknown", output.getvalue())
+
+    def test_launch_seam_covers_serial_and_parallel(self):
+        commands = [["cargo", "test", "--locked", str(i)] for i in range(2)]
+        for jobs in ("1", "2"):
+            with self.subTest(jobs=jobs), mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": jobs}), \
+                    mock.patch.object(check, "launch_command", return_value=subprocess.CompletedProcess([], 0, "ok\n")) as launch, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertTrue(check.run_commands("test", commands, os.environ.copy())[1])
+                self.assertEqual(launch.call_count, 2)
 
     def test_scheduler_passes_real_inherited_lock_to_model_lookup(self):
         import fcntl

@@ -83,6 +83,14 @@ python3 scripts/check.py         # the full pre-PR check
 
 A single Core Rust test runs with `cargo test -p boardstudio_core --test integration <filter>`.
 
+**Optional Node/npm execution check.** On Linux, install `strace` and run
+`python3 scripts/verify-no-node.py -- COMMAND [ARG ...]` around the command to check.
+The verifier first runs its own PATH and absolute-path positive controls, then traces
+the command and descendants. It fails on attempts to execute a pathname named `node`
+or `npm`, on command failure, or if tracing cannot be verified. It observes only the
+traced process tree: renamed or embedded runtimes and the GitHub Actions runtime are
+outside its scope. It does not change CI or replace the required verification checks.
+
 **Routine loop.** `quick` takes the files changed against `main` (plus untracked files; or name
 them with `--files`) and runs the documentation checks, rustfmt and Clippy, WASM page compilation,
 the native tests of the changed crates and everything that depends on them, and the browser tests
