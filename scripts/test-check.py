@@ -614,7 +614,14 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         with mock.patch.object(check, "run_plan", side_effect=record):
             self.assertEqual(check.run(["browser"]), 0)
         self.assertEqual([name for name, _ in captured["plan"]], ["build", "browser"])
-        self.assertEqual(captured["plan"][-1][1][0], check.DRAG_SMOKE)
+        commands = captured["plan"][-1][1]
+        launches = [index for index, command in enumerate(commands) if check.is_crate_launch(command)]
+        smoke = commands.index(check.DRAG_SMOKE)
+        # Fail-fast order changed deliberately: the smoke runs after the whole crate-launch
+        # batch, whose binary it prebuilds beside.
+        self.assertGreater(smoke, launches[-1])
+        prebuild = commands.index(check.HARNESS_PREBUILD)
+        self.assertEqual(prebuild, launches[0] - 1)
 
     def test_drag_smoke_can_run_as_a_fresh_build_preflight(self):
         captured = {}

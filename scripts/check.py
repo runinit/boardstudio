@@ -87,6 +87,9 @@ TOOLING_TESTS = (
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 ISOLATED = ("presentation::case_workspace::",)
 DRAG_SMOKE = [PY, "scripts/run-drag-browser.py"]
+HARNESS_MANIFEST = "tools/browser-harness/Cargo.toml"
+HARNESS_PREBUILD: Command = ["cargo", "build", "--locked", "--manifest-path", HARNESS_MANIFEST,
+                             "--package", "boardstudio-browser-harness", "--bin", "drag-smoke"]
 LAYOUT_TEST_CSS: list[str] = [
     "dx", "build", "--web", "--no-default-features", "--features", "page", "--cargo-args=--locked",
 ]
@@ -101,10 +104,14 @@ def typecheck() -> list[Command]:
              *WASM_PAGE, "--bin", "boardstudio-web"]]
 
 
+def is_harness_build(command: Command) -> bool:
+    """A prebuild of the drag-smoke binary: joins a crate-launch batch, then the smoke runs."""
+    return command == HARNESS_PREBUILD
+
+
 def browser() -> list[Command]:
     wasm_pack = ["wasm-pack", "test", "--headless", "--chrome", "web", "--locked", *WASM_PAGE]
     return [
-        DRAG_SMOKE,
         [PY, "cad/scripts/test-cad-capture-controls.py"],
         [PY, "cad/scripts/test-cold-responses.py"],
         [PY, "scripts/check-wasm-tests.py"],
@@ -113,6 +120,10 @@ def browser() -> list[Command]:
         [PY, "-B", "scripts/ergogen-parity/test_generate.py", "--source"],
         [PY, "cad/scripts/face-completeness-gate.py"],
         [PY, "cad/scripts/test-cad-browser.py"],
+        # The harness binary prebuilds beside the crate launches; the smoke itself runs after
+        # the batch, needing only the built site and binary. Fail-fast order changes deliberately:
+        # launch failures now surface before the smoke instead of after it.
+        HARNESS_PREBUILD,
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/host", "--locked", "--features", "page",
          "--lib"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/runtime", "--locked", "--lib"],
@@ -131,6 +142,7 @@ def browser() -> list[Command]:
         # webdriver.json gives it the desktop viewport it needs.
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "--skip", "setup_guide::"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "setup_guide::"],
+        DRAG_SMOKE,
         [*wasm_pack, "--bin", "boardstudio-web", "--", "--list"],
         [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
          "--result-json", "web/target/test-results/browser.json"],
@@ -152,7 +164,6 @@ WEB_WASM_PACKAGES: tuple[str, ...] = (
 # `--no-deps` keeps Clippy off the vendored cgmath fork; its lints are audited separately.
 # The browser harness lives outside the workspace with its own lockfile, so it
 # gets its own manifest-scoped format and lint commands.
-HARNESS_MANIFEST = "tools/browser-harness/Cargo.toml"
 LINT: list[list[str]] = [
     ["cargo", "fmt", "--all", "--check"],
     ["cargo", "clippy", "--workspace", "--locked", "--all-targets", "--no-deps", "--", "-D", "warnings"],
@@ -829,8 +840,9 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
                  captured: list[tuple[Command, str]] | None = None,
                  *, keep_going: bool = False,
                  receipt: verification_receipt.Collector | None = None) -> tuple[float, bool]:
-    """Runs a step's commands; consecutive crate launches in `browser`, and the independent
-    workspaces of `test`, run together. `captured` collects each `cargo test` command's output."""
+    """Runs a step's commands; consecutive crate launches (and the harness prebuild) in
+    `browser`, and the independent workspaces of `test`, run together. `captured` collects
+    each `cargo test` command's output."""
     if name == "test" and check_jobs() > 1 and len(commands) > 1:
         elapsed, failed = run_parallel(commands, environment, captured, receipt=receipt, step=name)
         for command in failed:
@@ -844,9 +856,9 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
     index = 0
     while index < len(commands):
         command = commands[index]
-        if browser_step and check_jobs() > 1 and is_crate_launch(command):
+        if browser_step and check_jobs() > 1 and (is_crate_launch(command) or is_harness_build(command)):
             end = index
-            while end < len(commands) and is_crate_launch(commands[end]):
+            while end < len(commands) and (is_crate_launch(commands[end]) or is_harness_build(commands[end])):
                 end += 1
             batch_outputs: list[tuple[Command, str]] = []
             elapsed, failed = run_parallel(commands[index:end], environment, outputs=batch_outputs,
