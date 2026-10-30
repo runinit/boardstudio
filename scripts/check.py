@@ -213,6 +213,14 @@ def is_crate_launch(command: Command) -> bool:
     return launch_crate(command) is not None
 
 
+def is_root_clippy(command: Command) -> bool:
+    return command[:2] == ["cargo", "clippy"] and "--manifest-path" not in command
+
+
+def is_harness_clippy(command: Command) -> bool:
+    return command[:2] == ["cargo", "clippy"] and HARNESS_MANIFEST in command
+
+
 def browser_crates(commands: Sequence[Command] | None = None) -> tuple[str, ...]:
     """Presentation crate names derived in order from the `browser` command plan."""
     source = STEPS["browser"][1] if commands is None else commands
@@ -765,6 +773,58 @@ def _report_launch_failure(command: Command, text: str) -> None:
         print("check: " + summary, file=sys.stderr)
 
 
+def _run_lint_overlap(commands: list[Command], environment: dict[str, str], cwd: Path,
+                      captured: list[tuple[Command, str]] | None,
+                      receipt: verification_receipt.Collector | None = None) -> tuple[float, bool]:
+    """Run `lint` with the harness clippy beside the two root clippys.
+
+    The root clippys stay serial with each other (shared host lock); every other command,
+    including the harness clippy's result, is observed in plan order.
+    """
+    total = 0.0
+    pending: list[tuple[Command, object, list, float]] = []
+    pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="lint-harness")
+
+    def observe(command: Command, outputs: list, code: int, elapsed: float,
+                started_at: str, ended_at: str, attempt: str | None) -> bool:
+        if receipt is not None:
+            receipt.observe("lint", command, code, elapsed, outputs[-1][1] if outputs else "",
+                            started_at=started_at, ended_at=ended_at, attempt_id=attempt)
+        return code == 0
+
+    def flush() -> bool:
+        nonlocal total
+        ok = True
+        for command, future, outputs, attempt in pending:
+            elapsed, code, started_at, ended_at = future.result()
+            total += elapsed
+            if not observe(command, outputs, code, elapsed, started_at, ended_at, attempt):
+                ok = False
+        pending.clear()
+        return ok
+
+    try:
+        rest = []
+        for command in commands:
+            serial_outputs: list[tuple[Command, str]] = []
+            child_env = environment.copy()
+            args = (command, child_env, cwd, captured, serial_outputs)
+            attempt = receipt.prepare(command, step="lint") if receipt is not None else None
+            if is_harness_clippy(command):
+                # Submitted before the root clippys run, so it overlaps them.
+                pending.append((command, pool.submit(run_serial, *args), serial_outputs, attempt))
+            else:
+                rest.append((command, args, attempt))
+        for command, args, attempt in rest:
+            elapsed, code, started_at, ended_at = run_serial(*args)
+            total += elapsed
+            if not observe(command, args[4], code, elapsed, started_at, ended_at, attempt):
+                return total, flush() and False
+        return total, flush()
+    finally:
+        pool.shutdown(wait=True)
+
+
 def run_commands(name: str, commands: list[Command], environment: dict[str, str], cwd: Path = ROOT,
                  captured: list[tuple[Command, str]] | None = None,
                  *, keep_going: bool = False,
@@ -776,6 +836,8 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
         for command in failed:
             print("check: command failed: " + shlex.join(command), file=sys.stderr)
         return elapsed, not failed
+    if name == "lint" and check_jobs() > 1 and any(is_harness_clippy(command) for command in commands):
+        return _run_lint_overlap(commands, environment, cwd, captured, receipt=receipt)
     browser_step = is_browser_step(name)
     total = 0.0
     any_failed = False
