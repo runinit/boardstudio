@@ -70,7 +70,7 @@ pub(crate) use boardstudio_web_ui_model::state::{
 };
 pub(crate) use boardstudio_web_ui_model::state::{PreferenceStorageWarning, ThemeState};
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
-    PointerLocation, coordinates, coordinates_at, pointer_location,
+    PointerLocation, coordinates, coordinates_at, coordinates_with_scale, pointer_location,
 };
 pub(crate) use boardstudio_web_ui_model::{
     canvas_interaction, instance_selection, selection, spacing_ghost,
@@ -6420,7 +6420,9 @@ fn Editor() -> Element {
             ) {
                 return;
             }
-            let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) else {
+            let Some((point, scale)) =
+                coordinates_with_scale(&svg, &pointer, view_x, view_y, width, height)
+            else {
                 return;
             };
             if !current.active {
@@ -6472,6 +6474,7 @@ fn Editor() -> Element {
                     snap_fraction: snap.snap_fraction,
                     geometry_snap: snap.geometry_snap,
                     gap: snap.gap,
+                    pixels_per_world: Some(scale),
                     alt: pointer.alt_key(),
                 });
                 let fresh = runtime.model();
@@ -6495,6 +6498,7 @@ fn Editor() -> Element {
             runtime.submit(Event::GestureSample {
                 pointer_id: current.pointer,
                 positions: moved(&current, point),
+                pixels_per_world: Some(scale),
                 alt: pointer.alt_key(),
             });
         }
@@ -6641,11 +6645,13 @@ fn Editor() -> Element {
                 return;
             }
             if current.active
-                && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
+                && let Some((point, scale)) =
+                    coordinates_with_scale(&svg, &pointer, view_x, view_y, width, height)
             {
                 runtime.submit(Event::GestureEnd {
                     pointer_id: current.pointer,
                     final_positions: moved(&current, point),
+                    pixels_per_world: Some(scale),
                     alt: pointer.alt_key(),
                 });
             } else if current.active {

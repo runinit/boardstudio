@@ -3,7 +3,7 @@
 Status: resolved
 Type: build
 Blocked by: [Rust drag smoke end to end](005-rust-drag-smoke.md)
-Parent: [Chromiumoxide browser checks](../map.md)
+Parent: [Chromiumoxide browser checks](https://github.com/runinit/boardstudio/blob/511ae990a7205d9228e5d09eb7d46f8340155f8b/docs/plans/chromiumoxide-browser-checks/map.md)
 Related: [Real-browser checks drive Chrome from Rust](../../cad-deepening/issues/016-rust-browser-harness.md)
 
 ## What to build

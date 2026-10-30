@@ -374,7 +374,7 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
 
     runtime.submit(Event::PreviewEdit {
         operation_id: runtime.operation(),
-        transaction_id: "ticket160-browser-cancel-preview".into(),
+        transaction_id: "ticket160-browser-cancel".into(),
         target_ids,
         operation,
     });

@@ -47,18 +47,23 @@ class CheckTests(unittest.TestCase):
             "scripts/test-drag-browser-deep-home-timeout.py": "Linux CI process cleanup control",
             "scripts/test-drag-browser-deep-home.py": "Linux CI deep HOME browser controls",
             "scripts/test-graphite-controls.py": "manual Graphite browser failure controls against a built site",
-            # Temporary: another lane's unregistered model-lookup browser pilot; it registers or retires it.
-            "scripts/test-model-lookup-pilot.py": "opt-in model-lookup browser pilot controls, owned by the model-lookup lane",
+            "scripts/test-model-lookup-pilot.py": "opt-in model-lookup browser pilot controls",
+            "scripts/test-model-lookup.cjs": "original Node fixture retained for parity comparisons",
         }
         self.assertEqual(scripts, registered | opt_in.keys())
         self.assertTrue(all(opt_in.values()))
+
+    def test_model_lookup_runs_in_browser_not_node_tooling(self):
+        self.assertNotIn(["node", "scripts/test-model-lookup.cjs"], check.STEPS["tooling"][1])
+        self.assertIn([check.PY, "scripts/model-lookup-pilot.py", "--gate"], check.STEPS["browser"][1])
+        self.assertIn([check.PY, "-B", "scripts/test-build-patched-wasm-bindgen.py"], check.STEPS["tooling"][1])
 
     def test_measurement_protocols_run_in_tooling_and_the_worker_protocol_in_the_provider_gate(self):
         commands = check.STEPS["tooling"][1]
         self.assertIn([check.PY, "-B", "cad/scripts/test-measure-cad.py"], commands)
         self.assertNotIn(["node", "cad/scripts/test-measure-cad-worker.cjs"], commands)
         self.assertIn([check.PY, "cad/scripts/test-cad-provider.py"], check.STEPS["browser"][1])
-        # Node stays a prerequisite for the model-lookup and Ergogen parity tests.
+        # Node stays a prerequisite for the Ergogen parity test.
         self.assertIn(["node", "--version"], commands)
         self.assertTrue(any(command[0] == "node" and command[1].endswith(".cjs") for command in commands))
 
@@ -406,6 +411,39 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertEqual(len(seen), 4, "the trailing serial command does not run after a failed batch")
         self.assertEqual(check.launch_order(launches[1]), 0, "heavy crates start first")
         self.assertEqual(check.launch_order(launches[0]), 1)
+
+    def test_a_harness_timeout_before_any_test_output_fails_closed_on_one_launch(self):
+        # Missing loader or test lines do not prove no test ran, so the stall is reported, never relaunched.
+        stalled = ("Running headless tests in Chrome on `http://127.0.0.1:1/`\n"
+                   + check.HARNESS_TIMEOUT_LINE + "\n")
+        launches = [["wasm-pack", "test", "--headless", "--chrome", f"web/crates/{name}", "--locked", "--lib"]
+                    for name in ("keymap", "ui-shared")]
+        for jobs in ("3", "1"):
+            with self.subTest(jobs=jobs):
+                attempts, configs = [], []
+
+                def fake(command, **kwargs):
+                    attempts.append(launch := check.launch_crate(command))
+                    configs.append(kwargs["env"].get("WASM_BINDGEN_TEST_WEBDRIVER_JSON"))
+                    return mock.Mock(returncode=1 if launch == "ui-shared" else 0,
+                                     stdout=stalled if launch == "ui-shared" else "test panels::a ... ok\n")
+
+                receipt = mock.Mock()
+                with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                        mock.patch.object(check, "_RECEIPT", receipt), \
+                        mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": jobs,
+                                                     "WASM_BINDGEN_TEST_WEBDRIVER_JSON": "/caller/webdriver.json"}), \
+                        mock.patch.dict(check.STEPS, {"browser": (True, launches)}), \
+                        contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(check.run(["browser"]), 1)
+                self.assertEqual(sorted(attempts), ["keymap", "ui-shared"], "no relaunch")
+                self.assertEqual(configs, ["/caller/webdriver.json"] * 2, "the caller's webdriver config is kept")
+                observed = [call.args for call in receipt.observe.call_args_list
+                            if check.launch_crate(call.args[1]) == "ui-shared"]
+                self.assertEqual(len(observed), 1)
+                self.assertEqual((observed[0][2], observed[0][4]), (1, stalled),
+                                 "the receipt keeps the only attempt's exit code and whole output")
+                self.assertEqual(check.summarize_wasm_failure(stalled)["kind"], "timeout")
 
     def test_the_browser_job_cap_defaults_to_four_and_one_means_serial(self):
         with mock.patch.dict(os.environ):

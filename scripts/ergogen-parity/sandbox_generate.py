@@ -27,6 +27,24 @@ ROOT = verified_runtime.ROOT
 PIN = json.loads((ROOT / 'scripts/chrome-for-testing.json').read_text())
 CFT = Path(os.environ.get('BOARDSTUDIO_CFT_DIR', Path.home() / '.cache/boardstudio/chrome-for-testing' / PIN['version']))
 CFT_ZIP = Path(os.environ.get('BOARDSTUDIO_CFT_ZIP', CFT.parent / f"chrome-{PIN['version']}.zip"))
+MAX_OUTPUT_BYTES = 4 * 1024 * 1024
+
+
+def read_staged_output(path):
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as file:
+        if not stat.S_ISREG(os.fstat(file.fileno()).st_mode):
+            raise ValueError('Sandbox output is not a regular file')
+        result = file.read(MAX_OUTPUT_BYTES + 1)
+    if len(result) > MAX_OUTPUT_BYTES:
+        raise ValueError('Sandbox output exceeds size limit')
+    fixture = json.loads(result, parse_constant=lambda value: (_ for _ in ()).throw(ValueError(f'Invalid number: {value}')))
+    if not isinstance(fixture, dict):
+        raise ValueError('Sandbox output is not a fixture')
+    generate.validate_fixture(fixture)
+    if generate.render(fixture).encode('utf-8') != result:
+        raise ValueError('Sandbox output is not canonical')
+    return result
 
 
 def sha256(path):
@@ -73,10 +91,12 @@ def locked_archives(npm_cache, destination):
             shutil.copyfile(Path(npm_cache) / relative, destination / relative)
 
 
-def command(run, checkout, driver, chrome, output, check):
+def command(run, checkout, driver, chrome, output, check, prepared=None):
     """unshare/bwrap argv: loopback only, Node masked, read-only inputs, one writable staging dir.
 
     TMPDIR is the sandbox's private /tmp: short enough for Chrome's singleton socket path.
+    The noexec tmpfs mounts do not prevent interpreters consuming scratch bytes or remounts;
+    they are only an experimental control, not a containment guarantee.
     """
     output_dir = os.path.realpath(run / 'output')
     binds = ['--ro-bind', '/usr', '/usr', '--ro-bind', '/etc', '/etc',
@@ -84,14 +104,18 @@ def command(run, checkout, driver, chrome, output, check):
              '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/dev/shm', '--tmpfs', '/tmp',
              '--ro-bind', str(ROOT), str(ROOT), '--ro-bind', str(checkout), str(checkout),
              '--ro-bind', str(chrome.parent), str(chrome.parent), '--ro-bind', str(driver), str(driver),
-             '--bind', output_dir, output_dir,
+             '--bind', output_dir, '/out',
              '--ro-bind', str(run / 'npm'), '/npm', '--ro-bind', '/dev/null', '/usr/bin/node']
+    if prepared is not None:
+        binds += ['--ro-bind', str(prepared), '/prepared']
     inner = ['bwrap', '--die-with-parent', '--unshare-pid', '--unshare-ipc', '--unshare-uts', *binds,
              '--clearenv', '--setenv', 'PATH', '/usr/bin', '--setenv', 'HOME', '/tmp', '--setenv', 'TMPDIR', '/tmp',
              '--setenv', 'LANG', 'C.UTF-8', '--setenv', 'PYTHONDONTWRITEBYTECODE', '1', '--setenv', 'CHROME_BIN', str(chrome),
-             '/bin/sh', '-euc', 'if command -v node || command -v nodejs; then echo "node reachable" >&2; exit 97; fi; exec "$@"', 'sh',
-             '/usr/bin/python3', '-I', str(Path(__file__).with_name('generate.py')), '--cache', str(checkout),
-             '--output', os.path.join(output_dir, 'fixture.json'), '--npm-cache', '/npm', '--driver', str(driver)]
+             '/bin/sh', '-euc', 'mount -t tmpfs -o noexec,nosuid,nodev,mode=1777 tmpfs /tmp; mount -t tmpfs -o noexec,nosuid,nodev,mode=1777 tmpfs /dev/shm; if command -v node || command -v nodejs; then echo "node reachable" >&2; exit 97; fi; exec setpriv --bounding-set=-all --inh-caps=-all --ambient-caps=-all --no-new-privs "$@"', 'sh',
+             '/usr/bin/python3', '-I', '-c',
+             'import sys; sys.path.insert(0, sys.argv.pop(1)); import generate; sys.exit(generate.main(prepared=generate.Path("/prepared")))',
+             str(Path(__file__).parent), '--cache', str(checkout),
+             '--output', '/out/fixture.json', '--npm-cache', '/npm', '--driver', str(driver)]
     network = ('ip link set lo up; test "$(ip -o link show | cut -d: -f2 | tr -d " ")" = lo; '
                'test -z "$(ip route)"; test -z "$(ip -6 route)"; exec "$@"')
     return ['unshare', '--user', '--map-root-user', '--net', '/bin/sh', '-euc', network, 'sh', *inner]
@@ -121,25 +145,19 @@ def main():
             run = Path(directory)
             (run / 'output').mkdir()
             locked_archives(args.npm_cache, run / 'npm')
-            with verified_runtime.verified_runtime(checkout, run / 'npm', parent):
-                pass
-            os.environ['CHROME_BIN'] = str(chrome)
-            driver = generate.build_driver()
-            status = subprocess.run(command(run, checkout, driver, chrome, output, args.check)).returncode
+            with verified_runtime.verified_runtime(checkout, run / 'npm', parent) as prepared:
+                os.environ['CHROME_BIN'] = str(chrome)
+                driver = generate.build_driver()
+                status = subprocess.run(command(run, checkout, driver, chrome, output, args.check, prepared)).returncode
             if status:
                 return status
-            fd = os.open(run / 'output/fixture.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-            with os.fdopen(fd, 'rb') as file:
-                if not stat.S_ISREG(os.fstat(file.fileno()).st_mode):
-                    raise ValueError('Sandbox output is not a regular file')
-                result = file.read()
+            result = read_staged_output(run / 'output/fixture.json')
             if args.check:
                 if output.read_bytes() != result:
                     raise ValueError(f'Fixture differs: {output}')
                 print(f'Fixture is reproducible: {output}')
             else:
                 generate.write_fixture(output, result.decode('utf-8'))
-                print(f'Wrote {output}')
             return 0
     except Exception as error:
         print(f'Ergogen sandbox failed: {error}', file=sys.stderr)

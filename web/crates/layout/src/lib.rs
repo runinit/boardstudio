@@ -39,7 +39,7 @@ pub(crate) use boardstudio_web_ui_model::state::*;
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
-    PointerLocation, coordinates, coordinates_at, pointer_location,
+    PointerLocation, coordinates, coordinates_at, coordinates_with_scale, pointer_location,
 };
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]

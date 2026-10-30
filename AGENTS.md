@@ -45,9 +45,10 @@ The five default roles, recorded as a ticket's `Status:`. See `docs/agents/triag
 
 Single-context: `GLOSSARY.md` and `docs/adr/`. See `docs/agents/domain.md`.
 
-### Orchestration model lookup
+### Orchestration
 
-- Selecting one provider/model for delegation: [model lookup](docs/agents/model-lookup.md).
+- Routing delegated planning, implementation, research, checks, and review: [model routing](docs/agents/model-routing.md).
+- Looking up one selected provider/model for delegation: [model lookup](docs/agents/model-lookup.md).
 
 <!-- CODEGRAPH_START -->
 ## CodeGraph

@@ -458,7 +458,11 @@ pub(super) fn RelationMatrixKey(
         "m1-matrix-key is-field-preview"
     } else if selected {
         "m1-matrix-key is-selected"
-    } else if anchor_target || highlighted {
+    } else if anchor_target && highlighted {
+        "m1-matrix-key is-anchor-target is-relation-highlight"
+    } else if anchor_target {
+        "m1-matrix-key is-anchor-target"
+    } else if highlighted {
         "m1-matrix-key is-relation-highlight"
     } else if dimmed {
         "m1-matrix-key is-dimmed"
@@ -504,7 +508,11 @@ pub(super) fn RelationPartOutline(
         "m1-part is-field-preview"
     } else if selected {
         "m1-part selected"
-    } else if anchor_target || highlighted {
+    } else if anchor_target && highlighted {
+        "m1-part is-anchor-target is-relation-highlight"
+    } else if anchor_target {
+        "m1-part is-anchor-target"
+    } else if highlighted {
         "m1-part is-relation-highlight"
     } else if dimmed {
         "m1-part is-dimmed"

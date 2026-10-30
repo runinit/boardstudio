@@ -1868,7 +1868,9 @@ impl Session {
                 if active.gesture_generation.is_none() {
                     self.settle(active.operation_id, TerminalOutcome::Completed, effects);
                 }
-                if let Some(g) = &mut self.gesture {
+                if let Some(g) = &mut self.gesture
+                    && active.gesture_generation == Some(g.generation)
+                {
                     g.preview_in_flight = false;
                 }
                 self.dispatch_latest_gesture_preview(effects);
@@ -1934,7 +1936,9 @@ impl Session {
                 } else {
                     Lifecycle::Empty
                 };
-                self.finish_gesture_commit(active.gesture_generation, false, effects);
+                if active.gesture_generation.is_some() {
+                    self.finish_gesture_commit(active.gesture_generation, false, effects);
+                }
             }
             _ => {
                 let reason = "core returned an unexpected reply variant".to_string();
@@ -2290,7 +2294,10 @@ impl Session {
         let Some(g) = &mut self.gesture else {
             return;
         };
-        if g.preview_in_flight || g.commit_queued || (!g.changed && g.final_positions.is_none()) {
+        if g.preview_in_flight
+            || g.commit_queued
+            || (!g.changed && g.final_positions.is_none() && g.sent_positions.is_none())
+        {
             return;
         }
         let is_commit = g.final_positions.is_some();
@@ -2298,6 +2305,9 @@ impl Session {
             .final_positions
             .clone()
             .unwrap_or_else(|| g.latest.clone());
+        if !is_commit && g.sent_positions.as_ref() == Some(&positions) {
+            return;
+        }
         let generation = g.generation;
         let operation_id = g.operation_id;
         let command = EditCommand {
@@ -2366,8 +2376,10 @@ impl Session {
                 pointer_id: g.pointer_id,
             });
             self.model.gesture = None;
-            self.model.display_preview = None;
-            self.display_preview_transaction_id = None;
+            if self.display_preview_transaction_id.as_deref() == Some(&g.transaction_id) {
+                self.model.display_preview = None;
+                self.display_preview_transaction_id = None;
+            }
             self.model.snap_guide = None;
             if self.model.lifecycle == Lifecycle::Applying
                 && self

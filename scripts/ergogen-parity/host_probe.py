@@ -158,7 +158,7 @@ def serve(prepared, mode, reference=None):
     return http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
 
 
-def run(checkout, npm_cache, driver, mode='normal', reference=None):
+def run(checkout, npm_cache, driver, mode='normal', reference=None, *, prepared=None):
     if mode not in MODES:
         raise ValueError(f'unknown mode: {mode}')
     if mode in ('cases', 'invalid-case'):
@@ -169,7 +169,10 @@ def run(checkout, npm_cache, driver, mode='normal', reference=None):
     probe = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(probe)
     # Source mode evaluates only repository-authored cases.cjs; upstream modes need a verified tree.
-    with (nullcontext() if mode == 'source' else verified_runtime.verified_runtime(checkout, npm_cache)) as prepared:
+    # A supplied tree must have been authenticated by the outer process and mounted read-only.
+    context = (nullcontext(prepared) if prepared is not None else
+               nullcontext() if mode == 'source' else verified_runtime.verified_runtime(checkout, npm_cache))
+    with context as prepared:
         # A callable driver is built only after the checkout and archives verified.
         binary = driver() if callable(driver) else driver
         server = serve(prepared, mode, reference) if reference is not None else serve(prepared, mode)

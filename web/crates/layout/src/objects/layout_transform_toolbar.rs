@@ -3319,6 +3319,16 @@ pub fn LayoutPartToolOverlay(
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
             return;
         }
+        let Some((_, scale)) = crate::presentation::coordinates_with_scale(
+            &svg_for_move,
+            &pointer,
+            view_x,
+            view_y,
+            width,
+            height,
+        ) else {
+            return;
+        };
         let world_delta = Vec2 {
             x: (f64::from(pointer.client_x()) - active.start_client_x) * width / rect.width(),
             y: -(f64::from(pointer.client_y()) - active.start_client_y) * height / rect.height(),
@@ -3376,8 +3386,10 @@ pub fn LayoutPartToolOverlay(
                     return;
                 }
                 let at = Vec2 {
-                    x: active.start_at.x + world_delta.x,
-                    y: active.start_at.y + world_delta.y,
+                    x: active.start_at.x
+                        + (f64::from(pointer.client_x()) - active.start_client_x) / scale,
+                    y: active.start_at.y
+                        - (f64::from(pointer.client_y()) - active.start_client_y) / scale,
                 };
                 let positions = vec![Position {
                     id: active.part_id.clone(),
@@ -3398,6 +3410,7 @@ pub fn LayoutPartToolOverlay(
                         snap_fraction: snap.snap_fraction,
                         geometry_snap: snap.geometry_snap,
                         gap: snap.gap,
+                        pixels_per_world: Some(scale),
                         alt,
                     });
                     let fresh = runtime_for_move.model();
@@ -3415,13 +3428,13 @@ pub fn LayoutPartToolOverlay(
                         return;
                     }
                     active.gesture_begun = true;
-                } else {
-                    runtime_for_move.submit(Event::GestureSample {
-                        pointer_id: active.pointer_id,
-                        positions: positions.clone(),
-                        alt,
-                    });
                 }
+                runtime_for_move.submit(Event::GestureSample {
+                    pointer_id: active.pointer_id,
+                    positions: positions.clone(),
+                    pixels_per_world: Some(scale),
+                    alt,
+                });
                 feedback_for_move.set(advance_feedback(
                     &feedback_for_move(),
                     FeedbackEvent::Drag {
@@ -3647,45 +3660,35 @@ pub fn LayoutPartToolOverlay(
             }
             PartRailDragKind::DetachedMove => {
                 if active.gesture_begun {
-                    let positions = crate::presentation::coordinates(
+                    let Some((_, scale)) = crate::presentation::coordinates_with_scale(
                         &svg_for_end,
                         &pointer,
                         view_x,
                         view_y,
                         width,
                         height,
-                    )
-                    .and_then(|_| {
-                        let rect = svg_for_end
-                            .borrow()
-                            .as_ref()
-                            .map(|surface| surface.get_bounding_client_rect())?;
-                        if rect.width() <= 0.0 || rect.height() <= 0.0 {
-                            return None;
-                        }
-                        Some(vec![Position {
-                            id: active.part_id.clone(),
-                            at: Vec2 {
-                                x: active.start_at.x
-                                    + (f64::from(pointer.client_x()) - active.start_client_x)
-                                        * width
-                                        / rect.width(),
-                                y: active.start_at.y
-                                    - (f64::from(pointer.client_y()) - active.start_client_y)
-                                        * height
-                                        / rect.height(),
-                            },
-                        }])
-                    })
-                    .unwrap_or_else(|| {
-                        vec![Position {
-                            id: active.part_id.clone(),
-                            at: active.start_at,
-                        }]
-                    });
+                    ) else {
+                        cancel_part_drag(
+                            &runtime_for_end,
+                            &drag_for_end,
+                            &arbiter_for_end,
+                            svg_key,
+                        );
+                        return;
+                    };
+                    let positions = vec![Position {
+                        id: active.part_id.clone(),
+                        at: Vec2 {
+                            x: active.start_at.x
+                                + (f64::from(pointer.client_x()) - active.start_client_x) / scale,
+                            y: active.start_at.y
+                                - (f64::from(pointer.client_y()) - active.start_client_y) / scale,
+                        },
+                    }];
                     runtime_for_end.submit(Event::GestureEnd {
                         pointer_id: active.pointer_id,
                         final_positions: positions.clone(),
+                        pixels_per_world: Some(scale),
                         alt,
                     });
                     let at = &positions[0].at;
@@ -8869,6 +8872,15 @@ mod tool_tests {
         part_id: &str,
         tool: LayoutTransformTool,
     ) -> (web_sys::Element, Option<web_sys::Element>, Rc<RefCell<u32>>) {
+        mount_part_overlay_with_snap(runtime, part_id, tool, part_snap()).await
+    }
+
+    async fn mount_part_overlay_with_snap(
+        runtime: &Rc<Runtime>,
+        part_id: &str,
+        tool: LayoutTransformTool,
+        snap: GestureSnapInputs,
+    ) -> (web_sys::Element, Option<web_sys::Element>, Rc<RefCell<u32>>) {
         let owner = part_owner(runtime);
         let svg = LayoutTransformSvg(Rc::new(RefCell::new(None)));
         let document = web_sys::window().unwrap().document().unwrap();
@@ -8882,7 +8894,7 @@ mod tool_tests {
             scope: owner.scope.clone().expect("a scope"),
             part_id: part_id.to_owned(),
             tool,
-            snap: part_snap(),
+            snap,
             focus_half: focus_half.clone(),
         };
         dioxus_web::launch::launch_virtual_dom(
@@ -11692,6 +11704,154 @@ mod tool_tests {
         assert!(
             (restored.x - start.x).abs() < 1e-9 && (restored.y - start.y).abs() < 1e-9,
             "one Undo restores the pose"
+        );
+        root.remove();
+    }
+
+    /// The mounted rail uses the four-pixel-per-mm viewbox for magnetic grid snapping.
+    #[wasm_bindgen_test]
+    async fn detached_move_rail_snaps_inside_radius() {
+        detached_move_rail_case(10.5, false, 10.0).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn detached_move_rail_preserves_outside_radius() {
+        detached_move_rail_case(7.5, false, 7.5).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn detached_move_rail_alt_bypasses_snap() {
+        detached_move_rail_case(10.5, true, 10.5).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn rail_probe_dispatch() {
+        rail_probe(0).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn rail_probe_drain() {
+        rail_probe(1).await;
+    }
+
+    async fn rail_probe(phase: u8) {
+        detached_move_rail_case_phase(10.5, false, 10.0, phase).await;
+    }
+
+    async fn detached_move_rail_case(delta: f64, alt: bool, expected: f64) {
+        detached_move_rail_case_phase(delta, alt, expected, 2).await;
+    }
+
+    async fn detached_move_rail_case_phase(delta: f64, alt: bool, expected: f64, phase: u8) {
+        let runtime = fixture::open_detached_part_runtime().await;
+        wait_until_editable(&runtime).await;
+        let snap = GestureSnapInputs {
+            pitch: Vec2 { x: 10.0, y: 10.0 },
+            snap_fraction: 1.0,
+            geometry_snap: false,
+            gap: None,
+        };
+        let (root, handle, _) =
+            mount_part_overlay_with_snap(&runtime, "mcu", LayoutTransformTool::Move, snap).await;
+        let handle = handle.expect("Move draws a handle");
+        let svg = root.query_selector("svg").unwrap().unwrap();
+        svg.set_attribute("width", "600").unwrap();
+        let rect = svg.get_bounding_client_rect();
+        let client = |x: f64| {
+            (
+                (rect.left() + x * 4.0).round() as i32,
+                (rect.top() - 40.0 * 4.0).round() as i32,
+            )
+        };
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(&handle, "pointerdown", false, alt, 1, client(60.0));
+        gloo_timers::future::TimeoutFuture::new(60).await;
+        dispatch_pointer(&handle, "pointermove", false, alt, 1, client(63.0));
+        gloo_timers::future::TimeoutFuture::new(60).await;
+        for _ in 0..20 {
+            support::run_pending(&runtime).await;
+            if runtime.model().gesture.is_some() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            runtime
+                .model()
+                .gesture
+                .as_ref()
+                .is_some_and(|gesture| gesture.changed),
+            "the first qualifying move samples the session gesture"
+        );
+        dispatch_pointer(&handle, "pointermove", false, alt, 1, client(60.0 + delta));
+        if phase == 0 {
+            root.remove();
+            return;
+        }
+        for _ in 0..100 {
+            support::run_pending(&runtime).await;
+            let model = runtime.model();
+            if model.display_preview.as_ref().is_some_and(|scene| {
+                scene.transforms.iter().any(|transform| {
+                    transform.id == "mcu"
+                        && (transform.pose.at.x - (60.0 + expected)).abs() < 1e-6
+                        && (transform.pose.at.y - 40.0).abs() < 1e-6
+                })
+            }) {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let model = runtime.model();
+        let preview = model
+            .display_preview
+            .as_ref()
+            .expect("second move produces a scene preview");
+        let at = preview
+            .transforms
+            .iter()
+            .find(|transform| transform.id == "mcu")
+            .expect("preview contains the moved part")
+            .pose
+            .at;
+        assert!(
+            (at.x - (60.0 + expected)).abs() < 1e-6 && (at.y - 40.0).abs() < 1e-6,
+            "preview delta {delta}, alt {alt}: {at:?}"
+        );
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision,
+            "preview does not commit"
+        );
+        if phase == 1 {
+            root.remove();
+            return;
+        }
+        // Pointer-up supplies the final position for the snap decision.
+        dispatch_pointer(&handle, "pointerup", false, alt, 0, client(60.0 + delta));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert_eq!(fixture_revision(&runtime), revision + 1);
+        let model = runtime.model();
+        let at = model
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == "mcu")
+            .unwrap()
+            .pose
+            .at;
+        assert!(
+            (at.x - (60.0 + expected)).abs() < 1e-6 && (at.y - 40.0).abs() < 1e-6,
+            "commit delta {delta}, alt {alt}: {at:?}"
         );
         root.remove();
     }

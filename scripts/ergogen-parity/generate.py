@@ -9,6 +9,7 @@ import math
 import os
 from pathlib import Path
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -311,24 +312,31 @@ def build_driver():
     return browser_tools._build_harness('cad-provider-pages')
 
 
-def generate(cache, npm_cache=NPM_CACHE, driver=None):
-    payload = host_probe.run(cache, npm_cache, driver or build_driver, 'generate')
+def generate(cache, npm_cache=NPM_CACHE, driver=None, *, prepared=None):
+    payload = host_probe.run(cache, npm_cache, driver or build_driver, 'generate', prepared=prepared)
     return assemble(payload, payload['actual'])
 
 
 def write_fixture(output, text):
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    directory = tempfile.mkdtemp(prefix='.ergogen-parity-', dir=output.parent)
+    while True:
+        temporary = output.parent / ('.ergogen-parity-' + secrets.token_hex(16))
+        try:
+            fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+            break
+        except FileExistsError:
+            continue
     try:
-        with open(os.path.join(directory, 'fixture.json'), 'xb') as file:
+        with os.fdopen(fd, 'wb') as file:
             file.write(text.encode('utf-8'))
-        os.replace(os.path.join(directory, 'fixture.json'), output)
+        os.replace(temporary, output)
     finally:
-        shutil.rmtree(directory, ignore_errors=True)
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
-def main(argv=None):
+def main(argv=None, *, prepared=None):
     parser = argparse.ArgumentParser(
         description='Generate or --check the Ergogen layout-parity fixture without Node. '
                     '--check regenerates in memory and refuses differences without writing.')
@@ -348,8 +356,9 @@ def main(argv=None):
             raise ValueError('Refusing to overwrite the current projection oracle before its replacement is wired')
         if inside(destination, real_destination(cache)):
             raise ValueError('Fixture output must not modify the pinned source checkout')
-        bootstrap(cache)
-        fixture = render(generate(cache, args.npm_cache, args.driver))
+        if prepared is None:
+            bootstrap(cache)
+        fixture = render(generate(cache, args.npm_cache, args.driver, prepared=prepared))
         if args.check:
             if output.read_bytes() != fixture.encode('utf-8'):
                 raise ValueError(f'Fixture differs: {output}')

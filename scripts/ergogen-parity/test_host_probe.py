@@ -13,6 +13,23 @@ import verified_runtime
 
 
 class HostBoundaryTests(unittest.TestCase):
+    def test_prepared_runtime_is_used_without_repreparing(self):
+        prepared = Path('/prepared')
+        server = mock.MagicMock()
+        server.server_port = 1234
+        result = mock.Mock(returncode=0, stderr='', stdout='result')
+        with mock.patch.object(verified_runtime, 'verified_runtime') as prepare, \
+                mock.patch.object(host_probe, 'serve', return_value=server) as serve, \
+                mock.patch.object(host_probe.threading, 'Thread'), \
+                mock.patch('importlib.util.spec_from_file_location') as spec, \
+                mock.patch('importlib.util.module_from_spec') as module, \
+                mock.patch.object(host_probe, 'validate_payload', return_value={'ok': True}):
+            module.return_value.run_probe.return_value = result
+            self.assertEqual(host_probe.run('/unused', '/unused', '/driver', 'generate',
+                                            prepared=prepared), {'ok': True})
+        prepare.assert_not_called()
+        serve.assert_called_once_with(prepared, 'generate')
+
     @staticmethod
     def fixture_reference():
         fixture = json.loads((verified_runtime.ROOT / 'core/tests/fixtures/ergogen-layout-parity.json').read_text())

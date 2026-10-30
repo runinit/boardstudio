@@ -347,13 +347,18 @@ async fn hovering_a_column_field_previews_its_keys_on_both_halves() {
     );
     assert_eq!(
         count(root_id, ".m1-matrix-key.is-relation-highlight"),
+        0,
+        "no transient relation highlight remains"
+    );
+    assert_eq!(
+        count(root_id, ".m1-matrix-key.is-anchor-target"),
         2,
         "only the persistent anchor target stays violet"
     );
     assert_eq!(
         count(
             root_id,
-            ".m1-matrix-key.is-relation-highlight[data-matrix-id='left-matrix'][data-column='0']"
+            ".m1-matrix-key.is-anchor-target[data-matrix-id='left-matrix'][data-column='0']"
         ),
         2,
         "the previous column is the anchor target"

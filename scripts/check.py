@@ -53,6 +53,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import browser_tools  # noqa: E402  (needs the scripts directory on sys.path)
 import check_native_tests  # noqa: E402  (needs the scripts directory on sys.path)
 import verification_receipt  # noqa: E402  (needs the scripts directory on sys.path)
+import wasm_bindgen_tools  # noqa: E402
 
 PY = "python3"
 # One workspace invocation compiles Core once for every crate's tests. Footprints runs
@@ -64,11 +65,11 @@ CARGO_TESTS: list[list[str]] = [
 TOOLING_TESTS = (
     "cad/scripts/test-cad-build.py", "cad/scripts/test-measure-cad.py",
     "cad/scripts/test-face-completeness-gate.py",
-    "scripts/test-build-web.py", "scripts/test-serve-web.py",
+    "scripts/test-build-web.py", "scripts/test-build-patched-wasm-bindgen.py", "scripts/test-serve-web.py",
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
     "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
-    "scripts/test-model-lookup.cjs", "scripts/test-ergogen-parity.cjs", "scripts/test-verification-receipt.py",
+    "scripts/test-ergogen-parity.cjs", "scripts/test-verification-receipt.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
     "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
 )
@@ -97,6 +98,7 @@ def browser() -> list[Command]:
         [PY, "cad/scripts/test-cold-responses.py"],
         [PY, "scripts/check-wasm-tests.py"],
         [PY, "cad/scripts/test-cad-provider.py"],
+        [PY, "scripts/model-lookup-pilot.py", "--gate"],
         [PY, "cad/scripts/face-completeness-gate.py"],
         [PY, "cad/scripts/test-cad-browser.py"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/host", "--locked", "--features", "page",
@@ -655,6 +657,11 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
             # An editor's AppImage directory redirects system KiCad's library lookup.
             environment.pop("APPDIR", None)
         if is_browser_step(name):
+            try:
+                environment = wasm_bindgen_tools.configure(environment, ROOT)
+            except ValueError as error:
+                print(f"check: {error}", file=sys.stderr)
+                return finish(1)
             # Match the page runner's bounded budget for direct wasm-pack crate batches.
             environment.setdefault("WASM_BINDGEN_TEST_TIMEOUT", "120")
             # Test wasm without DWARF is about a seventh of the size, which is most of a launch.

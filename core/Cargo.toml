@@ -40,5 +40,9 @@ path = "tests/integration.rs"
 name = "matrix_performance"
 path = "tests/matrix_performance.rs"
 
+[[test]]
+name = "performance"
+path = "tests/performance.rs"
+
 [lints]
 workspace = true

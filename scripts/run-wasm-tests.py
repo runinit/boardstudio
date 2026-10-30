@@ -9,6 +9,9 @@ run; a known failure that now passes is reported so the entry can be removed.
 
 wasm-bindgen-test-runner accepts a single FILTER, so each module filter is one runner invocation.
 Override the runner with BOARDSTUDIO_WASM_TEST_COMMAND (shell-split; the filter, if any, is appended).
+Set BOARDSTUDIO_WASM_BINDGEN_DIR to a directory containing both executable tools at the
+workspace Cargo.lock version. wasm-pack 0.15 selects the pair from PATH; paths with
+whitespace are unsupported by its Cargo runner setting. check.py browser uses it too.
 """
 
 import argparse
@@ -25,6 +28,7 @@ import shlex
 import shutil
 import subprocess
 import browser_tools
+import wasm_bindgen_tools
 import sys
 import time
 from tempfile import TemporaryDirectory
@@ -256,7 +260,13 @@ def runner_environment(root=ROOT):
         raise RunnerError("wasm-pack not found on PATH; install it with `cargo install wasm-pack`")
     env["CHROMEDRIVER"] = driver
     env[CHROME_BIN_ENV] = chrome
-    env["PATH"] = f"{wasm_bindgen_dir(root)}{os.pathsep}{env['PATH']}"
+    if wasm_bindgen_tools.DIRECTORY_ENV in env:
+        try:
+            env = wasm_bindgen_tools.configure(env, root)
+        except ValueError as error:
+            raise RunnerError(str(error)) from error
+    else:
+        env["PATH"] = f"{wasm_bindgen_dir(root)}{os.pathsep}{env['PATH']}"
     print(f"run-wasm-tests: chrome {chrome}; chromedriver {driver}", file=sys.stderr)
     return env
 
@@ -669,6 +679,11 @@ def main(argv=None):
         known = load_known_failures()
         custom_runner = bool(os.environ.get(RUNNER_ENV))
         env = os.environ.copy() if custom_runner else runner_environment(root)
+        if custom_runner:
+            try:
+                env = wasm_bindgen_tools.configure(env, root)
+            except ValueError as error:
+                raise RunnerError(str(error)) from error
         browser_setup = not custom_runner
         with (desktop_webdriver_config(env, root) if browser_setup else nullcontext(env)) as env:
             if args.files:

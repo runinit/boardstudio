@@ -21,6 +21,13 @@ def process_gone(pid):
 
 @unittest.skipUnless(pathlib.Path('/proc/self/stat').exists(), 'requires Linux /proc')
 class Cleanup(unittest.TestCase):
+    def test_capture_without_tempfiles_and_limit_output(self):
+        with mock.patch('tempfile.TemporaryFile', side_effect=PermissionError('scratch unreadable')):
+            result = probe.run_probe([sys.executable, '-c', "import sys; print('ok'); print('error', file=sys.stderr)"], 5)
+            self.assertEqual((result.stdout, result.stderr), ('ok\n', 'error\n'))
+            with self.assertRaisesRegex(ValueError, 'output limit'):
+                probe.run_probe([sys.executable, '-c', "print('x' * (5 * 1024 * 1024))"], 5)
+
     def test_disappearing_proc_entry_counts_as_gone(self):
         for error in (FileNotFoundError(), ProcessLookupError()):
             with self.subTest(error=error), mock.patch.object(pathlib.Path, 'read_text', side_effect=error):

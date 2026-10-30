@@ -210,6 +210,36 @@ class GeneratorContractTests(unittest.TestCase):
         self.assertEqual(sorted(path.name for path in self.root.iterdir()),
                          sorted(['checkout', 'directory', 'fixture.json', unrelated.name]))
 
+    def test_output_permissions_follow_umask(self):
+        old = os.umask(0o022)
+        try:
+            generate.write_fixture(self.output, 'fixture\n')
+            self.assertEqual(self.output.stat().st_mode & 0o777, 0o644)
+            self.output.chmod(0o640)
+            generate.write_fixture(self.output, 'replacement\n')
+            self.assertEqual(self.output.stat().st_mode & 0o777, 0o644)
+        finally:
+            os.umask(old)
+
+    def test_cli_rejects_unverified_prepared_runtime(self):
+        with mock.patch.object(generate, 'generate') as run, contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                generate.main(['--cache', str(self.checkout), '--output', str(self.output),
+                               '--prepared-runtime', str(self.root)])
+        run.assert_not_called()
+
+    def test_atomic_output_renames_within_destination_directory(self):
+        replace = os.replace
+
+        def same_directory(source, destination):
+            if Path(source).parent != Path(destination).parent:
+                raise OSError(18, 'cross-directory rename denied')
+            replace(source, destination)
+
+        with mock.patch.object(generate.os, 'replace', side_effect=same_directory):
+            generate.write_fixture(self.output, 'fixture\n')
+        self.assertEqual(self.output.read_text(), 'fixture\n')
+
     def test_oracle_results_fail_closed(self):
         value = fixture()
         source = {'cases': [{k: v for k, v in item.items() if k != 'expected'} for item in value['cases']],

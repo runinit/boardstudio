@@ -56,6 +56,13 @@ EXPECTED_CASES = (
 
 
 class PilotTests(unittest.TestCase):
+    def test_gate_builds_driver_from_checkout(self):
+        with mock.patch.object(pilot.browser_tools, '_build_harness', return_value=Path('/built/driver')) as build, \
+             mock.patch.object(pilot, 'run') as run:
+            pilot.run_gate()
+        build.assert_called_once_with('cad-provider-pages')
+        run.assert_called_once_with(pilot.ROOT / 'scripts/model-lookup.js', Path('/built/driver'))
+
     def test_inventory_is_the_exact_reviewed_list(self):
         self.assertEqual(pilot.CASES, EXPECTED_CASES)
         self.assertEqual(len(set(EXPECTED_CASES)), 32)

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Exercise actual worker responses and fatal page/worker failures in Chrome."""
+import contextlib
 import http.server
 import json
 import os
+import selectors
 import signal
 import subprocess
-import tempfile
 import threading
 import time
 
@@ -43,23 +44,47 @@ def run_probe(command, timeout):
     previous = signal.signal(signal.SIGTERM, terminate)
     # Keep the exited leader unreaped until its group is killed, preventing PID reuse.
     try:
-        with tempfile.TemporaryFile(mode="w+t") as stdout, tempfile.TemporaryFile(mode="w+t") as stderr:
-            process = subprocess.Popen(command, stdout=stdout, stderr=stderr, start_new_session=True)
+        with contextlib.ExitStack() as stack:
+            selector = stack.enter_context(selectors.DefaultSelector())
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+            stack.enter_context(process.stdout)
+            stack.enter_context(process.stderr)
+            output = {process.stdout: bytearray(), process.stderr: bytearray()}
+            for stream in output:
+                selector.register(stream, selectors.EVENT_READ)
             deadline = time.monotonic() + timeout
             try:
                 while not os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT):
                     if time.monotonic() >= deadline:
                         raise subprocess.TimeoutExpired(command, timeout)
-                    time.sleep(min(0.05, max(0, deadline - time.monotonic())))
+                    for key, _ in selector.select(min(0.05, max(0, deadline - time.monotonic()))):
+                        chunk = os.read(key.fd, 65536)
+                        if not chunk:
+                            selector.unregister(key.fileobj)
+                        else:
+                            output[key.fileobj].extend(chunk)
+                            if len(output[key.fileobj]) > 4 * 1024 * 1024:
+                                raise ValueError('driver output limit exceeded')
             finally:
                 try:
                     os.killpg(process.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
                 process.wait()
-            stdout.seek(0)
-            stderr.seek(0)
-            return subprocess.CompletedProcess(command, process.returncode, stdout.read(), stderr.read())
+            for stream in output:
+                os.set_blocking(stream.fileno(), False)
+                while True:
+                    try:
+                        chunk = os.read(stream.fileno(), 65536)
+                    except BlockingIOError:
+                        break
+                    if not chunk:
+                        break
+                    output[stream].extend(chunk)
+                    if len(output[stream]) > 4 * 1024 * 1024:
+                        raise ValueError('driver output limit exceeded')
+            return subprocess.CompletedProcess(command, process.returncode,
+                                               output[process.stdout].decode(), output[process.stderr].decode())
     finally:
         signal.signal(signal.SIGTERM, previous)
 

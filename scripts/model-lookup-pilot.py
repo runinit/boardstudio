@@ -33,6 +33,8 @@ import sys
 import threading
 from urllib.parse import urlsplit
 
+import browser_tools
+
 ROOT = Path(__file__).resolve().parents[1]
 SUITE = 'model-lookup-pilot'
 TIMEOUT = 300  # the driver bounds navigation and the suite itself; this covers a hung process
@@ -147,20 +149,31 @@ def run(source, driver, recipe=ROOT / 'docs/agents/model-lookup.md'):
         if result.returncode:
             raise RuntimeError(f'pilot driver failed ({result.returncode}): {result.stderr}\nstdout: {result.stdout}')
         validate_results(result.stdout)
+        for entry in json.loads(result.stdout)[SUITE]:
+            print(f"PASS {entry['case']}")
     finally:
         server.shutdown()
         server.server_close()
         thread.join()
 
 
+def run_gate():
+    driver = browser_tools._build_harness('cad-provider-pages')
+    run(ROOT / 'scripts/model-lookup.js', driver)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, default=ROOT / 'scripts/model-lookup.js')
     parser.add_argument('--recipe', type=Path, default=ROOT / 'docs/agents/model-lookup.md')
+    parser.add_argument('--gate', action='store_true', help='build the checkout driver under the shared lock')
     args = parser.parse_args()
     try:
-        driver = os.environ.get('CAD_PROVIDER_PAGES_DRIVER')
-        run(args.source, driver, args.recipe)
-        print(f'model lookup pilot passed (restricted worker; not an isolate or security sandbox); driver sha256 {hashlib.sha256(Path(driver).read_bytes()).hexdigest()}')
-    except (OSError, ValueError, RuntimeError) as error:
+        if args.gate:
+            run_gate()
+        else:
+            driver = os.environ.get('CAD_PROVIDER_PAGES_DRIVER')
+            run(args.source, driver, args.recipe)
+            print(f'model lookup pilot passed (restricted worker; not an isolate or security sandbox); driver sha256 {hashlib.sha256(Path(driver).read_bytes()).hexdigest()}')
+    except (OSError, ValueError, RuntimeError, browser_tools.MissingBrowserTool) as error:
         sys.exit(str(error))
