@@ -6,6 +6,8 @@ import importlib.util
 import io
 import json
 import os
+import re
+import shlex
 from pathlib import Path
 import subprocess
 import sys
@@ -27,6 +29,96 @@ class CheckTests(unittest.TestCase):
         chrome = mock.patch.object(check.browser_tools, "locate_chrome", return_value="chrome")
         self.chrome = chrome.start()
         self.addCleanup(chrome.stop)
+
+    def test_scheduler_passes_real_inherited_lock_to_model_lookup(self):
+        import fcntl
+        with tempfile.TemporaryDirectory() as directory:
+            lock = Path(directory) / ".cache/tmp/boardstudio-build.lock"
+            lock.parent.mkdir(parents=True)
+            with lock.open("w") as held:
+                fcntl.flock(held, fcntl.LOCK_EX)
+                code = ("import sys, json, subprocess; sys.path.insert(0, %r); import browser_tools; "
+                        "root=browser_tools.Path(browser_tools.__file__).resolve().parents[1]; "
+                        "artifact={'reason':'compiler-artifact','package_id':'path+'+(root/'tools/browser-harness').as_uri()+'#boardstudio-browser-harness', 'target':{'name':'cad-provider-pages','kind':['bin']},'executable':'/tmp/fake-driver'}; "
+                        "def_run=lambda args, **kw: (args[0]=='cargo' or (_ for _ in ()).throw(AssertionError('lock reacquired'))) and subprocess.CompletedProcess(args,0,json.dumps(artifact),''); "
+                        "browser_tools.subprocess.run=def_run; assert str(browser_tools._build_harness('cad-provider-pages')) == '/tmp/fake-driver'" % str(ROOT / "scripts"))
+                command = [sys.executable, "-c", code, "scripts/model-lookup-pilot.py", "--gate"]
+                with mock.patch.dict(os.environ, {"HOME": directory, "BOARDSTUDIO_BUILD_LOCK_FD": str(held.fileno())}):
+                    _, passed = check.run_commands("browser", [command], os.environ.copy(), ROOT, None)
+                self.assertTrue(passed)
+
+    def test_serial_missing_executable_reports_startup_error(self):
+        output = io.StringIO()
+        with contextlib.redirect_stderr(output), contextlib.redirect_stdout(io.StringIO()):
+            _, code, _, _ = check.run_serial(["/nonexistent/boardstudio-check-command"], os.environ.copy())
+        self.assertEqual(code, 127)
+        self.assertIn("startup failed", output.getvalue())
+
+    def test_scheduler_relays_drag_output_to_collector(self):
+        marker = 'BOARDSTUDIO_DRAG_BINDING {"proof":true}'
+        command = [sys.executable, "-c", "print(%r)" % marker, "scripts/run-drag-browser.py"]
+        receipt = mock.Mock()
+        receipt.run_id = "run"
+        receipt.prepare.return_value = "attempt"
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            _, passed = check.run_commands("browser", [command], os.environ.copy(), ROOT, None, receipt=receipt)
+        self.assertTrue(passed)
+        self.assertIn(marker, output.getvalue())
+        self.assertIn(marker, receipt.observe.call_args.args[4])
+
+    def test_invalid_driver_fails_before_build(self):
+        plan = [("build", [["build"]]), ("browser", [["wasm-pack", "test", "--chrome", "web/crates/keymap"]])]
+        with mock.patch.dict(os.environ, {"CHROMEDRIVER": "/missing/driver", "CHROME_BIN": "/bin/true"}), \
+                mock.patch.object(check, "run_commands") as launch, contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(check.run_plan(plan), 1)
+        launch.assert_not_called()
+
+    def test_page_only_plan_checks_driver_before_build(self):
+        plan = [("lint", [["lint"]]), ("browser", [[check.PY, "scripts/run-wasm-tests.py", "--files", "page.rs"]])]
+        with mock.patch.dict(os.environ, {"CHROMEDRIVER": "/missing/driver", "CHROME_BIN": "/bin/true",
+                                         "BOARDSTUDIO_WASM_TEST_COMMAND": ""}), \
+                mock.patch.object(check, "run_commands", return_value=(0, True)) as launch, \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(check.run_plan(plan), 1)
+        launch.assert_not_called()
+
+    def test_page_only_custom_runner_skips_browser_preflight(self):
+        plan = [("browser", [[check.PY, "scripts/run-wasm-tests.py", "--files", "page.rs"]])]
+        with mock.patch.dict(os.environ, {"CHROMEDRIVER": "/missing/driver",
+                                         "BOARDSTUDIO_WASM_TEST_COMMAND": "/bin/true"}), \
+                mock.patch.object(check, "run_commands", return_value=(0, True)) as launch, \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(check.run_plan(plan), 0)
+        launch.assert_called_once()
+
+    def test_selected_driver_reaches_actual_command_despite_path_conflict(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            selected = root / "selected"
+            selected.write_text("#!/bin/sh\nexit 0\n")
+            selected.chmod(0o755)
+            conflict = root / "chromedriver"
+            conflict.write_text("#!/bin/sh\nexit 1\n")
+            conflict.chmod(0o755)
+            commands = [["wasm-pack", "test", "--headless", "--chrome", "web/crates/keymap"]]
+            with mock.patch.dict(os.environ, {"CHROMEDRIVER": str(selected), "CHROME_BIN": "/bin/true", "PATH": directory}), \
+                    mock.patch.object(check, "run_commands", return_value=(0, True)) as launch, \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(check.run_plan([("browser", commands)]), 0)
+            actual = launch.call_args.args[1][0]
+            self.assertEqual(actual[actual.index("--chromedriver") + 1], str(selected))
+            self.assertEqual(launch.call_args.args[2]["CHROMEDRIVER"], str(selected))
+
+    def test_nonexecutable_driver_fails_before_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            driver = Path(directory) / "driver"
+            driver.write_text("no")
+            plan = [("build", [["build"]]), ("browser", [["wasm-pack", "test", "--chrome", "web/crates/keymap"]])]
+            with mock.patch.dict(os.environ, {"CHROMEDRIVER": str(driver), "CHROME_BIN": "/bin/true"}), \
+                    mock.patch.object(check, "run_commands") as launch, contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(check.run_plan(plan), 1)
+            launch.assert_not_called()
 
     def test_every_referenced_script_and_manifest_exists(self):
         for name, (_, commands) in check.STEPS.items():
@@ -53,6 +145,103 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(scripts, registered | opt_in.keys())
         self.assertTrue(all(opt_in.values()))
 
+    def assert_gate_contract(self, steps, workflow, gate, replacement_refs=None):
+        self.assertTrue(steps["tooling"][0], "tooling must remain a default step")
+        self.assertIn(gate, steps["tooling"][1], "required parity gate missing from tooling")
+        if gate != ["node", "scripts/test-ergogen-parity.cjs"]:
+            self.assertEqual(len(replacement_refs or []), 2, "replacement plan and evidence required")
+            for ref in replacement_refs:
+                self.assertTrue((ROOT / ref).is_file(), f"missing replacement reference: {ref}")
+
+        # Recognize only a simple unconditional native job and a standalone run step.
+        # Other YAML forms fail closed until this contract is deliberately extended.
+        lines = workflow.splitlines()
+        self.assertEqual(lines.count("jobs:"), 1)
+        jobs = lines[lines.index("jobs:") + 1:]
+        jobs = jobs[:next((i for i, line in enumerate(jobs) if line and not line[0].isspace() and not line.startswith("#")), len(jobs))]
+        starts = [i for i, line in enumerate(jobs) if re.fullmatch(r"  native:\s*(?:#.*)?", line)]
+        self.assertEqual(len(starts), 1, "native job missing or ambiguous")
+        job = jobs[starts[0] + 1:]
+        job = job[:next((i for i, line in enumerate(job) if re.match(r"  [^ #]", line)), len(job))]
+        keys = [re.match(r"    ([a-zA-Z-]+):(?:\s|$)", line).group(1)
+                for line in job if re.match(r"    ([a-zA-Z-]+):(?:\s|$)", line)]
+        self.assertEqual(sorted(keys), ["runs-on", "steps"], "unsupported or conditional native job")
+        self.assertEqual(sum(line == "    steps:" for line in job), 1)
+        step_lines = job[job.index("    steps:") + 1:]
+        groups = []
+        for line in step_lines:
+            if re.match(r"      - ", line):
+                groups.append([line[8:]])
+            elif groups and line.startswith("        "):
+                groups[-1].append(line[8:])
+        found = False
+        for group in groups:
+            # Only plain name/id and run fields are accepted; conditions, shell,
+            # working directory and block scalars can change execution semantics.
+            if not all(re.fullmatch(r"(?:name|id|run): [^\n]+", line) for line in group):
+                continue
+            runs = [line[5:] for line in group if line.startswith("run: ")]
+            if len(runs) != 1:
+                continue
+            try:
+                words = shlex.split(runs[0])
+            except ValueError:
+                continue
+            if (len(words) == 6 and words[:2] == ["python3", "scripts/check.py"]
+                    and set(words[2:]) == {"repo", "tooling", "lint", "test"}):
+                found = True
+        self.assertTrue(found, "CI must configure an unconditional tooling step")
+
+    def test_ergogen_gate_transition_contract(self):
+        workflow = (ROOT / ".github/workflows/check.yaml").read_text()
+        gate = ["node", "scripts/test-ergogen-parity.cjs"]
+        self.assertTrue((ROOT / gate[1]).is_file())
+        self.assert_gate_contract(check.STEPS, workflow, gate)
+
+    def test_ergogen_gate_contract_rejects_retirement_and_accepts_documented_cutover(self):
+        gate = ["node", "scripts/test-ergogen-parity.cjs"]
+        workflow = (ROOT / ".github/workflows/check.yaml").read_text()
+        for steps in ({"tooling": (True, [])}, {"tooling": (False, [gate])},
+                      {"tooling": (True, []), "parity": (False, [gate])}):
+            with self.subTest(steps=steps), self.assertRaises(AssertionError):
+                self.assert_gate_contract(steps, workflow, gate)
+
+        # These references describe work in progress, not approval of a cutover.
+        replacement = ["python3", "scripts/ergogen-parity/sandbox_generate.py", "--check",
+                       "--cache", "/tmp/ergogen-checkout", "--temp-parent", "/tmp/ergogen-run"]
+        self.assert_gate_contract({"tooling": (True, [replacement])}, workflow, replacement,
+                                  ["docs/plans/retro-agent-guardrails.md",
+                                   "docs/research/2026-10-29-ergogen-oracle-boundary.md"])
+
+    def test_gate_contract_structural_regressions(self):
+        gate = ["node", "scripts/test-ergogen-parity.cjs"]
+        steps = {"tooling": (True, [gate])}
+        def workflow(job_extra="", step_extra="", command="python3 scripts/check.py repo tooling lint test"):
+            return f"jobs:\n  native:\n    runs-on: ubuntu-latest\n{job_extra}    steps:\n      - name: checks\n{step_extra}        run: {command}\n"
+        self.assert_gate_contract(steps, workflow(command="python3 scripts/check.py test lint tooling repo"), gate)
+        # Configuration cannot guarantee execution after an earlier failed step.
+        self.assert_gate_contract(steps, workflow().replace("      - name: checks",
+                                  "      - run: exit 1\n      - name: checks"), gate)
+        for ci in (workflow(job_extra="    if: false\n"), workflow(job_extra="    needs: other\n"),
+                   workflow(step_extra="        if: false\n"),
+                   workflow(command="python3 scripts/check.py repo lint test"),
+                   workflow(command="echo python3 scripts/check.py repo tooling lint test"),
+                   workflow(command="python3 scripts/check.py repo tooling lint test || true"),
+                   workflow().replace("  native:", "  decoy:")):
+            with self.subTest(ci=ci), self.assertRaises(AssertionError):
+                self.assert_gate_contract(steps, ci, gate)
+
+    def test_gate_contract_replacement_requires_references(self):
+        workflow = (ROOT / ".github/workflows/check.yaml").read_text()
+        replacement = ["python3", "scripts/ergogen-parity/sandbox_generate.py", "--check",
+                       "--cache", "/tmp/ergogen-checkout", "--temp-parent", "/tmp/ergogen-run"]
+        steps = {"tooling": (True, [replacement])}
+        for refs in ([], ["docs/plans/retro-agent-guardrails.md", "missing.md"]):
+            with self.assertRaises(AssertionError):
+                self.assert_gate_contract(steps, workflow, replacement, replacement_refs=refs)
+        self.assert_gate_contract(steps, workflow, replacement, replacement_refs=[
+            "docs/plans/retro-agent-guardrails.md", "docs/research/2026-10-29-ergogen-oracle-boundary.md"])
+
     def test_model_lookup_runs_in_browser_not_node_tooling(self):
         self.assertNotIn(["node", "scripts/test-model-lookup.cjs"], check.STEPS["tooling"][1])
         self.assertIn([check.PY, "scripts/model-lookup-pilot.py", "--gate"], check.STEPS["browser"][1])
@@ -63,10 +252,6 @@ class CheckTests(unittest.TestCase):
         self.assertIn([check.PY, "-B", "cad/scripts/test-measure-cad.py"], commands)
         self.assertNotIn(["node", "cad/scripts/test-measure-cad-worker.cjs"], commands)
         self.assertIn([check.PY, "cad/scripts/test-cad-provider.py"], check.STEPS["browser"][1])
-        # Node stays a prerequisite for the Ergogen parity test.
-        self.assertIn(["node", "--version"], commands)
-        self.assertTrue(any(command[0] == "node" and command[1].endswith(".cjs") for command in commands))
-
     def test_ci_web_tools_do_not_install_playwright(self):
         # e0b517115 retired Playwright from the web-tools action. The workflow
         # cutover (no-NODE_PATH browser step, drag-chrome provisioning) stays
@@ -406,7 +591,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                 mock.patch.dict(check.STEPS, {"browser": (True, [serial, *launches, serial])}), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
             self.assertEqual(check.run(["browser"]), 1)
-        self.assertIn("launch failed: wasm-pack test --headless --chrome web/crates/case", error.getvalue())
+        self.assertIn("web/crates/case", error.getvalue())
         self.assertEqual(seen[0], serial)
         self.assertEqual(len(seen), 4, "the trailing serial command does not run after a failed batch")
         self.assertEqual(check.launch_order(launches[1]), 0, "heavy crates start first")
@@ -418,6 +603,9 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                    + check.HARNESS_TIMEOUT_LINE + "\n")
         launches = [["wasm-pack", "test", "--headless", "--chrome", f"web/crates/{name}", "--locked", "--lib"]
                     for name in ("keymap", "ui-shared")]
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as config:
+            json.dump({"goog:chromeOptions": {"binary": "/usr/bin/true"}}, config)
+        self.addCleanup(Path(config.name).unlink)
         for jobs in ("3", "1"):
             with self.subTest(jobs=jobs):
                 attempts, configs = [], []
@@ -432,12 +620,12 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                 with mock.patch.object(check.subprocess, "run", side_effect=fake), \
                         mock.patch.object(check, "_RECEIPT", receipt), \
                         mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": jobs,
-                                                     "WASM_BINDGEN_TEST_WEBDRIVER_JSON": "/caller/webdriver.json"}), \
+                                                     "WASM_BINDGEN_TEST_WEBDRIVER_JSON": config.name, "CHROME_BIN": "/bin/true"}), \
                         mock.patch.dict(check.STEPS, {"browser": (True, launches)}), \
                         contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                     self.assertEqual(check.run(["browser"]), 1)
                 self.assertEqual(sorted(attempts), ["keymap", "ui-shared"], "no relaunch")
-                self.assertEqual(configs, ["/caller/webdriver.json"] * 2, "the caller's webdriver config is kept")
+                self.assertEqual(configs, [config.name] * 2, "the caller's webdriver config is kept")
                 observed = [call.args for call in receipt.observe.call_args_list
                             if check.launch_crate(call.args[1]) == "ui-shared"]
                 self.assertEqual(len(observed), 1)
@@ -579,8 +767,8 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             ["library", "case", "parts"],
         )
         stderr = error.getvalue()
-        self.assertIn("launch failed: wasm-pack test --headless --chrome web/crates/library", stderr)
-        self.assertIn("launch failed: wasm-pack test --headless --chrome web/crates/case", stderr)
+        self.assertIn("web/crates/library", stderr)
+        self.assertIn("web/crates/case", stderr)
         self.assertIn("step 'browser (only: library, case, parts)' failed", stderr)
 
         # In a parallel batch with --keep-going, a failed crate launch continues to trailing

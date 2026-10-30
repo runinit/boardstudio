@@ -17,12 +17,58 @@ use boardstudio_browser_harness::driver::{self, InvalidCounts, PageErrors};
 use boardstudio_browser_harness::{discover_chrome, Error, IsolatedDirs, Result};
 use chromiumoxide::cdp::js_protocol::runtime::EventExceptionThrown;
 use chromiumoxide::error::CdpError;
-use chromiumoxide::handler::viewport::Viewport;
-use chromiumoxide::{Browser, BrowserConfig};
 use futures::StreamExt;
+
+#[path = "../shutdown.rs"]
+mod shutdown;
+
+struct AbortOnDrop(tokio::task::JoinHandle<()>);
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
 
 fn fail(message: impl Into<String>) -> Error {
     Error::new(message)
+}
+
+fn cleanup_profile(dirs: IsolatedDirs, confirmed: bool) -> Result<()> {
+    if confirmed {
+        shutdown::remove_profile(&dirs)
+    } else {
+        let message = format!(
+            "browser termination unconfirmed; profile preserved at {}",
+            dirs.profile_dir.display()
+        );
+        std::mem::forget(dirs);
+        Err(fail(message))
+    }
+}
+
+fn teardown_counter_verdict(counters: &Counters) -> Result<()> {
+    let count = counters.handler_errors.load(Ordering::Relaxed);
+    if count != 0 {
+        let first = counters
+            .first_handler_error
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        return Err(fail(format!(
+            "skew probe saw {count} handler error(s); first: {}",
+            first.first().cloned().unwrap_or_default()
+        )));
+    }
+    let required = counters
+        .invalids
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .required_total();
+    if required != 0 {
+        return Err(fail(format!(
+            "skew probe saw {required} REQUIRED invalid(s)"
+        )));
+    }
+    Ok(())
 }
 
 const FIXTURE: &str = r#"<!doctype html>
@@ -207,27 +253,7 @@ async fn run(counters: Arc<Counters>) -> Result<()> {
     let dirs = IsolatedDirs::create(std::path::Path::new(&tmp_root))
         .map_err(|error| fail(format!("skew probe cannot isolate its profile: {error}")))?;
 
-    // Same launch as driver::launch_chrome, plus surfacing invalids.
-    // This is the ONLY place that option is enabled.
-    let config = BrowserConfig::builder()
-        .chrome_executable(&chrome)
-        .user_data_dir(&dirs.profile_dir)
-        .no_sandbox()
-        .surface_invalid_messages()
-        .args(driver::LAUNCH_ARGS)
-        .viewport(Viewport {
-            width: driver::VIEWPORT_WIDTH,
-            height: driver::VIEWPORT_HEIGHT,
-            ..Default::default()
-        })
-        .window_size(driver::VIEWPORT_WIDTH, driver::VIEWPORT_HEIGHT)
-        .env(
-            "XDG_CONFIG_HOME",
-            dirs.xdg_config_home().to_string_lossy().as_ref(),
-        )
-        .build()
-        .map_err(|error| fail(format!("skew probe cannot build a browser config: {error}")))?;
-    let (browser, handler) = step!("launch", Browser::launch(config));
+    let (browser, handler) = step!("launch", driver::launch_chrome(&chrome, &dirs));
     let mut handler = handler;
 
     let drain_counters = Arc::clone(&counters);
@@ -241,148 +267,180 @@ async fn run(counters: Arc<Counters>) -> Result<()> {
         }
     });
 
-    // Browser domain round trip.
-    let version = step!("browser version", browser.version());
-    println!("skew probe product: {}", version.product);
+    let outcome = async {
+        // Browser domain round trip.
+        let version = step!("browser version", browser.version());
+        println!("skew probe product: {}", version.product);
 
-    let page_errors = Arc::new(PageErrors::new());
-    let page = step!("open page", browser.new_page("about:blank"));
-    step!(
-        "listen for page errors",
-        driver::spawn_page_error_listener(&page, Arc::clone(&page_errors))
-    );
-    let mut exceptions = step!(
-        "listen for exceptions",
-        page.event_listener::<EventExceptionThrown>()
-    );
+        let page_errors = Arc::new(PageErrors::new());
+        let page = step!("open page", browser.new_page("about:blank"));
+        step!(
+            "listen for page errors",
+            driver::spawn_page_error_listener(&page, Arc::clone(&page_errors))
+        );
+        let mut exceptions = step!(
+            "listen for exceptions",
+            page.event_listener::<EventExceptionThrown>()
+        );
 
-    let (url, server) = serve_fixture().await?;
-    step!("open fixture", async {
-        tokio::time::timeout(Duration::from_secs(60), page.goto(url.as_str()))
-            .await
-            .map_err(|_| fail("skew probe timed out opening the fixture"))?
-            .map_err(|error| fail(format!("skew probe cannot open the fixture: {error}")))
-    });
+        let (url, server) = serve_fixture().await?;
+        let _server = AbortOnDrop(server);
+        step!("open fixture", async {
+            tokio::time::timeout(Duration::from_secs(60), page.goto(url.as_str()))
+                .await
+                .map_err(|_| fail("skew probe timed out opening the fixture"))?
+                .map_err(|error| fail(format!("skew probe cannot open the fixture: {error}")))
+        });
 
-    // DOM round trip: document, query, describe.
-    step!("dom round trip", driver::backend_of(&page, "#probe-btn"));
-    // Runtime round trip.
-    let sum = step!("runtime round trip", driver::eval(&page, "1 + 1"));
-    if sum.as_i64() != Some(2) {
-        return Err(fail(format!(
-            "skew probe runtime round trip saw {sum:?}, want 2"
-        )));
-    }
-    // Accessibility round trip.
-    let nodes = step!(
-        "accessibility round trip",
-        driver::find_role(&page, None, "button", "Probe target")
-    );
-    if nodes.len() != 1 {
-        return Err(fail(format!(
-            "skew probe accessibility round trip matched {} nodes, want 1",
-            nodes.len()
-        )));
-    }
-    // Input round trip: trusted click flips the fixture flag.
-    step!("input round trip", driver::click_css(&page, "#probe-btn"));
-    let clicked = step!(
-        "input effect",
-        driver::eval(&page, "window.__clicked === true")
-    );
-    if clicked != serde_json::Value::Bool(true) {
-        return Err(fail("skew probe input round trip had no page effect"));
-    }
-    // Target round trip: create and dispose an isolated context.
-    let isolated_errors = Arc::new(PageErrors::new());
-    let (context, isolated) = step!(
-        "target create",
-        driver::new_isolated_page(&browser, &url, &isolated_errors)
-    );
-    step!(
-        "target dispose",
-        driver::dispose_isolated_page(&browser, Some(context), isolated, &isolated_errors)
-    );
-    isolated_errors
-        .fail_if_any()
-        .map_err(|error| fail(error.to_string()))?;
-
-    // Deliberate page exception via Runtime.evaluate: the eval itself must
-    // succeed (no command error); the uncaught throw must arrive through
-    // Runtime.exceptionThrown before the deadline. Missing it is a timeout.
-    step!(
-        "arm deliberate exception",
-        driver::eval(
-            &page,
-            "setTimeout(() => { throw new Error('skew-probe-deliberate'); }, 0); 'armed';"
-        )
-    );
-    let observed = tokio::time::timeout(Duration::from_secs(10), async {
-        while let Some(event) = exceptions.next().await {
-            let detail = &event.exception_details;
-            let text = detail
-                .exception
-                .as_ref()
-                .and_then(|exception| exception.description.clone())
-                .unwrap_or_else(|| detail.text.clone());
-            if text.contains(DELIBERATE) {
-                return true;
-            }
+        // DOM round trip: document, query, describe.
+        step!("dom round trip", driver::backend_of(&page, "#probe-btn"));
+        // Runtime round trip.
+        let sum = step!("runtime round trip", driver::eval(&page, "1 + 1"));
+        if sum.as_i64() != Some(2) {
+            return Err(fail(format!(
+                "skew probe runtime round trip saw {sum:?}, want 2"
+            )));
         }
-        false
-    })
-    .await
-    .unwrap_or(false);
-    if !observed {
-        return Err(fail(
-            "skew probe deliberate exception: no exceptionThrown event before the deadline",
-        ));
-    }
-    println!("skew probe deliberate exception: observed ({DELIBERATE})");
+        // Accessibility round trip.
+        let nodes = step!(
+            "accessibility round trip",
+            driver::find_role(&page, None, "button", "Probe target")
+        );
+        if nodes.len() != 1 {
+            return Err(fail(format!(
+                "skew probe accessibility round trip matched {} nodes, want 1",
+                nodes.len()
+            )));
+        }
+        // Input round trip: trusted click flips the fixture flag.
+        step!("input round trip", driver::click_css(&page, "#probe-btn"));
+        let clicked = step!(
+            "input effect",
+            driver::eval(&page, "window.__clicked === true")
+        );
+        if clicked != serde_json::Value::Bool(true) {
+            return Err(fail("skew probe input round trip had no page effect"));
+        }
+        // Target round trip: create and dispose an isolated context.
+        let isolated_errors = Arc::new(PageErrors::new());
+        let (context, isolated) = step!(
+            "target create",
+            driver::new_isolated_page(&browser, &url, &isolated_errors)
+        );
+        step!(
+            "target dispose",
+            driver::dispose_isolated_page(&browser, Some(context), isolated, &isolated_errors)
+        );
+        isolated_errors
+            .fail_if_any()
+            .map_err(|error| fail(error.to_string()))?;
 
-    // Grace period so trailing invalids arrive before teardown.
-    tokio::time::sleep(Duration::from_secs(2)).await;
+        // Deliberate page exception via Runtime.evaluate: the eval itself must
+        // succeed (no command error); the uncaught throw must arrive through
+        // Runtime.exceptionThrown before the deadline. Missing it is a timeout.
+        step!(
+            "arm deliberate exception",
+            driver::eval(
+                &page,
+                "setTimeout(() => { throw new Error('skew-probe-deliberate'); }, 0); 'armed';"
+            )
+        );
+        let observed = tokio::time::timeout(Duration::from_secs(10), async {
+            while let Some(event) = exceptions.next().await {
+                let detail = &event.exception_details;
+                let text = detail
+                    .exception
+                    .as_ref()
+                    .and_then(|exception| exception.description.clone())
+                    .unwrap_or_else(|| detail.text.clone());
+                if text.contains(DELIBERATE) {
+                    return true;
+                }
+            }
+            false
+        })
+        .await
+        .unwrap_or(false);
+        if !observed {
+            return Err(fail(
+                "skew probe deliberate exception: no exceptionThrown event before the deadline",
+            ));
+        }
+        println!("skew probe deliberate exception: observed ({DELIBERATE})");
 
-    drop(browser);
-    drain.abort();
-    server.abort();
+        // Grace period so trailing invalids arrive before teardown.
+        tokio::time::sleep(Duration::from_secs(2)).await;
 
-    // Verdicts, all fatal on nonzero.
-    if command_errors != 0 {
-        return Err(fail(format!(
-            "skew probe saw {command_errors} command error(s)"
-        )));
+        // Verdicts, all fatal on nonzero.
+        if command_errors != 0 {
+            return Err(fail(format!(
+                "skew probe saw {command_errors} command error(s)"
+            )));
+        }
+        let unexpected: Vec<String> = page_errors
+            .messages()
+            .into_iter()
+            .filter(|message| !message.contains(DELIBERATE))
+            .collect();
+        if !unexpected.is_empty() {
+            return Err(fail(format!(
+                "skew probe page errors: unexpected {unexpected:?}"
+            )));
+        }
+        Ok(())
     }
-    let handler_errors = counters.handler_errors.load(Ordering::Relaxed);
-    if handler_errors != 0 {
-        let first = counters
-            .first_handler_error
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        return Err(fail(format!(
-            "skew probe saw {handler_errors} handler error(s); first: {}",
-            first.first().cloned().unwrap_or_default()
-        )));
+    .await;
+    let errors = driver::HandlerErrors::new();
+    let (shutdown_result, confirmed) =
+        shutdown::finish_browser(browser, drain, &errors, outcome.is_ok()).await;
+    let cleanup = cleanup_profile(dirs, confirmed);
+    let failures: Vec<String> = [
+        outcome.err(),
+        shutdown_result.err(),
+        teardown_counter_verdict(&counters).err(),
+        cleanup.err(),
+    ]
+    .into_iter()
+    .flatten()
+    .map(|error| error.to_string())
+    .collect();
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(fail(failures.join("; ")))
     }
-    let required = counters
-        .invalids
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .required_total();
-    if required != 0 {
-        return Err(fail(format!(
-            "skew probe saw {required} REQUIRED invalid(s)"
-        )));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unconfirmed_shutdown_preserves_profile() {
+        let root = tempfile::tempdir().unwrap();
+        let dirs = IsolatedDirs::create(root.path()).unwrap();
+        let profile = dirs.profile_dir.clone();
+        assert!(cleanup_profile(dirs, false).is_err());
+        assert!(profile.exists());
     }
-    let unexpected: Vec<String> = page_errors
-        .messages()
-        .into_iter()
-        .filter(|message| !message.contains(DELIBERATE))
-        .collect();
-    if !unexpected.is_empty() {
-        return Err(fail(format!(
-            "skew probe page errors: unexpected {unexpected:?}"
-        )));
+
+    #[test]
+    fn handler_error_during_teardown_is_fatal() {
+        let counters = Counters::default();
+        counters.record_handler_error("late handler error".to_owned());
+        assert!(teardown_counter_verdict(&counters).is_err());
     }
-    Ok(())
+
+    #[test]
+    fn required_invalid_during_teardown_is_fatal() {
+        let counters = Counters::default();
+        counters.record_invalid(r#"{"method":"Page.frameNavigated"}"#);
+        assert!(teardown_counter_verdict(&counters).is_err());
+    }
+
+    #[test]
+    fn probe_uses_guarded_launcher() {
+        let source = include_str!("skew_probe.rs");
+        assert!(!source.contains(concat!("Browser::", "launch(config)")));
+    }
 }

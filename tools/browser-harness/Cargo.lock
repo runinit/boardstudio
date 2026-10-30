@@ -116,6 +116,7 @@ name = "boardstudio-browser-harness"
 version = "0.1.0"
 dependencies = [
  "async-tungstenite",
+ "base64 0.22.1",
  "chromiumoxide",
  "futures",
  "serde",

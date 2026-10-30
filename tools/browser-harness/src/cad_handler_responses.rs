@@ -24,6 +24,10 @@ impl MethodType for NetworkEvent {
 }
 impl CustomEvent for NetworkEvent {}
 
+fn is_completion_event(method: &str) -> bool {
+    matches!(method, "Network.loadingFinished" | "Network.loadingFailed")
+}
+
 fn response_url_matches(request_url: &str, response_url: Option<&str>, handoff: bool) -> bool {
     response_url.is_some_and(|url| handoff || url == request_url)
 }
@@ -59,6 +63,11 @@ pub async fn start(page: &Page) -> Result<tokio::task::JoinHandle<Result<Vec<Res
             let id = params["requestId"]
                 .as_str()
                 .ok_or_else(|| Error("network event missing request ID".into()))?;
+            // Completion carries no response to add to this collector. Keep
+            // validating its request ID; unknown event types remain errors.
+            if is_completion_event(&event.method) {
+                continue;
+            }
             let key = (event.session.clone(), id.to_owned());
             let response;
             let favicon;
@@ -154,6 +163,13 @@ pub async fn start(page: &Page) -> Result<tokio::task::JoinHandle<Result<Vec<Res
 #[cfg(test)]
 mod tests {
     use super::response_url_matches;
+
+    #[test]
+    fn completion_events_are_known_but_unknown_events_are_not() {
+        assert!(super::is_completion_event("Network.loadingFinished"));
+        assert!(super::is_completion_event("Network.loadingFailed"));
+        assert!(!super::is_completion_event("Network.unknown"));
+    }
 
     #[test]
     fn only_handoff_accepts_a_different_response_url() {

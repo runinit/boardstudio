@@ -27,9 +27,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import hashlib
 from pathlib import Path
 import re
 import subprocess
+import threading
 import uuid
 
 import check_native_tests
@@ -64,6 +66,10 @@ class Observation:
     output: str = ""
     started_at: str | None = None
     ended_at: str | None = None
+    attempt_id: str | None = None
+    retry_of: str | None = None
+    page_report: dict | None = None
+    page_captured: bool = False
 
 
 def script_name(command: list[str]) -> str:
@@ -291,6 +297,12 @@ def _command_record(step: str, command: list[str], observation: Observation | No
     record.update({"status": observation.status, "exit_code": observation.exit_code,
                    "elapsed_s": observation.elapsed, "started_at": observation.started_at,
                    "ended_at": observation.ended_at})
+    record.update({"attempt_id": observation.attempt_id, "retry_of": observation.retry_of})
+    if observation.status != "ran":
+        record.update({"complete": False, "passed": False, "counts": None, "tests": [],
+                       "groups": {}, "problems": ["receipt recording failed" if observation.status == "recording_failed"
+                                                   else "attempt did not finish"]})
+        return record
     if scope == WASM_CRATE:
         record.update(crate_record(observation))
     elif scope == NATIVE:
@@ -304,7 +316,8 @@ def _command_record(step: str, command: list[str], observation: Observation | No
                                  and native["counts"]["failed"] == 0})
     elif scope == PAGE_SUITE:
         path = _result_json_path(command)
-        record.update(page_record(page_loader(path) if path else None, path=path,
+        record.update(page_record(observation.page_report if observation.page_captured else
+                                  (page_loader(path) if path else None), path=path,
                                   exit_code=observation.exit_code))
     else:
         record.update({"complete": None, "passed": observation.exit_code == 0,
@@ -344,28 +357,54 @@ def _before_after(native: dict | None, commands: list[dict], base: dict | None,
 
 def build_receipt(plan: list[tuple[str, list[str]]], observations: list[Observation], *,
                   source: dict, exit_code: int, partial: bool, native: dict | None = None,
-                  page_loader=None, base: dict | None = None, base_path: Path | None = None) -> dict:
+                  page_loader=None, base: dict | None = None, base_path: Path | None = None,
+                  run_id: str | None = None, source_after: dict | None = None) -> dict:
     """Assemble a receipt from `(step, command)` pairs and the observations of the commands that ran."""
     page_loader = page_loader or load_json
-    observed = {(item.step, tuple(item.command)): item for item in observations}
-    commands = [_command_record(step, command, observed.get((step, tuple(command))), page_loader)
-                for step, command in plan]
+    remaining = list(observations)
+    commands = []
+    for step, command in plan:
+        match = next((item for item in remaining if item.retry_of is None
+                      and item.step == step and item.command == command), None)
+        if match is not None:
+            remaining.remove(match)
+        commands.append(_command_record(step, command, match, page_loader))
+        if match is not None:
+            retries = [item for item in remaining if item.retry_of == match.attempt_id and item.retry_of is not None]
+            for retry in retries:
+                remaining.remove(retry)
+                commands.append(_command_record(step, command, retry, page_loader))
+    commands.extend(_command_record(item.step, item.command, item, page_loader) for item in remaining)
     not_run = [record for record in commands if record["status"] == "not_run"]
+    def valid(identity):
+        return (isinstance(identity, dict) and
+                re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", identity.get("revision") or "") and
+                re.fullmatch(r"[0-9a-fA-F]{64}", identity.get("digest") or "") and
+                isinstance(identity.get("dirty"), bool))
+    bound = valid(source) and valid(source_after)
     return {
         "schema_version": SCHEMA_VERSION,
-        "run_id": uuid.uuid4().hex,
+        "run_id": run_id or uuid.uuid4().hex,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "generated_by": "scripts/check.py",
         "source": source,
+        "source_binding": {"scope": "git tracked and non-ignored untracked files; excludes ignored and external inputs",
+                           "status": "unknown" if not bound or source_after == source else "mismatch",
+                           "after": source_after,
+                           "correlated": "unknown" if not bound else
+                           ("unknown" if source_after == source else "invalid"),
+                           "build_served_binding": "unknown"},
         "invocation": {
             "steps": list(dict.fromkeys(step for step, _ in plan)),
-            "planned_commands": len(commands),
-            "ran_commands": len(commands) - len(not_run),
+            "planned_commands": len(plan),
+            "ran_commands": sum(record["status"] != "not_run" for record in commands),
             "not_run_commands": [{"step": record["step"], "scope": record["scope"],
                                   "command": record["command"]} for record in not_run],
             "partial": bool(partial),
             "exit_code": exit_code,
-            "accepted": exit_code == 0,
+            "accepted": (exit_code == 0 and not not_run and
+                         all(record["status"] == "ran" and record["passed"] is not False
+                             for record in commands)),
         },
         "commands": commands,
         "native": native,
@@ -382,10 +421,14 @@ def render_summary(receipt: dict) -> str:
     source = receipt.get("source") or {}
     invocation = receipt.get("invocation") or {}
     lines = ["# Verification receipt summary", ""]
-    lines.append(f"Source: {source.get('branch') or '?'}@{_short(source.get('revision'))} "
-                 f"({'local changes' if source.get('dirty') else 'clean tree'})")
+    dirty = source.get("dirty")
+    source_state = "local changes" if dirty is True else "clean tree" if dirty is False else "source state unknown"
+    lines.append(f"Source: {source.get('branch') or '?'}@{_short(source.get('revision'))} ({source_state})")
+    binding = receipt.get("source_binding") or {}
+    lines.append(f"Source correlation: {binding.get('status', 'unknown')}; "
+                 f"build/served binding: {binding.get('build_served_binding', 'unknown')}")
     selection = "partial selection" if invocation.get("partial") else "full selection"
-    accepted = "accepted" if invocation.get("accepted") else "NOT accepted"
+    accepted = "commands accepted" if invocation.get("accepted") else "NOT accepted"
     lines.append(f"Invocation: steps {', '.join(invocation.get('steps') or [])} — {selection}; "
                  f"{invocation.get('ran_commands')}/{invocation.get('planned_commands')} commands ran; "
                  f"exit {invocation.get('exit_code')} ({accepted})")
@@ -511,18 +554,117 @@ def write_receipt(path: Path | str, receipt: dict) -> tuple[Path, Path]:
     return json_path, summary_path
 
 
+def site_identity(path: Path) -> tuple[dict | None, tuple | None]:
+    """Hash the two completed site routes and capture metadata for freshness."""
+    try:
+        if not all((path / route / "index.html").is_file()
+                   for route in ("site-root", "site-subpath/boardstudio")):
+            return None, None
+        files = sorted(p for p in path.rglob("*") if p.is_file())
+        digest = hashlib.sha256()
+        states = []
+        for file in files:
+            if file.is_symlink():
+                return None, None
+            relative = file.relative_to(path).as_posix().encode()
+            data = file.read_bytes()
+            stat = file.stat()
+            digest.update(len(relative).to_bytes(8, "big"))
+            digest.update(relative)
+            digest.update(len(data).to_bytes(8, "big"))
+            digest.update(data)
+            states.append((relative, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns))
+        return {"path": str(path), "sha256": digest.hexdigest()}, tuple(states)
+    except OSError:
+        return None, None
+
+
+def fresh_site(before, after):
+    # Snapshots cannot prove that retained files were produced by this build.
+    return None
+
+
+def build_binding(run_id, attempt_id, before, after, code, output, fresh):
+    def valid(value):
+        return (isinstance(value, dict) and
+                re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", value.get("revision") or "") and
+                re.fullmatch(r"[0-9a-fA-F]{64}", value.get("digest") or "") and
+                isinstance(value.get("dirty"), bool))
+    comparison = ("equal" if before == after else "different") if valid(before) and valid(after) else "unknown"
+    return {"status": "unknown", "source_snapshot_scope": "git tracked and non-ignored untracked files; excludes ignored and external inputs",
+            "source_snapshot_comparison": comparison,
+            "site_routes_changed": fresh, "run_id": run_id,
+            "attempt_id": attempt_id, "source_before": before, "source_after": after,
+            "output": output if code == 0 and fresh else None}
+
+
+
+def drag_binding(run_id, attempt_id, observed, builds):
+    result = {"run_id": run_id, "attempt_id": attempt_id, "receipt_path": None,
+              "build_attempt_id": None, "site_comparison": "unknown", "served_content": "unknown"}
+    if (not run_id or not attempt_id or not isinstance(observed, dict)
+            or observed.get("run_id") != run_id or observed.get("attempt_id") != attempt_id
+            or not isinstance(observed.get("receipt_path"), str) or not observed["receipt_path"]):
+        return result
+    result["receipt_path"] = observed["receipt_path"]
+    site = observed.get("site")
+    build = next((b for b in reversed(builds) if b.get("run_id") == run_id), None)
+    if not build or not build.get("attempt_id") or not isinstance(site, dict):
+        return result
+    output = build.get("output")
+    if (not isinstance(output, dict) or not site.get("path") or site.get("path") != output.get("path")
+            or not re.fullmatch(r"[0-9a-f]{64}", site.get("sha256") or "")
+            or not re.fullmatch(r"[0-9a-f]{64}", output.get("sha256") or "")):
+        return result
+    result["build_attempt_id"] = build["attempt_id"]
+    result["site_comparison"] = "equal" if site["sha256"] == output["sha256"] else "different"
+    return result
+
 def source_identity(root: Path, run=subprocess.run) -> dict:
     """The checked-out revision and whether the tree has local changes."""
     def git(*args: str) -> str:
-        done = run(["git", *args], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-        return (done.stdout or "").strip()
+        try:
+            done = run(["git", *args], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        except OSError:
+            return None
+        return (done.stdout or "").strip() if done.returncode == 0 else None
 
-    status = git("status", "--porcelain")
+    status = git("status", "--porcelain=v2", "--ignore-submodules=none")
+    revision = git("rev-parse", "HEAD")
+    if status is None or not revision or not re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", revision):
+        return {"revision": None, "digest": None, "dirty": None}
+    # Git's superproject diff does not capture a submodule's dirty contents.
+    if any(len(parts) > 2 and parts[2].startswith("S") and parts[2][2:] != ".."
+           for line in status.splitlines() if (parts := line.split(" ", 3)) and parts[0] in ("1", "2", "u")):
+        return {"revision": revision, "digest": None, "dirty": True}
+    digest = hashlib.sha256()
+    # Git diffs capture tracked content; untracked files are included explicitly.
+    for args in (("diff", "--binary", "HEAD"), ("ls-files", "--others", "--exclude-standard", "-z")):
+        try:
+            done = run(["git", *args], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        except OSError:
+            return {"revision": None, "digest": None, "dirty": None}
+        if done.returncode:
+            return {"revision": None, "digest": None}
+        data = done.stdout or b""
+        if isinstance(data, str):
+            data = data.encode()
+        digest.update(data)
+        if args[0] == "ls-files":
+            for name in data.split(b"\0"):
+                if name:
+                    try:
+                        content = (root / name.decode()).read_bytes()
+                        digest.update(len(content).to_bytes(8, "big"))
+                        digest.update(content)
+                    except (OSError, UnicodeError):
+                        return {"revision": None, "digest": None}
     return {
-        "revision": git("rev-parse", "HEAD") or None,
+        "revision": revision,
         "branch": git("rev-parse", "--abbrev-ref", "HEAD") or None,
         "dirty": bool(status),
         "local_changes": len(status.splitlines()),
+        "digest": digest.hexdigest(),
     }
 
 
@@ -546,6 +688,7 @@ class Collector:
     def __init__(self, *, path: Path | str, source: dict, baseline_path: Path | None = None,
                  baseline_root: Path | None = None, base_path: Path | None = None):
         self.path = Path(path)
+        self.run_id = uuid.uuid4().hex
         self.source = dict(source)
         self.baseline_path = Path(baseline_path) if baseline_path else None
         self.baseline_root = Path(baseline_root) if baseline_root else None
@@ -554,20 +697,56 @@ class Collector:
         self.observations: list[Observation] = []
         self.native_inputs: tuple[list[str], bool] | None = None
         self.page_before: dict[str, tuple | None] = {}
+        self.page_active: dict[str, set[str]] = {}
+        self.page_ambiguous: set[str] = set()
         self.page_results: dict[str, dict | None] = {}
+        self.build_bindings = []
+        self.lock = threading.RLock()
 
     def plan_commands(self, plan: list[tuple[str, list[list[str]]]]) -> None:
         self.plan = [(step, list(command)) for step, commands in plan for command in commands]
 
     def observe(self, step: str, command: list[str], exit_code: int, elapsed: float,
                 output: str = "", *, started_at: str | None = None,
-                ended_at: str | None = None) -> None:
+                ended_at: str | None = None, attempt_id: str | None = None) -> None:
+        with self.lock:
+            self._observe(step, command, exit_code, elapsed, output, started_at=started_at,
+                          ended_at=ended_at, attempt_id=attempt_id)
+
+    def recording_failed(self, attempt_id, exit_code, elapsed, started_at, ended_at):
+        with self.lock:
+            item = next(item for item in self.observations if item.attempt_id == attempt_id)
+            if item.status == "ran":
+                return
+            item.status = "recording_failed"
+            item.exit_code = exit_code
+            item.elapsed = elapsed
+            item.started_at = started_at
+            item.ended_at = ended_at
+
+    def _observe(self, step, command, exit_code, elapsed, output, *, started_at, ended_at, attempt_id):
+        pending = next((item for item in self.observations if item.attempt_id == attempt_id), None) if attempt_id else None
+        if pending is not None and pending.status == "ran" and pending.step == step and pending.command == command:
+            return
+        if attempt_id and (pending is None or pending.status not in ("interrupted", "recording_failed") or
+                           pending.step != step or pending.command != command):
+            raise ValueError("unknown or mismatched attempt")
+        report = None
+        captured = False
         if scope_of(command) == PAGE_SUITE and (path := _result_json_path(command)):
             after = self._file_state(path)
-            self.page_results[path] = (load_json(path) if after is not None
-                                       and after != self.page_before.get(path) else None)
-        self.observations.append(Observation(step, list(command), "ran", exit_code, float(elapsed),
-                                             output or "", started_at, ended_at))
+            report = load_json(path) if attempt_id not in self.page_ambiguous and after is not None and after != self.page_before.get(attempt_id) else None
+            if not isinstance(report, dict) or report.get("run_id") != self.run_id or report.get("attempt_id") != attempt_id:
+                report = None
+            self.page_active.get(path, set()).discard(attempt_id)
+            captured = True
+        item = Observation(step, list(command), "ran", exit_code, float(elapsed),
+                           output or "", started_at, ended_at, attempt_id or uuid.uuid4().hex,
+                           pending.retry_of if pending else None, report, captured)
+        if pending is not None:
+            self.observations[self.observations.index(pending)] = item
+        else:
+            self.observations.append(item)
 
     @staticmethod
     def _file_state(path: str) -> tuple | None:
@@ -577,9 +756,26 @@ class Collector:
         except OSError:
             return None
 
-    def prepare(self, command: list[str]) -> None:
+    def prepare(self, command: list[str], *, step: str | None = None,
+                retry_of: str | None = None) -> str:
+        with self.lock:
+            return self._prepare(command, step=step, retry_of=retry_of)
+
+    def _prepare(self, command, *, step, retry_of):
+        if retry_of is not None and not any(item.attempt_id == retry_of and item.step == step
+                                            and item.command == command for item in self.observations):
+            raise ValueError("retry parent does not match an earlier attempt")
+        attempt_id = uuid.uuid4().hex
+        if step is not None:
+            self.observations.append(Observation(step, list(command), status="interrupted",
+                                                 attempt_id=attempt_id, retry_of=retry_of))
         if scope_of(command) == PAGE_SUITE and (path := _result_json_path(command)):
-            self.page_before[path] = self._file_state(path)
+            self.page_before[attempt_id] = self._file_state(path)
+            active = self.page_active.setdefault(path, set())
+            if active:
+                self.page_ambiguous.update(active | {attempt_id})
+            active.add(attempt_id)
+        return attempt_id
 
     def record_native(self, outputs: list[str], *, full: bool) -> None:
         self.native_inputs = (list(outputs), full)
@@ -602,10 +798,30 @@ class Collector:
                 provenance = baseline_provenance(self.baseline_path, self.baseline_root)
         return native_record(outputs, full=full, baseline=baseline, provenance=provenance)
 
-    def finish(self, exit_code: int, *, partial: bool = False) -> dict:
+    def finish(self, exit_code: int, *, partial: bool = False,
+               source_after: dict | None = None) -> dict:
         base = load_json(str(self.base_path)) if self.base_path else None
         built = build_receipt(self.plan, self.observations, source=self.source, exit_code=exit_code,
                               partial=partial, native=self._native(), base=base, base_path=self.base_path,
-                              page_loader=lambda path: self.page_results.get(path))
+                              page_loader=lambda path: self.page_results.get(path),
+                              run_id=self.run_id, source_after=source_after)
+        built["build_bindings"] = list(self.build_bindings)
+        built["drag_bindings"] = []
+        for item in self.observations:
+            if "scripts/run-drag-browser.py" not in item.command:
+                continue
+            observed = None
+            if item.status == "ran" and item.exit_code == 0:
+                lines = [line.removeprefix("BOARDSTUDIO_DRAG_BINDING ") for line in item.output.splitlines()
+                         if line.startswith("BOARDSTUDIO_DRAG_BINDING ")]
+                if len(lines) == 1:
+                    try:
+                        observed = json.loads(lines[0])
+                    except (ValueError, TypeError):
+                        pass
+            earlier = self.observations[:self.observations.index(item)]
+            preceding = {entry.attempt_id for entry in earlier}
+            builds = [entry for entry in self.build_bindings if entry.get("attempt_id") in preceding]
+            built["drag_bindings"].append(drag_binding(self.run_id, item.attempt_id, observed, builds))
         write_receipt(self.path, built)
         return built

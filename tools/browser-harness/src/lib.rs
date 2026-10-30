@@ -88,6 +88,26 @@ pub struct IsolatedDirs {
     config_dir: std::path::PathBuf,
     run_dir: std::path::PathBuf,
     preserve: std::cell::Cell<bool>,
+    identity: std::fs::Metadata,
+}
+
+fn keep_with_identity(
+    temp: tempfile::TempDir,
+    metadata: impl FnOnce(&std::path::Path) -> std::io::Result<std::fs::Metadata>,
+) -> std::result::Result<(std::path::PathBuf, std::fs::Metadata), String> {
+    let identity = match metadata(temp.path()) {
+        Ok(identity) => identity,
+        Err(error) => {
+            let message = format!("cannot record browser directory identity: {error}");
+            return Err(match temp.close() {
+                Ok(()) => message,
+                Err(cleanup) => {
+                    format!("{message}; cannot remove temporary browser directory: {cleanup}")
+                }
+            });
+        }
+    };
+    Ok((temp.keep(), identity))
 }
 
 impl IsolatedDirs {
@@ -104,15 +124,21 @@ impl IsolatedDirs {
                     tmp_root.display()
                 )
             })?;
-        let profile_dir = temp.path().join("profile");
-        let config_dir = temp.path().join("config");
-        for dir in [&profile_dir, &config_dir] {
+        let (run_dir, identity) = keep_with_identity(temp, |path| std::fs::symlink_metadata(path))?;
+        let dirs = Self {
+            profile_dir: run_dir.join("profile"),
+            config_dir: run_dir.join("config"),
+            run_dir,
+            preserve: std::cell::Cell::new(false),
+            identity,
+        };
+        for dir in [&dirs.profile_dir, &dirs.config_dir] {
             if let Err(error) = std::fs::create_dir(dir) {
                 let message = format!(
                     "drag browser smoke needs a writable profile under '{}': {error}",
                     tmp_root.display()
                 );
-                return Err(match temp.close() {
+                return Err(match dirs.cleanup_after_termination() {
                     Ok(()) => message,
                     Err(cleanup) => {
                         format!("{message}; cannot remove partial browser directory: {cleanup}")
@@ -120,13 +146,56 @@ impl IsolatedDirs {
                 });
             }
         }
-        let run_dir = temp.keep();
-        Ok(Self {
-            profile_dir,
-            config_dir,
-            run_dir,
-            preserve: std::cell::Cell::new(false),
-        })
+        Ok(dirs)
+    }
+
+    /// Remove the owned directory after the caller has confirmed child termination.
+    /// On non-Unix platforms identity cannot currently be verified, so cleanup
+    /// returns an error and preserves the directory.
+    pub fn cleanup_after_termination(&self) -> Result<()> {
+        self.preserve.set(true);
+        self.remove_owned()
+    }
+
+    fn remove_owned(&self) -> Result<()> {
+        if self.profile_dir != self.run_dir.join("profile")
+            || self.config_dir != self.run_dir.join("config")
+        {
+            return Err(Error(
+                "browser directory paths do not match recorded ownership".into(),
+            ));
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let current = std::fs::symlink_metadata(&self.run_dir).map_err(|error| {
+                Error(format!(
+                    "cannot inspect browser directory {}: {error}",
+                    self.run_dir.display()
+                ))
+            })?;
+            if !current.is_dir()
+                || current.dev() != self.identity.dev()
+                || current.ino() != self.identity.ino()
+            {
+                return Err(Error(format!(
+                    "browser directory ownership changed: {}",
+                    self.run_dir.display()
+                )));
+            }
+            std::fs::remove_dir_all(&self.run_dir).map_err(|error| {
+                Error(format!(
+                    "cannot remove browser directory {}: {error}",
+                    self.run_dir.display()
+                ))
+            })
+        }
+        #[cfg(not(unix))]
+        {
+            Err(Error(
+                "browser directory identity cannot be verified on this platform".into(),
+            ))
+        }
     }
 
     /// Override for the browser child's `XDG_CONFIG_HOME`.
@@ -140,7 +209,7 @@ impl Drop for IsolatedDirs {
         // The whole run directory is process-owned: remove profile and child
         // config together so no run ever leaks state.
         if !self.preserve.get() {
-            std::fs::remove_dir_all(&self.run_dir).ok();
+            self.remove_owned().ok();
         }
     }
 }
@@ -194,6 +263,18 @@ mod tests {
     }
 
     #[test]
+    fn identity_failure_removes_temporary_directory() {
+        let root = tempfile::tempdir().unwrap();
+        let temp = tempfile::tempdir_in(root.path()).unwrap();
+        let path = temp.path().to_owned();
+        let error =
+            super::keep_with_identity(temp, |_| Err(std::io::Error::other("identity failure")))
+                .unwrap_err();
+        assert!(error.contains("identity failure"));
+        assert!(!path.exists());
+    }
+
+    #[test]
     fn isolated_dirs_own_profile_and_config() {
         let root = std::env::temp_dir().join(format!("bs-harness-test-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
@@ -226,6 +307,84 @@ mod tests {
         let first = IsolatedDirs::create(&root).unwrap();
         let second = IsolatedDirs::create(&root).unwrap();
         assert_ne!(first.profile_dir, second.profile_dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cleanup_keeps_other_run_and_sentinel() {
+        let root = tempfile::tempdir().unwrap();
+        let sentinel = root.path().join("sentinel");
+        std::fs::write(&sentinel, b"keep").unwrap();
+        let first = IsolatedDirs::create(root.path()).unwrap();
+        let second = IsolatedDirs::create(root.path()).unwrap();
+        let first_run = first.run_dir.clone();
+        let second_run = second.run_dir.clone();
+        drop(first);
+        assert!(!first_run.exists());
+        assert!(second_run.exists());
+        assert_eq!(std::fs::read(&sentinel).unwrap(), b"keep");
+        drop(second);
+        assert!(!second_run.exists());
+        assert!(sentinel.exists());
+    }
+
+    #[cfg(not(unix))]
+    #[test]
+    fn cleanup_preserves_directory_when_identity_is_unavailable() {
+        let root = tempfile::tempdir().unwrap();
+        let dirs = IsolatedDirs::create(root.path()).unwrap();
+        let run = dirs.run_dir.clone();
+        assert!(dirs.cleanup_after_termination().is_err());
+        drop(dirs);
+        assert!(run.exists());
+    }
+
+    #[test]
+    fn explicit_cleanup_uses_recorded_owner_not_profile_path() {
+        let root = tempfile::tempdir().unwrap();
+        let mut first = IsolatedDirs::create(root.path()).unwrap();
+        let second = IsolatedDirs::create(root.path()).unwrap();
+        let first_run = first.run_dir.clone();
+        let second_run = second.run_dir.clone();
+        first.profile_dir = second.profile_dir.clone();
+        assert!(first.cleanup_after_termination().is_err());
+        assert!(first_run.exists());
+        assert!(second_run.exists());
+        drop(first);
+        assert!(second_run.exists());
+    }
+
+    #[test]
+    fn cleanup_rejects_replaced_or_missing_run() {
+        let root = tempfile::tempdir().unwrap();
+        let dirs = IsolatedDirs::create(root.path()).unwrap();
+        let original = root.path().join("original");
+        std::fs::rename(&dirs.run_dir, &original).unwrap();
+        std::fs::create_dir(&dirs.run_dir).unwrap();
+        let sentinel = dirs.run_dir.join("sentinel");
+        std::fs::write(&sentinel, b"keep").unwrap();
+        assert!(dirs.cleanup_after_termination().is_err());
+        drop(dirs);
+        assert_eq!(std::fs::read(&sentinel).unwrap(), b"keep");
+        assert!(original.exists());
+
+        let missing = IsolatedDirs::create(root.path()).unwrap();
+        std::fs::rename(&missing.run_dir, root.path().join("missing-original")).unwrap();
+        assert!(missing.cleanup_after_termination().is_err());
+        drop(missing);
+        assert!(root.path().join("missing-original").exists());
+    }
+
+    #[test]
+    fn drop_rejects_replaced_run() {
+        let root = tempfile::tempdir().unwrap();
+        let dirs = IsolatedDirs::create(root.path()).unwrap();
+        std::fs::rename(&dirs.run_dir, root.path().join("original")).unwrap();
+        std::fs::create_dir(&dirs.run_dir).unwrap();
+        let sentinel = dirs.run_dir.join("sentinel");
+        std::fs::write(&sentinel, b"keep").unwrap();
+        drop(dirs);
+        assert!(sentinel.exists());
     }
 
     #[test]

@@ -237,6 +237,8 @@ pub struct Connection<T: EventMessage> {
     needs_flush: bool,
     /// The message that is currently being proceessed
     pending_flush: Option<MethodCall>,
+    pub(crate) capture_event_params: bool,
+    pub(crate) event_params: Option<serde_json::Value>,
     _marker: PhantomData<T>,
 }
 
@@ -258,6 +260,8 @@ impl<T: EventMessage + Unpin> Connection<T> {
             next_id: 0,
             needs_flush: false,
             pending_flush: None,
+            capture_event_params: false,
+            event_params: None,
             _marker: Default::default(),
         })
     }
@@ -343,6 +347,14 @@ impl<T: EventMessage + Unpin> Stream for Connection<T> {
             Some(Ok(WsMessage::Text(text))) => {
                 let ready = match decode_message::<T>(&text) {
                     Ok(msg) => {
+                        pin.event_params =
+                            if pin.capture_event_params && matches!(&msg, Message::Event(_)) {
+                                serde_json::from_str::<serde_json::Value>(&text)
+                                    .ok()
+                                    .and_then(|root| root.get("params").cloned())
+                            } else {
+                                None
+                            };
                         tracing::trace!("Received {:?}", msg);
                         Ok(msg)
                     }

@@ -45,7 +45,8 @@ pub(super) async fn finish_browser(
             && success
             && kill.is_none()
             && matches!(drained, Ok(Ok(())))
-            && error.to_string() == "drag browser smoke saw 1 browser handler error(s): WebSocket protocol reset without closing handshake";
+            && error.to_string()
+                == "drag browser smoke saw 1 browser handler error(s): WebSocket protocol reset without closing handshake";
         if expected_reset {
             eprintln!(
                 "browser shutdown: expected post-boundary WebSocket reset after clean child exit"
@@ -64,14 +65,5 @@ pub(super) async fn finish_browser(
 
 // Both consumers must finish removing their owned profile before success.
 pub(super) fn remove_profile(dirs: &boardstudio_browser_harness::IsolatedDirs) -> Result<()> {
-    let run_dir = dirs
-        .profile_dir
-        .parent()
-        .ok_or_else(|| Error("profile has no run directory".into()))?;
-    std::fs::remove_dir_all(run_dir).map_err(|error| {
-        Error(format!(
-            "cannot remove browser profile {}: {error}",
-            run_dir.display()
-        ))
-    })
+    dirs.cleanup_after_termination()
 }

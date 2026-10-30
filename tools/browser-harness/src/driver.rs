@@ -618,7 +618,7 @@ pub async fn backend_of_wait(
             match backend_of(page, selector).await {
                 Ok(id) => return Ok(id),
                 Err(error) if error.0 != format!("no match for selector {selector:?}") => {
-                    return Err(error)
+                    return Err(error);
                 }
                 Err(_) => {}
             }
@@ -1078,7 +1078,7 @@ pub async fn click_role_timeout(
                     return Err(Error(format!(
                         "ambiguous role lookup: {role} {name:?} matched {} nodes",
                         many.len()
-                    )))
+                    )));
                 }
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -1306,7 +1306,7 @@ pub async fn dispose_isolated_page(
                 None => {
                     return Err(Error(format!(
                         "transport ended before target {target:?} destruction"
-                    )))
+                    )));
                 }
             }
         }
@@ -1609,7 +1609,9 @@ mod redaction_tests {
         drain.await.unwrap();
         dirs.preserve.set(false);
         for (kind, role, count, responses, result, closed) in &outcomes {
-            eprintln!("{kind} role={role}: attempts={count}, responses={responses}, result={result:?}, closed={closed}");
+            eprintln!(
+                "{kind} role={role}: attempts={count}, responses={responses}, result={result:?}, closed={closed}"
+            );
         }
         for (kind, role, count, responses, result, closed) in outcomes {
             assert_eq!(count, 1, "{kind} role={role} retried dispatch");

@@ -16,8 +16,221 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use boardstudio_browser_harness::driver::{self, DragHold, HandlerErrors, PageErrors};
 use boardstudio_browser_harness::{Error, IsolatedDirs, Result};
 
-use chromiumoxide::{Browser, Page};
+use chromiumoxide::{
+    cdp::CustomEvent,
+    types::{MethodId, MethodType},
+    Browser, Page,
+};
+use futures::StreamExt;
 use serde_json::{json, Value};
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+struct NetworkObservation {
+    session: String,
+    method: String,
+    params: Value,
+}
+
+impl MethodType for NetworkObservation {
+    fn method_id() -> MethodId {
+        "BoardStudio.NetworkEvent".into()
+    }
+}
+impl CustomEvent for NetworkObservation {}
+
+async fn observe_network(
+    page: &Page,
+    shared: Arc<std::sync::Mutex<Vec<NetworkObservation>>>,
+) -> Result<tokio::task::JoinHandle<Vec<NetworkObservation>>> {
+    let mut events = page
+        .event_listener::<NetworkObservation>()
+        .await
+        .map_err(|error| fail(format!("cannot listen for network observations: {error}")))?;
+    Ok(tokio::spawn(async move {
+        let mut observations = Vec::new();
+        while let Some(event) = events.next().await {
+            observations.push((*event).clone());
+            shared.lock().unwrap().push((*event).clone());
+        }
+        observations
+    }))
+}
+
+async fn finish_network_observation(
+    listener: Option<tokio::task::JoinHandle<Vec<NetworkObservation>>>,
+    registration_error: Option<&str>,
+    timeout: Duration,
+) -> Value {
+    let unavailable = |reason: String| {
+        json!({
+            "scope": "drag-page-and-attached-workers", "complete": null, "reason": reason
+        })
+    };
+    let Some(mut listener) = listener else {
+        return unavailable(
+            registration_error
+                .unwrap_or("listener unavailable")
+                .to_owned(),
+        );
+    };
+    match tokio::time::timeout(timeout, &mut listener).await {
+        Ok(Ok(events)) if !events.is_empty() => json!({
+            "scope": "drag-page-and-attached-workers", "complete": null, "events": events
+        }),
+        Ok(Ok(_)) => unavailable("listener returned no events".to_owned()),
+        Ok(Err(error)) => unavailable(format!("listener failed: {error}")),
+        Err(_) => {
+            listener.abort();
+            unavailable("listener did not finish before timeout".to_owned())
+        }
+    }
+}
+
+// The current frame and loader identify the document, including after redirects.
+fn document_request(
+    events: &[NetworkObservation],
+    session: &str,
+    frame: &str,
+    loader: &str,
+    url: &str,
+) -> Option<(String, Value)> {
+    let mut candidate: Option<(String, bool, Option<Value>, bool)> = None;
+    for event in events.iter().filter(|e| e.session == session) {
+        let p = &event.params;
+        if event.method == "Network.requestWillBeSent" && p["type"] == "Document" {
+            if p["frameId"].as_str()? != frame || p["loaderId"].as_str()? != loader {
+                continue;
+            }
+            let id = p["requestId"].as_str()?;
+            if let Some((previous, _, _, _)) = &candidate {
+                if previous != id || p.get("redirectResponse").is_none() {
+                    return None;
+                }
+            }
+            candidate = Some((
+                id.to_owned(),
+                p["request"]["url"].as_str()? == url,
+                None,
+                false,
+            ));
+        } else if let Some((id, matches_url, response, finished)) = candidate.as_mut() {
+            if p["requestId"].as_str() != Some(id.as_str()) {
+                continue;
+            }
+            match event.method.as_str() {
+                "Network.responseReceived" => {
+                    if p["type"] != "Document"
+                        || p["frameId"].as_str()? != frame
+                        || p["loaderId"].as_str()? != loader
+                        || p["response"]["url"].as_str()? != url
+                        || !*matches_url
+                        || response.is_some()
+                    {
+                        return None;
+                    }
+                    let r = &p["response"];
+                    *response = Some(
+                        json!({"from_disk_cache": r.get("fromDiskCache").and_then(Value::as_bool), "from_service_worker": r.get("fromServiceWorker").and_then(Value::as_bool), "from_prefetch_cache": r.get("fromPrefetchCache").and_then(Value::as_bool)}),
+                    );
+                }
+                "Network.loadingFinished" => *finished = response.is_some(),
+                "Network.loadingFailed" => *finished = false,
+                _ => {}
+            }
+        }
+    }
+    let (id, _, response, finished) = candidate?;
+    if finished {
+        Some((id, response?))
+    } else {
+        None
+    }
+}
+
+async fn document_body(
+    page: &Page,
+    events: &[NetworkObservation],
+    preview: &str,
+    expected: &str,
+) -> Value {
+    use base64::Engine;
+    use chromiumoxide::cdp::browser_protocol::network::GetResponseBodyParams;
+    let unknown =
+        |reason: String| json!({"scope":"page-document-only", "matches":null, "reason":reason});
+    let _ = preview;
+    let frame_tree = match tokio::time::timeout(
+        Duration::from_secs(5),
+        page.execute(chromiumoxide::cdp::browser_protocol::page::GetFrameTreeParams::default()),
+    )
+    .await
+    {
+        Ok(Ok(tree)) => tree.result.frame_tree.frame,
+        _ => return unknown("cannot determine current main frame".into()),
+    };
+    let Some((id, provenance)) = document_request(
+        events,
+        page.session_id().as_ref(),
+        frame_tree.id.as_ref(),
+        frame_tree.loader_id.as_ref(),
+        &frame_tree.url,
+    ) else {
+        return unknown("ambiguous or incomplete current main-frame document".into());
+    };
+    let result = tokio::time::timeout(
+        Duration::from_secs(5),
+        page.execute(GetResponseBodyParams::new(id)),
+    )
+    .await;
+    let body = match result {
+        Ok(Ok(result)) => result.result,
+        Ok(Err(e)) => return unknown(format!("body retrieval failed: {e}")),
+        Err(_) => return unknown("body retrieval timed out".into()),
+    };
+    let bytes = if body.base64_encoded {
+        match base64::engine::general_purpose::STANDARD.decode(body.body) {
+            Ok(b) => b,
+            Err(e) => return unknown(format!("invalid body encoding: {e}")),
+        }
+    } else {
+        body.body.into_bytes()
+    };
+    if bytes.len() > 4 * 1024 * 1024 {
+        return unknown(format!("body exceeds 4 MiB: {} bytes", bytes.len()));
+    }
+    let current = match tokio::time::timeout(
+        Duration::from_secs(5),
+        page.execute(chromiumoxide::cdp::browser_protocol::page::GetFrameTreeParams::default()),
+    )
+    .await
+    {
+        Ok(Ok(tree)) => tree.result.frame_tree.frame,
+        _ => return unknown("cannot verify current main frame".into()),
+    };
+    if current.id != frame_tree.id
+        || current.loader_id != frame_tree.loader_id
+        || current.url != frame_tree.url
+    {
+        return unknown("main-frame navigation changed during body capture".into());
+    }
+    let mut digest = document_digest(&bytes, expected);
+    digest["provenance"] = provenance;
+    digest
+}
+
+fn attach_document_snapshot(
+    observations: &mut Value,
+    snapshot: &[NetworkObservation],
+    document: Value,
+) {
+    observations["events"] = json!(snapshot);
+    observations["document_body"] = document;
+}
+
+fn document_digest(bytes: &[u8], expected: &str) -> Value {
+    use sha2::{Digest, Sha256};
+    let digest = hex::encode(Sha256::digest(bytes));
+    json!({"scope":"page-document-only", "matches":digest == expected, "sha256":digest, "expected_sha256":expected, "bytes":bytes.len()})
+}
 
 const STORAGE_DATABASE: &str = "boardstudio-m1-boardstudio";
 
@@ -36,6 +249,113 @@ fn scenario_verdict(outcome: Result<()>, disposal: Result<()>) -> Result<()> {
 #[cfg(test)]
 mod scenario_verdict_tests {
     use super::*;
+
+    #[test]
+    fn document_selection_binds_frame_loader_and_preserves_unknown_provenance() {
+        let event = |method: &str, params: Value| NetworkObservation {
+            session: "page".into(),
+            method: method.into(),
+            params,
+        };
+        let events = vec![
+            event(
+                "Network.requestWillBeSent",
+                json!({"requestId":"iframe", "type":"Document", "frameId":"child", "loaderId":"child", "request":{"url":"http://example.test/"}}),
+            ),
+            event(
+                "Network.requestWillBeSent",
+                json!({"requestId":"1", "type":"Document", "frameId":"main", "loaderId":"new", "request":{"url":"http://example.test/old"}}),
+            ),
+            event(
+                "Network.requestWillBeSent",
+                json!({"requestId":"1", "type":"Document", "frameId":"main", "loaderId":"new", "redirectResponse":{}, "request":{"url":"http://example.test/new"}}),
+            ),
+            event(
+                "Network.responseReceived",
+                json!({"requestId":"1", "type":"Document", "frameId":"main", "loaderId":"new", "response":{"url":"http://example.test/new", "fromDiskCache":false}}),
+            ),
+            event("Network.loadingFinished", json!({"requestId":"1"})),
+        ];
+        let selected =
+            document_request(&events, "page", "main", "new", "http://example.test/new").unwrap();
+        assert_eq!(selected.0, "1");
+        assert_eq!(selected.1["from_disk_cache"], false);
+        assert_eq!(selected.1["from_service_worker"], Value::Null);
+        assert!(document_request(&events, "page", "main", "later", "http://other.test/").is_none());
+        assert!(document_request(
+            &events[..4],
+            "page",
+            "main",
+            "new",
+            "http://example.test/new"
+        )
+        .is_none());
+        let mut missing = events.clone();
+        missing[3]
+            .params
+            .as_object_mut()
+            .unwrap()
+            .remove("loaderId");
+        assert!(
+            document_request(&missing, "page", "main", "new", "http://example.test/new").is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn interrupted_capture_keeps_comparison_snapshot() {
+        let listener =
+            tokio::spawn(async { std::future::pending::<Vec<NetworkObservation>>().await });
+        let mut result =
+            finish_network_observation(Some(listener), None, Duration::from_millis(1)).await;
+        let events = vec![NetworkObservation {
+            session: "page".into(),
+            method: "Network.requestWillBeSent".into(),
+            params: json!({"requestId":"1"}),
+        }];
+        attach_document_snapshot(&mut result, &events, json!({"matches":null}));
+        assert_eq!(result["reason"], "listener did not finish before timeout");
+        assert_eq!(result["events"][0]["params"]["requestId"], "1");
+        assert_eq!(result["document_body"]["matches"], Value::Null);
+    }
+
+    #[test]
+    fn document_digest_reports_match_and_mismatch() {
+        let actual = document_digest(b"page", "wrong");
+        assert_eq!(actual["matches"], false);
+        assert_eq!(
+            document_digest(b"page", actual["sha256"].as_str().unwrap())["matches"],
+            true
+        );
+    }
+
+    #[test]
+    fn receipt_float_fixture_matches_python_regression() {
+        assert_eq!(serde_json::to_string(&1e-7_f64).unwrap(), "1e-7");
+    }
+
+    #[tokio::test]
+    async fn unavailable_network_observation_reports_reason() {
+        let result = finish_network_observation(
+            None,
+            Some("registration timed out"),
+            Duration::from_millis(1),
+        )
+        .await;
+        assert_eq!(result["complete"], Value::Null);
+        assert_eq!(result["reason"], "registration timed out");
+    }
+
+    #[test]
+    fn network_observation_preserves_identity_and_unknown_cache_fields() {
+        let event = json!({"session":"session-1", "method":"Network.responseReceived", "params": {
+            "requestId":"request-1", "response":{"url":"https://example.test/", "status":200}
+        }});
+        let observed: NetworkObservation = serde_json::from_value(event.clone()).unwrap();
+        assert_eq!(serde_json::to_value(observed).unwrap(), event);
+        assert!(event["params"]["response"]
+            .get("fromServiceWorker")
+            .is_none());
+    }
 
     #[test]
     fn disposal_failure_fails_and_preserves_scenario_failure() {
@@ -1885,6 +2205,8 @@ struct Receipt {
     build_sha256: String,
     checks: Vec<ReceiptCheck>,
     passed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    network_observations: Option<Value>,
 }
 
 #[derive(serde::Serialize)]
@@ -1943,7 +2265,8 @@ async fn run() -> Result<usize> {
             "drag browser smoke cannot isolate its profile: {error}"
         ))
     })?;
-    let (browser, handler) = driver::launch_chrome(&chrome, &dirs).await?;
+    let (browser, mut handler) = driver::launch_chrome(&chrome, &dirs).await?;
+    handler.enable_worker_network_capture();
     let handler_errors = Arc::new(HandlerErrors::new());
     let page_errors = Arc::new(PageErrors::new());
     let drain = driver::spawn_handler_drain(
@@ -1973,6 +2296,17 @@ async fn run() -> Result<usize> {
         )
         .await
         .map_err(|_| fail("cannot listen for page errors: timed out after 60s"))??;
+        let network_events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let (listener, registration_error) = match tokio::time::timeout(
+            Duration::from_secs(5),
+            observe_network(&page, Arc::clone(&network_events)),
+        )
+        .await
+        {
+            Ok(Ok(listener)) => (Some(listener), None),
+            Ok(Err(error)) => (None, Some(format!("listener registration failed: {error}"))),
+            Err(_) => (None, Some("listener registration timed out".to_owned())),
+        };
         let mut smoke = Smoke {
             page,
             checks: Vec::new(),
@@ -2008,10 +2342,34 @@ async fn run() -> Result<usize> {
             Ok::<_, Error>(())
         }
         .await;
+        let snapshot = network_events.lock().unwrap().clone();
+        let document = if listener.as_ref().is_none_or(|task| task.is_finished()) {
+            json!({"scope":"page-document-only", "matches":null, "reason":"network listener unavailable or ended before capture"})
+        } else {
+            document_body(
+                &smoke.page,
+                &snapshot,
+                &preview_url,
+                &env("BOARDSTUDIO_DRAG_INDEX_SHA256")?,
+            ).await
+        };
+        let document = if listener.as_ref().is_none_or(|task| task.is_finished()) {
+            json!({"scope":"page-document-only", "matches":null, "reason":"network listener ended during capture"})
+        } else {
+            document
+        };
         let disposal =
             driver::dispose_isolated_page(&browser, None, smoke.page, &page_errors).await;
+        let mut observations = finish_network_observation(
+            listener,
+            registration_error.as_deref(),
+            Duration::from_secs(5),
+        )
+        .await;
+        attach_document_snapshot(&mut observations, &snapshot, document);
+        let observations = Some(observations);
         scenario_verdict(scenarios, disposal)?;
-        Ok::<_, Error>((browser_version, smoke.checks))
+        Ok::<_, Error>((browser_version, smoke.checks, observations))
     }
     .await;
     let (shutdown, confirmed) =
@@ -2042,7 +2400,7 @@ async fn run() -> Result<usize> {
     if !errors.is_empty() {
         return Err(fail(errors.join("; ")));
     }
-    let (browser_version, checks) = outcome?;
+    let (browser_version, checks, network_observations) = outcome?;
 
     let receipt = Receipt {
         schema_version: 1,
@@ -2065,27 +2423,24 @@ async fn run() -> Result<usize> {
             })
             .collect(),
         passed: true,
+        network_observations,
     };
     // The checksum covers the compact receipt without its own hash, exactly as
     // the launcher re-computes it. `preserve_order` keeps the declared field
     // order stable in both the digest input and the file.
     let payload = receipt_json(&receipt);
     let digest = hex::encode(Sha256::digest(payload.as_bytes()));
-    write_receipt(std::path::Path::new(&receipt_path), &receipt, &digest)?;
+    write_receipt(std::path::Path::new(&receipt_path), payload, &digest)?;
     Ok(receipt.checks.len())
 }
 
 /// Write the receipt create-new: never emit or overwrite a success receipt
 /// for a partial run.
-fn write_receipt(path: &std::path::Path, receipt: &Receipt, digest: &str) -> Result<()> {
+fn write_receipt(path: &std::path::Path, mut text: String, digest: &str) -> Result<()> {
     use std::io::Write;
-    let mut text = receipt_json(receipt);
     text.pop();
     text.push_str(&format!(",\"receipt_sha256\":\"{digest}\"}}"));
-    // Pretty form matches the old runner: 2-space indent.
-    let pretty: Value = serde_json::from_str(&text)
-        .map_err(|error| fail(format!("cannot encode the receipt: {error}")))?;
-    let pretty = serde_json::to_string_pretty(&pretty).unwrap_or_default() + "\n";
+    text.push('\n');
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|error| fail(format!("cannot create the receipt directory: {error}")))?;
@@ -2100,7 +2455,7 @@ fn write_receipt(path: &std::path::Path, receipt: &Receipt, digest: &str) -> Res
                 path.display()
             ))
         })?;
-    file.write_all(pretty.as_bytes())
+    file.write_all(text.as_bytes())
         .map_err(|error| fail(format!("cannot write the receipt: {error}")))?;
     Ok(())
 }

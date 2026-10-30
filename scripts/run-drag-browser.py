@@ -8,6 +8,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -18,6 +19,7 @@ from urllib.request import urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import browser_tools  # noqa: E402  (needs the scripts directory on sys.path)
+import verification_receipt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "web/target/site"
@@ -63,10 +65,13 @@ def source_identity() -> tuple[str, str]:
 
 
 def verify_receipt(path: Path, run_id: str, head: str, source_hash: str, build_hash: str) -> None:
-    receipt = json.loads(path.read_text())
-    checksum = receipt.pop("receipt_sha256")
-    payload = json.dumps(receipt, separators=(",", ":"), ensure_ascii=False).encode()
-    if hashlib.sha256(payload).hexdigest() != checksum:
+    raw = path.read_bytes()
+    match = re.fullmatch(rb'(.*),"receipt_sha256":"([0-9a-f]{64})"}\n?', raw, re.DOTALL)
+    if not match:
+        raise ValueError("invalid drag browser receipt format")
+    payload = match.group(1) + b"}"
+    receipt = json.loads(payload)
+    if "receipt_sha256" in receipt or hashlib.sha256(payload).hexdigest().encode() != match.group(2):
         raise ValueError("drag browser receipt checksum does not match")
     if (receipt.get("passed") is not True or receipt.get("run_id") != run_id
             or receipt.get("source_head") != head or receipt.get("source_sha256") != source_hash
@@ -114,6 +119,7 @@ def main() -> int:
     server.daemon_threads = True
     thread = threading.Thread(target=server.serve_forever, name="boardstudio-drag-smoke", daemon=True)
     thread.start()
+    serving_site, _ = verification_receipt.site_identity(SITE)
     url = f"http://127.0.0.1:{server.server_address[1]}/boardstudio/"
     environment = os.environ.copy()
     environment.update({
@@ -125,6 +131,7 @@ def main() -> int:
         "BOARDSTUDIO_DRAG_SOURCE_HEAD": head,
         "BOARDSTUDIO_DRAG_SOURCE_SHA256": source_hash,
         "BOARDSTUDIO_DRAG_BUILD_SHA256": build_hash,
+        "BOARDSTUDIO_DRAG_INDEX_SHA256": hashlib.sha256(index.read_bytes()).hexdigest(),
         "BOARDSTUDIO_DRAG_REPO_ROOT": str(ROOT),
     })
     try:
@@ -145,6 +152,10 @@ def main() -> int:
         if return_code == 0:
             try:
                 verify_receipt(run_dir / "receipt.json", run_id, head, source_hash, build_hash)
+                print("BOARDSTUDIO_DRAG_BINDING " + json.dumps({
+                    "run_id": os.environ.get("BOARDSTUDIO_RECEIPT_RUN_ID"),
+                    "attempt_id": os.environ.get("BOARDSTUDIO_RECEIPT_ATTEMPT_ID"),
+                    "receipt_path": str(run_dir / "receipt.json"), "site": serving_site}))
             except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
                 message = f"Invalid drag browser receipt: {error}\n"
                 with run_log.open("a") as output:

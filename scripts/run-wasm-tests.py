@@ -224,7 +224,7 @@ def resolve_chromedriver(env=None):
     pinned = pinned_cft_binary("chromedriver", src)
     if pinned:
         return pinned
-    return shutil.which("chromedriver")
+    return shutil.which("chromedriver", path=src.get("PATH"))
 
 
 def resolve_chrome_binary(env=None):
@@ -236,13 +236,13 @@ def resolve_chrome_binary(env=None):
     if pinned:
         return pinned
     for name in CHROME_BINARIES:
-        found = shutil.which(name)
+        found = shutil.which(name, path=src.get("PATH"))
         if found:
             return found
     return None
 
 
-def runner_environment(root=ROOT):
+def runner_environment(root=ROOT, *, browser_only=False):
     env = os.environ.copy()
     # Broad mounted batches exceed the runner's small per-invocation default.
     env.setdefault("WASM_BINDGEN_TEST_TIMEOUT", "120")
@@ -252,10 +252,22 @@ def runner_environment(root=ROOT):
     if not driver:
         raise RunnerError("chromedriver not found; install it (e.g. `pacman -S chromium`/`apt install chromium-driver`) "
                           "or set CHROMEDRIVER=/path/to/chromedriver")
+    driver = shutil.which(driver, path=env.get("PATH"))
+    if not driver:
+        raise RunnerError("chromedriver selection is missing or not executable")
+    driver = str(Path(driver).resolve())
     chrome = resolve_chrome_binary(env)
     if not chrome:
         raise RunnerError("Chrome/Chromium not found on PATH; install google-chrome or chromium "
                           "(chromedriver needs a matching browser)")
+    chrome = shutil.which(chrome, path=env.get("PATH"))
+    if not chrome:
+        raise RunnerError("Chrome selection is missing or not executable")
+    chrome = str(Path(chrome).resolve())
+    env["CHROMEDRIVER"] = driver
+    env[CHROME_BIN_ENV] = chrome
+    if browser_only:
+        return env
     if not shutil.which("wasm-pack"):
         raise RunnerError("wasm-pack not found on PATH; install it with `cargo install wasm-pack`")
     env["CHROMEDRIVER"] = driver
@@ -273,7 +285,7 @@ def runner_environment(root=ROOT):
 
 def run_filter(filter_, env, root=ROOT, skip_filters=()):
     override = os.environ.get(RUNNER_ENV)
-    command = shlex.split(override) if override else list(WASM_PACK)
+    command = shlex.split(override) if override else [*WASM_PACK[:4], "--chromedriver", env["CHROMEDRIVER"], *WASM_PACK[4:]]
     if filter_:
         command.append(filter_)
     for skip_filter in skip_filters:
@@ -297,7 +309,8 @@ LIST_LINE = re.compile(r"^(\S+): test$", re.M)
 
 def list_wasm_tests(env, root=ROOT):
     override = os.environ.get(RUNNER_ENV)
-    command = (shlex.split(override) if override else list(WASM_PACK)) + ["--list"]
+    command = (shlex.split(override) if override else
+               [*WASM_PACK[:4], "--chromedriver", env["CHROMEDRIVER"], *WASM_PACK[4:]]) + ["--list"]
     fd = browser_tools._inherited_build_lock()
     result = subprocess.run(command, cwd=root, env=env, text=True, capture_output=True,
                             **({"pass_fds": (fd,)} if fd is not None else {}))
@@ -488,6 +501,25 @@ def desktop_webdriver_config(env, root=ROOT):
     """
     env = dict(env)
     if env.get(WEBDRIVER_CONFIG_ENV):
+        try:
+            supplied = json.loads(Path(env[WEBDRIVER_CONFIG_ENV]).read_text())
+            options = supplied.get("goog:chromeOptions", {})
+            binary = options.get("binary") if isinstance(options, dict) else None
+        except (OSError, ValueError, AttributeError) as error:
+            raise RunnerError(f"invalid caller WebDriver config: {error}") from error
+        chrome = env.get(CHROME_BIN_ENV)
+        if binary and chrome and Path(binary).resolve() != Path(chrome).resolve():
+            raise RunnerError("caller WebDriver browser conflicts with selected Chrome")
+        if chrome and not binary:
+            if not isinstance(options, dict):
+                raise RunnerError("invalid caller WebDriver chrome options")
+            supplied["goog:chromeOptions"] = {**options, "binary": chrome}
+            with TemporaryDirectory(prefix="boardstudio-wasm-webdriver-") as temporary:
+                config = Path(temporary) / "webdriver.json"
+                config.write_text(json.dumps(supplied))
+                env[WEBDRIVER_CONFIG_ENV] = str(config)
+                yield env
+            return
         yield env
         return
     chrome = resolve_chrome_binary(env)
@@ -631,6 +663,8 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
         terminal_names = {item["test"] for item in terminal if item["status"] in ("passed", "failed")}
         report = {
             "schema_version": 1,
+            "run_id": os.environ.get("BOARDSTUDIO_RECEIPT_RUN_ID"),
+            "attempt_id": os.environ.get("BOARDSTUDIO_RECEIPT_ATTEMPT_ID"),
             "selection": selection or {},
             "listed_tests": sorted(listed_tests or []),
             "duplicate_listed_tests": [],
@@ -710,6 +744,8 @@ def main(argv=None):
         if args.result_json:
             report = {
                 "schema_version": 1,
+                "run_id": os.environ.get("BOARDSTUDIO_RECEIPT_RUN_ID"),
+                "attempt_id": os.environ.get("BOARDSTUDIO_RECEIPT_ATTEMPT_ID"),
                 "selection": {"mode": "files" if args.files else "all",
                               "requested_files": args.files, "depth": args.depth},
                 "listed_tests": [],

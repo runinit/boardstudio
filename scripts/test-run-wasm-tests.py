@@ -31,6 +31,32 @@ class RunWasmTestsTests(unittest.TestCase):
             os.environ["WASM_BINDGEN_TEST_TIMEOUT"] = "37"
             self.assertEqual(runner.runner_environment()["WASM_BINDGEN_TEST_TIMEOUT"], "37")
 
+    def test_selected_driver_is_explicit_for_listing_and_execution(self):
+        env = {"CHROMEDRIVER": "/selected/driver", "PATH": "/conflict"}
+        result = subprocess.CompletedProcess([], 0, stdout="sample::test: test\ntest sample::test ... ok\n", stderr="")
+        with patch.dict(os.environ, {"CHROMEDRIVER": "/conflicting/driver"}, clear=True), \
+             patch.object(runner.subprocess, "run", return_value=result) as call:
+            runner.list_wasm_tests(env)
+            runner.run_filter("sample", env)
+        for invocation in call.call_args_list:
+            command = invocation.args[0]
+            self.assertEqual(command[command.index("--chromedriver") + 1], "/selected/driver")
+            self.assertLess(command.index("--chromedriver"), command.index("--"))
+
+    def test_caller_config_conflicting_browser_is_rejected(self):
+        config = self.dir / "caller.json"
+        config.write_text(json.dumps({"goog:chromeOptions": {"binary": "/other/chrome"}}))
+        with self.assertRaisesRegex(runner.RunnerError, "conflict"):
+            with runner.desktop_webdriver_config({runner.WEBDRIVER_CONFIG_ENV: str(config), "CHROME_BIN": "/selected/chrome"}):
+                pass
+
+    def test_invalid_selected_driver_fails_before_launch(self):
+        with patch.dict(os.environ, {"CHROMEDRIVER": "/missing/driver", "CHROME_BIN": "/bin/true", "PATH": "/bin"}, clear=True), \
+             patch.object(runner.subprocess, "run") as launch:
+            with self.assertRaisesRegex(runner.RunnerError, "chromedriver"):
+                runner.runner_environment()
+        launch.assert_not_called()
+
     def setUp(self):
         self._saved_pair = os.environ.pop("BOARDSTUDIO_WASM_BINDGEN_DIR", None)
         self.temp = tempfile.TemporaryDirectory(prefix="run-wasm-tests-")
@@ -88,15 +114,17 @@ class RunWasmTestsTests(unittest.TestCase):
                         f'echo "$WASM_BINDGEN_TEST_WEBDRIVER_JSON" >> "{self.log}"\n')
         pack.chmod(0o755)
         command = ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--lib"]
+        config = self.dir / "caller.json"
+        config.write_text('{"goog:chromeOptions":{"binary":"/usr/bin/true"}}')
         with patch.dict(os.environ, {"BOARDSTUDIO_WASM_BINDGEN_DIR": str(pair),
-                                     "WASM_BINDGEN_TEST_WEBDRIVER_JSON": "/caller/config.json",
+                                     "WASM_BINDGEN_TEST_WEBDRIVER_JSON": str(config), "CHROMEDRIVER": "/bin/true", "CHROME_BIN": "/bin/true",
                                      "PATH": f"{self.dir}:/bin", "BOARDSTUDIO_CHECK_JOBS": "1"}, clear=True), \
              patch.object(check, "ROOT", self.dir), \
              contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(check.run_plan([("browser", [command])]), 0)
         self.assertEqual(self.log.read_text().splitlines(),
                          [str(pair / "wasm-bindgen"), str(pair / "wasm-bindgen-test-runner"),
-                          "/caller/config.json"])
+                          str(config)])
 
     def test_bindgen_pair_default_missing_and_wrong_versions(self):
         import wasm_bindgen_tools as tools
@@ -653,7 +681,9 @@ class RunWasmTestsTests(unittest.TestCase):
         for key in ("CHROMEDRIVER", "CHROME_BIN", runner.WEBDRIVER_CONFIG_ENV):
             os.environ.pop(key, None)
         try:
-            def fake_which(name):
+            def fake_which(name, path=None):
+                if name in (str(driver), str(chrome)):
+                    return name
                 return "/usr/bin/wasm-pack" if name == "wasm-pack" else None
             with patch.object(runner.shutil, "which", side_effect=fake_which), \
                  patch.object(runner, "wasm_bindgen_dir", return_value=Path("/tmp/test-runner")):

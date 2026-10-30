@@ -38,6 +38,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 import argparse
+import importlib.util
 import os
 from pathlib import Path
 import re
@@ -55,6 +56,7 @@ import check_native_tests  # noqa: E402  (needs the scripts directory on sys.pat
 import verification_receipt  # noqa: E402  (needs the scripts directory on sys.path)
 import wasm_bindgen_tools  # noqa: E402
 
+
 PY = "python3"
 # One workspace invocation compiles Core once for every crate's tests. Footprints runs
 # separately: its serde_json `preserve_order` dev-feature must not leak into Core's tests.
@@ -69,7 +71,7 @@ TOOLING_TESTS = (
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
     "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
-    "scripts/test-ergogen-parity.cjs", "scripts/test-verification-receipt.py",
+    "scripts/test-ergogen-parity.cjs", "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
     "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
 )
@@ -419,11 +421,12 @@ def format_wasm_failure_summary(output_or_summary: str | dict[str, object] | Non
 
 def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                captured: list[tuple[Command, str]] | None = None,
-               outputs: list[tuple[Command, str]] | None = None) -> tuple[float, int, str, str]:
+               outputs: list[tuple[Command, str]] | None = None,
+               completed=None, build_capture=None) -> tuple[float, int, str, str]:
     print("$ " + shlex.join(command), flush=True)
     lock_fd = browser_tools._inherited_build_lock()
     if not any(part in command for part in ("scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py", "cad/scripts/face-completeness-gate.py", "cad/scripts/test-cad-provider.py", "scripts/build-web.py",
-               "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py")):
+               "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py", "scripts/model-lookup-pilot.py")):
         environment = environment.copy()
         environment.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
     lock_args = {"pass_fds": (lock_fd,)} if lock_fd is not None else {}
@@ -431,12 +434,20 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
     started_at = datetime.now(timezone.utc).isoformat()
     print(f"check: start {started_at} $ {shlex.join(command)}", flush=True)
     def run(*args, **kwargs):
+        if build_capture is not None:
+            build_capture("before", None)
         try:
-            return subprocess.run(*args, **kwargs)
+            result = subprocess.run(*args, **kwargs)
         except OSError as error:
             message = f"startup failed: {error}\n"
-            print(message, end="", file=sys.stderr, flush=True)
-            return subprocess.CompletedProcess(command, 127, stdout=message)
+            if kwargs.get("stdout") != subprocess.PIPE:
+                print(message, end="", file=sys.stderr, flush=True)
+            result = subprocess.CompletedProcess(command, 127, stdout=message)
+        if build_capture is not None:
+            build_capture("after", result.returncode)
+        if completed is not None:
+            completed(result.returncode, time.monotonic() - started, started_at, datetime.now(timezone.utc).isoformat())
+        return result
     if captured is not None and is_cargo_test(command):
         # The native test-name guard reads this output; it is printed whole once the command ends.
         done = run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
@@ -447,7 +458,7 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
         if outputs is not None:
             outputs.append((command, text))
         code = done.returncode
-    elif outputs is not None and is_wasm_pack_test(command):
+    elif outputs is not None and (is_wasm_pack_test(command) or "scripts/run-drag-browser.py" in command):
         done = run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, text=True, **lock_args)
         text = output_text(done.stdout)
@@ -469,12 +480,18 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                  step: str = "") -> tuple[float, list[Command]]:
     """Runs independent launches together, printing each one's output whole and in order."""
     lock_fd = browser_tools._inherited_build_lock()
+    # Workers retain completed results even if submit is interrupted before it
+    # returns the corresponding future to the main thread.
+    completed = []
 
-    def launch(command: Command) -> tuple[int, str, float, str, str]:
+    def launch(command: Command) -> tuple[int, str, float, str, str, str | None]:
+        attempt = receipt.prepare(command, step=step) if receipt is not None else None
         started = time.monotonic()
         started_at = datetime.now(timezone.utc).isoformat()
         print(f"check: start {started_at} $ {shlex.join(command)}", flush=True)
         child_env = environment.copy()
+        if receipt is not None:
+            child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
         if "cad/scripts/test-cad.py" not in command:
             child_env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
         try:
@@ -485,28 +502,78 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         except OSError as error:
             code, output = 127, f"startup failed: {error}\n"
         ended_at = datetime.now(timezone.utc).isoformat()
-        print(f"check: end {ended_at} exit {code} $ {shlex.join(command)}", flush=True)
-        return code, output, time.monotonic() - started, started_at, ended_at
+        elapsed = time.monotonic() - started
+        try:
+            print(f"check: end {ended_at} exit {code} $ {shlex.join(command)}", flush=True)
+        except BaseException:
+            if receipt is not None:
+                receipt.recording_failed(attempt, code, elapsed, started_at, ended_at)
+            raise
+        result = (code, output, elapsed, started_at, ended_at, attempt)
+        completed.append((command, result))
+        return result
 
     ordered = sorted(batch, key=launch_order)
     started = time.monotonic()
     failed: list[Command] = []
-    with ThreadPoolExecutor(max_workers=check_jobs()) as pool:
-        futures = [(command, pool.submit(launch, command)) for command in ordered]
+    futures = []
+    error = None
+    submitting = True
+    pool = ThreadPoolExecutor(max_workers=check_jobs())
+    try:
+        for command in ordered:
+            futures.append((command, pool.submit(launch, command)))
+        submitting = False
         for command, future in futures:
-            code, output, elapsed, started_at, ended_at = future.result()
+            if future.cancelled():
+                continue
+            code, output, elapsed, started_at, ended_at, attempt = future.result()
             text = output_text(output)
-            print("$ " + shlex.join(command), flush=True)
-            print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
-            print(f"  ({elapsed:.1f}s)", flush=True)
+            if receipt is not None:
+                receipt.observe(step, command, code, elapsed, text, started_at=started_at,
+                                ended_at=ended_at, attempt_id=attempt)
             if captured is not None and is_cargo_test(command):
                 captured.append((command, text))
             if outputs is not None:
                 outputs.append((command, text))
-            if receipt is not None:
-                receipt.observe(step, command, code, elapsed, text, started_at=started_at, ended_at=ended_at)
             if code:
                 failed.append(command)
+            print("$ " + shlex.join(command), flush=True)
+            print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
+            print(f"  ({elapsed:.1f}s)", flush=True)
+    except BaseException as caught:
+        error = caught
+    finally:
+        cancel = error is not None and (submitting or isinstance(error, KeyboardInterrupt))
+        if cancel:
+            for _, future in futures:
+                future.cancel()
+        if hasattr(pool, "shutdown"):
+            pool.shutdown(wait=True, cancel_futures=cancel)
+        # Include futures from test executors and results from submissions that
+        # raised after scheduling work but before returning their future.
+        for command, future in futures:
+            if future.cancelled():
+                continue
+            try:
+                result = future.result()
+                if (command, result) not in completed:
+                    completed.append((command, result))
+            except BaseException as caught:
+                if error is None:
+                    error = caught
+        if receipt is not None and error is not None:
+            for command, result in completed:
+                code, output, elapsed, started_at, ended_at, attempt = result
+                try:
+                    receipt.observe(step, command, code, elapsed, output_text(output),
+                                    started_at=started_at, ended_at=ended_at, attempt_id=attempt)
+                except BaseException as caught:
+                    receipt.recording_failed(attempt, code, elapsed, started_at, ended_at)
+                    if error is None:
+                        error = caught
+    if error is not None:
+        raise error
     return time.monotonic() - started, failed
 
 
@@ -551,13 +618,39 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
             index = end
             continue
         serial_outputs: list[tuple[Command, str]] = []
+        attempt = receipt.prepare(command, step=name) if receipt is not None else None
+        completed = (lambda code, elapsed, start, end: receipt.recording_failed(attempt, code, elapsed, start, end)) if receipt is not None else None
+        child_env = environment.copy()
         if receipt is not None:
-            receipt.prepare(command)
-        elapsed, code, started_at, ended_at = run_serial(command, environment, cwd, captured, serial_outputs)
+            child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
+        args = (command, child_env, cwd, captured, serial_outputs)
+        build_capture = None
+        if receipt is not None and "scripts/build-web.py" in command:
+            state = {}
+            site = cwd / "web/target/site"
+            def build_capture(phase, code):
+                source = verification_receipt.source_identity(cwd)
+                if phase == "before":
+                    state["source"] = source
+                    _, state["site"] = verification_receipt.site_identity(site)
+                    receipt.build_bindings.append(verification_receipt.build_binding(
+                        receipt.run_id, attempt, source, None, None, None, False))
+                else:
+                    output, site_after = verification_receipt.site_identity(site) if code == 0 else (None, None)
+                    receipt.build_bindings[-1] = verification_receipt.build_binding(
+                        receipt.run_id, attempt, state.get("source"), source, code, output,
+                        verification_receipt.fresh_site(state.get("site"), site_after))
+        elapsed, code, started_at, ended_at = (run_serial(*args, completed, build_capture)
+                                                if build_capture else
+                                                run_serial(*args, completed) if completed else run_serial(*args))
         total += elapsed
         if receipt is not None:
-            receipt.observe(name, command, code, elapsed, serial_outputs[-1][1] if serial_outputs else "",
-                            started_at=started_at, ended_at=ended_at)
+            try:
+                receipt.observe(name, command, code, elapsed, serial_outputs[-1][1] if serial_outputs else "",
+                                started_at=started_at, ended_at=ended_at, attempt_id=attempt)
+            except BaseException:
+                receipt.recording_failed(attempt, code, elapsed, started_at, ended_at)
+                raise
         if code:
             text = serial_outputs[-1][1] if serial_outputs else ""
             if is_crate_launch(command):
@@ -633,6 +726,30 @@ def guard_native_tests(commands: list[Command], captured: list[tuple[Command, st
 
 def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool = False,
              *, keep_going: bool = False, partial: bool = False) -> int:
+    if _RECEIPT is not None:
+        _RECEIPT.plan_commands(plan)
+    direct = any(is_wasm_pack_test(command) for _, commands in plan for command in commands)
+    page = not os.environ.get("BOARDSTUDIO_WASM_TEST_COMMAND") and any(
+        "scripts/run-wasm-tests.py" in command for _, commands in plan for command in commands)
+    if direct or page:
+        spec = importlib.util.spec_from_file_location("run_wasm_tests", Path(__file__).with_name("run-wasm-tests.py"))
+        wasm_runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(wasm_runner)
+        try:
+            environment = wasm_runner.runner_environment(ROOT, browser_only=True)
+            with wasm_runner.desktop_webdriver_config(environment, ROOT) as environment:
+                selected = [(name, [command[:4] + ["--chromedriver", environment["CHROMEDRIVER"]] + command[4:]
+                                    if is_wasm_pack_test(command) else command for command in commands])
+                            for name, commands in plan]
+                return _run_plan(selected, update_native_baseline, keep_going=keep_going,
+                                 partial=partial, browser_environment=environment)
+        except wasm_runner.RunnerError as error:
+            print(f"check: {error}", file=sys.stderr)
+            return 1
+    return _run_plan(plan, update_native_baseline, keep_going=keep_going, partial=partial)
+
+
+def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=False, browser_environment=None):
     names = [name for name, _ in plan]
     # `--only` and any named-step/quick selection are focused; only the full default plan is not.
     focused = partial or tuple(names) != DEFAULT
@@ -646,7 +763,7 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
     def finish(code: int) -> int:
         global _RECEIPT
         if receipt is not None:
-            receipt.finish(code, partial=focused)
+            receipt.finish(code, partial=focused, source_after=verification_receipt.source_identity(ROOT))
         _RECEIPT = None
         return code
 
@@ -657,6 +774,8 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
             # An editor's AppImage directory redirects system KiCad's library lookup.
             environment.pop("APPDIR", None)
         if is_browser_step(name):
+            if browser_environment is not None:
+                environment.update(browser_environment)
             try:
                 environment = wasm_bindgen_tools.configure(environment, ROOT)
             except ValueError as error:
@@ -847,7 +966,7 @@ def main(argv: list[str] | None = None) -> int:
         receipt, _RECEIPT = _RECEIPT, None
         if receipt is not None:
             names = tuple(dict.fromkeys(step for step, _ in receipt.plan))
-            receipt.finish(code, partial=names != DEFAULT)
+            receipt.finish(code, partial=names != DEFAULT, source_after=verification_receipt.source_identity(ROOT))
 
 
 if __name__ == "__main__":

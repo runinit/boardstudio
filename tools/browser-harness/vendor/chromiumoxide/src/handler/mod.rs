@@ -139,6 +139,7 @@ impl Handler {
     /// Enable dedicated worker network observation before polling this handler.
     pub fn enable_worker_network_capture(&mut self) {
         self.worker_network_capture = true;
+        self.conn.capture_event_params = true;
     }
 
     /// Return the target with the matching `target_id`
@@ -441,7 +442,7 @@ impl Handler {
     }
 
     /// Process an incoming event read from the websocket
-    fn on_event(&mut self, event: CdpEventMessage) {
+    fn on_event(&mut self, event: CdpEventMessage, raw_params: Option<serde_json::Value>) {
         if let (Some(parent), CdpEvent::TargetAttachedToTarget(child)) =
             (&event.session_id, &event.params)
         {
@@ -463,23 +464,21 @@ impl Handler {
             }
         }
         if self.worker_network_capture {
-            let params = match &event.params {
-                CdpEvent::NetworkRequestWillBeSent(ev) => Some(serde_json::to_value(ev)),
-                CdpEvent::NetworkResponseReceived(ev) => Some(serde_json::to_value(ev)),
-                CdpEvent::TargetAttachedToTarget(ev)
-                    if ev.target_info.r#type == "worker"
-                        || ev.target_info.r#type == "service_worker" =>
-                {
-                    Some(serde_json::to_value(ev))
+            let observed = match &event.params {
+                CdpEvent::NetworkRequestWillBeSent(_)
+                | CdpEvent::NetworkResponseReceived(_)
+                | CdpEvent::NetworkLoadingFinished(_)
+                | CdpEvent::NetworkLoadingFailed(_) => true,
+                CdpEvent::TargetAttachedToTarget(ev) => {
+                    ev.target_info.r#type == "worker" || ev.target_info.r#type == "service_worker"
                 }
-                _ => None,
+                _ => false,
             };
-            if let Some(Err(error)) = &params {
-                self.worker_errors.push_back(CdpError::msg(format!(
-                    "network observation serialization failed: {error}"
-                )));
+            if observed && raw_params.is_none() {
+                self.worker_errors
+                    .push_back(CdpError::msg("network observation missing raw params"));
             }
-            if let Some(Ok(params)) = params {
+            if let (true, Some(params)) = (observed, raw_params) {
                 if let Some(session) = &event.session_id {
                     let owner = self
                         .worker_owners
@@ -862,7 +861,8 @@ impl Stream for Handler {
                     Ok(Message::Event(ev)) => {
                         let worker_attached = pin.worker_network_capture
                             && matches!(&ev.params, CdpEvent::TargetAttachedToTarget(child) if (child.target_info.r#type == "worker" || child.target_info.r#type == "service_worker") && child.waiting_for_debugger);
-                        pin.on_event(ev);
+                        let raw_params = pin.conn.event_params.take();
+                        pin.on_event(ev, raw_params);
                         if worker_attached {
                             done = false;
                             break;
@@ -1038,6 +1038,88 @@ mod lifecycle_tests {
     use std::time::Duration;
     use tokio::net::TcpListener;
 
+    #[derive(Debug, Clone, serde::Deserialize)]
+    struct RawNetworkEvent {
+        session: String,
+        method: String,
+        params: serde_json::Value,
+    }
+    impl chromiumoxide_types::MethodType for RawNetworkEvent {
+        fn method_id() -> MethodId {
+            "BoardStudio.NetworkEvent".into()
+        }
+    }
+    impl chromiumoxide_cdp::cdp::CustomEvent for RawNetworkEvent {}
+
+    #[tokio::test]
+    async fn network_observation_preserves_wire_params() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            async_tungstenite::tokio::accept_async(socket)
+                .await
+                .unwrap()
+        });
+        let conn = Connection::connect(format!("ws://{addr}")).await.unwrap();
+        let mut socket = server.await.unwrap();
+        let (_tx, rx) = futures::channel::mpsc::channel(8);
+        let mut handler = Handler::new(conn, rx, HandlerConfig::default());
+        handler.enable_worker_network_capture();
+        for raw in [
+            r#"{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"page","type":"page","title":"","url":"about:blank","attached":false,"canAccessOpener":false}}}"#,
+            r#"{"method":"Target.attachedToTarget","params":{"sessionId":"page-session","targetInfo":{"targetId":"page","type":"page","title":"","url":"about:blank","attached":true,"canAccessOpener":false},"waitingForDebugger":false}}"#,
+        ] {
+            let Message::Event(event) = serde_json::from_str(raw).unwrap() else {
+                panic!()
+            };
+            handler.on_event(
+                event,
+                serde_json::from_str::<serde_json::Value>(raw)
+                    .unwrap()
+                    .get("params")
+                    .cloned(),
+            );
+        }
+        let (tx, rx) = futures::channel::mpsc::unbounded();
+        handler
+            .targets
+            .get_mut(&TargetId::new("page"))
+            .unwrap()
+            .event_listeners_mut()
+            .add_listener(EventListenerRequest::new::<RawNetworkEvent>(tx));
+        let mut events = EventStream::<RawNetworkEvent>::new(rx);
+        let messages = [
+            r#"{"method":"Network.requestWillBeSent","params":{"requestId":"r","loaderId":"l","documentURL":"https://example.test/","request":{"url":"https://example.test/","method":"GET","headers":{},"initialPriority":"High","referrerPolicy":"no-referrer"},"timestamp":1,"wallTime":1,"initiator":{"type":"other"},"redirectHasExtraInfo":false,"futureFlag":true},"sessionId":"page-session"}"#,
+            r#"{"method":"Network.responseReceived","params":{"requestId":"r","loaderId":"l","timestamp":2,"type":"Script","hasExtraInfo":false,"futureFlag":true,"response":{"url":"https://example.test/","status":200,"statusText":"OK","headers":{},"mimeType":"text/javascript","charset":"","connectionReused":false,"connectionId":1,"encodedDataLength":0,"securityState":"secure","futureNested":{"x":1}}},"sessionId":"page-session"}"#,
+            r#"{"method":"Network.loadingFinished","params":{"requestId":"r","timestamp":3,"encodedDataLength":42,"futureFlag":true},"sessionId":"page-session"}"#,
+            r#"{"method":"Network.loadingFailed","params":{"requestId":"failed","timestamp":4,"type":"Script","errorText":"net::ERR_FAILED","canceled":false,"futureFlag":true},"sessionId":"page-session"}"#,
+        ];
+        for raw in messages {
+            serde_json::from_str::<Message<CdpEventMessage>>(raw).unwrap();
+            socket
+                .send(async_tungstenite::tungstenite::Message::Text(raw.into()))
+                .await
+                .unwrap();
+        }
+        for raw in messages {
+            let expected: serde_json::Value = serde_json::from_str(raw).unwrap();
+            let received = tokio::time::timeout(Duration::from_secs(2), async {
+                futures::future::poll_fn(|cx| {
+                    let _ = Pin::new(&mut handler).poll_next(cx);
+                    events.poll_next_unpin(cx)
+                })
+                .await
+                .unwrap()
+            })
+            .await
+            .expect("missing ordered network event");
+            assert_eq!(received.session, expected["sessionId"]);
+            assert_eq!(received.method, expected["method"]);
+            assert_eq!(received.params, expected["params"]);
+        }
+    }
+
     #[tokio::test]
     async fn worker_commands_remain_internal_when_capture_is_disabled() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -1113,7 +1195,13 @@ mod lifecycle_tests {
                 let Message::Event(event) = serde_json::from_str(raw).unwrap() else {
                     panic!("expected event")
                 };
-                handler.on_event(event);
+                handler.on_event(
+                    event,
+                    serde_json::from_str::<serde_json::Value>(raw)
+                        .unwrap()
+                        .get("params")
+                        .cloned(),
+                );
             }
             if submitted {
                 handler
@@ -1159,7 +1247,7 @@ mod lifecycle_tests {
                 );
             } else {
                 let Message::Event(event) = serde_json::from_str(r#"{"method":"Target.detachedFromTarget","params":{"sessionId":"page-session"}}"#).unwrap() else { panic!("expected event") };
-                handler.on_event(event);
+                handler.on_event(event, None);
                 assert!(
                     handler
                         .worker_errors
@@ -1206,7 +1294,13 @@ mod lifecycle_tests {
             let Message::Event(event) = serde_json::from_str(raw).unwrap() else {
                 panic!("expected event")
             };
-            handler.on_event(event);
+            handler.on_event(
+                event,
+                serde_json::from_str::<serde_json::Value>(raw)
+                    .unwrap()
+                    .get("params")
+                    .cloned(),
+            );
         }
         assert!(
             handler
@@ -1216,7 +1310,7 @@ mod lifecycle_tests {
             "queued worker setup detach must be fatal"
         );
         let Message::Event(event) = serde_json::from_str(r#"{"method":"Target.attachedToTarget","params":{"sessionId":"unpaused","targetInfo":{"targetId":"worker2","type":"worker","title":"","url":"worker.js","attached":true,"canAccessOpener":false},"waitingForDebugger":false},"sessionId":"page-session"}"#).unwrap() else { panic!("expected event") };
-        handler.on_event(event);
+        handler.on_event(event, None);
         assert!(
             handler
                 .worker_errors
@@ -1224,14 +1318,14 @@ mod lifecycle_tests {
                 .any(|error| error.to_string().contains("attached without pause"))
         );
         let Message::Event(event) = serde_json::from_str(r#"{"method":"Target.attachedToTarget","params":{"sessionId":"worker3","targetInfo":{"targetId":"worker3","type":"worker","title":"","url":"worker.js","attached":true,"canAccessOpener":false},"waitingForDebugger":true},"sessionId":"page-session"}"#).unwrap() else { panic!("expected event") };
-        handler.on_event(event);
+        handler.on_event(event, None);
         let Message::Event(event) = serde_json::from_str(
             r#"{"method":"Target.targetDestroyed","params":{"targetId":"page"}}"#,
         )
         .unwrap() else {
             panic!("expected event")
         };
-        handler.on_event(event);
+        handler.on_event(event, None);
         assert!(
             handler
                 .worker_errors
@@ -1259,7 +1353,13 @@ mod lifecycle_tests {
             let Message::Event(event) = serde_json::from_str(raw).unwrap() else {
                 panic!("expected event")
             };
-            handler.on_event(event);
+            handler.on_event(
+                event,
+                serde_json::from_str::<serde_json::Value>(raw)
+                    .unwrap()
+                    .get("params")
+                    .cloned(),
+            );
         };
         for raw in [
             r#"{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"page","type":"page","title":"","url":"about:blank","attached":false,"canAccessOpener":false}}}"#,
@@ -1336,7 +1436,13 @@ mod lifecycle_tests {
                 let Message::Event(event) = serde_json::from_str(raw).unwrap() else {
                     panic!("expected event");
                 };
-                handler.on_event(event);
+                handler.on_event(
+                    event,
+                    serde_json::from_str::<serde_json::Value>(raw)
+                        .unwrap()
+                        .get("params")
+                        .cloned(),
+                );
             };
             for raw in [
                 r#"{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"parent","type":"page","title":"","url":"about:blank","attached":false,"canAccessOpener":false}}}"#,
@@ -1434,7 +1540,13 @@ mod lifecycle_tests {
         ] {
             let event = serde_json::from_str::<Message<CdpEventMessage>>(raw).unwrap();
             if let Message::Event(event) = event {
-                handler.on_event(event);
+                handler.on_event(
+                    event,
+                    serde_json::from_str::<serde_json::Value>(raw)
+                        .unwrap()
+                        .get("params")
+                        .cloned(),
+                );
             } else {
                 panic!("expected event");
             }
