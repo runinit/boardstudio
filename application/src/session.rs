@@ -3,7 +3,7 @@
 //! This crate deliberately contains no browser handles. A host runs each emitted effect and
 //! returns its completion through [`Session::complete`].
 
-use crate::interactions::{DragSnapOptions, SnapGuide, normalize_drag};
+use crate::interactions::{DragSnapOptions, MagneticSnapState, SnapGuide, normalize_drag};
 use boardstudio_core::{CoreEngine, model::*};
 use std::collections::{HashSet, VecDeque};
 use std::fmt;
@@ -351,11 +351,13 @@ pub enum Event {
         snap_fraction: f64,
         geometry_snap: bool,
         gap: Option<f64>,
+        pixels_per_world: Option<f64>,
         alt: bool,
     },
     GestureSample {
         pointer_id: i64,
         positions: Vec<Position>,
+        pixels_per_world: Option<f64>,
         alt: bool,
     },
     GestureFrame {
@@ -364,6 +366,7 @@ pub enum Event {
     GestureEnd {
         pointer_id: i64,
         final_positions: Vec<Position>,
+        pixels_per_world: Option<f64>,
         alt: bool,
     },
     GestureCancel {
@@ -611,6 +614,8 @@ struct Gesture {
     snap_fraction: f64,
     geometry_snap: bool,
     gap: Option<f64>,
+    pixels_per_world: Option<f64>,
+    snap_state: MagneticSnapState,
     alt: bool,
     frame_pending: bool,
     changed: bool,
@@ -1127,6 +1132,7 @@ impl Session {
                 snap_fraction,
                 geometry_snap,
                 gap,
+                pixels_per_world,
                 alt,
             } => {
                 if self.gesture.is_none() && self.model.lifecycle == Lifecycle::Ready {
@@ -1152,6 +1158,8 @@ impl Session {
                         snap_fraction,
                         geometry_snap,
                         gap,
+                        pixels_per_world,
+                        snap_state: MagneticSnapState::default(),
                         alt,
                         frame_pending: false,
                         changed: false,
@@ -1165,14 +1173,36 @@ impl Session {
             Event::GestureSample {
                 pointer_id,
                 positions,
+                pixels_per_world,
                 alt,
-            } => self.gesture_sample(pointer_id, positions, alt, false, &mut effects),
+            } => {
+                if let Some(pixels_per_world) = pixels_per_world
+                    && let Some(gesture) = self
+                        .gesture
+                        .as_mut()
+                        .filter(|gesture| gesture.pointer_id == pointer_id)
+                {
+                    gesture.pixels_per_world = Some(pixels_per_world);
+                }
+                self.gesture_sample(pointer_id, positions, alt, false, &mut effects)
+            }
             Event::GestureFrame { generation } => self.gesture_frame(generation, &mut effects),
             Event::GestureEnd {
                 pointer_id,
                 final_positions,
+                pixels_per_world,
                 alt,
-            } => self.gesture_sample(pointer_id, final_positions, alt, true, &mut effects),
+            } => {
+                if let Some(pixels_per_world) = pixels_per_world
+                    && let Some(gesture) = self
+                        .gesture
+                        .as_mut()
+                        .filter(|gesture| gesture.pointer_id == pointer_id)
+                {
+                    gesture.pixels_per_world = Some(pixels_per_world);
+                }
+                self.gesture_sample(pointer_id, final_positions, alt, true, &mut effects)
+            }
             Event::GestureCancel { pointer_id } => {
                 if self
                     .gesture
@@ -1838,7 +1868,9 @@ impl Session {
                 if active.gesture_generation.is_none() {
                     self.settle(active.operation_id, TerminalOutcome::Completed, effects);
                 }
-                if let Some(g) = &mut self.gesture {
+                if let Some(g) = &mut self.gesture
+                    && active.gesture_generation == Some(g.generation)
+                {
                     g.preview_in_flight = false;
                 }
                 self.dispatch_latest_gesture_preview(effects);
@@ -1904,7 +1936,9 @@ impl Session {
                 } else {
                     Lifecycle::Empty
                 };
-                self.finish_gesture_commit(active.gesture_generation, false, effects);
+                if active.gesture_generation.is_some() {
+                    self.finish_gesture_commit(active.gesture_generation, false, effects);
+                }
             }
             _ => {
                 let reason = "core returned an unexpected reply variant".to_string();
@@ -2220,6 +2254,8 @@ impl Session {
                             gap: g.gap,
                             targets: &g.targets,
                             alt: g.alt,
+                            pixels_per_world: g.pixels_per_world,
+                            state: &mut g.snap_state,
                         },
                     )
                 });
@@ -2258,7 +2294,10 @@ impl Session {
         let Some(g) = &mut self.gesture else {
             return;
         };
-        if g.preview_in_flight || g.commit_queued || (!g.changed && g.final_positions.is_none()) {
+        if g.preview_in_flight
+            || g.commit_queued
+            || (!g.changed && g.final_positions.is_none() && g.sent_positions.is_none())
+        {
             return;
         }
         let is_commit = g.final_positions.is_some();
@@ -2266,6 +2305,9 @@ impl Session {
             .final_positions
             .clone()
             .unwrap_or_else(|| g.latest.clone());
+        if !is_commit && g.sent_positions.as_ref() == Some(&positions) {
+            return;
+        }
         let generation = g.generation;
         let operation_id = g.operation_id;
         let command = EditCommand {
@@ -2334,8 +2376,10 @@ impl Session {
                 pointer_id: g.pointer_id,
             });
             self.model.gesture = None;
-            self.model.display_preview = None;
-            self.display_preview_transaction_id = None;
+            if self.display_preview_transaction_id.as_deref() == Some(&g.transaction_id) {
+                self.model.display_preview = None;
+                self.display_preview_transaction_id = None;
+            }
             self.model.snap_guide = None;
             if self.model.lifecycle == Lifecycle::Applying
                 && self

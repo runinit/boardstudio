@@ -374,7 +374,7 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
 
     runtime.submit(Event::PreviewEdit {
         operation_id: runtime.operation(),
-        transaction_id: "ticket160-browser-cancel-preview".into(),
+        transaction_id: "ticket160-browser-cancel".into(),
         target_ids,
         operation,
     });
@@ -406,6 +406,7 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
         snap_fraction: 0.0,
         geometry_snap: false,
         gap: None,
+        pixels_per_world: None,
         alt: true,
     });
     assert!(runtime.model().display_preview.is_some());

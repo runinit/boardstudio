@@ -1284,6 +1284,7 @@ pub(crate) mod test_fixtures {
             locked: None,
             keycap: None,
             outline: None,
+            anchor: None,
             properties: None,
             generator_parameters: None,
         }

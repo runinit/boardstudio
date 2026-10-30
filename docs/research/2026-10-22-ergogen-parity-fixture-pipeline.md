@@ -1,7 +1,7 @@
 # Ergogen parity fixture pipeline
 
 Date: 2026-10-22. Recommendation for ticket 03, based on the standing decisions in
-[ADR-0034](../adr/0036-matrices-follow-ergogen-point-layout.md) and the comparison and
+[ADR-0036](../adr/0036-matrices-follow-ergogen-point-layout.md) and the comparison and
 dependents reports ([comparison](2026-10-22-ergogen-layout-engine-comparison.md),
 [inventory](2026-10-22-matrix-layout-dependents-inventory.md)).
 
@@ -120,9 +120,9 @@ Reject running the full Ergogen CLI for fixture generation: the points parser is
 direct seam and the full package brings unrelated dependencies ([pinned package.json](https://github.com/ergogen/ergogen/blob/8286e18f18ac064aa6d2ebca9c449bf2f6ba4d37/package.json),
 [points.js](https://github.com/ergogen/ergogen/blob/8286e18f18ac064aa6d2ebca9c449bf2f6ba4d37/src/points.js)).
 Reject keeping the oracle only in an outside cache because that would not make the exact
-expected values reviewable or available to normal Rust tests; ADR-0034 requires committed
+expected values reviewable or available to normal Rust tests; ADR-0036 requires committed
 golden evidence. Reject deleting the old projection fixture because it records BoardStudio
-behavior beyond the new upstream parity cases ([ADR-0034](../adr/0036-matrices-follow-ergogen-point-layout.md),
+behavior beyond the new upstream parity cases ([ADR-0036](../adr/0036-matrices-follow-ergogen-point-layout.md),
 [existing fixture](../../core/tests/fixtures/matrix-projections.json)).
 
 ## Evidence run
@@ -135,3 +135,13 @@ world-origin differences remained visible. This was a Node harness run only; no 
 Rust test, or source edit was performed. The harness and output are local gitignored artifacts
 (`.evidence/ergogen-layout-comparison/compare.js` and `results.txt`); the committed
 [comparison report](2026-10-22-ergogen-layout-engine-comparison.md) describes the method.
+
+## Default gate cutover (2026-10-30)
+
+The default tooling gate runs `test_generate.py --hermetic` for offline fixture,
+mapping, generator, and failure controls. The browser step runs `--source` to
+evaluate the live `cases.cjs` catalog in Chrome and compare reconstructed fixture
+bytes. CI supplies pinned Chrome; locally, `CHROME_BIN` or a Chrome/Chromium on
+PATH is used. The source check builds the browser driver; neither suite needs an
+upstream checkout or npm installation. The Node generator and its contract test
+remain available to maintainers. The upstream parser comparison remains opt-in.

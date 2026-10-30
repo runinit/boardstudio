@@ -51,8 +51,48 @@ debug = false
 inherits = "dev"
 debug = "line-tables-only"
 
-# Dependencies compile once, so optimizing them is free after the first build, and tests that
-# hash, compress or parse (the demo-project acceptance test) run about 2.4x faster. The
-# workspace's own crates stay unoptimized so edit-and-test builds stay quick.
-[profile.dev.package."*"]
-opt-level = 2
+# dx's page builds: enough optimization to keep the page responsive, with line tables only for the
+# workspace's own crates, where browser debugging happens.
+[profile.wasm-dev.package."*"]
+opt-level = 1
+debug = false
+
+# Build tools that only run on the host: "*" outranks `build-override`, so name the costly ones.
+[profile.wasm-dev.package]
+async-trait = { opt-level = 0 }
+const-serialize-macro = { opt-level = 0 }
+darling_core = { opt-level = 0 }
+darling_macro = { opt-level = 0 }
+dioxus-core-macro = { opt-level = 0 }
+dioxus-rsx = { opt-level = 0 }
+dioxus-stores-macro = { opt-level = 0 }
+enumset_derive = { opt-level = 0 }
+futures-macro = { opt-level = 0 }
+manganis-macro = { opt-level = 0 }
+palette_derive = { opt-level = 0 }
+pin-project-internal = { opt-level = 0 }
+proc-macro2 = { opt-level = 0 }
+quote = { opt-level = 0 }
+rhai_codegen = { opt-level = 0 }
+serde_derive = { opt-level = 0 }
+sledgehammer_bindgen_macro = { opt-level = 0 }
+syn = { opt-level = 0 }
+thiserror-impl = { opt-level = 0 }
+tracing-attributes = { opt-level = 0 }
+wasm-bindgen-macro-support = { opt-level = 0 }
+
+# Only crates whose own code dominates test time stay optimized: hashing, compression, parsing and
+# geometry (the demo-project acceptance test runs about 2.4x faster with them). A blanket "*" entry
+# also optimizes every proc macro and build script, because it outranks `build-override`, and that
+# makes cold builds much slower (`syn`: 22 s against 4 s).
+[profile.dev.package]
+cavalier_contours = { opt-level = 2 }
+crc32fast = { opt-level = 2 }
+flate2 = { opt-level = 2 }
+i_overlay = { opt-level = 2 }
+kiutils_sexpr = { opt-level = 2 }
+num-bigint = { opt-level = 2 }
+serde_json = { opt-level = 2 }
+sha2 = { opt-level = 2 }
+zip = { opt-level = 2 }
+zlib-rs = { opt-level = 2 }

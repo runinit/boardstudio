@@ -31,7 +31,34 @@ class RunWasmTestsTests(unittest.TestCase):
             os.environ["WASM_BINDGEN_TEST_TIMEOUT"] = "37"
             self.assertEqual(runner.runner_environment()["WASM_BINDGEN_TEST_TIMEOUT"], "37")
 
+    def test_selected_driver_is_explicit_for_listing_and_execution(self):
+        env = {"CHROMEDRIVER": "/selected/driver", "PATH": "/conflict"}
+        result = subprocess.CompletedProcess([], 0, stdout="sample::test: test\ntest sample::test ... ok\n", stderr="")
+        with patch.dict(os.environ, {"CHROMEDRIVER": "/conflicting/driver"}, clear=True), \
+             patch.object(runner.subprocess, "run", return_value=result) as call:
+            runner.list_wasm_tests(env)
+            runner.run_filter("sample", env)
+        for invocation in call.call_args_list:
+            command = invocation.args[0]
+            self.assertEqual(command[command.index("--chromedriver") + 1], "/selected/driver")
+            self.assertLess(command.index("--chromedriver"), command.index("--"))
+
+    def test_caller_config_conflicting_browser_is_rejected(self):
+        config = self.dir / "caller.json"
+        config.write_text(json.dumps({"goog:chromeOptions": {"binary": "/other/chrome"}}))
+        with self.assertRaisesRegex(runner.RunnerError, "conflict"):
+            with runner.desktop_webdriver_config({runner.WEBDRIVER_CONFIG_ENV: str(config), "CHROME_BIN": "/selected/chrome"}):
+                pass
+
+    def test_invalid_selected_driver_fails_before_launch(self):
+        with patch.dict(os.environ, {"CHROMEDRIVER": "/missing/driver", "CHROME_BIN": "/bin/true", "PATH": "/bin"}, clear=True), \
+             patch.object(runner.subprocess, "run") as launch:
+            with self.assertRaisesRegex(runner.RunnerError, "chromedriver"):
+                runner.runner_environment()
+        launch.assert_not_called()
+
     def setUp(self):
+        self._saved_pair = os.environ.pop("BOARDSTUDIO_WASM_BINDGEN_DIR", None)
         self.temp = tempfile.TemporaryDirectory(prefix="run-wasm-tests-")
         self.dir = Path(self.temp.name)
         self.log = self.dir / "calls.log"
@@ -43,6 +70,10 @@ class RunWasmTestsTests(unittest.TestCase):
         (self.dir / "web/src/presentation").mkdir(parents=True)
 
     def tearDown(self):
+        if self._saved_pair is not None:
+            os.environ["BOARDSTUDIO_WASM_BINDGEN_DIR"] = self._saved_pair
+        else:
+            os.environ.pop("BOARDSTUDIO_WASM_BINDGEN_DIR", None)
         runner.KNOWN_FAILURES = self._saved[0]
         if self._saved[1] is None:
             os.environ.pop(runner.RUNNER_ENV, None)
@@ -67,6 +98,97 @@ class RunWasmTestsTests(unittest.TestCase):
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             code = runner.main(["--root", str(self.dir), *argv])
         return code, out.getvalue(), err.getvalue()
+
+    def test_explicit_bindgen_pair_reaches_page_and_direct_crate_launches(self):
+        import check
+        pair = self.dir / "pair"
+        pair.mkdir()
+        (self.dir / "Cargo.lock").write_text('[[package]]\nname = "wasm-bindgen"\nversion = "0.2.129"\n')
+        for name in ("wasm-bindgen", "wasm-bindgen-test-runner"):
+            tool = pair / name
+            tool.write_text(f'#!/bin/sh\necho "{name} 0.2.129"\n')
+            tool.chmod(0o755)
+        pack = self.dir / "wasm-pack"
+        pack.write_text(f'#!/bin/sh\ncommand -v wasm-bindgen >> "{self.log}"\n'
+                        f'command -v wasm-bindgen-test-runner >> "{self.log}"\n'
+                        f'echo "$WASM_BINDGEN_TEST_WEBDRIVER_JSON" >> "{self.log}"\n')
+        pack.chmod(0o755)
+        command = ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--lib"]
+        config = self.dir / "caller.json"
+        config.write_text('{"goog:chromeOptions":{"binary":"/usr/bin/true"}}')
+        with patch.dict(os.environ, {"BOARDSTUDIO_WASM_BINDGEN_DIR": str(pair),
+                                     "WASM_BINDGEN_TEST_WEBDRIVER_JSON": str(config), "CHROMEDRIVER": "/bin/true", "CHROME_BIN": "/bin/true",
+                                     "PATH": f"{self.dir}:/bin", "BOARDSTUDIO_CHECK_JOBS": "1"}, clear=True), \
+             patch.object(check, "ROOT", self.dir), \
+             contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(check.run_plan([("browser", [command])]), 0)
+        self.assertEqual(self.log.read_text().splitlines(),
+                         [str(pair / "wasm-bindgen"), str(pair / "wasm-bindgen-test-runner"),
+                          str(config)])
+
+    def test_bindgen_pair_default_missing_and_wrong_versions(self):
+        import wasm_bindgen_tools as tools
+        env = {"PATH": "/bin"}
+        self.assertIs(tools.configure(env, self.dir), env)
+        (self.dir / "Cargo.lock").write_text('[[package]]\nname = "wasm-bindgen"\nversion = "0.2.129"\n')
+        pair = self.dir / "pair"
+        pair.mkdir()
+        supplied = {**env, tools.DIRECTORY_ENV: str(pair)}
+        with self.assertRaisesRegex(ValueError, "empty"):
+            tools.configure({**env, tools.DIRECTORY_ENV: ""}, self.dir)
+        with self.assertRaisesRegex(ValueError, "whitespace"):
+            tools.configure({**env, tools.DIRECTORY_ENV: str(self.dir / "with spaces")}, self.dir)
+        with self.assertRaisesRegex(ValueError, "path separator"):
+            tools.configure({**env, tools.DIRECTORY_ENV: str(self.dir / "pair:other")}, self.dir)
+        with self.assertRaisesRegex(ValueError, "wasm-bindgen"):
+            tools.configure(supplied, self.dir)
+        bindgen = pair / "wasm-bindgen"
+        bindgen.write_text('#!/bin/sh\necho "wasm-bindgen 0.2.129"\n')
+        bindgen.chmod(0o755)
+        with self.assertRaisesRegex(ValueError, "wasm-bindgen-test-runner"):
+            tools.configure(supplied, self.dir)
+        for name, version in (("wasm-bindgen", "0.2.129"), ("wasm-bindgen-test-runner", "0.2.128")):
+            tool = pair / name
+            tool.write_text(f'#!/bin/sh\necho "{name} {version}"\n')
+            tool.chmod(0o755)
+        with self.assertRaisesRegex(ValueError, "wasm-bindgen-test-runner.*expected.*0.2.129"):
+            tools.configure(supplied, self.dir)
+        (pair / "wasm-bindgen").write_text('#!/bin/sh\necho "wasm-bindgen 0.2.128"\n')
+        with self.assertRaisesRegex(ValueError, "wasm-bindgen.*expected.*0.2.129"):
+            tools.configure(supplied, self.dir)
+
+    def test_invalid_pair_stops_browser_plan_before_any_launch(self):
+        import check
+        with patch.dict(os.environ, {"BOARDSTUDIO_WASM_BINDGEN_DIR": str(self.dir / "missing")}, clear=True), \
+             patch.object(check, "ROOT", self.dir), \
+             patch.object(check, "run_commands") as commands, \
+             contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(check.run_plan([("browser", [["wasm-pack", "test"]])]), 1)
+        commands.assert_not_called()
+        self.assertIn("BOARDSTUDIO_WASM_BINDGEN_DIR", err.getvalue())
+
+    def test_page_runner_uses_explicit_pair_instead_of_cached_pair(self):
+        pair = self.dir / "pair"
+        pair.mkdir()
+        (self.dir / "Cargo.lock").write_text('[[package]]\nname = "wasm-bindgen"\nversion = "0.2.129"\n')
+        for name in ("wasm-bindgen", "wasm-bindgen-test-runner"):
+            tool = pair / name
+            tool.write_text(f'#!/bin/sh\nif [ "$1" = --version ]; then echo "{name} 0.2.129"; '
+                            f'else echo "{name}" >> "{self.log}"; fi\n')
+            tool.chmod(0o755)
+        pack = self.dir / "wasm-pack"
+        pack.write_text('#!/bin/sh\nwasm-bindgen use\nwasm-bindgen-test-runner use\n'
+                        'case " $* " in *" --list "*) echo "a::b::t: test";; '
+                        '*) echo "test a::b::t ... ok";; esac\n')
+        pack.chmod(0o755)
+        with patch.dict(os.environ, {"PATH": f"{self.dir}:/bin", "CHROME_BIN": "/bin/true",
+                                     "CHROMEDRIVER": "/bin/true",
+                                     "BOARDSTUDIO_WASM_BINDGEN_DIR": str(pair)}, clear=True), \
+             patch.object(runner, "wasm_bindgen_dir", side_effect=AssertionError("cache used")):
+            code, out, err = self.main("--all")
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(self.log.read_text().splitlines(),
+                         ["wasm-bindgen", "wasm-bindgen-test-runner"] * 2)
 
     def test_file_to_module_filter_mapping(self):
         f = runner.module_filter
@@ -543,22 +665,59 @@ class RunWasmTestsTests(unittest.TestCase):
                 runner.selection_for_listed_files(
                     ["web/src/presentation/objects/matrix_transform_inspector.rs"], {}, self.dir)
 
+    def test_pinned_cft_install_supplies_chromedriver_and_chrome_binary(self):
+        pin_dir = self.dir / "fake-cft"
+        chrome = pin_dir / "chrome-linux64" / "chrome"
+        driver = pin_dir / "chromedriver-linux64" / "chromedriver"
+        chrome.parent.mkdir(parents=True)
+        driver.parent.mkdir(parents=True)
+        chrome.write_text("#!/bin/sh\necho chrome\n")
+        driver.write_text("#!/bin/sh\necho chromedriver\n")
+        chrome.chmod(0o755)
+        driver.chmod(0o755)
+        saved = {key: os.environ.get(key) for key in
+                 ("BOARDSTUDIO_CFT_DIR", "CHROMEDRIVER", "CHROME_BIN", runner.WEBDRIVER_CONFIG_ENV)}
+        os.environ["BOARDSTUDIO_CFT_DIR"] = str(pin_dir)
+        for key in ("CHROMEDRIVER", "CHROME_BIN", runner.WEBDRIVER_CONFIG_ENV):
+            os.environ.pop(key, None)
+        try:
+            def fake_which(name, path=None):
+                if name in (str(driver), str(chrome)):
+                    return name
+                return "/usr/bin/wasm-pack" if name == "wasm-pack" else None
+            with patch.object(runner.shutil, "which", side_effect=fake_which), \
+                 patch.object(runner, "wasm_bindgen_dir", return_value=Path("/tmp/test-runner")):
+                env = runner.runner_environment(root=self.dir)
+            self.assertEqual(env["CHROMEDRIVER"], str(driver))
+            with runner.desktop_webdriver_config(env, root=self.dir) as cfg_env:
+                config = json.loads(Path(cfg_env[runner.WEBDRIVER_CONFIG_ENV]).read_text())
+                self.assertEqual(config["goog:chromeOptions"]["binary"], str(chrome))
+                self.assertIn("--window-size=1280,900", config["goog:chromeOptions"]["args"])
+                self.assertEqual(cfg_env["CHROMEDRIVER"], str(driver))
+        finally:
+            for key, value in saved.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
     def test_desktop_webdriver_config_is_wide_and_preserves_explicit_override(self):
-        with runner.desktop_webdriver_config({}) as env:
-            config_path = Path(env[runner.WEBDRIVER_CONFIG_ENV])
-            self.assertEqual(json.loads(config_path.read_text()), {
-                "goog:chromeOptions": {"args": ["--window-size=1280,900"]}
-            })
-        self.assertFalse(config_path.exists())
-        supplied = self.dir / "caller-webdriver.json"
-        supplied.write_text('{"goog:chromeOptions":{"args":["--window-size=1440,1000"]}}')
-        with runner.desktop_webdriver_config({runner.WEBDRIVER_CONFIG_ENV: str(supplied)}) as env:
-            self.assertEqual(env[runner.WEBDRIVER_CONFIG_ENV], str(supplied))
-        crate_config = self.dir / "web/webdriver.json"
-        crate_config.parent.mkdir(parents=True, exist_ok=True)
-        crate_config.write_text('{"goog:chromeOptions":{"args":["--window-size=1360,900"]}}')
-        with runner.desktop_webdriver_config({}, self.dir) as env:
-            self.assertEqual(env[runner.WEBDRIVER_CONFIG_ENV], str(crate_config.resolve()))
+        with patch.object(runner, "resolve_chrome_binary", return_value=None):
+            with runner.desktop_webdriver_config({}) as env:
+                config_path = Path(env[runner.WEBDRIVER_CONFIG_ENV])
+                self.assertEqual(json.loads(config_path.read_text()), {
+                    "goog:chromeOptions": {"args": ["--window-size=1280,900"]}
+                })
+            self.assertFalse(config_path.exists())
+            supplied = self.dir / "caller-webdriver.json"
+            supplied.write_text('{"goog:chromeOptions":{"args":["--window-size=1440,1000"]}}')
+            with runner.desktop_webdriver_config({runner.WEBDRIVER_CONFIG_ENV: str(supplied)}) as env:
+                self.assertEqual(env[runner.WEBDRIVER_CONFIG_ENV], str(supplied))
+            crate_config = self.dir / "web/webdriver.json"
+            crate_config.parent.mkdir(parents=True, exist_ok=True)
+            crate_config.write_text('{"goog:chromeOptions":{"args":["--window-size=1360,900"]}}')
+            with runner.desktop_webdriver_config({}, self.dir) as env:
+                self.assertEqual(env[runner.WEBDRIVER_CONFIG_ENV], str(crate_config.resolve()))
 
     def test_first_failure_summary_surfaces_raw_wasm_trap_before_harness_timeout(self):
         test_name = "presentation::x::tests::traps_in_wasm"

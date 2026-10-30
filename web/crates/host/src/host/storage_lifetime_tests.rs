@@ -897,6 +897,50 @@ async fn stale_tab_save_preserves_the_other_tabs_document() {
 }
 
 #[wasm_bindgen_test]
+async fn concurrent_same_token_saves_leave_exactly_one_winner() {
+    let name = format!("boardstudio-same-token-{}", js_sys::Date::now());
+    let first = BrowserStore::new(&name).unwrap();
+    let second = BrowserStore::new(&name).unwrap();
+    let mut document = boardstudio_core::model::ProjectDoc::empty("race", "Original");
+    document.id = "race".into();
+    // Both writers observe the same stored token before either one writes.
+    let token = first
+        .save_document_expected(&document, &Default::default(), None)
+        .await
+        .unwrap();
+    let mut first_write = document.clone();
+    first_write.name = "First writer".into();
+    first_write.revision = 1;
+    let mut second_write = document.clone();
+    second_write.name = "Second writer".into();
+    second_write.revision = 1;
+    // Both saves carry the same expected token. IndexedDB serializes the two
+    // readwrite transactions, so exactly one can win the token check.
+    let first_result = first
+        .save_document_expected(&first_write, &Default::default(), Some(&token))
+        .await;
+    let second_result = second
+        .save_document_expected(&second_write, &Default::default(), Some(&token))
+        .await;
+    let winner = match (&first_result, &second_result) {
+        (Ok(_), Err(SaveError::Conflict)) => &first_write,
+        (Err(SaveError::Conflict), Ok(_)) => &second_write,
+        _ => panic!(
+            "exactly one same-token save must win, got {first_result:?} and {second_result:?}"
+        ),
+    };
+    assert_eq!(
+        first
+            .load_document(document.id.clone())
+            .await
+            .unwrap()
+            .unwrap(),
+        *winner,
+        "the stored bytes must equal the winning writer's document"
+    );
+}
+
+#[wasm_bindgen_test]
 async fn mixed_format_records_are_listed_without_conversion_and_raw_json_is_preserved() {
     use serde_json::json;
     let name = format!("boardstudio-format-gate-{}", js_sys::Date::now());

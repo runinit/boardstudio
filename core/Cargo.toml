@@ -37,12 +37,12 @@ name = "integration"
 path = "tests/integration.rs"
 
 [[test]]
-name = "performance"
-path = "tests/performance.rs"
-
-[[test]]
 name = "matrix_performance"
 path = "tests/matrix_performance.rs"
+
+[[test]]
+name = "performance"
+path = "tests/performance.rs"
 
 [lints]
 workspace = true

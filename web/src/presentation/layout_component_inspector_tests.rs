@@ -65,6 +65,7 @@ fn fixture_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
                 rotation: 0.0,
             },
             side: Side::Front,
+            anchor: None,
             locked: Some(false),
             properties: None,
             generator_parameters: None,
@@ -95,6 +96,8 @@ fn fixture_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
             exceptions: vec![],
             source_id: "source-layout".into(),
             axis_x: 0.0,
+            split_gap: None,
+            spacing: None,
         }),
     });
     configure(&mut document);
@@ -1053,7 +1056,6 @@ fn mounted_component_inspector_host() -> Element {
     *probe.render_generation.borrow_mut() = Some(render_generation);
     let workspace = use_signal(|| "Layout");
     let selection_kind = use_signal(objects::LayoutSelectionKind::default);
-    let inspector_tab = use_signal(super::layout_workspace::LayoutInspectorTab::default);
     let inspect_open = use_signal(|| true);
     let mut selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
     let mut show_component = use_signal(|| true);
@@ -1147,7 +1149,7 @@ fn mounted_component_inspector_host() -> Element {
         button { id: "component-inspector-toggle-view", onclick: move |_| show_component.set(!show_component()), "Toggle Inspector view" }
         if let Some(projection) = projection {
             if show_component() {
-                LayoutComponentInspector { projection, inspector_tab, pending_edits, x: x_draft, y: y_draft, margin: margin_draft, x_failure, y_failure, margin_failure, error, layout_pending, constraint_pending, remove_pending, mirrored_half_pending, on_action: action_handler }
+                LayoutComponentInspector { projection, pending_edits, x: x_draft, y: y_draft, margin: margin_draft, x_failure, y_failure, margin_failure, error, layout_pending, constraint_pending, remove_pending, mirrored_half_pending, on_action: action_handler }
             }
         }
         output { class: "m1-layout-component-test-generation", "{render_generation()}" }
@@ -1319,7 +1321,12 @@ async fn mounted_probe_configured(
 }
 
 async fn mounted_group_probe(root_id: &'static str) -> (MountedProbe, web_sys::Element) {
-    mounted_runtime_probe(root_id, |_| {}, &["selected-part", "source-part"]).await
+    mounted_runtime_probe(
+        root_id,
+        |document| document.layouts[0].part_ids.clear(),
+        &["selected-part", "source-part"],
+    )
+    .await
 }
 
 async fn settle_component_inspector(root_id: &str, mut generation: Signal<u64>) {
@@ -1568,6 +1575,242 @@ async fn mounted_mirrored_half_actions_work_from_either_board_and_undo() {
     root.remove();
 }
 
+/// Ticket 12: the source layout and its mirror partner with a stored gap,
+/// plus a mirrored controller pair. The partner pose is the half-frame
+/// reflection of the source pose (stored x negates).
+fn configure_gapped_part_mirror(document: &mut ProjectDoc) {
+    let link = document
+        .layouts
+        .iter_mut()
+        .find(|layout| layout.id == "paired-layout")
+        .expect("mirror layout")
+        .mirror_link
+        .as_mut()
+        .expect("mirror link");
+    link.axis_x = 40.0;
+    link.split_gap = Some(40.0);
+    link.correspondences.push(MirroredCorrespondence {
+        companion_mode: None,
+        companion_tweak: None,
+        kind: MirroredItemKind::Part,
+        source_id: "selected-part".into(),
+        mirror_id: "selected-part-mirror".into(),
+    });
+    document.parts.push(Part {
+        keycap: None,
+        outline: None,
+        id: "selected-part-mirror".into(),
+        definition_id: "component-definition".into(),
+        reference: "U3".into(),
+        pose: Pose2 {
+            at: Vec2 { x: -4.0, y: 3.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        anchor: None,
+        locked: Some(false),
+        properties: None,
+        generator_parameters: None,
+    });
+    document.boards[0]
+        .part_ids
+        .push("selected-part-mirror".into());
+    document
+        .layouts
+        .iter_mut()
+        .find(|layout| layout.id == "paired-layout")
+        .expect("mirror layout")
+        .part_ids
+        .push("selected-part-mirror".into());
+}
+
+/// Ticket 12: the "Mirror on both halves" toggle dispatches SetMirroredPart
+/// each way — off removes the partner, on recreates it — with one Undo entry
+/// per flip.
+#[wasm_bindgen_test]
+async fn mounted_part_mirror_toggle_mirrors_and_unmirrors_with_undo() {
+    use boardstudio_web_ui_shared::test_wait::wait_until_step;
+
+    async fn settled_part_mirror(probe: &MountedProbe, expected: Option<bool>) -> bool {
+        accept_pending(probe).await;
+        accept_pending_ready(probe)
+            && probe
+                .projection
+                .borrow()
+                .as_ref()
+                .and_then(|projection| projection.part_mirror)
+                == expected
+    }
+
+    let (probe, root) = mounted_runtime_probe(
+        "layout-part-mirror-toggle-test-root",
+        configure_gapped_part_mirror,
+        &["selected-part"],
+    )
+    .await;
+    settle_mounted_component_inspector(&probe).await;
+
+    fn part_mirror(probe: &MountedProbe) -> Option<bool> {
+        probe
+            .projection
+            .borrow()
+            .as_ref()
+            .and_then(|projection| projection.part_mirror)
+    }
+
+    fn accepted_part_records(probe: &MountedProbe) -> Vec<MirroredCorrespondence> {
+        probe
+            .runtime
+            .model()
+            .accepted
+            .as_ref()
+            .expect("fixture snapshot")
+            .document
+            .layouts
+            .iter()
+            .filter_map(|layout| layout.mirror_link.as_ref())
+            .flat_map(|link| link.correspondences.clone())
+            .filter(|record| record.kind == MirroredItemKind::Part)
+            .collect()
+    }
+
+    fn toggle_part_mirror(root_id: &str, mirrored: bool) {
+        let checkbox = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!("#{root_id} #component-inspector-part-mirror"))
+            .unwrap()
+            .expect("part mirror toggle")
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        checkbox.set_checked(mirrored);
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        checkbox
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &init).unwrap())
+            .unwrap();
+    }
+
+    // The independent part shows the ticket-12 toggle instead of the member
+    // exception buttons — checked while its Part correspondence is live.
+    wait_until("the part mirror toggle mounts checked", || {
+        probe.refresh();
+        part_mirror(&probe) == Some(true)
+    })
+    .await;
+    assert!(
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!(
+                "#{} #component-inspector-mirrored-half-local",
+                probe.root_id
+            ))
+            .unwrap()
+            .is_none(),
+        "independent parts use the toggle, not the member exception buttons"
+    );
+
+    // Off: the partner and its record go away together, in one Undo entry.
+    let revision = accepted_revision(&probe);
+    toggle_part_mirror(probe.root_id, false);
+    assert!(matches!(
+        probe.last_action.borrow().as_ref(),
+        Some(LayoutComponentInspectorAction::SetPartMirrored {
+            part_id,
+            mirrored: false,
+            ..
+        }) if part_id == "selected-part"
+    ));
+    wait_until_step("unmirroring is accepted", async || {
+        accept_pending(&probe).await;
+        accept_pending_ready(&probe)
+            && accepted_part_records(&probe).is_empty()
+            && part_mirror(&probe) == Some(false)
+    })
+    .await;
+    assert!(
+        accepted_revision(&probe) > revision,
+        "the toggle off commits one Undo entry"
+    );
+    assert!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .as_ref()
+            .expect("fixture snapshot")
+            .document
+            .parts
+            .iter()
+            .all(|part| part.id != "selected-part-mirror"),
+        "the partner part is removed with its record"
+    );
+
+    // On: the partner returns at the reflected pose, in one Undo entry.
+    let revision = accepted_revision(&probe);
+    toggle_part_mirror(probe.root_id, true);
+    assert!(matches!(
+        probe.last_action.borrow().as_ref(),
+        Some(LayoutComponentInspectorAction::SetPartMirrored {
+            part_id,
+            mirrored: true,
+            ..
+        }) if part_id == "selected-part"
+    ));
+    wait_until_step("remirroring is accepted", async || {
+        accept_pending(&probe).await;
+        accept_pending_ready(&probe) && part_mirror(&probe) == Some(true)
+    })
+    .await;
+    assert!(
+        accepted_revision(&probe) > revision,
+        "the toggle on commits one Undo entry"
+    );
+    let records = accepted_part_records(&probe);
+    assert_eq!(records.len(), 1);
+    let partner = probe
+        .runtime
+        .model()
+        .accepted
+        .as_ref()
+        .expect("fixture snapshot")
+        .document
+        .parts
+        .iter()
+        .find(|part| part.id == records[0].mirror_id)
+        .expect("the partner part returns with its record")
+        .clone();
+    assert_eq!(partner.pose.at, Vec2 { x: -4.0, y: 3.0 });
+
+    // One Undo entry each way: undo unmirrors, undo again remirrors.
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    wait_until_step("undo unmirrors the part", async || {
+        settled_part_mirror(&probe, Some(false)).await
+    })
+    .await;
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    wait_until_step("undo remirrors the part", async || {
+        settled_part_mirror(&probe, Some(true)).await
+    })
+    .await;
+    root.remove();
+}
+
+/// Whether the mounted Inspector has settled on the latest accepted revision.
+fn accept_pending_ready(probe: &MountedProbe) -> bool {
+    probe.pending_edits.borrow().as_ref().is_none_or(|edits| {
+        use super::layout_component_edits::InspectorField;
+        !edits.peek().is_pending(&InspectorField::PartMirror)
+    })
+}
+
 /// The position of a fixture part in the accepted document.
 fn accepted_position(probe: &MountedProbe, part_id: &str) -> Vec2 {
     probe
@@ -1639,6 +1882,8 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                     exceptions: vec![],
                     source_id: "component-layout".into(),
                     axis_x: 0.0,
+                    split_gap: None,
+                    spacing: None,
                 }),
             });
             document.matrices.clear();
@@ -1773,7 +2018,11 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
 
 #[wasm_bindgen_test]
 async fn mounted_component_inspector_production_handler_rejects_selection_aba_and_unmount() {
-    let (probe, root) = mounted_probe("layout-component-inspector-aba-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-inspector-aba-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     let old_projection = probe.projection.borrow().clone().unwrap();
     let old_action = *probe.action.borrow().as_ref().unwrap();
@@ -1960,7 +2209,11 @@ async fn mounted_component_margin_enter_commits_and_escape_restores_the_accepted
 #[wasm_bindgen_test]
 async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur_uses_latest_owner()
 {
-    let (probe, root) = mounted_probe("layout-component-inspector-refresh-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-inspector-refresh-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     let document = web_sys::window().unwrap().document().unwrap();
     let input = |label: &str| {
@@ -2047,28 +2300,23 @@ async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur
     );
     assert!(accepted_revision > initial_revision);
 
-    // The Relations tab holds its selection across a further unrelated acceptance on the
-    // same mounted Inspector these draft checks use.
-    click_component_inspector(probe.root_id, "button[role='tab']:nth-child(2)");
-    settle_mounted_component_inspector(&probe).await;
+    // The Relationships section beside the fields survives a further unrelated
+    // acceptance on the same mounted Inspector these draft checks use.
     let relations_revision = probe.accept_unrelated_revision().await;
     settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         probe.projection.borrow().as_ref().unwrap().owner.revision,
         relations_revision
     );
-    assert_eq!(
+    assert!(
         document
             .query_selector(&format!(
-                "#{} button[role='tab']:nth-child(2)",
+                "#{} #m1-component-relationships-heading",
                 probe.root_id
             ))
             .unwrap()
-            .unwrap()
-            .get_attribute("aria-selected")
-            .as_deref(),
-        Some("true"),
-        "Relations tab survives an unrelated accepted revision"
+            .is_some(),
+        "Relationships section survives an unrelated accepted revision"
     );
     root.remove();
 }
@@ -2115,6 +2363,8 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
     let (probe, root) = mounted_probe_configured(
         "layout-component-position-queued-xy-test-root",
         |document| {
+            // This test isolates queued edits from linked-half frame adoption.
+            document.layouts[0].part_ids.clear();
             let part = document
                 .parts
                 .iter_mut()
@@ -2189,9 +2439,79 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
 }
 
 #[wasm_bindgen_test]
+async fn mounted_linked_queued_xy_edits_preserve_board_position_across_adoption_and_undo() {
+    let (probe, root) =
+        mounted_probe_configured("layout-component-linked-queued-xy-test-root", |document| {
+            document.matrices[0].origin.x = -30.0;
+            document.matrices[1].origin.x = 30.0;
+            document.parts[0].pose.at = Vec2 { x: -50.0, y: 3.0 };
+        })
+        .await;
+    settle_mounted_component_inspector(&probe).await;
+    let x = position_input(probe.root_id, "X mm");
+    let y = position_input(probe.root_id, "Y mm");
+    let (entered, release) =
+        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+    try_commit_position(&x, "-40");
+    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    entered.await.expect("the X edit reached Core");
+    try_commit_position(&y, "8");
+    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    release.send(()).expect("release the held X reply");
+    accept_pending(&probe).await;
+
+    let board_position = || {
+        let model = probe.runtime.model();
+        let document = &model.accepted.as_ref().unwrap().document;
+        let part = document
+            .parts
+            .iter()
+            .find(|part| part.id == "selected-part")
+            .unwrap();
+        boardstudio_core::evaluated_part_pose(document, part).at
+    };
+    let model = probe.runtime.model();
+    let document = &model.accepted.as_ref().unwrap().document;
+    assert!(
+        document.layouts[1]
+            .mirror_link
+            .as_ref()
+            .unwrap()
+            .split_gap
+            .is_some(),
+        "X edit adopts the half frame"
+    );
+    assert_ne!(
+        document.parts[0].pose.at.x,
+        board_position().x,
+        "adoption gives the part a nonzero half offset"
+    );
+    assert_eq!(
+        board_position(),
+        Vec2 { x: -40.0, y: 8.0 },
+        "queued Y preserves the accepted board-space X"
+    );
+
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    accept_pending(&probe).await;
+    assert_eq!(
+        board_position(),
+        Vec2 { x: -40.0, y: 3.0 },
+        "one Undo removes only Y"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
 async fn mounted_component_inspector_view_unmount_retires_held_field_observation_and_remount_refreshes()
  {
-    let (probe, root) = mounted_probe("layout-component-position-unmount-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-position-unmount-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     let (entered, release) =
         crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
@@ -2241,7 +2561,11 @@ async fn mounted_component_inspector_view_unmount_retires_held_field_observation
 
 #[wasm_bindgen_test]
 async fn mounted_edit_retires_when_the_part_becomes_locked_before_execution() {
-    let (probe, root) = mounted_probe("layout-component-position-retire-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-position-retire-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     // Hold the lock edit's Core reply so the position edit queues behind it.
     let (entered, release) =
@@ -2625,15 +2949,15 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
     );
 
     // The reset: an unconstrained part's unsaved axes choice goes back to the default when
-    // Properties is shown again.
+    // another owner is shown again.
     click_component_inspector(root_id, "#component-inspector-select-source");
     settle_mounted_component_inspector(&probe).await;
     choose_offset_axes_in_form(root_id, "part");
     settle_mounted_component_inspector(&probe).await;
     assert_eq!(offset_form(root_id).1, "part", "the unsaved choice shows");
-    click_component_inspector(root_id, "button[role='tab']:nth-child(2)");
+    click_component_inspector(root_id, "#component-inspector-select-original");
     settle_mounted_component_inspector(&probe).await;
-    click_component_inspector(root_id, "button[role='tab']:nth-child(1)");
+    click_component_inspector(root_id, "#component-inspector-select-source");
     settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         offset_form(root_id),
@@ -2643,7 +2967,7 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
     root.remove();
 }
 
-// ---- Matrix Relations tab (ticket 09): the real Layout Inspector over a real Session ----
+// ---- Matrix Relationships section: the real Layout Inspector over a real Session ----
 
 mod matrix_relations_panel {
     use super::super::layout_workspace;
@@ -2753,11 +3077,6 @@ mod matrix_relations_panel {
                 .query_selector(&format!("#{} {selector}", self.root_id))
                 .unwrap()
                 .is_some()
-        }
-
-        async fn open_relations_tab(&self) {
-            self.click(".m1-layout-component-tabs button:nth-child(2)");
-            self.settle().await;
         }
 
         fn matrix(&self) -> boardstudio_core::model::Matrix {
@@ -2884,7 +3203,6 @@ mod matrix_relations_panel {
                 on_pick_anchor: EventHandler::new(|()| {}),
                 anchor_pick_pending: false,
                 on_cancel_anchor_pick: EventHandler::new(|()| {}),
-                inspector_tab: state.inspector_tab(),
                 matrix_relations: matrix_context_relations(&model, selected.as_ref()),
                 relation_target: {
                     let runtime = runtime.clone();
@@ -3034,7 +3352,6 @@ mod matrix_relations_panel {
         .await;
         probe.select(column_ctx(1));
         probe.land().await;
-        probe.open_relations_tab().await;
         assert!(probe.exists("[data-relation-departure='Column offset']"));
 
         probe.click("[data-relation-action='reset']");
@@ -3102,7 +3419,6 @@ mod matrix_relations_panel {
             .revision;
         probe.select(column_ctx(1));
         probe.land().await;
-        probe.open_relations_tab().await;
         assert!(
             probe.exists("[data-relation-departure='Column offset']"),
             "the departure is listed: {}",
@@ -3117,7 +3433,9 @@ mod matrix_relations_panel {
             "splay blocks Convert in Relations too"
         );
         let reason = root
-            .query_selector(".m1-matrix-transform-unavailable")
+            .query_selector(
+                "[data-relation-departure='Column offset'] .m1-matrix-transform-unavailable",
+            )
             .unwrap()
             .expect("the Core reason is shown");
         assert_eq!(
@@ -3159,7 +3477,6 @@ mod matrix_relations_panel {
         let (probe, root) = mount("relations-precedence-test", document, None).await;
         probe.select(matrix_ctx());
         probe.land().await;
-        probe.open_relations_tab().await;
         let row = root
             .query_selector("[data-relation-constraint='tie']")
             .unwrap()
@@ -3227,7 +3544,6 @@ mod matrix_relations_panel {
         let (probe, root) = mount("relations-constraint-test", document, None).await;
         probe.select(matrix_ctx());
         probe.land().await;
-        probe.open_relations_tab().await;
         assert!(
             probe.exists("[data-relation-constraint='tie']"),
             "the constraint is listed: {}",
@@ -3240,7 +3556,6 @@ mod matrix_relations_panel {
 
         probe.select(matrix_ctx());
         probe.land().await;
-        probe.open_relations_tab().await;
         probe.click("[data-relation-constraint='tie'] [data-relation-role='target']");
         probe.land().await;
         assert!(
@@ -3282,7 +3597,6 @@ mod matrix_relations_panel {
         let (probe, root) = mount("relations-removed-test", document, None).await;
         probe.select(matrix_ctx());
         probe.land().await;
-        probe.open_relations_tab().await;
         let source = "[data-relation-constraint='tie'] [data-relation-role='source']";
         assert!(probe.exists(source), "{}", probe.text());
 

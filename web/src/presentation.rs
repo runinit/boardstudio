@@ -1,4 +1,5 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
+pub(crate) use boardstudio_web_layout::anchor_badge;
 pub(crate) use boardstudio_web_layout::board_inspector;
 pub(crate) use boardstudio_web_ui_shared::canvas_layers;
 pub(crate) use boardstudio_web_ui_shared::canvas_navigation::{
@@ -24,16 +25,24 @@ mod keycaps_workspace;
 pub(crate) use boardstudio_web_keymap::keymap;
 mod keymap_workspace;
 pub(crate) use boardstudio_web_ui_shared::layout_camera;
+#[cfg(test)]
+mod layout_anchor_badge_tests;
 mod layout_canvas;
 mod layout_component_edits;
 #[cfg(test)]
 mod layout_component_inspector_tests;
+#[cfg(test)]
+mod layout_field_preview_tests;
 #[cfg(test)]
 mod layout_layers_tests;
 #[cfg(test)]
 mod layout_relation_highlight_tests;
 #[cfg(test)]
 mod layout_remainder_tests;
+#[cfg(test)]
+mod layout_spacing_ghost_tests;
+#[cfg(test)]
+mod layout_split_focus_tests;
 pub(crate) use boardstudio_web_layout::layout_findings;
 pub(crate) use boardstudio_web_layout::layout_findings_state::{
     ReturnTarget as LayoutFindingReturnTarget, layout_finding_is_live,
@@ -55,14 +64,17 @@ pub(crate) use boardstudio_web_ui_model::selection::{
 pub(crate) use boardstudio_web_ui_model::state::use_empty_test_instance_selection;
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::{
-    CaseGenerationState, CompactPanelState, Drag, InstanceSelection, LayerVisibility,
-    LayoutOwnerIdentity, ProjectMenuPage, RelationHighlight, ResolvedTheme, WorkspaceState,
+    CaseGenerationState, CompactPanelState, Drag, FieldPreview, FieldPreviewSource,
+    FieldPreviewState, InstanceSelection, LayerVisibility, LayoutOwnerIdentity, ProjectMenuPage,
+    RelationHighlight, ResolvedTheme, WorkspaceState,
 };
 pub(crate) use boardstudio_web_ui_model::state::{PreferenceStorageWarning, ThemeState};
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
-    coordinates, coordinates_at, pointer_location,
+    PointerLocation, coordinates, coordinates_at, coordinates_with_scale, pointer_location,
 };
-pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection, selection};
+pub(crate) use boardstudio_web_ui_model::{
+    canvas_interaction, instance_selection, selection, spacing_ghost,
+};
 pub(crate) use boardstudio_web_ui_shared::panels::browse_parts_workspace;
 pub(crate) use boardstudio_web_ui_shared::project_menu;
 pub(crate) use boardstudio_web_ui_shared::project_menu::close_project_menu;
@@ -1047,6 +1059,63 @@ fn apply_pending_splay_origin_pick(
     true
 }
 
+/// A pending anchor-key pick and the picked key identity: the canvas hit
+/// already carries the key, so unlike the splay pick there is no world point
+/// to resolve.
+struct PendingAnchorPick<'a> {
+    pending: &'a mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
+    inspector: &'a objects::MatrixTransformInspectorMount,
+    matrix_id: String,
+    row: u32,
+    column: u32,
+}
+
+fn apply_pending_anchor_pick(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+    pick: PendingAnchorPick<'_>,
+) -> bool {
+    let PendingAnchorPick {
+        pending,
+        inspector,
+        matrix_id,
+        row,
+        column,
+    } = pick;
+    let Some(picked_owner) = pending.peek().clone() else {
+        return false;
+    };
+    pending.set(None);
+    let selected_is_current = adapter
+        .selected_context
+        .read()
+        .as_ref()
+        .is_some_and(|selected| {
+            selected.scope == picked_owner.scope
+                && selected.context == picked_owner.context
+                && matches!(&selected.context, objects::TreeContext::Matrix { .. })
+                && selection::context_is_current(
+                    &runtime.model(),
+                    &selected.scope,
+                    &selected.context,
+                )
+        });
+    let inspector_is_current = inspector
+        .projection
+        .as_ref()
+        .is_some_and(|projection| projection.owner == picked_owner);
+    if !layout_owner_is_current(runtime, workspace, adapter, owner)
+        || !selected_is_current
+        || !inspector_is_current
+        || !inspector.pick_matrix_anchor(matrix_id, row, column)
+    {
+        runtime.report("Matrix selection changed. Pick the anchor key again.");
+    }
+    true
+}
+
 fn layout_finding_context(
     model: &ReadModel,
     target: &keycaps_fit::FindingNavigationTarget,
@@ -1460,8 +1529,12 @@ fn layout_component_inspector_projection(
             Err(_) => return None,
         }
     }
-    let relationship_summary =
+    let mut relationship_summary =
         layout_relationship_summary(document, board, active_layout, Some(part));
+    // Ticket 13: the anchor fact leads for anchored parts.
+    if let Some(lead) = part_anchor_summary(document, part) {
+        relationship_summary = format!("{lead} {relationship_summary}");
+    }
     let definition_kind = match &definition.kind {
         PartKind::Switch => "switch",
         PartKind::Controller => "controller",
@@ -1492,7 +1565,14 @@ fn layout_component_inspector_projection(
                 .find(|part| part.id == *selected_id)
                 .is_none_or(|part| part.locked.unwrap_or(false))
         }),
-        position: part.pose.at,
+        // Ticket 13: the Inspector edits board-space positions, so an anchored
+        // part shows its evaluated pose (what the canvas shows); a detached
+        // part keeps its stored half-frame pose.
+        position: if part.anchor.is_some() {
+            boardstudio_core::evaluated_part_pose(document, part).at
+        } else {
+            part.pose.at
+        },
         selection_count: model.selected_part_ids.len(),
         layout_id: active_layout.map(|layout| layout.id.clone()),
         layouts,
@@ -1501,7 +1581,101 @@ fn layout_component_inspector_projection(
         active_constraint,
         relationship_summary,
         mirrored_half,
+        part_mirror: part_mirror_projection(document, part_id, active_layout, is_matrix_member),
+        anchor: part_anchor_projection(document, part),
+        // Ticket 13: matrix members and companions follow the matrix refresh,
+        // so they get no anchor vocabulary and no Pick form.
+        anchor_choices: if is_matrix_member {
+            Vec::new()
+        } else {
+            part_anchor_choices(document, active_layout)
+        },
     })
+}
+
+/// Ticket 13: the part's column-vocabulary anchor for the Inspector: the
+/// anchor key and Follow subset, the carried Spread/Stagger/Splay and the
+/// local Offset/Rotation. `None` is a detached part; parts homed on a
+/// layout without an anchor stay detached.
+fn part_anchor_projection(
+    document: &boardstudio_core::model::ProjectDoc,
+    part: &boardstudio_core::model::Part,
+) -> Option<inspector::PartAnchorProjection> {
+    let anchor = part.anchor.as_ref()?;
+    let matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == anchor.matrix_id)?;
+    Some(inspector::PartAnchorProjection {
+        matrix_id: anchor.matrix_id.clone(),
+        matrix_name: matrix.name.clone().unwrap_or(matrix.id.clone()),
+        row: anchor.row,
+        column: anchor.column,
+        follow: anchor.follow,
+        spread: anchor.spread,
+        stagger: anchor.stagger,
+        splay: anchor.splay,
+        offset: anchor.offset,
+        rotation: anchor.rotation,
+    })
+}
+
+/// Ticket 13: the anchor-key choices for Pick: every matrix on the part's
+/// layout with its live dimensions.
+fn part_anchor_choices(
+    document: &boardstudio_core::model::ProjectDoc,
+    active_layout: Option<&boardstudio_core::model::Layout>,
+) -> Vec<inspector::AnchorKeyChoice> {
+    let Some(layout) = active_layout else {
+        return Vec::new();
+    };
+    layout
+        .matrix_ids
+        .iter()
+        .filter_map(|matrix_id| {
+            document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == *matrix_id)
+                .map(|matrix| inspector::AnchorKeyChoice {
+                    matrix_id: matrix.id.clone(),
+                    matrix_name: matrix.name.clone().unwrap_or(matrix.id.clone()),
+                    rows: matrix.rows,
+                    columns: matrix.columns,
+                })
+        })
+        .collect()
+}
+
+/// Ticket 12: the "Mirror on both halves" toggle for an independent part on a
+/// stored-gap half. `Some(true)` while a live Part correspondence mirrors it;
+/// `Some(false)` while it stays local. Members keep the exception buttons.
+fn part_mirror_projection(
+    document: &boardstudio_core::model::ProjectDoc,
+    part_id: &str,
+    active_layout: Option<&boardstudio_core::model::Layout>,
+    is_matrix_member: bool,
+) -> Option<bool> {
+    if is_matrix_member {
+        return None;
+    }
+    let layout = active_layout?;
+    boardstudio_core::layout_half_offset(document, &layout.id)?;
+    // Ticket 12: Part correspondences live on the layout mirror links, next
+    // to the matrices they mirror — not on the hardware halves. The toggle
+    // reads mirrored only while both ends of the record still exist.
+    let mirrored =
+        boardstudio_core::part_correspondence(document, part_id).is_some_and(|(_, record)| {
+            document
+                .parts
+                .iter()
+                .any(|part| part.id == record.source_id)
+                && document
+                    .parts
+                    .iter()
+                    .any(|part| part.id == record.mirror_id)
+        });
+    Some(mirrored)
 }
 
 fn mirrored_half_projection(
@@ -1905,6 +2079,8 @@ fn matrix_context_relations(
         &selected.context,
         &snapshot.scene.matrix_scenes,
     )?;
+    // The chain covers one matrix context only: selected parts in other
+    // matrices get an explanatory note, never a merged frame.
     relations.selection_note = boardstudio_web_layout::matrix_relations::cross_matrix_note(
         &snapshot.scene.matrix_scenes,
         &selected.context,
@@ -1973,6 +2149,42 @@ fn layout_relationship_summary(
             },
         );
     driven.unwrap_or_else(|| "No saved placement relationship on this selection.".to_owned())
+}
+
+/// Ticket 13: the Relationships lead for an anchored part: its anchor key and
+/// Follow subset, ahead of the mirror-pairing summary.
+fn part_anchor_summary(
+    document: &boardstudio_core::model::ProjectDoc,
+    part: &boardstudio_core::model::Part,
+) -> Option<String> {
+    let anchor = part.anchor.as_ref()?;
+    let matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == anchor.matrix_id)?;
+    let name = matrix.name.clone().unwrap_or(matrix.id.clone());
+    let mut follows = Vec::new();
+    if anchor.follow.x {
+        follows.push("X");
+    }
+    if anchor.follow.y {
+        follows.push("Y");
+    }
+    if anchor.follow.rotation {
+        follows.push("rotation");
+    }
+    let follows = if follows.is_empty() {
+        "none".to_owned()
+    } else {
+        follows.join(", ")
+    };
+    Some(format!(
+        "Anchored to {} R{}C{}, following {}.",
+        name,
+        anchor.row + 1,
+        anchor.column + 1,
+        follows
+    ))
 }
 
 fn layout_component_inspector_owner_key(
@@ -2127,7 +2339,12 @@ fn submit_layout_component_edit(
             "layout-inspector-remove-constraint"
         }
         layout_component_edits::InspectorField::MirroredHalfState => "layout-mirrored-half-state",
+        layout_component_edits::InspectorField::PartMirror => "layout-part-mirror",
         layout_component_edits::InspectorField::CompanionPlacement => "layout-companion-placement",
+        layout_component_edits::InspectorField::PartAnchorValue => "layout-part-anchor-value",
+        layout_component_edits::InspectorField::PartAnchorFollow => "layout-part-anchor-follow",
+        layout_component_edits::InspectorField::PartAnchorPick => "layout-part-anchor-pick",
+        layout_component_edits::InspectorField::PartAnchorDetach => "layout-part-anchor-detach",
     };
     if field.is_field() {
         helper.begin_field(
@@ -2160,7 +2377,12 @@ fn dispatch_layout_component_inspector_action(
         | inspector::LayoutComponentInspectorAction::RemoveConstraint { owner, .. }
         | inspector::LayoutComponentInspectorAction::ConvertOffsetAxes { owner, .. }
         | inspector::LayoutComponentInspectorAction::NavigateElectrical { owner }
-        | inspector::LayoutComponentInspectorAction::SetMirroredHalfState { owner, .. } => owner,
+        | inspector::LayoutComponentInspectorAction::SetMirroredHalfState { owner, .. }
+        | inspector::LayoutComponentInspectorAction::SetPartMirrored { owner, .. }
+        | inspector::LayoutComponentInspectorAction::SetPartAnchorValue { owner, .. }
+        | inspector::LayoutComponentInspectorAction::SetPartAnchorFollow { owner, .. }
+        | inspector::LayoutComponentInspectorAction::SetPartAnchor { owner, .. }
+        | inspector::LayoutComponentInspectorAction::DetachPartAnchor { owner } => owner,
     };
     if !layout_component_inspector_owner_is_current(
         runtime,
@@ -2341,6 +2563,83 @@ fn dispatch_layout_component_inspector_action(
                 None,
             );
         }
+        inspector::LayoutComponentInspectorAction::SetPartMirrored {
+            owner: _,
+            part_id,
+            mirrored,
+        } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::PartMirror,
+                layout_component_edits::part_mirror_resolver(part_id, mirrored),
+                None,
+            );
+        }
+        inspector::LayoutComponentInspectorAction::SetPartAnchorValue { owner, change } => {
+            if !part_anchor_value_finite(&change) {
+                return;
+            }
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::PartAnchorValue,
+                layout_component_edits::part_anchor_value_resolver(owner.part_id, change),
+                None,
+            );
+        }
+        inspector::LayoutComponentInspectorAction::SetPartAnchorFollow { owner, follow } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::PartAnchorFollow,
+                layout_component_edits::part_anchor_follow_resolver(owner.part_id, follow),
+                None,
+            );
+        }
+        inspector::LayoutComponentInspectorAction::SetPartAnchor {
+            owner,
+            matrix_id,
+            row,
+            column,
+            follow,
+        } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::PartAnchorPick,
+                layout_component_edits::part_anchor_pick_resolver(
+                    owner.part_id,
+                    matrix_id,
+                    row,
+                    column,
+                    follow,
+                ),
+                None,
+            );
+        }
+        inspector::LayoutComponentInspectorAction::DetachPartAnchor { owner } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::PartAnchorDetach,
+                layout_component_edits::part_anchor_detach_resolver(owner.part_id),
+                None,
+            );
+        }
+    }
+}
+
+/// Ticket 13: finite check for anchor value edits; Follow, Pick and Detach
+/// carry no floats.
+fn part_anchor_value_finite(change: &boardstudio_core::model::PartAnchorValueChange) -> bool {
+    use boardstudio_core::model::PartAnchorValueChange as Change;
+    match change {
+        Change::Spread(value)
+        | Change::Stagger(value)
+        | Change::Splay(value)
+        | Change::Rotation(value) => value.is_finite(),
+        Change::Offset(offset) => offset.x.is_finite() && offset.y.is_finite(),
     }
 }
 
@@ -2728,7 +3027,17 @@ fn fit_selected_bridge(runtime: &Rc<Runtime>, bridge_id: Option<&str>) {
                 .parts
                 .iter()
                 .filter(|part| board.part_ids.contains(&part.id))
-                .map(|part| part.pose.at)
+                .map(|part| {
+                    // Ticket 12: fit the evaluated board pose of half-frame
+                    // parts, like the canvas does.
+                    snapshot
+                        .scene
+                        .transforms
+                        .iter()
+                        .find(|transform| transform.id == part.id)
+                        .map(|transform| transform.pose.at)
+                        .unwrap_or(part.pose.at)
+                })
                 .fold(None, |bounds, point| {
                     Some(bounds.map_or(
                         (point.x, point.x, point.y, point.y),
@@ -2896,6 +3205,11 @@ fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEdit {
     }
 }
 
+/// Ticket 18: the ghost of the previous spacing lives here, in the Editor,
+/// next to the other Layout view state. The tracker below records the last
+/// accepted snapshot; a committed spacing change raises the pre-commit scene
+/// as a dashed ghost with its delta note until the next edit, undo/redo, or
+/// selection change. Nothing here writes the document.
 #[component]
 fn Editor() -> Element {
     boardstudio_web_ui_shared::layer_dock::use_layer_dock_provider();
@@ -2945,8 +3259,55 @@ fn Editor() -> Element {
         panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
     let render_generation = (adapter.generation)();
     let layout_selection_kind = layout_state.selection_kind();
+    // Ticket 14: view-only split editing focus. Like Handles, this signal
+    // never writes the document; only canvas clicks move it.
+    let split_focus = layout_state.split_focus();
+    // Ticket 18: ghost of the previous spacing. The tracker records the last
+    // accepted snapshot it processed; a committed spacing change raises the
+    // pre-commit scene as the ghost. The effect re-runs on every runtime
+    // change (Runtime::submit always notifies, including selection), but only
+    // writes the signals when the tracker advances — selection-only paints
+    // resolve to Keep.
+    let mut last_spacing_seen = use_signal(|| None::<spacing_ghost::SeenAccepted>);
+    let mut spacing_ghost_state = use_signal(|| None::<spacing_ghost::SpacingGhostState>);
+    let ghost_effect_runtime = runtime.clone();
+    let ghost_effect_selection = adapter.selected_context;
+    use_effect(move || {
+        let _ = version();
+        let tree_context = (ghost_effect_selection)();
+        let model = ghost_effect_runtime.model();
+        let Some(snapshot) = model.accepted.clone() else {
+            return;
+        };
+        let current = spacing_ghost::AcceptedView {
+            revision: snapshot.document.revision,
+            transaction: snapshot.scene.transaction_id.clone(),
+            document: snapshot.document.clone(),
+            scene: snapshot.scene.clone(),
+            selected_ids: model.selected_part_ids.clone(),
+            selected_context: tree_context,
+        };
+        // Clone the settled values first: the tracker borrows nothing, and the
+        // guarded writes below only fire on real advances.
+        let seen_before = last_spacing_seen.peek().clone();
+        let ghost_before = spacing_ghost_state.peek().clone();
+        match spacing_ghost::advance_spacing_ghost(
+            seen_before.as_ref(),
+            &current,
+            ghost_before.as_ref(),
+        ) {
+            spacing_ghost::GhostAdvance::Keep => {}
+            spacing_ghost::GhostAdvance::Set { seen, ghost } => {
+                if Some(&seen) != seen_before.as_ref() {
+                    last_spacing_seen.set(Some(seen));
+                }
+                if ghost != ghost_before {
+                    spacing_ghost_state.set(ghost);
+                }
+            }
+        }
+    });
     let layout_snap_settings = layout_state.snap_settings();
-    let mut layout_context_tab = layout_state.inspector_tab();
     let layout_command_menu = layout_state.command_menu();
     let mut layout_transform_tool = layout_state.transform_tool();
     let layout_assembly_3d = layout_state.assembly_3d();
@@ -3216,6 +3577,31 @@ fn Editor() -> Element {
     );
     use_effect(use_reactive((&highlight_context,), move |(_,)| {
         RelationHighlight(relation_highlight).clear();
+    }));
+    // Ticket 16: the amber at-rest field preview is transient view state too,
+    // but separate from the violet reference above: hovering or focusing an
+    // Inspector number field shows it, and leave, blur, unmount, a selection
+    // change or any accepted revision clears it (the set is computed from
+    // the accepted document, so a commit always stales it).
+    let field_preview = use_signal(|| None::<FieldPreviewState>);
+    use_context_provider(|| FieldPreview(field_preview));
+    let field_preview_source = model.accepted.as_ref().map(|snapshot| FieldPreviewSource {
+        document: snapshot.document.clone(),
+        scene: snapshot.scene.clone(),
+    });
+    use_context_provider(|| field_preview_source.clone());
+    let field_preview_context = (
+        adapter.selected_context.read().clone(),
+        model.selected_part_ids.clone(),
+        model.active_board_id.clone(),
+        active_workspace,
+        model
+            .accepted
+            .as_ref()
+            .map(|snapshot| snapshot.document.revision),
+    );
+    use_effect(use_reactive((&field_preview_context,), move |(_,)| {
+        FieldPreview(field_preview).clear();
     }));
     let active_board_id = model.active_board_id.clone();
     let keycaps_state = keycaps_workspace::use_keycaps_workspace_state(
@@ -5255,7 +5641,6 @@ fn Editor() -> Element {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
-        let mut selected_tab = layout_context_tab;
         let select_tree = workspace_routing.select_tree;
         let mut findings_open = layout_findings.open;
         let mut return_target = layout_findings.return_target;
@@ -5279,7 +5664,6 @@ fn Editor() -> Element {
                 return_target.set(None);
                 return;
             };
-            selected_tab.set(layout_workspace::LayoutInspectorTab::Properties);
             findings_open.set(false);
             select_tree.call(objects::TreeSelectRequest {
                 scope,
@@ -5642,6 +6026,40 @@ fn Editor() -> Element {
         selected.scope == render_scope
             && selection::context_is_current(&model, &selected.scope, &selected.context)
     });
+    // Ticket 02: the anchor badge and the "Placed from" readout share one
+    // projection of the displayed scene. It clears with the selection, and
+    // the canvas ring reads the same value through its scene prop.
+    let canvas_anchor_badge = (!(layer_visibility.hidden)().contains("Keys"))
+        .then(|| {
+            selected_tree_context.as_ref().and_then(|selected| {
+                let scene_refs: Vec<_> = canvas_source.scene.matrix_scenes.iter().collect();
+                anchor_badge::anchor_badge(
+                    &canvas_source.document,
+                    &scene_refs,
+                    Some(&selected.context),
+                )
+            })
+        })
+        .flatten();
+    // Ticket 18: the live spacing ghost, if it still describes this paint —
+    // the revision and selection it was born with, and no drag preview up.
+    // The revision check covers the paint between a commit landing and the
+    // tracker effect recording it; the selection check covers the paint
+    // between a selection landing and the effect retiring the ghost.
+    let spacing_ghost_prop = spacing_ghost_state
+        .read()
+        .clone()
+        .filter(|state| {
+            state.revision == snapshot.document.revision
+                && state.selected_ids == model.selected_part_ids
+                && state.selected_context == selected_tree_context
+                && model.display_preview.is_none()
+        })
+        .map(|state| layout_canvas::SpacingGhost {
+            scene: state.scene.clone(),
+            delta_mm: state.delta_mm,
+            axis_x: state.axis_x,
+        });
     let transform_matrix_id = selected_tree_context
         .as_ref()
         .filter(|selected| selected.scope == render_scope && active_workspace == "Layout")
@@ -5689,6 +6107,51 @@ fn Editor() -> Element {
         .zip(transform_projection)
         .zip(selected_tree_context.as_ref())
         .map(|((matrix, projection), selected)| (matrix, projection, selected.context.clone()));
+    // Ticket 07: the part rail facts for an independent part selection behind
+    // `transform_tools` and the part rail below. Members and companions keep
+    // their matrix's tools: the facts name them and the pure list stays empty.
+    let part_rail_selection =
+        selected_tree_context
+            .as_ref()
+            .and_then(|selected| match &selected.context {
+                objects::TreeContext::Component {
+                    part_id: Some(part_id),
+                    matrix_id: None,
+                    ..
+                } => {
+                    let part = document.parts.iter().find(|part| &part.id == part_id)?;
+                    Some((
+                        part_id.clone(),
+                        boardstudio_web_layout::part_rail::PartRailFacts {
+                            anchored: part.anchor.is_some(),
+                            anchor_column: part.anchor.as_ref().map_or(0, |anchor| anchor.column),
+                            locked: part.locked == Some(true),
+                            member_or_companion: document
+                                .matrices
+                                .iter()
+                                .any(|matrix| matrix.part_ids.contains(part_id)),
+                        },
+                    ))
+                }
+                _ => None,
+            });
+    // Ticket 07: the part rail drag snap: anchored drags snap in the anchor
+    // matrix's pitch, like the matrix tools snap in their own.
+    let part_rail_snap = part_rail_selection.as_ref().map(|(part_id, _)| {
+        let anchor_pitch = document
+            .parts
+            .iter()
+            .find(|part| &part.id == part_id)
+            .and_then(|part| part.anchor.as_ref())
+            .and_then(|anchor| {
+                document
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.id == anchor.matrix_id)
+            })
+            .map(|matrix| matrix.pitch);
+        objects::gesture_snap_inputs(&layout_snap_settings.read().clone(), anchor_pitch, None)
+    });
     let transform_tool_owner = (
         layout_owner.scope.clone(),
         layout_owner.generation,
@@ -5886,6 +6349,8 @@ fn Editor() -> Element {
                                     geometry_snap: settings.geometry_snap,
                                     gap: part_placement::placement_gap(&settings),
                                     free: pointer.alt_key(),
+                                    // Ticket 22: component placement snaps in the selected
+                                    // matrix pitch (19.05 mm only when none is selected).
                                     pitch: matrix_snap_parameters(
                                         &model,
                                         &active.owner.scope,
@@ -5955,7 +6420,9 @@ fn Editor() -> Element {
             ) {
                 return;
             }
-            let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) else {
+            let Some((point, scale)) =
+                coordinates_with_scale(&svg, &pointer, view_x, view_y, width, height)
+            else {
                 return;
             };
             if !current.active {
@@ -6007,6 +6474,7 @@ fn Editor() -> Element {
                     snap_fraction: snap.snap_fraction,
                     geometry_snap: snap.geometry_snap,
                     gap: snap.gap,
+                    pixels_per_world: Some(scale),
                     alt: pointer.alt_key(),
                 });
                 let fresh = runtime.model();
@@ -6030,6 +6498,7 @@ fn Editor() -> Element {
             runtime.submit(Event::GestureSample {
                 pointer_id: current.pointer,
                 positions: moved(&current, point),
+                pixels_per_world: Some(scale),
                 alt: pointer.alt_key(),
             });
         }
@@ -6086,36 +6555,35 @@ fn Editor() -> Element {
                     return;
                 }
                 if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
-                    let at = runtime
-                        .model()
-                        .accepted
-                        .as_ref()
-                        .map_or(point, |_snapshot| {
-                            placement.projection.as_ref().map_or(point, |active| {
-                                part_placement::snap_placement_at(
-                                    &active.snap_document,
-                                    &active.owner.board_id,
-                                    &active.pending,
-                                    point,
-                                    {
-                                        let settings = snap_settings.read();
-                                        part_placement::PlacementSnapOptions {
-                                            snap_fraction: settings.snap_fraction,
-                                            geometry_snap: settings.geometry_snap,
-                                            gap: part_placement::placement_gap(&settings),
-                                            free: pointer.alt_key(),
-                                            pitch: matrix_snap_parameters(
-                                                &runtime.model(),
-                                                &active.owner.scope,
-                                                &adapter,
-                                                None,
-                                            )
-                                            .0,
-                                        }
-                                    },
-                                )
-                            })
-                        });
+                    let model = runtime.model();
+                    let at = model.accepted.as_ref().map_or(point, |_snapshot| {
+                        placement.projection.as_ref().map_or(point, |active| {
+                            part_placement::snap_placement_at(
+                                &active.snap_document,
+                                &active.owner.board_id,
+                                &active.pending,
+                                point,
+                                {
+                                    let settings = snap_settings.read();
+                                    part_placement::PlacementSnapOptions {
+                                        snap_fraction: settings.snap_fraction,
+                                        geometry_snap: settings.geometry_snap,
+                                        gap: part_placement::placement_gap(&settings),
+                                        free: pointer.alt_key(),
+                                        // Ticket 22: component placement snaps in the selected
+                                        // matrix pitch (19.05 mm only when none is selected).
+                                        pitch: matrix_snap_parameters(
+                                            &model,
+                                            &active.owner.scope,
+                                            &adapter,
+                                            None,
+                                        )
+                                        .0,
+                                    }
+                                },
+                            )
+                        })
+                    });
                     placement.on_commit.call(at);
                 }
                 return;
@@ -6177,11 +6645,13 @@ fn Editor() -> Element {
                 return;
             }
             if current.active
-                && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
+                && let Some((point, scale)) =
+                    coordinates_with_scale(&svg, &pointer, view_x, view_y, width, height)
             {
                 runtime.submit(Event::GestureEnd {
                     pointer_id: current.pointer,
                     final_positions: moved(&current, point),
+                    pixels_per_world: Some(scale),
                     alt: pointer.alt_key(),
                 });
             } else if current.active {
@@ -6272,6 +6742,8 @@ fn Editor() -> Element {
         let canvas_interaction = canvas_interaction.clone();
         let snap_settings = layout_snap_settings;
         let mut pending_splay_pick = pending_splay_origin_pick;
+        let mut pending_anchor_pick = pending_anchor_pick;
+        let transform_inspector = matrix_transform_inspector.clone();
         move |event: KeyboardEvent| {
             let key = event.data().key().to_string();
             let code = event.data().code().to_string();
@@ -6430,6 +6902,12 @@ fn Editor() -> Element {
             }
             if key == "Escape" && pending_splay_pick.peek().is_some() {
                 pending_splay_pick.set(None);
+                event.prevent_default();
+                return;
+            }
+            if key == "Escape" && pending_anchor_pick.peek().is_some() {
+                pending_anchor_pick.set(None);
+                transform_inspector.clear_aggregate_pick();
                 event.prevent_default();
                 return;
             }
@@ -6787,6 +7265,12 @@ fn Editor() -> Element {
         let svg = svg.clone();
         let scope = render_scope.clone();
         let adapter = adapter.clone();
+        // Wheel bursts (trackpads emit dozens of ticks per gesture) coalesce
+        // into one zoom application per animation frame: ticks only add to
+        // this burst, and the single rAF flush submits once. Without this,
+        // every tick ran Runtime::submit -> changed()/notify() plus a DOM
+        // rect read, re-rendering the full scene per tick (Issue 2).
+        let pending = Rc::new(RefCell::new(layout_camera::WheelZoomCoalescer::new()));
         move |event: WheelEvent| {
             if runtime.scope().as_ref() != Some(&scope)
                 || (adapter.generation)() != render_generation
@@ -6816,15 +7300,67 @@ fn Editor() -> Element {
             ) else {
                 return;
             };
-            // keymap_scale_ratio is 1.0 outside Keymap, so Layout and Keymap share the
-            // reference 0.25..4 limits.
-            CanvasNavigationState::apply_wheel_zoom(
-                &runtime,
-                (min_x, max_x, min_y, max_y),
-                location,
-                keymap_scale_ratio,
+            let Some(window) = web_sys::window() else {
+                return;
+            };
+            let schedule_flush = pending.borrow_mut().push(
                 wheel.delta_y(),
+                layout_camera::WheelAnchor {
+                    world: location.world,
+                    x_fraction: location.x_fraction,
+                    y_fraction: location.y_fraction,
+                },
             );
+            if !schedule_flush {
+                // A flush is already queued for this frame; this tick rides it.
+                return;
+            }
+            let flush_pending = pending.clone();
+            let flush_runtime = runtime.clone();
+            let flush_scope = scope.clone();
+            let flush_generation = adapter.generation;
+            // keymap_scale_ratio is 1.0 outside Keymap, so Layout and Keymap
+            // share the reference 0.25..4 limits.
+            let flush = move || {
+                let start_zoom = flush_runtime.model().camera.zoom;
+                // Replay the burst tick-by-tick through the clamp: a burst
+                // that hits a limit mid-burst then backs off ends exactly
+                // where sequential application ends.
+                let final_zoom = flush_pending
+                    .borrow()
+                    .coalesced_zoom(start_zoom, keymap_scale_ratio);
+                let Some(batch) = flush_pending.borrow_mut().take_batch() else {
+                    return;
+                };
+                let Some(final_zoom) = final_zoom else {
+                    return;
+                };
+                if final_zoom == start_zoom {
+                    return;
+                }
+                if flush_runtime.scope().as_ref() != Some(&flush_scope)
+                    || (flush_generation)() != render_generation
+                {
+                    return;
+                }
+                CanvasNavigationState::apply_zoom_target(
+                    &flush_runtime,
+                    boardstudio_web_ui_shared::canvas_navigation::ZoomTarget {
+                        center: CanvasNavigationState::zoom_center_at(
+                            (min_x, max_x, min_y, max_y),
+                            PointerLocation {
+                                world: batch.anchor.world,
+                                x_fraction: batch.anchor.x_fraction,
+                                y_fraction: batch.anchor.y_fraction,
+                            },
+                            final_zoom,
+                        ),
+                        zoom: final_zoom,
+                    },
+                );
+            };
+            let callback = Closure::once_into_js(flush);
+            let _ = window.request_animation_frame(callback.unchecked_ref());
         }
     };
     let undo = runtime.clone();
@@ -7069,20 +7605,6 @@ fn Editor() -> Element {
                 layout_assembly_3d,
                 matrix_setup.on_open,
             );
-            let mut pcb_mirrored_pair = mirrored_pair.clone();
-            pcb_mirrored_pair.can_open = pcb_add_is_current
-                && pcb_mirrored_pair.form.is_none()
-                && pcb_mirrored_pair.placement.is_none()
-                && !pcb_mirrored_pair.owns_canvas
-                && canvas_interaction.current().is_none();
-            pcb_mirrored_pair.on_open = pcb_add_layout_open_handler(
-                runtime.clone(),
-                workspace,
-                adapter.clone(),
-                pcb_add_owner,
-                layout_assembly_3d,
-                mirrored_pair.on_open,
-            );
             workspace_composition::WorkspaceObjectsInput::Pcb(Box::new(
                 pcb_workspace::ObjectsInput {
                     shared: pcb_shared_objects,
@@ -7275,13 +7797,11 @@ fn Editor() -> Element {
                 let owner = layout_owner.clone();
                 let mut objects_open = objects_open;
                 let mut inspect_open = inspect_open;
-                let mut layout_context_tab = layout_context_tab;
                 move |_| {
                     if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
                         return;
                     }
                     pin_inspector_on_desktop(inspector_panel_settings);
-                    layout_context_tab.set(layout_workspace::LayoutInspectorTab::Properties);
                     objects_open.set(false);
                     inspect_open.set(true);
                 }
@@ -7388,7 +7908,6 @@ fn Editor() -> Element {
                     has_selection_context: matrix_transform_inspector.projection.is_some()
                         || component_inspector.is_some(),
                     on_show_relationships: EventHandler::new(move |()| {
-                        layout_context_tab.set(layout_workspace::LayoutInspectorTab::Relations);
                         inspect_open.set(true);
                     }),
                 },
@@ -7889,11 +8408,6 @@ fn Editor() -> Element {
                         }
                     })
                 },
-                splay_origin_pick_pending: pending_splay_origin_pick().is_some(),
-                on_cancel_splay_origin_pick: {
-                    let mut pending = pending_splay_origin_pick;
-                    EventHandler::new(move |()| pending.set(None))
-                },
                 on_pick_anchor: {
                     let mount = matrix_transform_inspector.clone();
                     let mut pending = pending_anchor_pick;
@@ -7922,7 +8436,11 @@ fn Editor() -> Element {
                         pending.set(None);
                     })
                 },
-                inspector_tab: layout_context_tab,
+                splay_origin_pick_pending: pending_splay_origin_pick().is_some(),
+                on_cancel_splay_origin_pick: {
+                    let mut pending = pending_splay_origin_pick;
+                    EventHandler::new(move |()| pending.set(None))
+                },
                 matrix_relations: matrix_context_relations(&model, selected_tree_context.as_ref()),
                 relation_target: {
                     let runtime = runtime.clone();
@@ -7947,6 +8465,8 @@ fn Editor() -> Element {
                             mode: boardstudio_application::SelectionMode::Replace,
                             outline_action: None,
                         };
+                        // A part key removed since the section was projected:
+                        // do nothing; the next accepted revision re-projects.
                         let Some(request) = relation_target_request(&runtime, request) else {
                             return;
                         };
@@ -8236,6 +8756,7 @@ fn Editor() -> Element {
         Rc::new(layout_canvas::snap_origins(
             &source.document,
             &source.board_id,
+            &source.scene,
         ))
     }))();
     let outline_snap_settings = layout_snap_settings.read().clone();
@@ -8419,9 +8940,11 @@ fn Editor() -> Element {
         let owner = layout_owner.clone();
         let tree_cell_anchor = tree_cell_anchor.clone();
         let mut pending_splay_pick = pending_splay_origin_pick;
+        let mut pending_anchor_pick = pending_anchor_pick;
         let transform_inspector = matrix_transform_inspector.clone();
         let canvas_interaction = canvas_interaction.clone();
         let mirrored_pair = mirrored_pair.clone();
+        let mut split_focus = split_focus;
         move |request: layout_canvas::MatrixPointerDown| {
             let Some(pointer) = request.event.data().try_as_web_event() else {
                 return;
@@ -8458,6 +8981,49 @@ fn Editor() -> Element {
                 );
                 return;
             }
+            if pending_anchor_pick.peek().is_some() {
+                // Key-identity hits retarget the anchor; the world point is
+                // irrelevant, so no coordinate resolution can fail here. An
+                // aggregate-armed pick appends to the pending parts instead and
+                // stays armed for the next key.
+                pointer.prevent_default();
+                pointer.stop_propagation();
+                let aggregate_armed = transform_inspector.projection.as_ref().is_some_and(
+                    |projection| {
+                        matches!(
+                            &projection.fields,
+                            boardstudio_web_layout::matrix_transform_operation::MatrixTransformFields::Matrix {
+                                anchor: Some(anchor),
+                                ..
+                            } if anchor.aggregate.is_some()
+                        )
+                    },
+                );
+                if aggregate_armed {
+                    if !transform_inspector.pick_aggregate_part(
+                        request.matrix_id.clone(),
+                        request.row,
+                        request.column,
+                    ) {
+                        runtime.report("Matrix selection changed. Pick the anchor parts again.");
+                    }
+                    return;
+                }
+                apply_pending_anchor_pick(
+                    &runtime,
+                    workspace,
+                    &adapter,
+                    &owner,
+                    PendingAnchorPick {
+                        pending: &mut pending_anchor_pick,
+                        inspector: &transform_inspector,
+                        matrix_id: request.matrix_id.clone(),
+                        row: request.row,
+                        column: request.column,
+                    },
+                );
+                return;
+            }
             pointer.prevent_default();
             pointer.stop_propagation();
             let current = runtime.model();
@@ -8472,6 +9038,17 @@ fn Editor() -> Element {
             ) else {
                 return;
             };
+            // Ticket 14: clicking the dimmed half on the canvas moves the
+            // view-only editing focus and still performs normal selection.
+            if let Some(accepted) = current.accepted.as_ref()
+                && let Some(half) = boardstudio_web_ui_model::split_focus::context_half(
+                    &accepted.document,
+                    &hit_context,
+                )
+                && half != split_focus()
+            {
+                split_focus.set(half);
+            }
             update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
             let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
             let context = objects::context_for_selection_kind(
@@ -8538,6 +9115,7 @@ fn Editor() -> Element {
         let mut pending_splay_pick = pending_splay_origin_pick;
         let transform_inspector = matrix_transform_inspector.clone();
         let mut selected_context = adapter.selected_context;
+        let mut split_focus = split_focus;
         move |request: layout_canvas::PartPointerDown| {
             let id = request.part_id;
             let Some(pointer) = request.event.data().try_as_web_event() else {
@@ -8621,6 +9199,17 @@ fn Editor() -> Element {
             let Some(hit_context) = objects::context_for_part(&current, &id) else {
                 return;
             };
+            // Ticket 14: clicking the dimmed half on the canvas moves the
+            // view-only editing focus and still performs normal selection.
+            if let Some(accepted) = current.accepted.as_ref()
+                && let Some(half) = boardstudio_web_ui_model::split_focus::context_half(
+                    &accepted.document,
+                    &hit_context,
+                )
+                && half != split_focus()
+            {
+                split_focus.set(half);
+            }
             update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
             let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
             let selection_projection = objects::context_for_selection_kind(
@@ -8738,6 +9327,15 @@ fn Editor() -> Element {
         }
     });
 
+    // Ticket 14: Layout-only dim. Without a linked split there is no
+    // unfocused half, so the canvas draws solid; PCB/Case never mount this
+    // Scene. The signal survives workspace switches and spacing edits.
+    let split_focused_half = if boardstudio_web_ui_model::split_focus::has_split(&document) {
+        Some(split_focus())
+    } else {
+        None
+    };
+
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
             panels::CompactPanelScrim {}
@@ -8848,25 +9446,14 @@ fn Editor() -> Element {
                             }
                         }
                     },
-                    if guide.is_none() && active_workspace == "Layout"
-                        && let Some(projection) = matrix_setup.projection.clone()
-                    {
-                        objects::MatrixSetup {
-                            projection,
-                            on_cancel: matrix_setup.on_cancel,
-                            on_create: matrix_setup.on_create,
+                    if active_workspace == "Layout" {
+                        objects::AddMatrixSurface {
+                            matrix_setup: matrix_setup.clone(),
+                            mirrored_pair: mirrored_pair.clone(),
+                            guide_covering_single: guide.is_some(),
                         }
                     }
                     {workspace_composition::toolbar(toolbar_input)}
-                    if active_workspace == "Layout"
-                        && let Some(projection) = mirrored_pair.form.clone()
-                    {
-                        objects::MirroredPairCanvasOverlay {
-                            projection,
-                            on_cancel: mirrored_pair.on_cancel,
-                            on_preview: mirrored_pair.on_preview,
-                        }
-                    }
                     if guide.as_ref().is_some_and(|guide| guide.current_stage == SetupGuideStage::Project) {
                         setup_guide::SetupHardwarePreview {
                             split: physical_setup_mount.projection.topology == boardstudio_core::model::HardwareTopology::Split,
@@ -8969,13 +9556,18 @@ fn Editor() -> Element {
                         }
                         layout_canvas::Scene {
                             source: canvas_source,
+                            focused_half: split_focused_half,
                             preview_active: model.display_preview.is_some(),
                             accepted_scene: model
                                 .display_preview
                                 .as_ref()
                                 .map(|_| snapshot.scene.clone()),
+                            spacing_ghost: spacing_ghost_prop.clone(),
                             selected_ids: model.selected_part_ids.clone(),
                             selected_context: selected_tree_context.clone(),
+                            view_width_world: width,
+                            surface_width_px: zoom_surface_size().0,
+                            anchor_badge: canvas_anchor_badge.clone(),
                             keys_visible: !(layer_visibility.hidden)().contains("Keys"),
                             components_visible: !(layer_visibility.hidden)().contains("Components"),
                             keycaps_visible: !(layer_visibility.hidden)().contains("Keycaps"),
@@ -9039,7 +9631,33 @@ fn Editor() -> Element {
                             && !layout_assembly_3d()
                             && let Some((matrix, projection, context)) = layout_transform_target.clone()
                         {
-                            for tool in layout_canvas::transform_tools(&context, layout_transform_tool(), layout_state.transform_handles()()) {
+                            for tool in layout_canvas::transform_tools(&context, layout_transform_tool(), layout_state.transform_handles()(), None) {
+                            // Ticket 08: the anchored matrix's Anchor token
+                            // arms canvas pick mode instead of a drag; an
+                            // unanchored matrix offers no token.
+                            if tool == objects::LayoutTransformTool::Anchor && matrix.anchor.is_some() {
+                            objects::LayoutAnchorPickOverlay {
+                                key: "{tool:?}",
+                                runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                                svg: objects::LayoutTransformSvg(svg.clone()),
+                                arbiter: canvas_interaction.clone(),
+                                owner: layout_owner.clone(),
+                                selected_context: adapter.selected_context,
+                                scope_generation: adapter.generation,
+                                surface_size: Some(zoom_surface_size),
+                                workspace,
+                                pick_owner: objects::AnchorPickOwner::Matrix {
+                                    matrix: matrix.clone(),
+                                    projection: projection.clone(),
+                                    context: context.clone(),
+                                },
+                                view_x,
+                                view_y,
+                                width,
+                                height,
+                            }
+                            }
+                            if tool != objects::LayoutTransformTool::Anchor {
                             objects::LayoutTransformToolOverlay {
                                 key: "{tool:?}",
                                 runtime: objects::LayoutTransformRuntime(runtime.clone()),
@@ -9064,12 +9682,94 @@ fn Editor() -> Element {
                                 on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
                             }
                             }
+                            }
+                        }
+                        // Ticket 07: the independent part's own rail. Move and
+                        // Rotate edit the local Offset and Rotation; Spread and
+                        // Stagger edit the values carried from the anchor key.
+                        // The strip above is unchanged: it keeps offering
+                        // Position for a part selection.
+                        if active_workspace == "Layout"
+                            && !layout_assembly_3d()
+                            && let Some((part_id, facts)) = part_rail_selection.clone()
+                            && let Some(selected) = selected_tree_context.clone()
+                            && let Some(part_snap) = part_rail_snap
+                        {
+                            {
+                                let part_context = selected.context.clone();
+                                rsx! {
+                                    for tool in layout_canvas::transform_tools(&part_context, layout_transform_tool(), layout_state.transform_handles()(), Some(facts)) {
+                                    // Ticket 08: the part rail ends in the
+                                    // Anchor token, which arms canvas pick
+                                    // mode instead of a drag.
+                                    if tool == objects::LayoutTransformTool::Anchor {
+                                    objects::LayoutAnchorPickOverlay {
+                                        key: "{tool:?}",
+                                        runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                                        svg: objects::LayoutTransformSvg(svg.clone()),
+                                        arbiter: canvas_interaction.clone(),
+                                        owner: layout_owner.clone(),
+                                        selected_context: adapter.selected_context,
+                                        scope_generation: adapter.generation,
+                                        workspace,
+                                        surface_size: Some(zoom_surface_size),
+                                        pick_owner: objects::AnchorPickOwner::Part {
+                                            part_id: part_id.clone(),
+                                        },
+                                        view_x,
+                                        view_y,
+                                        width,
+                                        height,
+                                    }
+                                    }
+                                    if tool != objects::LayoutTransformTool::Anchor {
+                                    objects::LayoutPartToolOverlay {
+                                        key: "{tool:?}",
+                                        runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                                        svg: objects::LayoutTransformSvg(svg.clone()),
+                                        arbiter: canvas_interaction.clone(),
+                                        owner: layout_owner.clone(),
+                                        selected_context: adapter.selected_context,
+                                        scope_generation: adapter.generation,
+                                        workspace,
+                                        surface_size: Some(zoom_surface_size),
+                                        part_id: part_id.clone(),
+                                        tool,
+                                        snap: part_snap,
+                                        view_x,
+                                        view_y,
+                                        width,
+                                        height,
+                                        on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
+                                        on_focus_half: {
+                                            let document = document.clone();
+                                            let mut split_focus = split_focus;
+                                            let part_context = part_context.clone();
+                                            EventHandler::new(move |_| {
+                                                if let Some(half) = boardstudio_web_ui_model::split_focus::context_half(&document, &part_context)
+                                                    && half != split_focus()
+                                                {
+                                                    split_focus.set(half);
+                                                }
+                                            })
+                                        },
+                                    }
+                                    }
+                                    }
+                                }
+                            }
                         }
                         if let Some(placement) = part_placement.projection.as_ref() {
                             { let definition = placement.pending.definition.clone();
                               let at = placement.pending.part.pose.at;
                               let courtyard = polygon_points(&definition.courtyard);
                               let reference = placement.pending.part.reference.clone();
+                              // Ticket 02: the preview name keeps the part-label
+                              // rule: at the top of the part at a fixed 11 px.
+                              let preview_courtyard_top = definition.courtyard.iter().map(|point| point.y).fold(f64::NEG_INFINITY, f64::max);
+                              let preview_courtyard_top = if preview_courtyard_top.is_finite() { preview_courtyard_top } else { 0.0 };
+                              let preview_label_font = boardstudio_web_layout::screen_scale::px_to_world(11.0, width, zoom_surface_size().0);
+                              let preview_label_y = preview_courtyard_top - boardstudio_web_layout::screen_scale::px_to_world(12.0, width, zoom_surface_size().0);
                               rsx! {
                                 g {
                                     class: "m1-part-placement-preview",
@@ -9088,7 +9788,7 @@ fn Editor() -> Element {
                                             if let Some(drill) = pad.drill { circle { class: "m1-part-drill", r: "{drill / 2.0}" } }
                                         }
                                     }
-                                    text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{reference}" }
+                                    text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", style: "font-size:{preview_label_font}px", x: "0", y: "{preview_label_y}", "{reference}" }
                                 }
                               }
                             }
@@ -9160,6 +9860,31 @@ fn Editor() -> Element {
                     if active_workspace == "Layout" && pending_splay_origin_pick().is_some() {
                         div { class: "m1-canvas-placement-hint", role: "status",
                             "Pick splay origin · Click the canvas · Esc cancels"
+                        }
+                    }
+                    if active_workspace == "Layout" && pending_anchor_pick().is_some() {
+                        div { class: "m1-canvas-placement-hint", role: "status",
+                            "Pick anchor key · Click a key · Esc cancels"
+                        }
+                    }
+                    // Ticket 16: the at-rest field preview names the keys the
+                    // hovered or focused Inspector number field would move.
+                    if active_workspace == "Layout"
+                        && let Some(state) = field_preview() {
+                        div { class: "m1-canvas-field-preview-hint", role: "status",
+                            "{state.hint}"
+                        }
+                    }
+                    // Ticket 02: the "Placed from" readout (prototype variant
+                    // D) names what the selection is placed from at the
+                    // canvas's bottom left. It shares the canvas ring's badge
+                    // projection and clears with the selection.
+                    if active_workspace == "Layout"
+                        && !layout_assembly_3d()
+                        && let Some(badge) = canvas_anchor_badge.as_ref()
+                    {
+                        div { class: "m1-canvas-anchor-readout",
+                            "Placed from {badge.label}"
                         }
                     }
                 }

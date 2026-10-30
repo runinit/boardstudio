@@ -1,8 +1,8 @@
-//! Contextual Properties and Relations for one accepted standalone Layout part.
-use crate::presentation::layout_workspace::LayoutInspectorTab;
+//! Contextual Properties and Relationships for one accepted standalone Layout part.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{
-    Constraint, ConstraintRelation, HalfExceptionState, MirrorAxis, OffsetAxes, PartOutline, Vec2,
+    Constraint, ConstraintRelation, Follow, HalfExceptionState, MirrorAxis, OffsetAxes,
+    PartAnchorValueChange, PartOutline, Vec2,
 };
 use boardstudio_web_ui_shared::controls::BoardButton;
 use dioxus::prelude::*;
@@ -78,6 +78,48 @@ pub struct LayoutComponentInspectorProjection {
     pub active_constraint: Option<Constraint>,
     pub relationship_summary: String,
     pub mirrored_half: Option<MirroredHalfProjection>,
+    /// Ticket 12: an independent part on a stored-gap half shows a
+    /// "Mirror on both halves" toggle instead of the member exception
+    /// buttons. `Some(true)` mirrors it today; `Some(false)` keeps it local.
+    pub part_mirror: Option<bool>,
+    /// Ticket 13: the part's column-vocabulary anchor and the anchor-key
+    /// choices on its layout for Pick. `None` is a detached part; parts
+    /// without a layout home cannot anchor.
+    pub anchor: Option<PartAnchorProjection>,
+    pub anchor_choices: Vec<AnchorKeyChoice>,
+}
+
+/// Ticket 13: what the part follows (anchor key plus Follow subset), what the
+/// anchor carries (Spread/Stagger/Splay) and what stays local to the part
+/// (Offset/Rotation).
+#[derive(Clone, Debug, PartialEq)]
+pub struct PartAnchorProjection {
+    pub matrix_id: String,
+    pub matrix_name: String,
+    pub row: u32,
+    pub column: u32,
+    pub follow: Follow,
+    pub spread: f64,
+    pub stagger: f64,
+    pub splay: f64,
+    pub offset: Vec2,
+    pub rotation: f64,
+}
+
+impl PartAnchorProjection {
+    pub fn key_label(&self) -> String {
+        format!("{} R{}C{}", self.matrix_name, self.row + 1, self.column + 1)
+    }
+}
+
+/// Ticket 13: one anchor-key choice for Pick: a matrix on the part's layout
+/// with its live dimensions.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AnchorKeyChoice {
+    pub matrix_id: String,
+    pub matrix_name: String,
+    pub rows: u32,
+    pub columns: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -278,12 +320,42 @@ pub enum LayoutComponentInspectorAction {
         mirror_id: String,
         state: HalfExceptionState,
     },
+    SetPartMirrored {
+        owner: LayoutComponentInspectorOwner,
+        part_id: String,
+        mirrored: bool,
+    },
+    /// Ticket 13: edit one carried (Spread/Stagger/Splay) or local
+    /// (Offset/Rotation) anchor value of an anchored part.
+    SetPartAnchorValue {
+        owner: LayoutComponentInspectorOwner,
+        change: PartAnchorValueChange,
+    },
+    /// Ticket 13: change the Follow subset of an anchored part.
+    SetPartAnchorFollow {
+        owner: LayoutComponentInspectorOwner,
+        follow: Follow,
+    },
+    /// Ticket 13, retarget rule 04: retarget an anchored part's anchor key
+    /// (Pick), keeping its stored values so the part moves to the fresh
+    /// placement from the new key — or anchor a detached part, which lands
+    /// on the picked key with the submitted values.
+    SetPartAnchor {
+        owner: LayoutComponentInspectorOwner,
+        matrix_id: String,
+        row: u32,
+        column: u32,
+        follow: Follow,
+    },
+    /// Ticket 13: detach an anchored part (Detach), keeping its pose.
+    DetachPartAnchor {
+        owner: LayoutComponentInspectorOwner,
+    },
 }
 
 #[derive(Props, Clone, PartialEq)]
 pub struct LayoutComponentInspectorProps {
     pub projection: LayoutComponentInspectorProjection,
-    pub inspector_tab: Signal<LayoutInspectorTab>,
     pub(in crate::presentation) pending_edits:
         Signal<super::super::layout_component_edits::LayoutComponentInspectorEdits>,
     pub(in crate::presentation) x: Signal<String>,
@@ -315,6 +387,21 @@ fn position_unavailable(projection: &LayoutComponentInspectorProjection) -> bool
 
 fn position_input_disabled(locked: bool) -> bool {
     locked
+}
+
+/// Ticket 13: an anchor number draft, two decimals like the position drafts.
+fn anchor_draft(
+    anchor: Option<&PartAnchorProjection>,
+    value: impl Fn(&PartAnchorProjection) -> f64,
+) -> String {
+    anchor
+        .map(|anchor| format!("{:.2}", value(anchor)))
+        .unwrap_or_default()
+}
+
+/// Ticket 13: parse an anchor number draft; `None` is unparseable or infinite.
+fn anchor_commit_value(draft: &str) -> Option<f64> {
+    draft.parse::<f64>().ok().filter(|value| value.is_finite())
 }
 
 fn position_commit_value(draft: &str, locked: bool) -> Option<f64> {
@@ -571,7 +658,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         let owner = owner.clone();
         move |_| latest_capture.set(owner.clone())
     }));
-    let mut tab = props.inspector_tab;
     let mut constraint_open = use_signal(|| projection.active_constraint.is_some());
     let mut x = props.x;
     let mut y = props.y;
@@ -627,6 +713,93 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         _ => "90".to_owned(),
     });
     let mut error = props.error;
+    // Ticket 13: column-vocabulary drafts. They reset from the accepted
+    // anchor whenever a committed edit bumps the revision; typing never
+    // commits until Enter or blur.
+    let mut anchor_spread =
+        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.spread));
+    let mut anchor_stagger =
+        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.stagger));
+    let mut anchor_splay =
+        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.splay));
+    let mut anchor_offset_x =
+        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.offset.x));
+    let mut anchor_offset_y =
+        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.offset.y));
+    let mut anchor_rotation =
+        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.rotation));
+    let mut pick_matrix = use_signal(|| {
+        projection
+            .anchor
+            .as_ref()
+            .map(|anchor| anchor.matrix_id.clone())
+            .or_else(|| {
+                projection
+                    .anchor_choices
+                    .first()
+                    .map(|choice| choice.matrix_id.clone())
+            })
+            .unwrap_or_default()
+    });
+    let mut pick_row = use_signal(|| {
+        projection
+            .anchor
+            .as_ref()
+            .map(|anchor| (anchor.row + 1).to_string())
+            .unwrap_or_else(|| "1".to_owned())
+    });
+    let mut pick_column = use_signal(|| {
+        projection
+            .anchor
+            .as_ref()
+            .map(|anchor| (anchor.column + 1).to_string())
+            .unwrap_or_else(|| "1".to_owned())
+    });
+    let mut pick_follow_x = use_signal(|| {
+        projection
+            .anchor
+            .as_ref()
+            .map(|anchor| anchor.follow.x)
+            .unwrap_or(true)
+    });
+    let mut pick_follow_y = use_signal(|| {
+        projection
+            .anchor
+            .as_ref()
+            .map(|anchor| anchor.follow.y)
+            .unwrap_or(true)
+    });
+    let mut pick_follow_rotation = use_signal(|| {
+        projection
+            .anchor
+            .as_ref()
+            .map(|anchor| anchor.follow.rotation)
+            .unwrap_or(true)
+    });
+    {
+        let projection = projection.clone();
+        let revision = owner.revision;
+        use_effect(use_reactive((&revision,), move |_| {
+            anchor_spread.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
+                anchor.spread
+            }));
+            anchor_stagger.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
+                anchor.stagger
+            }));
+            anchor_splay.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
+                anchor.splay
+            }));
+            anchor_offset_x.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
+                anchor.offset.x
+            }));
+            anchor_offset_y.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
+                anchor.offset.y
+            }));
+            anchor_rotation.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
+                anchor.rotation
+            }));
+        }));
+    }
     let pending = props.pending_edits.peek().clone();
     let last_owner = use_hook(|| Rc::new(RefCell::new(None::<LayoutComponentInspectorOwnerKey>)));
     let owner_is_live = {
@@ -661,6 +834,12 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     );
     pending.bind_one_shot(
         super::super::layout_component_edits::InspectorField::MirroredHalfState,
+        props.mirrored_half_pending,
+    );
+    // The member exception buttons and the independent-part toggle never show
+    // together, so they share one pending slot.
+    pending.bind_one_shot(
+        super::super::layout_component_edits::InspectorField::PartMirror,
         props.mirrored_half_pending,
     );
     let mirrored_half_action = |state| {
@@ -786,76 +965,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             error.set(None);
         }
     }));
-    let reset_properties_drafts = {
-        let mut x = x;
-        let mut y = y;
-        let mut margin = margin;
-        let mut constraint_open = constraint_open;
-        let mut constraint_kind = constraint_kind;
-        let mut source_part_id = source_part_id;
-        let mut offset_axes = offset_axes;
-        let mut offset_x = offset_x;
-        let mut offset_y = offset_y;
-        let mut rotation = rotation;
-        let mut mirror_axis = mirror_axis;
-        let mut mirror_coordinate = mirror_coordinate;
-        let mut mirror_line_x = mirror_line_x;
-        let mut mirror_line_y = mirror_line_y;
-        let mut mirror_line_angle = mirror_line_angle;
-        let mut error = error;
-        let initial_margin = initial_outline.margin;
-        let initial_constraint = initial_constraint.clone();
-        let initial_drafts = drafts.clone();
-        move || {
-            x.set(format!("{:.2}", initial_position.x));
-            y.set(format!("{:.2}", initial_position.y));
-            margin.set(
-                initial_margin
-                    .map(|value| value.to_string())
-                    .unwrap_or_default(),
-            );
-            constraint_open.set(initial_constraint.is_some());
-            constraint_kind.set(match initial_constraint.as_ref() {
-                Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
-                Some(Constraint::Framed {
-                    relation: ConstraintRelation::MirrorLine { .. },
-                    ..
-                }) => ConstraintKind::MirrorLine,
-                _ => ConstraintKind::Offset,
-            });
-            let drafts = initial_drafts.clone();
-            source_part_id.set(drafts.source_part_id);
-            offset_axes.set(drafts.axes);
-            offset_x.set(drafts.offset_x);
-            offset_y.set(drafts.offset_y);
-            rotation.set(drafts.rotation);
-            match initial_constraint.as_ref() {
-                Some(Constraint::Mirror {
-                    axis, coordinate, ..
-                }) => {
-                    mirror_axis.set(axis.clone());
-                    mirror_coordinate.set(coordinate.to_string());
-                }
-                Some(Constraint::Framed {
-                    relation: ConstraintRelation::MirrorLine { at, angle },
-                    ..
-                }) => {
-                    mirror_line_x.set(at.x.to_string());
-                    mirror_line_y.set(at.y.to_string());
-                    mirror_line_angle.set(angle.to_string());
-                }
-                _ => {
-                    mirror_axis.set(MirrorAxis::Vertical);
-                    mirror_coordinate.set("0".to_owned());
-                    mirror_line_x.set("0".to_owned());
-                    mirror_line_y.set("0".to_owned());
-                    mirror_line_angle.set("90".to_owned());
-                }
-            }
-            error.set(None);
-        }
-    };
-
     pending.bind_field(
         super::super::layout_component_edits::InspectorField::X,
         x,
@@ -960,6 +1069,152 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 submitted_draft: margin(),
             })
         })
+    };
+    // Ticket 13: column-vocabulary commits. Number fields parse on Enter or
+    // blur; Follow, Pick and Detach submit immediately.
+    let commit_anchor_value: Rc<dyn Fn(PartAnchorValueChange)> = {
+        let latest_capture = latest_capture;
+        let action = props.on_action;
+        Rc::new(move |change| {
+            action.call(LayoutComponentInspectorAction::SetPartAnchorValue {
+                owner: latest_capture(),
+                change,
+            })
+        })
+    };
+    let commit_anchor_follow: Rc<dyn Fn(Follow)> = {
+        let latest_capture = latest_capture;
+        let action = props.on_action;
+        Rc::new(move |follow| {
+            action.call(LayoutComponentInspectorAction::SetPartAnchorFollow {
+                owner: latest_capture(),
+                follow,
+            })
+        })
+    };
+    let commit_anchor_pick: Rc<dyn Fn(String, u32, u32, Follow)> = {
+        let latest_capture = latest_capture;
+        let action = props.on_action;
+        Rc::new(move |matrix_id, row, column, follow| {
+            action.call(LayoutComponentInspectorAction::SetPartAnchor {
+                owner: latest_capture(),
+                matrix_id,
+                row,
+                column,
+                follow,
+            })
+        })
+    };
+    let commit_anchor_detach: Rc<dyn Fn()> = {
+        let latest_capture = latest_capture;
+        let action = props.on_action;
+        Rc::new(move || {
+            action.call(LayoutComponentInspectorAction::DetachPartAnchor {
+                owner: latest_capture(),
+            })
+        })
+    };
+    // Ticket 13: Enter-then-blur submits once. The stamp carries the last
+    // Enter commit per field; a blur carrying the same field and value only
+    // clears it.
+    let last_anchor_commit = use_hook(|| Rc::new(RefCell::new(None::<(String, f64)>)));
+    // Ticket 13: the accepted Follow subset, copied for 'static event handlers.
+    let anchor_follow = projection.anchor.as_ref().map(|anchor| anchor.follow);
+    let anchor_follow_text = projection.anchor.as_ref().map(|anchor| {
+        let mut parts = Vec::new();
+        if anchor.follow.x {
+            parts.push("X");
+        }
+        if anchor.follow.y {
+            parts.push("Y");
+        }
+        if anchor.follow.rotation {
+            parts.push("rotation");
+        }
+        if parts.is_empty() {
+            "none".to_owned()
+        } else {
+            parts.join(", ")
+        }
+    });
+    let anchor_locked = position_unavailable(&projection);
+    // Ticket 13: cloned before the render so Pick closures borrow the list,
+    // not the projection the anchor sections also read.
+    let anchor_choices = projection.anchor_choices.clone();
+    // Ticket 13: one number field in the column vocabulary. `change` wraps
+    // the parsed value (an Offset field keeps the other axis from the
+    // accepted anchor). Enter-then-blur submits once via the stamp.
+    let anchor_number_field = {
+        let commit_anchor_value = commit_anchor_value.clone();
+        let last_anchor_commit = last_anchor_commit.clone();
+        move |label: &'static str,
+              aria: &'static str,
+              field: &'static str,
+              draft: Signal<String>,
+              current_text: String,
+              current: Option<f64>,
+              change: Rc<dyn Fn(f64) -> PartAnchorValueChange>| {
+            let commit = commit_anchor_value.clone();
+            let last_anchor_commit = last_anchor_commit.clone();
+            rsx! {
+                label { "{label}" input {
+                    r#type: "number", step: "any", value: "{draft}", aria_label: "{aria}",
+                    disabled: position_input_disabled(anchor_locked),
+                    oninput: { let mut draft = draft; move |event| draft.set(event.value()) },
+                    onblur: {
+                        let mut error = error;
+                        let last_anchor_commit = last_anchor_commit.clone();
+                        let commit = commit.clone();
+                        let change = change.clone();
+                        move |_| {
+                            let Some(value) = anchor_commit_value(&draft()) else {
+                                error.set(Some(format!("Enter a finite {label}.")));
+                                return;
+                            };
+                            if Some(value) == current {
+                                return;
+                            }
+                            error.set(None);
+                            if last_anchor_commit
+                                .borrow_mut()
+                                .take()
+                                .is_some_and(|stamp| stamp == (field.to_owned(), value))
+                            {
+                                return;
+                            }
+                            commit(change(value));
+                        }
+                    },
+                    onkeydown: {
+                        let mut draft = draft;
+                        let mut error = error;
+                        let current_text = current_text.clone();
+                        let last_anchor_commit = last_anchor_commit.clone();
+                        let commit = commit.clone();
+                        let change = change.clone();
+                        move |event: KeyboardEvent| {
+                            match event.data().key().to_string().as_str() {
+                                "Enter" => {
+                                    event.prevent_default();
+                                    let Some(value) = anchor_commit_value(&draft()) else {
+                                        error.set(Some(format!("Enter a finite {label}.")));
+                                        return;
+                                    };
+                                    if Some(value) == current {
+                                        return;
+                                    }
+                                    error.set(None);
+                                    *last_anchor_commit.borrow_mut() = Some((field.to_owned(), value));
+                                    commit(change(value));
+                                }
+                                "Escape" => { draft.set(current_text.clone()); error.set(None); }
+                                _ => {}
+                            }
+                        }
+                    },
+                } }
+            }
+        }
     };
     let has_active_constraint = projection.active_constraint.is_some();
     // A choice on a saved offset converts it at once; a new one only sets the default.
@@ -1147,18 +1402,35 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 h2 { "{projection.reference}" }
                 if projection.locked { span { class: "m1-inspector-lock", "Locked" } }
             }
-            div { role: "tablist", aria_label: "Inspector details", class: "m1-layout-component-tabs",
-                button { r#type: "button", role: "tab", aria_selected: "{tab() == LayoutInspectorTab::Properties}", onclick: { let mut reset = reset_properties_drafts; move |_| { if *tab.peek() != LayoutInspectorTab::Properties { reset(); } tab.set(LayoutInspectorTab::Properties); } }, "Properties" }
-                button { r#type: "button", role: "tab", aria_selected: "{tab() == LayoutInspectorTab::Relations}", onclick: move |_| tab.set(LayoutInspectorTab::Relations), "Relations" }
-            }
-            if tab() == LayoutInspectorTab::Properties {
                 if group_selection {
                     p { class: "m1-layout-component-selection-note", "{projection.selection_count} parts selected. Position edits apply to the selection." }
                 } else {
                     p { class: "m1-layout-component-definition", "{projection.definition_name}", span { "{projection.definition_kind}" } }
                     if let Some(notice) = projection.envelope_notice.as_ref() { p { class: "m1-layout-component-notice", "{notice}" } }
                 }
-                if let Some(mirrored_half) = projection.mirrored_half.as_ref() {
+                if let Some(mirrored) = projection.part_mirror {
+                    details { class: "m1-layout-component-mirror-state",
+                        summary { span { "Mirrored half" } small { if mirrored { "Both halves" } else { "Local" } } }
+                        div { class: "m1-layout-component-fields",
+                            label { input {
+                                r#type: "checkbox", id: "component-inspector-part-mirror",
+                                aria_label: "Mirror on both halves", checked: mirrored,
+                                disabled: (props.mirrored_half_pending)(),
+                                onchange: {
+                                    let latest_capture = latest_capture;
+                                    let action = props.on_action;
+                                    let part_id = owner.part_id.clone();
+                                    move |event: FormEvent| action.call(LayoutComponentInspectorAction::SetPartMirrored {
+                                        owner: latest_capture(),
+                                        part_id: part_id.clone(),
+                                        mirrored: event.checked(),
+                                    })
+                                },
+                            } "Mirror on both halves" }
+                            p { "A mirrored part edits both halves together and stops at the split axis." }
+                        }
+                    }
+                } else if let Some(mirrored_half) = projection.mirrored_half.as_ref() {
                     details { class: "m1-layout-component-mirror-state",
                         summary { span { "Mirrored half" } small {
                             match mirrored_half.state {
@@ -1246,6 +1518,151 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                             }
                         } },
                     } }
+                }
+                if !group_selection && !projection.anchor_choices.is_empty() {
+                    h3 { class: "m1-layout-component-subtitle", "Part anchor", small { "column vocabulary" } }
+                    if let Some(anchor) = projection.anchor.as_ref() {
+                        p { "Anchored to {anchor.key_label()} · follows {anchor_follow_text.as_deref().unwrap_or(\"none\")}" }
+                        h3 { class: "m1-layout-component-subtitle", "Carried from the anchor", small { "anchor frame" } }
+                        div { class: "m1-layout-component-position",
+                            {anchor_number_field("Spread (mm)", "Anchor spread millimetres", "spread", anchor_spread,
+                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.spread),
+                                projection.anchor.as_ref().map(|anchor| anchor.spread),
+                                Rc::new(PartAnchorValueChange::Spread))}
+                            {anchor_number_field("Stagger (mm)", "Anchor stagger millimetres", "stagger", anchor_stagger,
+                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.stagger),
+                                projection.anchor.as_ref().map(|anchor| anchor.stagger),
+                                Rc::new(PartAnchorValueChange::Stagger))}
+                            {anchor_number_field("Splay (degrees)", "Anchor splay degrees", "splay", anchor_splay,
+                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.splay),
+                                projection.anchor.as_ref().map(|anchor| anchor.splay),
+                                Rc::new(PartAnchorValueChange::Splay))}
+                        }
+                        h3 { class: "m1-layout-component-subtitle", "This part only", small { "millimetres, degrees" } }
+                        div { class: "m1-layout-component-position",
+                            {anchor_number_field("Offset X (mm)", "Anchor offset X millimetres", "offset-x", anchor_offset_x,
+                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.offset.x),
+                                projection.anchor.as_ref().map(|anchor| anchor.offset.x),
+                                Rc::new({
+                                    let other = anchor_offset_y;
+                                    let fallback = projection.anchor.as_ref().map(|anchor| anchor.offset.y).unwrap_or(0.0);
+                                    move |value: f64| PartAnchorValueChange::Offset(Vec2 {
+                                        x: value,
+                                        y: anchor_commit_value(&other()).unwrap_or(fallback),
+                                    })
+                                }))}
+                            {anchor_number_field("Offset Y (mm)", "Anchor offset Y millimetres", "offset-y", anchor_offset_y,
+                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.offset.y),
+                                projection.anchor.as_ref().map(|anchor| anchor.offset.y),
+                                Rc::new({
+                                    let other = anchor_offset_x;
+                                    let fallback = projection.anchor.as_ref().map(|anchor| anchor.offset.x).unwrap_or(0.0);
+                                    move |value: f64| PartAnchorValueChange::Offset(Vec2 {
+                                        x: anchor_commit_value(&other()).unwrap_or(fallback),
+                                        y: value,
+                                    })
+                                }))}
+                            {anchor_number_field("Rotation (degrees)", "Anchor rotation degrees", "rotation", anchor_rotation,
+                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.rotation),
+                                projection.anchor.as_ref().map(|anchor| anchor.rotation),
+                                Rc::new(PartAnchorValueChange::Rotation))}
+                        }
+                        fieldset { class: "m1-layout-component-anchor-follow", disabled: anchor_locked,
+                            legend { "Follow" }
+                            label { input {
+                                r#type: "checkbox", aria_label: "Follow X",
+                                checked: anchor_follow.is_some_and(|follow| follow.x),
+                                onchange: { let commit = commit_anchor_follow.clone();
+                                    let previous = anchor_follow.unwrap_or(Follow { x: true, y: true, rotation: true });
+                                    move |event| commit(Follow { x: event.checked(), y: previous.y, rotation: previous.rotation }) },
+                            } "X" }
+                            label { input {
+                                r#type: "checkbox", aria_label: "Follow Y",
+                                checked: anchor_follow.is_some_and(|follow| follow.y),
+                                onchange: { let commit = commit_anchor_follow.clone();
+                                    let previous = anchor_follow.unwrap_or(Follow { x: true, y: true, rotation: true });
+                                    move |event| commit(Follow { x: previous.x, y: event.checked(), rotation: previous.rotation }) },
+                            } "Y" }
+                            label { input {
+                                r#type: "checkbox", aria_label: "Follow rotation",
+                                checked: anchor_follow.is_some_and(|follow| follow.rotation),
+                                onchange: { let commit = commit_anchor_follow.clone();
+                                    let previous = anchor_follow.unwrap_or(Follow { x: true, y: true, rotation: true });
+                                    move |event| commit(Follow { x: previous.x, y: previous.y, rotation: event.checked() }) },
+                            } "Rotation" }
+                        }
+                        BoardButton { r#type: "button", disabled: anchor_locked,
+                            onclick: { let commit = commit_anchor_detach.clone(); move |_| commit() },
+                            "Detach" }
+                    } else {
+                        p { "Detached · placed from the half origin." }
+                    }
+                    div { class: "m1-layout-component-anchor-pick",
+                        label { "Anchor matrix" select {
+                            aria_label: "Anchor matrix", value: "{pick_matrix}", disabled: anchor_locked,
+                            onchange: move |event| pick_matrix.set(event.value()),
+                            for choice in &projection.anchor_choices {
+                                option {
+                                    value: "{choice.matrix_id}",
+                                    selected: pick_matrix() == choice.matrix_id,
+                                    "{choice.matrix_name}"
+                                }
+                            }
+                        } }
+                        label { "Row" input {
+                            r#type: "number", min: "1", step: "1", value: "{pick_row}", aria_label: "Anchor row",
+                            disabled: anchor_locked,
+                            oninput: move |event| pick_row.set(event.value()),
+                        } }
+                        label { "Column" input {
+                            r#type: "number", min: "1", step: "1", value: "{pick_column}", aria_label: "Anchor column",
+                            disabled: anchor_locked,
+                            oninput: move |event| pick_column.set(event.value()),
+                        } }
+                        label { input {
+                            r#type: "checkbox", aria_label: "Pick follows X",
+                            checked: pick_follow_x(), disabled: anchor_locked,
+                            onchange: move |event| pick_follow_x.set(event.checked()),
+                        } "X" }
+                        label { input {
+                            r#type: "checkbox", aria_label: "Pick follows Y",
+                            checked: pick_follow_y(), disabled: anchor_locked,
+                            onchange: move |event| pick_follow_y.set(event.checked()),
+                        } "Y" }
+                        label { input {
+                            r#type: "checkbox", aria_label: "Pick follows rotation",
+                            checked: pick_follow_rotation(), disabled: anchor_locked,
+                            onchange: move |event| pick_follow_rotation.set(event.checked()),
+                        } "Rotation" }
+                        BoardButton { r#type: "button", disabled: anchor_locked,
+                            onclick: {
+                                let commit = commit_anchor_pick.clone();
+                                let mut error = error;
+                                let anchor_choices = anchor_choices.clone();
+                                move |_| {
+                                    let matrix_id = pick_matrix();
+                                    let Some(choice) = anchor_choices.iter().find(|choice| choice.matrix_id == matrix_id) else {
+                                        error.set(Some("Choose an anchor matrix.".to_owned()));
+                                        return;
+                                    };
+                                    let (Ok(row), Ok(column)) = (pick_row().trim().parse::<u32>(), pick_column().trim().parse::<u32>()) else {
+                                        error.set(Some("Enter a finite anchor row and column.".to_owned()));
+                                        return;
+                                    };
+                                    if row == 0 || row > choice.rows || column == 0 || column > choice.columns {
+                                        error.set(Some(format!("Row and column must fit {} ({} rows, {} columns).", choice.matrix_name, choice.rows, choice.columns)));
+                                        return;
+                                    }
+                                    error.set(None);
+                                    commit(matrix_id, row - 1, column - 1, Follow {
+                                        x: pick_follow_x(),
+                                        y: pick_follow_y(),
+                                        rotation: pick_follow_rotation(),
+                                    });
+                                }
+                            },
+                            "Pick anchor key" }
+                    }
                 }
                 if !group_selection {
                 details { class: "m1-layout-component-outline",
@@ -1390,12 +1807,11 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     let latest_capture = latest_capture; let action = props.on_action;
                     move |_| action.call(LayoutComponentInspectorAction::NavigateElectrical { owner: latest_capture() })
                 }, "Edit electrical connections" }
-            } else {
-                h2 { "Relationships" }
-                p { class: "m1-layout-component-relation-summary", "{projection.relationship_summary}" }
-                button { r#type: "button", onclick: move |_| tab.set(LayoutInspectorTab::Properties), "Go to Properties" }
-                p { class: "m1-layout-component-matrix-note", "Matrix rows and columns share pitch, stagger and splay. Edit those in Properties." }
-            }
+                section { class: "m1-layout-component-relationships", aria_labelledby: "m1-component-relationships-heading",
+                    h3 { id: "m1-component-relationships-heading", "Relationships" }
+                    p { class: "m1-layout-component-relation-summary", "{projection.relationship_summary}" }
+                    p { class: "m1-layout-component-matrix-note", "Matrix rows and columns share pitch, stagger and splay. Edit those in Properties." }
+                }
         }
     }
 }
