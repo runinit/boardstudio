@@ -1,6 +1,6 @@
 # 01: Land round one, then the audit
 
-Status: in-progress
+Status: resolved
 Type: task
 Blocked by: none
 Parent: [map](../map.md)
@@ -73,3 +73,12 @@ Every count in the map's count floor must hold.
 
 Revert the audit's offending edge, not round one, if the audit changes the count of `wasm32/debug`
 Core builds from 1 or any gate fails. Revert a round-one change only on its own evidence.
+
+## Resolution (2026-10-30)
+
+Round one landed as `da651f48` on `perf/reduce-cold-build-times`; the audit was committed as
+`a4e48a53`, rebased cleanly onto it, and `cargo update --offline -w` left `Cargo.lock` unchanged.
+Full gate on the rebased audit (warm): `check.py repo tooling lint test build browser` exit 0,
+920.5 s total, all steps passed; native floor held (2378 baselined executed, 27 new) and
+`run-wasm-tests` executed 112 with 0 failures. Local commits only, nothing pushed; the shared
+push window is still pending the user's go.
