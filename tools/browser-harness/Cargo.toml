@@ -35,6 +35,9 @@ path = "src/bin/skew_probe.rs"
 [patch.crates-io]
 chromiumoxide = { path = "vendor/chromiumoxide" }
 
+[profile.dev]
+debug = false
+
 [[bin]]
 name = "cad-response-probe"
 path = "src/bin/cad_response_probe.rs"
