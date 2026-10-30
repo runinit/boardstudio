@@ -1,6 +1,6 @@
 # 02: Commit the measurement kit and rebaseline
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [01](01-land-round-one-and-audit.md)
 Parent: [map](../map.md)
@@ -56,3 +56,23 @@ reference point for tickets 03 onward.
 If the rebaseline's wall or CPU is more than 10% above round one's final run with no code reason,
 stop and find out why before starting any other ticket. A moved baseline invalidates their
 estimates.
+
+## Resolution (2026-10-30)
+
+Kit committed as `7aefe4ce` in `scripts/build-time/`; `scripts/test-build-time.py` (7 tests)
+registered in `check.py` tooling. Rebaseline cold run (exit 0, all steps passed):
+
+| Step | Round-one final wall | Rebaseline wall | Rebaseline CPU-s |
+|---|---:|---:|---:|
+| tooling | 77.6 | 75.3 | 94 |
+| lint | 127.0 | 136.0 | 429 |
+| build | 297.6 | 282.1 | 682 |
+| test | 265.1 | 269.2 | 1370 |
+| browser | 504.7 | 678.9 | 419 |
+| **Total** | **1273.8** | **1443.0** | **2994 (vs 3069)** |
+
+Stop-rule investigation: wall is +13.3% but CPU is −2.4% and every crate count matches
+(`boardstudio_core` 9×, 282 vs 288 CPU-s). The run started at 1-minute load 2.5 with 5-minute
+load 5.5 from other sessions, breaching the map's quiet-machine protocol; the excess is browser
+execution wait, not compile. No code reason found. Treat CPU (2994) as the rebaseline comparator
+for tickets 03 onward; re-measure wall on a quiet machine before quoting it.
