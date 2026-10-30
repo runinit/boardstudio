@@ -38,13 +38,15 @@ node scripts/test-ergogen-parity.cjs
 ```
 
 It uses Node's standard library, Git temporary-test repositories and committed data:
-no npm installation, network, upstream checkout or Cargo. It is registered with the repository `tooling` checks.
+no npm installation, network, upstream checkout or Cargo. It is an optional maintainer check.
+The default `tooling` step runs `test_generate.py --hermetic`; the default `browser`
+step runs `test_generate.py --source` against the live catalog in Chrome.
 Generation/`--check` are separate opt-in maintainer checks. Inspect input and expected
 pose diffs before committing; never bless a different pin or moving tag accidentally.
 An optional existing-cache check is `node scripts/test-ergogen-parity.cjs /path/to/checkout`;
 it creates/removes only its own untracked probe to verify the cleanliness guard.
 
-### Node-free generator (experimental; the Node commands above remain the required path)
+### Node-free generator (experimental)
 
 `python3 scripts/ergogen-parity/generate.py [--cache CHECKOUT] [--output JSON] [--check]` has the
 same CLI contract as the Node generator without running Node. `verified_runtime.py` validates the
