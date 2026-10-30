@@ -1,5 +1,6 @@
 """Pure-Rust Monstertruck CAD WASM build and native test orchestration."""
 
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import os
 from pathlib import Path
@@ -134,41 +135,76 @@ def build_wasm(*, no_opt=False):
     stamp.write_text(inputs + "\n")
 
 
-def test_cad():
-    library_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "monstertruck/target"))
-    run(
-        [
-            "cargo",
-            "test",
-            "--manifest-path",
-            "monstertruck/Cargo.toml",
-            "--release",
-            "--locked",
-        ],
-        env=library_env,
-    )
-    wasm_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "wasm/target"))
-    run(
-        [
-            "cargo",
-            "test",
-            "--manifest-path",
-            "wasm/Cargo.toml",
-            "--release",
-            "--locked",
-        ],
-        env=wasm_env,
-    )
-    owner_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "monstertruck-qualification/target"))
+def native_test_commands():
+    prefix = ["cargo", "test", "--manifest-path"]
+    suffix = ["--release", "--locked"]
+    return [
+        ([*prefix, "monstertruck/Cargo.toml", *suffix], "monstertruck/target"),
+        ([*prefix, "wasm/Cargo.toml", *suffix], "wasm/target"),
+        *(([*prefix, "monstertruck-qualification/Cargo.toml", "-p", package, *selection, *suffix],
+           "monstertruck-qualification/target") for package, *selection in OWNER_TESTS),
+    ]
+
+
+def _check_owner_output(command, stdout):
+    if "monstertruck-qualification" in command[3] and not re.search(
+            r"^test result: ok\. [1-9][0-9]* passed;", stdout, re.M):
+        raise RuntimeError(f"CAD owner selection has no executed tests: {' '.join(command[4:-2])}")
+
+
+def _run_lane(lane):
+    """Run one target dir's commands in order, capturing each output."""
+    outputs = []
+    for command, target in lane:
+        env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / target))
+        result = run(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        _check_owner_output(command, result.stdout)
+        outputs.append(result.stdout)
+    return outputs
+
+
+def _test_cad_serial(commands):
+    for command, target in commands[:2]:
+        run(command, env=dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / target)))
     # Filter legacy suites; external fixtures are read only by the tests that use them.
-    for package, *selection in OWNER_TESTS:
+    for command, target in commands[2:]:
         try:
-            result = run(["cargo", "test", "--manifest-path", "monstertruck-qualification/Cargo.toml",
-                          "-p", package, *selection, "--release", "--locked"], env=owner_env,
+            result = run(command, env=dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / target)),
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as error:
             print(error.stdout or "", end="", flush=True)
             raise
         print(result.stdout, end="", flush=True)
-        if not re.search(r"^test result: ok\. [1-9][0-9]* passed;", result.stdout, re.M):
-            raise RuntimeError(f"CAD owner selection has no executed tests: {package} {' '.join(selection)}")
+        _check_owner_output(command, result.stdout)
+
+
+def _test_cad_parallel(commands):
+    lanes = []
+    for command, target in commands:
+        if lanes and lanes[-1][0][1] == target:
+            lanes[-1].append((command, target))
+        else:
+            lanes.append([(command, target)])
+    with ThreadPoolExecutor(max_workers=len(lanes), thread_name_prefix="cad-lane") as pool:
+        futures = [pool.submit(_run_lane, lane) for lane in lanes]
+        results = [future.result() if future.exception() is None else future.exception()
+                   for future in futures]
+    # Print whole in the existing order; only the first failure surfaces.
+    for item in results:
+        if isinstance(item, BaseException):
+            print(getattr(item, "stdout", None) or "", end="", flush=True)
+            raise item
+        for stdout in item:
+            print(stdout, end="", flush=True)
+
+
+def test_cad():
+    commands = native_test_commands()
+    try:
+        jobs = int(os.environ.get("BOARDSTUDIO_CHECK_JOBS", "4"))
+    except ValueError:
+        jobs = 4
+    if jobs <= 1:
+        _test_cad_serial(commands)
+    else:
+        _test_cad_parallel(commands)
