@@ -1237,9 +1237,9 @@ class BuildBindingTests(unittest.TestCase):
             self.assertNotEqual(changed, identity)
             self.assertFalse(receipt.fresh_site(state, changed_state))
             first.write_text("also changed")
-            self.assertFalse(receipt.fresh_site(state, receipt.site_identity(site)[1]))
+            self.assertEqual(receipt.site_identity(site)[0], changed)
 
-    def test_partial_site_rewrite_does_not_associate_output(self):
+    def test_partial_site_rewrite_observes_output_without_proving_freshness(self):
         with tempfile.TemporaryDirectory() as directory:
             site = Path(directory)
             for route in ("site-root", "site-subpath/boardstudio"):
@@ -1251,7 +1251,8 @@ class BuildBindingTests(unittest.TestCase):
                 (site / route / "index.html").write_text("new")
             output, after = receipt.site_identity(site)
             binding = receipt.build_binding("run", "attempt", {}, {}, 0, output, receipt.fresh_site(before, after))
-            self.assertIsNone(binding["output"])
+            self.assertEqual(binding["output"], output)
+            self.assertIsNone(binding["site_routes_changed"])
 
     def test_stale_assets_and_excluded_inputs_cannot_prove_binding(self):
         identity = {"revision": "a" * 40, "digest": "b" * 64, "dirty": False}
@@ -1294,6 +1295,49 @@ class BuildBindingTests(unittest.TestCase):
             c.observe("browser", command, 0, 1, attempt_id=attempt)
             self.assertFalse(c.finish(0)["commands"][0]["complete"])
 
+    def test_subpath_observation_ignores_stale_root_and_compares_drag(self):
+        with tempfile.TemporaryDirectory() as directory:
+            site = Path(directory)
+            subpath = site / "site-subpath/boardstudio"
+            subpath.mkdir(parents=True)
+            (subpath / "index.html").write_text("new")
+            output, _ = receipt.site_identity(site)
+            self.assertIsNotNone(output)
+            binding = receipt.build_binding("run", "build", {}, {}, 0, output, None)
+            self.assertEqual(binding["output"], output)
+            root = site / "site-root"
+            root.mkdir()
+            (root / "index.html").write_text("stale")
+            self.assertEqual(receipt.site_identity(site)[0], output)
+            observed = {"run_id": "run", "attempt_id": "drag", "receipt_path": "/receipt", "site": receipt.site_identity(site)[0]}
+            self.assertEqual(receipt.drag_binding("run", "drag", observed, [binding])["site_comparison"], "equal")
+            (subpath / "index.html").write_text("changed")
+            observed["site"] = receipt.site_identity(site)[0]
+            self.assertEqual(receipt.drag_binding("run", "drag", observed, [binding])["site_comparison"], "different")
+
+    def test_build_capture_respects_output_and_providers_only(self):
+        identity = {"revision": "a" * 40, "digest": "b" * 64, "dirty": False}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            default = root / "web/target/site/site-subpath/boardstudio"
+            custom = root / "elsewhere/site-subpath/boardstudio"
+            for route, data in ((default, "stale"), (custom, "fresh")):
+                route.mkdir(parents=True)
+                (route / "index.html").write_text(data)
+            for arguments, expected in ((["--output", "elsewhere"], str(custom)),
+                                        (["--output=elsewhere"], str(custom)),
+                                        (["--providers-only"], None)):
+                with self.subTest(arguments=arguments):
+                    collector = receipt.Collector(path=root / "receipt.json", source=identity)
+                    command = ["python3", "scripts/build-web.py", *arguments]
+                    collector.plan_commands([("build", [command])])
+                    with mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0)), \
+                         mock.patch.object(receipt, "source_identity", return_value=identity), \
+                         contextlib.redirect_stdout(io.StringIO()):
+                        check.run_commands("build", [command], {}, cwd=root, receipt=collector)
+                    output = collector.finish(0)["build_bindings"][0]["output"]
+                    self.assertEqual(output["path"] if output else None, expected)
+
     def test_scheduler_records_build_attempt_and_source_snapshots(self):
         identity = {"revision": "a" * 40, "digest": "b" * 64, "dirty": False}
         with tempfile.TemporaryDirectory() as directory:
@@ -1302,7 +1346,7 @@ class BuildBindingTests(unittest.TestCase):
             command = ["python3", "scripts/build-web.py", "--fast"]
             collector.plan_commands([("build", [command])])
             def run(*args, **kwargs):
-                for route in ("site-root", "site-subpath/boardstudio"):
+                for route in ("site-subpath/boardstudio",):
                     index = root / "web/target/site" / route / "index.html"
                     index.parent.mkdir(parents=True)
                     index.write_text("built")
@@ -1314,6 +1358,7 @@ class BuildBindingTests(unittest.TestCase):
             result = collector.finish(0)
             binding = result["build_bindings"][0]
             self.assertEqual(binding["status"], "unknown")
+            self.assertIsNotNone(binding["output"])
             self.assertEqual(binding["run_id"], result["run_id"])
             self.assertEqual(binding["attempt_id"], result["commands"][0]["attempt_id"])
 

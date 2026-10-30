@@ -555,10 +555,10 @@ def write_receipt(path: Path | str, receipt: dict) -> tuple[Path, Path]:
 
 
 def site_identity(path: Path) -> tuple[dict | None, tuple | None]:
-    """Hash the two completed site routes and capture metadata for freshness."""
+    """Observe the subpath route used by the build and drag smoke."""
     try:
-        if not all((path / route / "index.html").is_file()
-                   for route in ("site-root", "site-subpath/boardstudio")):
+        path = path / "site-subpath/boardstudio"
+        if not (path / "index.html").is_file():
             return None, None
         files = sorted(p for p in path.rglob("*") if p.is_file())
         digest = hashlib.sha256()
@@ -595,7 +595,7 @@ def build_binding(run_id, attempt_id, before, after, code, output, fresh):
             "source_snapshot_comparison": comparison,
             "site_routes_changed": fresh, "run_id": run_id,
             "attempt_id": attempt_id, "source_before": before, "source_after": after,
-            "output": output if code == 0 and fresh else None}
+            "output": output if code == 0 else None}
 
 
 

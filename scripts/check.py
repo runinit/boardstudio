@@ -795,6 +795,19 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
         if receipt is not None and "scripts/build-web.py" in command:
             state = {}
             site = cwd / "web/target/site"
+            routes = "subpath"
+            for position, arg in enumerate(command):
+                if arg.startswith("--routes="):
+                    routes = arg.split("=", 1)[1]
+                elif arg == "--routes" and position + 1 < len(command):
+                    routes = command[position + 1]
+                elif arg.startswith("--output="):
+                    site = cwd / arg.split("=", 1)[1]
+                elif arg == "--output" and position + 1 < len(command):
+                    site = cwd / command[position + 1]
+            site = site.resolve()
+            observes_subpath = ("--providers-only" not in command and
+                                "subpath" in (route.strip() for route in routes.split(",")))
             def build_capture(phase, code):
                 source = verification_receipt.source_identity(cwd)
                 if phase == "before":
@@ -803,7 +816,7 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
                     receipt.build_bindings.append(verification_receipt.build_binding(
                         receipt.run_id, attempt, source, None, None, None, False))
                 else:
-                    output, site_after = verification_receipt.site_identity(site) if code == 0 else (None, None)
+                    output, site_after = verification_receipt.site_identity(site) if code == 0 and observes_subpath else (None, None)
                     receipt.build_bindings[-1] = verification_receipt.build_binding(
                         receipt.run_id, attempt, state.get("source"), source, code, output,
                         verification_receipt.fresh_site(state.get("site"), site_after))
