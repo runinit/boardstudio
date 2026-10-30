@@ -1171,6 +1171,8 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
             plan.append(("browser", commands))
     if selection.cad:
         plan.append(("test", [[PY, "cad/scripts/test-cad.py"]]))
+    if selection.extra_tests:
+        plan.append(("test", [[PY, path] for path in selection.extra_tests]))
     return plan
 
 
