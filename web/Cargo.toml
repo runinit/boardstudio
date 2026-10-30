@@ -19,9 +19,9 @@ required-features = ["page"]
 
 [features]
 default = ["page", "core-worker"]
-page = ["boardstudio-web-host/page", "dep:boardstudio-web-runtime", "dep:boardstudio-web-ui-model", "dep:boardstudio-web-catalogue", "dep:boardstudio-web-ui-shared", "dep:boardstudio-web-layout", "dep:boardstudio-web-pcb", "dep:boardstudio-web-parts", "dep:boardstudio-web-case", "dep:boardstudio-web-keymap", "dep:boardstudio-web-library", "dep:boardstudio-web-keycaps", "dep:boardstudio-application", "dep:boardstudio_core", "dep:dioxus", "dep:dioxus-web", "dep:gloo-timers", "dep:serde_json", "dep:sha2"]
+page = ["boardstudio-web-host/page", "dep:boardstudio-web-runtime", "dep:boardstudio-web-ui-model", "dep:boardstudio-web-ui-shared", "dep:boardstudio-web-layout", "dep:boardstudio-web-pcb", "dep:boardstudio-web-parts", "dep:boardstudio-web-case", "dep:boardstudio-web-keymap", "dep:boardstudio-web-library", "dep:boardstudio-web-keycaps", "dep:boardstudio-application", "dep:boardstudio_core", "dep:dioxus", "dep:dioxus-web", "dep:gloo-timers", "dep:serde_json"]
 core-worker = ["dep:boardstudio_core", "dep:serde_json"]
-cad-worker = ["boardstudio-web-host/cad-worker", "dep:boardstudio_core", "dep:serde_json", "dep:sha2"]
+cad-worker = ["boardstudio-web-host/cad-worker", "dep:boardstudio_core", "dep:serde_json"]
 service-worker = []
 test-harness = ["boardstudio-web-host/test-harness"]
 
@@ -31,7 +31,6 @@ boardstudio_core = { path = "../core", optional = true }
 boardstudio-web-host = { path = "crates/host" }
 boardstudio-web-runtime = { path = "crates/runtime", optional = true }
 boardstudio-web-ui-model = { path = "crates/ui-model", optional = true }
-boardstudio-web-catalogue = { path = "crates/catalogue", optional = true }
 boardstudio-web-ui-shared = { path = "crates/ui-shared", optional = true }
 boardstudio-web-layout = { path = "crates/layout", optional = true }
 boardstudio-web-pcb = { path = "crates/pcb", optional = true }
@@ -44,7 +43,6 @@ serde = { version = "1", features = ["derive"] }
 # `alloc` matches what wasm-bindgen-test turns on, so the page build and the page tests resolve
 # serde_json identically and share every unit built on it.
 serde_json = { version = "1", features = ["float_roundtrip", "alloc"], optional = true }
-sha2 = { version = "=0.11.0", default-features = false, optional = true }
 
 [dev-dependencies]
 boardstudio-web-runtime = { path = "crates/runtime", features = ["test-support"] }
@@ -69,8 +67,6 @@ gloo-timers = { version = "=0.3.0", features = ["futures"], optional = true }
 wasm-bindgen = "=0.2.129"
 wasm-bindgen-futures = "=0.4.79"
 js-sys = "=0.3.106"
-serde-wasm-bindgen = "=0.6.5"
-futures-channel = "=0.3.34"
 web-sys = { workspace = true }
 
 [target.wasm32-unknown-unknown.dev-dependencies]
