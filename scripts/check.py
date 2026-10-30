@@ -174,7 +174,7 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
                        [PY, "-B", "cad/scripts/test-face-completeness-web.py", "--hermetic"],
                        [PY, "-B", "cad/scripts/test-provider-pages.py", "--hermetic"],
                        [PY, "-B", "cad/scripts/test-cad-provider-gate.py"], *[
-        ["node", script] if script.endswith(".cjs") else [PY, "-B", script]
+        [PY, "-B", script]
         for script in TOOLING_TESTS]]),
     "lint": (True, LINT),
     # The routine build skips wasm-opt and the optimized Dioxus build; `release` keeps both.

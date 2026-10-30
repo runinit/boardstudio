@@ -105,7 +105,8 @@ def select(files: list[str], packages: dict[str, Package]) -> Selection:
             if path in ("cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py",
                         "cad/scripts/measure-cad-worker.cjs", "scripts/model-lookup.js",
                         "scripts/model-lookup-pilot.py", "scripts/model-lookup-pilot.mjs",
-                        "scripts/model-lookup-pilot-worker.js"):
+                        "scripts/model-lookup-pilot-worker.js", "scripts/ergogen-parity/cases.cjs",
+                        "scripts/ergogen-parity/generate.py", "scripts/ergogen-parity/test_generate.py"):
                 selection.notes.append(f"{path}: run `check.py browser` to cover this browser control")
         elif path.startswith("cad/") and not path.startswith("cad/scripts/"):
             selection.cad = True

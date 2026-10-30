@@ -23,6 +23,13 @@ PACKAGES = {package.name: package for package in PACKAGES.values()}
 
 
 class QuickSelectionTests(unittest.TestCase):
+    def test_ergogen_source_edits_point_to_browser_check(self):
+        for path in ("scripts/ergogen-parity/cases.cjs", "scripts/ergogen-parity/generate.py",
+                     "scripts/ergogen-parity/test_generate.py"):
+            with self.subTest(path=path):
+                selection = quick.select([path], PACKAGES)
+                self.assertTrue(any("check.py browser" in note for note in selection.notes))
+
     def test_documentation_only_changes_need_no_rust_checks(self):
         selection = quick.select(["docs/plans/x/map.md", "README.md"], PACKAGES)
         self.assertFalse(selection.rust)

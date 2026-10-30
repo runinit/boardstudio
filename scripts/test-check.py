@@ -248,6 +248,13 @@ class CheckTests(unittest.TestCase):
         self.assert_gate_contract(steps, workflow, replacement, replacement_refs=[
             "docs/plans/retro-agent-guardrails.md", "docs/research/2026-10-29-ergogen-oracle-boundary.md"])
 
+    def test_default_commands_do_not_invoke_node_toolchain(self):
+        forbidden = {"node", "npm", "npx", "pnpm", "yarn", "corepack"}
+        for step in check.DEFAULT:
+            for command in check.STEPS[step][1]:
+                with self.subTest(step=step, command=command):
+                    self.assertNotIn(Path(command[0]).name, forbidden)
+
     def test_model_lookup_runs_in_browser_not_node_tooling(self):
         self.assertNotIn(["node", "scripts/test-model-lookup.cjs"], check.STEPS["tooling"][1])
         self.assertIn([check.PY, "scripts/model-lookup-pilot.py", "--gate"], check.STEPS["browser"][1])
