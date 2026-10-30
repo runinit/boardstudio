@@ -39,6 +39,89 @@ class BuildWebTests(unittest.TestCase):
         self.assertTrue(all("--no-opt" not in command for command in builds(False)))
         self.assertTrue(all("--release" in command for command in builds(True)))
 
+    def test_provider_lanes_keep_wasm_pack_serial_and_cad_alone(self):
+        lane_a, lane_b = BUILD.provider_lanes(True)
+        self.assertEqual(len(lane_a), 4)
+        self.assertTrue(all(command[:2] == ["wasm-pack", "build"] for command, _ in lane_a))
+        self.assertEqual(len(lane_b), 1)
+        self.assertIn("build-cad-wasm.py", " ".join(lane_b[0][0]))
+        with patch.object(BUILD, "provider_commands", return_value=[(["mystery", "cmd"], BUILD.ROOT)]):
+            with self.assertRaisesRegex(ValueError, "unassigned provider command"):
+                BUILD.provider_lanes()
+
+    def test_provider_lanes_overlap_but_stage_only_after_all(self):
+        import threading
+        lane_a, lane_b = BUILD.provider_lanes(True)
+        barrier = threading.Barrier(2, timeout=10)
+        completed = []
+
+        def fake_captured(command, cwd, env):
+            text = " ".join(command)
+            if "m1_core_worker" in text or "build-cad-wasm" in text:
+                barrier.wait()
+            completed.append(text)
+            return text
+
+        with patch.object(BUILD, "_run_captured", side_effect=fake_captured), \
+             patch.object(BUILD, "shutil") as shutil, \
+             patch.object(BUILD, "stage_runtime_assets") as stage:
+            BUILD.prepare_runtime_providers(True)
+        self.assertEqual(len(completed), 5)
+        shutil.copy2.assert_called_once()
+        stage.assert_called_once()
+
+    def test_provider_failure_does_not_stage_assets(self):
+        def fake_captured(command, cwd, env):
+            if "m1_core_worker" in " ".join(command):
+                raise ValueError("provider failed")
+            return "ok"
+
+        with patch.object(BUILD, "_run_captured", side_effect=fake_captured), \
+             patch.object(BUILD, "shutil") as shutil, \
+             patch.object(BUILD, "stage_runtime_assets") as stage:
+            with self.assertRaisesRegex(ValueError, "provider failed"):
+                BUILD.prepare_runtime_providers()
+        shutil.copy2.assert_not_called()
+        stage.assert_not_called()
+
+    def test_dx_lane_overlaps_providers_only_for_fast_single_route(self):
+        import threading
+        barrier = threading.Barrier(2, timeout=10)
+        seen = []
+
+        def fake_captured(command, cwd, env):
+            text = " ".join(command)
+            if command[0] == "dx" or "m1_core_worker" in text:
+                barrier.wait()
+            seen.append(text)
+            return text
+
+        dx = [("dx", [(["dx", "build"], BUILD.WEB, None)])]
+        with patch.object(BUILD, "_run_captured", side_effect=fake_captured), \
+             patch.object(BUILD, "shutil"), \
+             patch.object(BUILD, "stage_runtime_assets"):
+            BUILD.prepare_runtime_providers(True, dx_lanes=dx)
+        self.assertTrue(any(part.startswith("dx build") for part in seen))
+
+    def test_shipped_and_multi_route_builds_keep_dx_serial(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "site"
+            with patch.object(BUILD, "prepare_runtime_providers") as prepare, \
+                 patch.object(BUILD, "run") as run, \
+                 patch.object(BUILD, "package_route") as package:
+                BUILD.build(output, release=False, routes=("subpath", "root"), fast=True)
+                prepare.assert_called_once()
+                self.assertEqual(prepare.call_args[1].get("dx_lanes"), [])
+                self.assertEqual(run.call_count, 2)
+                self.assertEqual(package.call_count, 2)
+            with patch.object(BUILD, "prepare_runtime_providers") as prepare, \
+                 patch.object(BUILD, "run") as run, \
+                 patch.object(BUILD, "package_route"):
+                BUILD.build(output, release=True, fast=False)
+                self.assertEqual(prepare.call_args[1].get("dx_lanes"), [])
+                run.assert_called_once()
+
     def test_model_staging_command_runs_with_the_staging_cli(self):
         import subprocess
         with tempfile.TemporaryDirectory() as directory:
