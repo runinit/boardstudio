@@ -135,14 +135,19 @@ def build_wasm(*, no_opt=False):
     stamp.write_text(inputs + "\n")
 
 
+# Every target dir the native tests build into; the CI cache test parses these literals.
+NATIVE_TEST_TARGETS = ("monstertruck/target", "wasm/target", "monstertruck-qualification/target")
+
+
 def native_test_commands():
     prefix = ["cargo", "test", "--manifest-path"]
     suffix = ["--release", "--locked"]
+    library_target, wasm_target, owner_target = NATIVE_TEST_TARGETS
     return [
-        ([*prefix, "monstertruck/Cargo.toml", *suffix], "monstertruck/target"),
-        ([*prefix, "wasm/Cargo.toml", *suffix], "wasm/target"),
+        ([*prefix, "monstertruck/Cargo.toml", *suffix], library_target),
+        ([*prefix, "wasm/Cargo.toml", *suffix], wasm_target),
         *(([*prefix, "monstertruck-qualification/Cargo.toml", "-p", package, *selection, *suffix],
-           "monstertruck-qualification/target") for package, *selection in OWNER_TESTS),
+           owner_target) for package, *selection in OWNER_TESTS),
     ]
 
 
