@@ -73,6 +73,8 @@ class BrowserToolsTests(unittest.TestCase):
             env = dict(os.environ, HOME=temp, READY=str(ready), RELEASE=str(release),
                        PATH=f"{temp}:{os.environ['PATH']}", PYTHONPATH=str(root / "scripts"))
             env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
+            env.pop("BOARDSTUDIO_WASM_TEST_COMMAND", None)
+            env["CHROMEDRIVER"] = "/bin/true"
             (home / "scripts").mkdir()
             (home / "scripts/run-drag-browser.py").write_text("import browser_tools; browser_tools.build_drag_harness()\n")
             ready_fd = os.open(ready, os.O_RDWR | os.O_NONBLOCK)
@@ -97,12 +99,16 @@ class BrowserToolsTests(unittest.TestCase):
                         }
                         # Standalone uses flock's own process; the others inherit a validated descriptor.
                         source = ("import os, sys\n" if mode == "standalone" else setup) + calls[mode]
+                        error_log = tempfile.TemporaryFile(mode="w+")
                         process = subprocess.Popen([sys.executable, "-c", source],
                                                    env=dict(env, CAD=str(root / "cad/scripts"),
                                                             GRANDCHILD="1" if mode == "grandchild" else ""),
-                                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                                   stdout=subprocess.DEVNULL, stderr=error_log)
+                        child_ready = False
                         try:
-                            self.assertTrue(select.select([ready_fd], [], [], 5)[0], "build child did not start")
+                            child_ready = bool(select.select([ready_fd], [], [], 5)[0])
+                            error_log.seek(0)
+                            self.assertTrue(child_ready, f"build child did not start: {error_log.read()}")
                             build_parent = int(os.read(ready_fd, 32).strip())
                             process.kill()
                             process.wait(timeout=5)
@@ -112,11 +118,13 @@ class BrowserToolsTests(unittest.TestCase):
                             self.assertNotEqual(subprocess.run(contender).returncode, 0,
                                                 "lock released while child is running")
                         finally:
-                            os.write(release_fd, b"X")
+                            if child_ready:
+                                os.write(release_fd, b"X")
                             if process.poll() is None:
                                 process.kill()
                                 process.wait(timeout=5)
                             subprocess.run(["flock", str(lock), "true"], check=True, timeout=5)
+                            error_log.close()
                         self.assertEqual(subprocess.run(contender).returncode, 0)
             finally:
                 os.close(ready_fd)

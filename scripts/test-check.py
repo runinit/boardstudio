@@ -141,6 +141,7 @@ class CheckTests(unittest.TestCase):
             "scripts/test-graphite-controls.py": "manual Graphite browser failure controls against a built site",
             "scripts/test-model-lookup-pilot.py": "opt-in model-lookup browser pilot controls",
             "scripts/test-model-lookup.cjs": "original Node fixture retained for parity comparisons",
+            "scripts/test-ergogen-parity.cjs": "maintainer Node parity contract retained for comparison",
         }
         self.assertEqual(scripts, registered | opt_in.keys())
         self.assertTrue(all(opt_in.values()))
@@ -194,9 +195,14 @@ class CheckTests(unittest.TestCase):
 
     def test_ergogen_gate_transition_contract(self):
         workflow = (ROOT / ".github/workflows/check.yaml").read_text()
-        gate = ["node", "scripts/test-ergogen-parity.cjs"]
-        self.assertTrue((ROOT / gate[1]).is_file())
-        self.assert_gate_contract(check.STEPS, workflow, gate)
+        gate = [check.PY, "-B", "scripts/ergogen-parity/test_generate.py", "--hermetic"]
+        self.assert_gate_contract(check.STEPS, workflow, gate,
+                                  ["docs/research/2026-10-22-ergogen-parity-fixture-pipeline.md",
+                                   "docs/research/2026-10-29-ergogen-oracle-boundary.md"])
+        self.assertIn([check.PY, "-B", "scripts/ergogen-parity/test_generate.py", "--source"],
+                      check.STEPS["browser"][1])
+        self.assertNotIn(["node", "scripts/test-ergogen-parity.cjs"], check.STEPS["tooling"][1])
+        self.assertNotIn(["node", "--version"], check.STEPS["tooling"][1])
 
     def test_ergogen_gate_contract_rejects_retirement_and_accepts_documented_cutover(self):
         gate = ["node", "scripts/test-ergogen-parity.cjs"]

@@ -16,7 +16,7 @@ whole column.
 ## Development
 
 Install the Rust version in `rust-toolchain.toml`, `wasm-pack` 0.15.0, Dioxus CLI
-0.7.10 and Python 3.11+. Node is not needed to build or run the app; it is required for the `tooling` check step and the browser drag smoke (the Browser tests paragraph covers the `NODE_PATH` detail). KiCad CLI 10 is required for PCB integration checks. Browser tests require
+0.7.10 and Python 3.11+. The default checks use the Rust browser harness and do not require Node or Playwright. KiCad CLI 10 is required for PCB integration checks. Browser tests require
 Chrome/Chromium and its compatible ChromeDriver.
 
 ```sh
@@ -118,8 +118,7 @@ presentation code. Browser setup installs the locked wasm-bindgen runner before 
 The browser step opens the packaged page and runs a trusted mouse-drag smoke over
 Part, Column, Stagger and Ctrl+Offset. It checks live preview, pointer capture, saved document state
 and exact Undo. Its success receipt and failure log are kept under `web/target/test-results/drag-browser/`.
-CI installs the pinned `playwright-core` runner; local browser checks need it on `NODE_PATH` and a
-Chrome or Chromium executable available as `CHROME_BIN`.
+Browser checks use the Rust harness and a Chrome or Chromium executable available as `CHROME_BIN`.
 
 **Verification receipts.** Add `--receipt PATH` to any check invocation to write a JSON receipt at
 `PATH` and a reviewer summary at `PATH.md`, both derived only from the output that invocation

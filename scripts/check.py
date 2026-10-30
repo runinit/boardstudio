@@ -75,7 +75,7 @@ TOOLING_TESTS = (
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
     "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
-    "scripts/test-ergogen-parity.cjs", "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py", "scripts/test-parallel-interrupt.py",
+    "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py", "scripts/test-parallel-interrupt.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
     "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
 )
@@ -105,6 +105,7 @@ def browser() -> list[Command]:
         [PY, "scripts/check-wasm-tests.py"],
         [PY, "cad/scripts/test-cad-provider.py"],
         [PY, "scripts/model-lookup-pilot.py", "--gate"],
+        [PY, "-B", "scripts/ergogen-parity/test_generate.py", "--source"],
         [PY, "cad/scripts/face-completeness-gate.py"],
         [PY, "cad/scripts/test-cad-browser.py"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/host", "--locked", "--features", "page",
@@ -169,7 +170,8 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
         [PY, "-B", "scripts/test-check-adr-index.py"],
         [PY, "scripts/check-adr-index.py"],
     ]),
-    "tooling": (True, [["node", "--version"], [PY, "-B", "cad/scripts/test-face-completeness-web.py", "--hermetic"],
+    "tooling": (True, [[PY, "-B", "scripts/ergogen-parity/test_generate.py", "--hermetic"],
+                       [PY, "-B", "cad/scripts/test-face-completeness-web.py", "--hermetic"],
                        [PY, "-B", "cad/scripts/test-provider-pages.py", "--hermetic"],
                        [PY, "-B", "cad/scripts/test-cad-provider-gate.py"], *[
         ["node", script] if script.endswith(".cjs") else [PY, "-B", script]
@@ -430,7 +432,7 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
     print("$ " + shlex.join(command), flush=True)
     lock_fd = browser_tools._inherited_build_lock()
     if not any(part in command for part in ("scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py", "cad/scripts/face-completeness-gate.py", "cad/scripts/test-cad-provider.py", "scripts/build-web.py",
-               "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py", "scripts/model-lookup-pilot.py")):
+               "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py", "scripts/model-lookup-pilot.py", "scripts/ergogen-parity/test_generate.py")):
         environment = environment.copy()
         environment.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
     lock_args = {"pass_fds": (lock_fd,)} if lock_fd is not None else {}
