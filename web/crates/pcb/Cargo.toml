@@ -19,7 +19,6 @@ boardstudio-web-ui-shared = { path = "../ui-shared" }
 boardstudio-web-catalogue = { path = "../catalogue" }
 boardstudio-web-parts = { path = "../parts" }
 dioxus = { version = "=0.7.10", default-features = false, features = ["minimal"] }
-serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
