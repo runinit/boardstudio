@@ -267,6 +267,7 @@ class CheckIntegrationTests(unittest.TestCase):
 
         errors = io.StringIO()
         with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                mock.patch.object(check, "_parallel_process", side_effect=lambda command, registry, **kwargs: fake(command, **kwargs)), \
                 mock.patch.object(guard, "BASELINE", self.path), \
                 mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": str(jobs)}), \
                 mock.patch.dict(check.STEPS, {"test": (True, commands)}), \

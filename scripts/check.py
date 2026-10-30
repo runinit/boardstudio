@@ -38,15 +38,19 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 import argparse
+import codecs
+import io
 import importlib.util
 import os
 from pathlib import Path
 import re
 import shlex
+import signal
+import threading
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,7 +75,7 @@ TOOLING_TESTS = (
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
     "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
-    "scripts/test-ergogen-parity.cjs", "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py",
+    "scripts/test-ergogen-parity.cjs", "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py", "scripts/test-parallel-interrupt.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
     "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
 )
@@ -473,6 +477,53 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
     return elapsed, code, started_at, ended_at
 
 
+def _parallel_process(command, registry, **kwargs):
+    with registry["lock"]:
+        if registry["cancelled"]:
+            return None
+        try:
+            # A worker inherits the scheduler's blocked signals. Restore the
+            # caller's mask in a fresh interpreter, without preexec_fn.
+            wrapper = """import os, signal, sys
+# Python startup changes its environment and ignores signals that Popen restored.
+with open('/proc/self/environ', 'rb') as source:
+    environment = dict(entry.split(b'=', 1) for entry in source.read().split(b'\\0') if entry)
+for name in ('SIGPIPE', 'SIGXFZ', 'SIGXFSZ'):
+    if hasattr(signal, name):
+        signal.signal(getattr(signal, name), signal.SIG_DFL)
+signal.pthread_sigmask(signal.SIG_SETMASK, [int(s) for s in sys.argv[1].split(',') if s])
+try:
+    os.execvpe(sys.argv[2], sys.argv[2:], environment)
+except OSError as error:
+    print(f"startup failed: {error}", file=sys.stderr)
+    sys.exit(127)
+"""
+            mask = ",".join(str(int(s)) for s in registry["mask"])
+            process = subprocess.Popen([sys.executable, "-I", "-S", "-c", wrapper, mask, *command],
+                                       start_new_session=True, **kwargs)
+        except OSError as error:
+            return subprocess.CompletedProcess(command, 127, f"startup failed: {error}\n")
+        registry["processes"].add(process)
+    # Observe completion without reaping the group leader. Keeping its PID
+    # reserved until batch cleanup prevents a later cancellation signal from
+    # targeting a reused process-group ID when descendants outlive the leader.
+    try:
+        decoder = io.IncrementalNewlineDecoder(
+            codecs.getincrementaldecoder(process.stdout.encoding)(errors=process.stdout.errors), translate=True)
+        chunks = []
+        while data := process.stdout.buffer.read1(65536):
+            chunks.append(decoder.decode(data))
+        chunks.append(decoder.decode(b"", final=True))
+        output = "".join(chunks)
+    except BaseException as error:
+        with registry["lock"]:
+            registry["read_failed"] = error
+        raise
+    status = os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOWAIT)
+    code = status.si_status if status.si_code == os.CLD_EXITED else -status.si_status
+    return subprocess.CompletedProcess(command, code, output)
+
+
 def run_parallel(batch: list[Command], environment: dict[str, str],
                  captured: list[tuple[Command, str]] | None = None,
                  outputs: list[tuple[Command, str]] | None = None,
@@ -483,8 +534,22 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
     # Workers retain completed results even if submit is interrupted before it
     # returns the corresponding future to the main thread.
     completed = []
+    registry = {"lock": threading.Lock(), "cancelled": False, "processes": set(), "workers": 0}
+    workers_changed = threading.Condition(registry["lock"])
 
-    def launch(command: Command) -> tuple[int, str, float, str, str, str | None]:
+    def launch(command: Command):
+        with workers_changed:
+            if registry["cancelled"]:
+                return None
+            registry["workers"] += 1
+        try:
+            return run_worker(command)
+        finally:
+            with workers_changed:
+                registry["workers"] -= 1
+                workers_changed.notify_all()
+
+    def run_worker(command: Command):
         attempt = receipt.prepare(command, step=step) if receipt is not None else None
         started = time.monotonic()
         started_at = datetime.now(timezone.utc).isoformat()
@@ -494,13 +559,12 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
             child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
         if "cad/scripts/test-cad.py" not in command:
             child_env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
-        try:
-            done = subprocess.run(command, cwd=ROOT, env=child_env, stdout=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT, text=True,
-                                  **({"pass_fds": (lock_fd,)} if lock_fd is not None else {}))
-            code, output = done.returncode, done.stdout
-        except OSError as error:
-            code, output = 127, f"startup failed: {error}\n"
+        done = _parallel_process(command, registry, cwd=ROOT, env=child_env, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, text=True,
+                                 **({"pass_fds": (lock_fd,)} if lock_fd is not None else {}))
+        if done is None:
+            return None
+        code, output = done.returncode, done.stdout
         ended_at = datetime.now(timezone.utc).isoformat()
         elapsed = time.monotonic() - started
         try:
@@ -519,12 +583,45 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
     futures = []
     error = None
     submitting = True
+    interrupted = None
     pool = ThreadPoolExecutor(max_workers=check_jobs())
+    main_thread = threading.current_thread() is threading.main_thread()
+    signals = {signal.SIGINT, signal.SIGTERM}
+    previous_int = signal.getsignal(signal.SIGINT) if main_thread else None
+    previous_term = signal.getsignal(signal.SIGTERM) if main_thread else None
+    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, signals) if main_thread else None
+    registry["mask"] = previous_mask if main_thread else signal.pthread_sigmask(signal.SIG_BLOCK, set())
     try:
-        for command in ordered:
-            futures.append((command, pool.submit(launch, command)))
+        if main_thread:
+            def interrupt(signum, _frame):
+                nonlocal interrupted
+                interrupted = signum
+                signal.pthread_sigmask(signal.SIG_BLOCK, signals)
+                if sys.exception() is not None:
+                    return
+                if signum == signal.SIGINT:
+                    raise KeyboardInterrupt
+                raise SystemExit(143)
+            signal.signal(signal.SIGINT, interrupt)
+            signal.signal(signal.SIGTERM, interrupt)
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+        if main_thread:
+            signal.pthread_sigmask(signal.SIG_BLOCK, signals)
+        try:
+            for command in ordered:
+                futures.append((command, pool.submit(launch, command)))
+        finally:
+            if main_thread:
+                signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
         submitting = False
+        pending = {future for _, future in futures}
         for command, future in futures:
+            while not future.done():
+                finished, pending = wait(pending, return_when=FIRST_COMPLETED)
+                with registry["lock"]:
+                    read_error = registry.get("read_failed")
+                if read_error is not None:
+                    raise read_error
             if future.cancelled():
                 continue
             code, output, elapsed, started_at, ended_at, attempt = future.result()
@@ -544,20 +641,88 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
     except BaseException as caught:
         error = caught
     finally:
-        cancel = error is not None and (submitting or isinstance(error, KeyboardInterrupt))
-        if cancel:
+        cancel = interrupted or (error is not None and (submitting or isinstance(error, (KeyboardInterrupt, SystemExit)) or registry.get("read_failed", False)))
+        cleanup_incomplete = False
+        previous_handler = None
+        def suppress_signals():
+            nonlocal previous_handler
+            mask = signal.pthread_sigmask(signal.SIG_BLOCK, signals)
+            previous_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            signal.pthread_sigmask(signal.SIG_SETMASK, mask)
+
+        if cancel and main_thread:
+            suppress_signals()
+        def cancel_workers():
+            with registry["lock"]:
+                registry["cancelled"] = True
+                processes = list(registry["processes"])
             for _, future in futures:
                 future.cancel()
-        if hasattr(pool, "shutdown"):
-            pool.shutdown(wait=True, cancel_futures=cancel)
+            for process in processes:
+                try:
+                    os.killpg(process.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+            _, pending = wait([f for _, f in futures], timeout=0.5)
+            for process in processes:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            _, pending = wait(pending, timeout=2)
+            with workers_changed:
+                workers_done = workers_changed.wait_for(lambda: registry["workers"] == 0, timeout=2)
+            return bool(pending) or not workers_done
+
+        try:
+            if cancel:
+                cleanup_incomplete = cancel_workers()
+            if hasattr(pool, "shutdown"):
+                try:
+                    pool.shutdown(wait=not cleanup_incomplete, cancel_futures=cancel)
+                except (KeyboardInterrupt, SystemExit) as caught:
+                    if error is None:
+                        error = caught
+                    if previous_handler is None and main_thread:
+                        suppress_signals()
+                    cleanup_incomplete = cancel_workers()
+                    try:
+                        pool.shutdown(wait=not cleanup_incomplete, cancel_futures=True)
+                    except (KeyboardInterrupt, SystemExit):
+                        cleanup_incomplete = True
+            # Signals are finished; only now may group leaders be reaped and
+            # their process-group identifiers become reusable.
+            with registry["lock"]:
+                processes = list(registry["processes"])
+            for process in processes:
+                try:
+                    process.wait(timeout=0.1)
+                except subprocess.TimeoutExpired:
+                    cleanup_incomplete = True
+                finally:
+                    # A reader blocked on this stream holds its internal lock;
+                    # closing it here would itself block cleanup indefinitely.
+                    if not cleanup_incomplete and process.stdout is not None:
+                        process.stdout.close()
+            if cleanup_incomplete:
+                # ThreadPoolExecutor joins workers at interpreter exit even after shutdown(wait=False).
+                print("check: cleanup incomplete; worker termination is unconfirmed; "
+                      "interpreter exit may wait indefinitely for Python workers", file=sys.stderr, flush=True)
+        finally:
+            if main_thread:
+                signal.pthread_sigmask(signal.SIG_BLOCK, signals)
+                signal.signal(signal.SIGINT, previous_int)
+                signal.signal(signal.SIGTERM, previous_term)
+                signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
         # Include futures from test executors and results from submissions that
         # raised after scheduling work but before returning their future.
         for command, future in futures:
-            if future.cancelled():
+            if future.cancelled() or (cleanup_incomplete and not future.done()):
                 continue
             try:
                 result = future.result()
-                if (command, result) not in completed:
+                if result is not None and (command, result) not in completed:
                     completed.append((command, result))
             except BaseException as caught:
                 if error is None:
@@ -572,6 +737,8 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                     receipt.recording_failed(attempt, code, elapsed, started_at, ended_at)
                     if error is None:
                         error = caught
+    if error is None and interrupted is not None:
+        error = KeyboardInterrupt() if interrupted == signal.SIGINT else SystemExit(143)
     if error is not None:
         raise error
     return time.monotonic() - started, failed

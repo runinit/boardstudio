@@ -524,6 +524,10 @@ class NativeLaunchReconciliationTests(unittest.TestCase):
 
 class CheckCliTests(unittest.TestCase):
     def setUp(self):
+        patcher = mock.patch.object(check, "_parallel_process",
+                                    side_effect=lambda command, registry, **kwargs: check.subprocess.run(command, **kwargs))
+        patcher.start()
+        self.addCleanup(patcher.stop)
         driver = mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": "rust"})
         driver.start()
         self.addCleanup(driver.stop)
@@ -787,7 +791,7 @@ class AttemptIdentityTests(unittest.TestCase):
             c = receipt.Collector(path=Path(directory) / "r.json", source={})
             c.plan_commands([("test", [command, command])])
             with mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), \
-                    mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="")), \
+                    mock.patch.object(check, "_parallel_process", return_value=mock.Mock(returncode=0, stdout="")), \
                     contextlib.redirect_stdout(io.StringIO()):
                 _, passed = check.run_commands("test", [command, command], {}, receipt=c)
             self.assertTrue(passed)
@@ -854,6 +858,67 @@ class AttemptIdentityTests(unittest.TestCase):
             self.assertFalse(result["invocation"]["accepted"])
 
 class IntegrationRegressionTests(unittest.TestCase):
+    def test_second_interrupt_during_shutdown_drains_completed_and_keeps_original(self):
+        from concurrent.futures import Future, ThreadPoolExecutor
+        command = ["true"]
+        with tempfile.TemporaryDirectory() as directory:
+            c = receipt.Collector(path=Path(directory) / "r.json", source={})
+            c.plan_commands([("test", [command])])
+            original = KeyboardInterrupt("original")
+            result = Future.result
+            shutdown = ThreadPoolExecutor.shutdown
+            def interrupted_result(future, *args, **kwargs):
+                if not getattr(future, "injected", False):
+                    future.injected = True
+                    result(future, *args, **kwargs)
+                    raise original
+                return result(future, *args, **kwargs)
+            def interrupted_shutdown(pool, *args, **kwargs):
+                shutdown(pool, *args, **kwargs)
+                raise KeyboardInterrupt("cleanup")
+            with mock.patch.object(Future, "result", interrupted_result), \
+                    mock.patch.object(ThreadPoolExecutor, "shutdown", interrupted_shutdown), \
+                    mock.patch.object(check, "_parallel_process", return_value=mock.Mock(returncode=0, stdout="")), \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(KeyboardInterrupt) as caught:
+                    check.run_parallel([command], {}, receipt=c, step="test")
+            self.assertIs(caught.exception, original)
+            self.assertEqual(c.finish(130)["commands"][0]["status"], "ran")
+
+    def test_interrupted_shutdown_cancels_queued_and_marks_running_incomplete(self):
+        from concurrent.futures import Future
+        commands = [["running"], ["queued"]]
+        with tempfile.TemporaryDirectory() as directory:
+            c = receipt.Collector(path=Path(directory) / "r.json", source={})
+            c.plan_commands([("test", commands)])
+            running, queued = Future(), Future()
+            running.set_running_or_notify_cancel()
+            c.prepare(commands[0], step="test")
+            original = KeyboardInterrupt("original")
+            class Pool:
+                def __init__(self, **kwargs):
+                    self.futures = iter([running, queued])
+                def submit(self, *args):
+                    return next(self.futures)
+                def shutdown(self, **kwargs):
+                    raise KeyboardInterrupt("cleanup")
+            stderr = io.StringIO()
+            real_wait = check.wait
+            def interrupted_wait(futures, **kwargs):
+                if kwargs.get("return_when") == check.FIRST_COMPLETED:
+                    raise original
+                return real_wait(futures, **kwargs)
+            with mock.patch.object(check, "ThreadPoolExecutor", Pool), \
+                    mock.patch.object(check, "wait", side_effect=interrupted_wait), \
+                    contextlib.redirect_stderr(stderr):
+                with self.assertRaises(KeyboardInterrupt) as caught:
+                    check.run_parallel(commands, {}, receipt=c, step="test")
+            self.assertIs(caught.exception, original)
+            self.assertTrue(queued.cancelled())
+            self.assertIn("cleanup incomplete", stderr.getvalue())
+            self.assertEqual([item["status"] for item in c.finish(130)["commands"]],
+                             ["interrupted", "not_run"])
+
     def test_concurrent_page_registration_marks_both_unknown(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "page.json"
@@ -888,7 +953,7 @@ class IntegrationRegressionTests(unittest.TestCase):
                     interrupted = True
                     raise KeyboardInterrupt()
                 return original(future, *args, **kwargs)
-            with mock.patch.object(Future, "result", result), mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="")), contextlib.redirect_stdout(io.StringIO()):
+            with mock.patch.object(Future, "result", result), mock.patch.object(check, "_parallel_process", return_value=mock.Mock(returncode=0, stdout="")), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaises(KeyboardInterrupt):
                     check.run_parallel([command], {}, receipt=c, step="test")
             self.assertEqual(c.finish(130)["commands"][0]["status"], "ran")
@@ -903,7 +968,7 @@ class IntegrationRegressionTests(unittest.TestCase):
                 if command == commands[0]:
                     raise RuntimeError("observe failed")
                 return observe(step, command, *args, **kwargs)
-            with mock.patch.object(c, "observe", side_effect=failing), mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="")), contextlib.redirect_stdout(io.StringIO()):
+            with mock.patch.object(c, "observe", side_effect=failing), mock.patch.object(check, "_parallel_process", return_value=mock.Mock(returncode=0, stdout="")), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaisesRegex(RuntimeError, "observe failed"):
                     check.run_parallel(commands, {}, receipt=c, step="test")
             result = c.finish(1)
@@ -992,11 +1057,11 @@ class IntegrationRegressionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             c = receipt.Collector(path=Path(directory) / "r.json", source={})
             c.plan_commands([("test", commands)])
-            def run(command, **kwargs):
+            def run(command, registry, **kwargs):
                 if command == commands[0]:
                     raise RuntimeError("boom")
                 return mock.Mock(returncode=0, stdout="")
-            with mock.patch.object(check, "check_jobs", return_value=2), mock.patch.object(check.subprocess, "run", side_effect=run), contextlib.redirect_stdout(io.StringIO()):
+            with mock.patch.object(check, "check_jobs", return_value=2), mock.patch.object(check, "_parallel_process", side_effect=run), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaisesRegex(RuntimeError, "boom"):
                     check.run_parallel(commands, {}, receipt=c, step="test")
             self.assertEqual([r["status"] for r in c.finish(1)["commands"]], ["interrupted", "ran"])
@@ -1032,7 +1097,7 @@ class ReviewRegressionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             c = receipt.Collector(path=Path(directory) / 'r', source={})
             c.plan_commands([('x', [['true']])])
-            with mock.patch.object(check.subprocess, 'run', return_value=mock.Mock(returncode=0, stdout='x')), mock.patch.object(check, 'output_text', side_effect=ValueError('conversion')), contextlib.redirect_stdout(io.StringIO()):
+            with mock.patch.object(check, '_parallel_process', return_value=mock.Mock(returncode=0, stdout='x')), mock.patch.object(check, 'output_text', side_effect=ValueError('conversion')), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaisesRegex(ValueError, 'conversion'):
                     check.run_parallel([['true']], {}, receipt=c, step='x')
             self.assertEqual(c.finish(1)['commands'][0]['status'], 'recording_failed')
@@ -1046,7 +1111,7 @@ class ReviewRegressionTests(unittest.TestCase):
                 if args and str(args[0]).startswith('check: end'):
                     raise OSError('log')
                 return real_print(*args, **kwargs)
-            with mock.patch.object(check.subprocess, 'run', return_value=mock.Mock(returncode=7, stdout='')), mock.patch('builtins.print', side_effect=logging), contextlib.redirect_stdout(io.StringIO()):
+            with mock.patch.object(check, '_parallel_process', return_value=mock.Mock(returncode=7, stdout='')), mock.patch('builtins.print', side_effect=logging), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaisesRegex(OSError, 'log'):
                     check.run_parallel([['true']], {}, receipt=c, step='x')
             self.assertEqual(c.finish(1)['commands'][0]['exit_code'], 7)
@@ -1094,7 +1159,7 @@ class ReviewRegressionTests(unittest.TestCase):
             def run(*args, **kwargs):
                 started.set()
                 return mock.Mock(returncode=0, stdout="")
-            with mock.patch.object(ThreadPoolExecutor, "submit", submit), mock.patch.object(check.subprocess, "run", side_effect=run), contextlib.redirect_stdout(io.StringIO()):
+            with mock.patch.object(ThreadPoolExecutor, "submit", submit), mock.patch.object(check, "_parallel_process", side_effect=run), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaises(KeyboardInterrupt):
                     check.run_parallel([command], {}, receipt=c, step="test")
             self.assertEqual(c.finish(130)["commands"][0]["status"], "ran")
@@ -1114,7 +1179,7 @@ class ReviewRegressionTests(unittest.TestCase):
             def run(*args, **kwargs):
                 started.set()
                 return mock.Mock(returncode=7, stdout="failure")
-            with mock.patch.object(ThreadPoolExecutor, "submit", submit), mock.patch.object(check.subprocess, "run", side_effect=run), contextlib.redirect_stdout(io.StringIO()):
+            with mock.patch.object(ThreadPoolExecutor, "submit", submit), mock.patch.object(check, "_parallel_process", side_effect=run), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaisesRegex(ValueError, "submit failed"):
                     check.run_parallel([command], {}, receipt=c, step="test")
             record = c.finish(1)["commands"][0]

@@ -538,6 +538,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
     def test_scoped_browser_only_does_not_acquire_the_drag_smoke_prerequisites(self):
         self.chrome.side_effect = check.browser_tools.MissingBrowserTool("absent")
         with mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="")), \
+                mock.patch.object(check, "_parallel_process", return_value=mock.Mock(returncode=0, stdout="")), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(check.main(["browser", "--only", "case"]), 0)
         self.chrome.assert_not_called()
@@ -587,6 +588,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
 
         error = io.StringIO()
         with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                mock.patch.object(check, "_parallel_process", side_effect=lambda command, registry, **kwargs: fake(command, **kwargs)), \
                 mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "3"}), \
                 mock.patch.dict(check.STEPS, {"browser": (True, [serial, *launches, serial])}), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
@@ -618,6 +620,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
 
                 receipt = mock.Mock()
                 with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                           mock.patch.object(check, "_parallel_process", side_effect=lambda command, registry, **kwargs: fake(command, **kwargs)), \
                         mock.patch.object(check, "_RECEIPT", receipt), \
                         mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": jobs,
                                                      "WASM_BINDGEN_TEST_WEBDRIVER_JSON": config.name, "CHROME_BIN": "/bin/true"}), \
@@ -663,6 +666,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             return mock.Mock(returncode=0, stdout="ok\n")
 
         with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                mock.patch.object(check, "_parallel_process", side_effect=lambda command, registry, **kwargs: fake(command, **kwargs)), \
                 mock.patch.dict(check.STEPS, {"test": (True, commands)}), \
                 contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(check.run(["test"]), 0)
@@ -670,6 +674,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
 
         launched.clear()
         with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                mock.patch.object(check, "_parallel_process", side_effect=lambda command, registry, **kwargs: fake(command, **kwargs)), \
                 mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}), \
                 mock.patch.dict(check.STEPS, {"test": (True, commands)}), \
                 contextlib.redirect_stdout(io.StringIO()):
@@ -695,6 +700,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
 
         output = io.StringIO()
         with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                mock.patch.object(check, "_parallel_process", side_effect=lambda command, registry, **kwargs: fake(command, **kwargs)), \
                 contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(check.main(["browser", "--only", "case", "ui-shared"]), 0)
         self.assertEqual(len(seen), 3, "case plus both ui-shared launches run without build or smoke")
@@ -756,6 +762,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
 
         error = io.StringIO()
         with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                mock.patch.object(check, "_parallel_process", side_effect=lambda command, registry, **kwargs: fake(command, **kwargs)), \
                 mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
             self.assertEqual(
@@ -779,6 +786,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         page_list = ["wasm-pack", "test", "--headless", "--chrome", "web", "--bin", "boardstudio-web", "--", "--list"]
         page_run = [sys.executable, "scripts/run-wasm-tests.py", "--all"]
         with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                mock.patch.object(check, "_parallel_process", side_effect=lambda command, registry, **kwargs: fake(command, **kwargs)), \
                 mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), \
                 mock.patch.dict(check.STEPS, {"browser": (True, [*launches, page_list, page_run])}), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
@@ -792,6 +800,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             return mock.Mock(returncode=1 if "--list" in command else 0, stdout="")
 
         with mock.patch.object(check.subprocess, "run", side_effect=fail_list), \
+                mock.patch.object(check, "_parallel_process", side_effect=lambda command, registry, **kwargs: fail_list(command, **kwargs)), \
                 mock.patch.dict(check.STEPS, {"browser": (True, [*launches, page_list, page_run])}), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(check.run(["browser"], keep_going=True), 1)
