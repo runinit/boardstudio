@@ -63,6 +63,21 @@ class AttributionTests(unittest.TestCase):
         self.assertAlmostEqual(attrib, REPORT.active_union(self.records()))
 
 
+class RealCpuTests(unittest.TestCase):
+    def test_wrapper_records_child_cpu_and_report_totals_it(self):
+        import json, os, subprocess, sys, tempfile
+        code = "sum(range(10**7))"
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "units.jsonl"
+            env = dict(os.environ, BUILDTIME_LOG=str(log))
+            subprocess.run([sys.executable, "-B", str(KIT / "rustc-log.py"), sys.executable, "-c", code,
+                            "--crate-name", "burner"], env=env, check=True)
+            record = json.loads(log.read_text())
+        self.assertGreater(record["cpu"], 0.05)
+        self.assertAlmostEqual(REPORT.real_cpu([record]), record["cpu"])
+        self.assertIsNone(REPORT.real_cpu([{"crate": "old", "start": 0.0, "secs": 1.0}]))
+
+
 class SeedRefusalTests(unittest.TestCase):
     def make_tree(self, base, toolchain="same", targets=()):
         base.mkdir(parents=True, exist_ok=True)
