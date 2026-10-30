@@ -78,7 +78,7 @@ TOOLING_TESTS = (
     "scripts/test-build-web.py", "scripts/test-build-patched-wasm-bindgen.py", "scripts/test-serve-web.py",
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
-    "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
+    "scripts/test-gitnexus-stop-hook.py",
     "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py", "scripts/test-parallel-interrupt.py", "scripts/test-verify-no-node.py", "scripts/test-build-time.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
     "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
@@ -196,7 +196,9 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
     # The routine build skips wasm-opt and the optimized Dioxus build; `release` keeps both.
     "build": (True, [[PY, "scripts/build-web.py", "--fast"]]),
     "release": (False, [[PY, "scripts/build-web.py"]]),
-    "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cad.py"]]),
+    # test-import-kicad-parts builds its own example binary, so it runs in this batch rather
+    # than alone in tooling; `check.py tooling` no longer runs it.
+    "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cad.py"], [PY, "scripts/test-import-kicad-parts.py"]]),
     "typecheck": (False, typecheck()),
     "browser": (True, browser()),
     "drag-smoke": (False, [DRAG_SMOKE]),
