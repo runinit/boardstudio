@@ -1,6 +1,6 @@
 # 02: Commit the measurement kit and rebaseline
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [01](01-land-round-one-and-audit.md)
 Parent: [map](../map.md)
