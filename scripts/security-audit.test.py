@@ -83,6 +83,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
                     audit.main()
                 self.assertEqual(result.exception.code, 1)
 
+    def test_accepted_unsound_advisory_is_ignored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for lock in ("Cargo.lock", "cad/wasm/Cargo.lock", "cad/monstertruck/Cargo.lock",
+                         "renderer/vendor/cgmath-next-0.18.1/Cargo.lock"):
+                path = root / lock
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('[[package]]\nname = "other"\nversion = "1.0.0"\n')
+            metadata = {"packages": [{
+                "name": "cgmath",
+                "version": "0.18.0",
+                "manifest_path": str(audit.VENDOR / "Cargo.toml"),
+                "targets": [{"name": "cgmath", "kind": ["lib"]}],
+            }]}
+            seen = []
+
+            def cargo_audit(command, **kwargs):
+                seen.append(command)
+                return audit.subprocess.CompletedProcess(command, 0)
+
+            with patch.object(audit, "ROOT", root), \
+                    patch.object(audit.subprocess, "check_output", return_value=json.dumps(metadata).encode()), \
+                    patch.object(audit.subprocess, "run", side_effect=cargo_audit):
+                with self.assertRaises(SystemExit) as result:
+                    audit.main()
+                self.assertEqual(result.exception.code, 0)
+            for command in seen:
+                for advisory in audit.ACCEPTED_ADVISORIES:
+                    self.assertIn(advisory, command)
+
     def test_tampered_vendor_and_wrong_resolution_fail_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

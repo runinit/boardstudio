@@ -4,7 +4,7 @@ status: accepted
 
 # Parts live in the half frame; mirrored by default, local by pin
 
-Ticket 12 ([12-half-frame-parts-and-mirrored-controller](../plans/split-board-editing/issues/12-half-frame-parts-and-mirrored-controller.md))
+Ticket 12 (12-half-frame-parts-and-mirrored-controller)
 extends the ticket-09 half frame from matrix origins to independent parts: a
 part on a stored-gap half stores a within-half pose, while the canvas,
 constraints and spacing all work board-space. A new controller on a mirrored

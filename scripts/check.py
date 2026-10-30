@@ -82,6 +82,7 @@ TOOLING_TESTS = (
     "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py", "scripts/test-parallel-interrupt.py", "scripts/test-verify-no-node.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
     "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
+    "scripts/test-ci-workflow.py",
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 ISOLATED = ("presentation::case_workspace::",)
@@ -541,7 +542,7 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                  outputs: list[tuple[Command, str]] | None = None,
                  receipt: verification_receipt.Collector | None = None,
                  step: str = "") -> tuple[float, list[Command]]:
-    """Runs independent launches together, printing each one's output whole and in order."""
+    """Runs independent launches together, printing each completed launch's output whole."""
     lock_fd = browser_tools._inherited_build_lock()
     # Workers retain completed results even if submit is interrupted before it
     # returns the corresponding future to the main thread.
@@ -627,29 +628,31 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                 signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
         submitting = False
         pending = {future for _, future in futures}
-        for command, future in futures:
-            while not future.done():
-                finished, pending = wait(pending, return_when=FIRST_COMPLETED)
-                with registry["lock"]:
-                    read_error = registry.get("read_failed")
-                if read_error is not None:
-                    raise read_error
-            if future.cancelled():
-                continue
-            code, output, elapsed, started_at, ended_at, attempt = future.result()
-            text = output_text(output)
-            if receipt is not None:
-                receipt.observe(step, command, code, elapsed, text, started_at=started_at,
-                                ended_at=ended_at, attempt_id=attempt)
-            if captured is not None and is_cargo_test(command):
-                captured.append((command, text))
-            if outputs is not None:
-                outputs.append((command, text))
-            if code:
-                failed.append(command)
-            print("$ " + shlex.join(command), flush=True)
-            print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
-            print(f"  ({elapsed:.1f}s)", flush=True)
+        commands_by_future = {future: command for command, future in futures}
+        while pending:
+            finished, pending = wait(pending, return_when=FIRST_COMPLETED)
+            with registry["lock"]:
+                read_error = registry.get("read_failed")
+            if read_error is not None:
+                raise read_error
+            for future in finished:
+                if future.cancelled():
+                    continue
+                command = commands_by_future[future]
+                code, output, elapsed, started_at, ended_at, attempt = future.result()
+                text = output_text(output)
+                if receipt is not None:
+                    receipt.observe(step, command, code, elapsed, text, started_at=started_at,
+                                    ended_at=ended_at, attempt_id=attempt)
+                if captured is not None and is_cargo_test(command):
+                    captured.append((command, text))
+                if outputs is not None:
+                    outputs.append((command, text))
+                if code:
+                    failed.append(command)
+                print("$ " + shlex.join(command), flush=True)
+                print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
+                print(f"  ({elapsed:.1f}s)", flush=True)
     except BaseException as caught:
         error = caught
     finally:

@@ -2,8 +2,8 @@
 //!
 //! Each module is a former `tests/<name>.rs` test crate, included in place so its
 //! relative `include_str!` fixtures and `#[path]` helpers keep resolving.
-//! `matrix_performance` stays a separate binary: it times work and should not
-//! share the test thread pool with everything else.
+//! `performance` and `matrix_performance` stay separate binaries: they time work
+//! and should not share the test thread pool with everything else.
 
 #[path = "boundary_parity.rs"]
 mod boundary_parity;

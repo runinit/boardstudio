@@ -4,7 +4,7 @@ status: accepted
 
 # Adaptive spacing keeps split outlines apart after every committed edit
 
-Ticket 10 ([10-adaptive-spacing-on-commit](../plans/split-board-editing/issues/10-adaptive-spacing-on-commit.md))
+Ticket 10 (10-adaptive-spacing-on-commit)
 decides the spacing policy ADR-0037 deferred: after every committed edit that
 changes the document, each stored-gap pair's current spacing becomes
 `max(stored gap, minimum)`, symmetric about the split axis, in the same Undo entry.
