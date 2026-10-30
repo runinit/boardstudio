@@ -1,6 +1,18 @@
 # 07: Drop Inflector's regex from the CAD trees
 
-Status: ready-for-agent
+Status: resolved
+
+## Resolution (2026-10-30)
+
+Vendored `Inflector-0.11.4` at `cad/monstertruck-qualification/vendor/inflector` with
+`default = []`, patched into all three CAD trees, added to `VENDOR_CRATES`. RED: regex reached
+only via `step-p21 -> Inflector` in all three trees; GREEN: `cargo tree -i regex` matches nothing
+in any of them (3 lockfiles shed regex/regex-automata/regex-syntax/aho-corasick/lazy_static).
+Vendoring needed 12 no-op `.clone()` removals and one unused-import allow because path deps miss
+cargo's lint cap (recorded in SOURCE.md). CAD suite green, `check.py deny` passes (root-only scan,
+so no allow-list change needed; the BSD-2-Clause approval stands unused). CAD provider wasm
+10.7 MB -> 7.3 MB. Test step: 269.2 s / 1370 CPU-s -> 235.2 s / 1219 CPU-s (-151 CPU-s, above the
+60 stop line).
 Type: build
 Blocked by: [02](02-measurement-kit.md)
 Parent: [map](../map.md)
