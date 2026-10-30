@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """One logged cold run: wipe this worktree's build outputs, then run check.py.
 
-Usage: cold.py <name> [check.py steps...]
+Usage: cold.py <name> [--no-wipe] [check.py steps...]
 Logs land in .evidence/build-time/<name>.{log,jsonl} regardless of the caller's cwd.
 Refuses to run when the wipe would not be a comparable cold run.
 """
@@ -38,12 +38,14 @@ def main(argv):
         print(__doc__, file=sys.stderr)
         return 2
     name, steps = argv[0], argv[1:]
-    reasons = refusal_reasons(os.environ, lambda p: (ROOT / p).is_symlink(), os.getloadavg()[0])
+    no_wipe = "--no-wipe" in steps
+    steps = [s for s in steps if s != "--no-wipe"]
+    reasons = [] if no_wipe else refusal_reasons(os.environ, lambda p: (ROOT / p).is_symlink(), os.getloadavg()[0])
     if reasons:
         for reason in reasons:
             print(f"cold: refusing to run: {reason}", file=sys.stderr)
         return 2
-    for rel in WIPE:
+    for rel in [] if no_wipe else WIPE:
         path = ROOT / rel
         if path.is_symlink() or path.is_file():
             path.unlink()

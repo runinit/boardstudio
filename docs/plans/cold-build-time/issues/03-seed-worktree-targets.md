@@ -1,6 +1,6 @@
 # 03: Seed new worktree targets by reflink
 
-Status: ready-for-agent
+Status: claimed
 Type: prototype
 Blocked by: [02](02-measurement-kit.md)
 Parent: [map](../map.md)
