@@ -91,6 +91,14 @@ about 700 to 800 s; a cold run in an existing worktree to about 900 to 1000 s.
 | [14](issues/14-dioxus-default-features.md) | Remove Dioxus default features | -3 | -41 | none | 1 day + upkeep | **Drop** |
 | [15](issues/15-cad-test-dev-deps.md) | Trim CAD test dependencies | -2 to -5 | -20 to -50 | none | half a day | **Drop** |
 
+Second round, after the single browser build (986.6 s cold). Estimates are from one run's logs:
+
+| # | Ticket | Cold wall | Verdict |
+|---|---|---:|---|
+| [16](issues/16-browser-launch-concurrency.md) | More crate launches at once; prebuild the page test | -20 to -35 | Do first |
+| [17](issues/17-browser-overlap.md) | Overlap gates and page filters; strip A/B | -125 to -180 | Do, part by part |
+| [18](issues/18-browser-test-cleanup.md) | Bounded waits; test overlap and irrelevant tests | unknown until `layout` is timed | Do; removals need approval |
+
 ## Decisions so far
 
 - Keep `jobs = 12`, stable 1.98 and every gate.
