@@ -780,6 +780,105 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                                  "the receipt keeps the only attempt's exit code and whole output")
                 self.assertEqual(check.summarize_wasm_failure(stalled)["kind"], "timeout")
 
+    def test_browser_prebuild_overlaps_gates_but_finishes_before_browser_deadlines(self):
+        commands = check.browser()
+        prebuild_index = commands.index(check.BROWSER_PREBUILD)
+        gates = commands[:prebuild_index]
+        deadline = [check.PY, "cad/scripts/test-cad-browser.py"]
+        self.assertEqual(commands[prebuild_index + 1], deadline)
+        self.assertEqual(commands[prebuild_index + 2], check.HARNESS_PREBUILD)
+        started, release, finished = threading.Event(), threading.Event(), threading.Event()
+        seen = []
+
+        def fake(command, **kwargs):
+            seen.append(command)
+            if command == check.BROWSER_PREBUILD:
+                self.assertNotIn("BOARDSTUDIO_BUILD_LOCK_FD", kwargs["env"])
+                self.assertEqual(kwargs.get("stdout"), subprocess.PIPE)
+                started.set()
+                if not release.wait(5):
+                    raise TimeoutError("gate did not overlap prebuild")
+                finished.set()
+                return mock.Mock(returncode=0, stdout="whole compile output\n")
+            if command in gates:
+                self.assertTrue(started.wait(5))
+                self.assertEqual(kwargs["env"].get("BOARDSTUDIO_BUILD_LOCK_FD"), "42")
+                if command == gates[-1]:
+                    release.set()
+            if command == deadline:
+                self.assertTrue(finished.is_set())
+            return mock.Mock(returncode=0, stdout="")
+
+        output = io.StringIO()
+        receipt = mock.Mock(run_id="run")
+        receipt.prepare.side_effect = lambda command, **kwargs: shlex.join(command)
+        try:
+            with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                 mock.patch.object(check.browser_tools, "_inherited_build_lock", return_value=None), \
+                 mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), \
+                 contextlib.redirect_stdout(output):
+                _, passed = check.run_commands("browser", [*gates, check.BROWSER_PREBUILD, deadline],
+                                               {"BOARDSTUDIO_BUILD_LOCK_FD": "42"}, receipt=receipt)
+        finally:
+            release.set()
+        self.assertTrue(passed)
+        self.assertEqual([command for command in seen if command in gates], gates)
+        self.assertEqual(seen[-1], deadline)
+        self.assertIn("whole compile output\n", output.getvalue())
+        self.assertEqual(receipt.prepare.call_count, len(gates) + 2)
+        self.assertEqual(receipt.observe.call_count, len(gates) + 2)
+        observed = [call.args for call in receipt.observe.call_args_list]
+        self.assertEqual(next(args[4] for args in observed if args[1] == check.BROWSER_PREBUILD),
+                         "whole compile output\n")
+
+    def test_browser_prebuild_and_gates_remain_serial_with_one_job(self):
+        gate = [check.PY, "cad/scripts/test-cad-provider.py"]
+        deadline = [check.PY, "cad/scripts/test-cad-browser.py"]
+        commands = [gate, check.BROWSER_PREBUILD, deadline]
+        seen = []
+
+        def fake(command, **kwargs):
+            seen.append(command)
+            return mock.Mock(returncode=0, stdout="")
+
+        with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+             mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}), \
+             contextlib.redirect_stdout(io.StringIO()):
+            _, passed = check.run_commands("browser", commands, {})
+        self.assertTrue(passed)
+        self.assertEqual(seen, commands)
+
+    def test_failing_gate_and_prebuild_are_both_reported_and_keep_going_is_honoured(self):
+        gate = [check.PY, "cad/scripts/test-cad-provider.py"]
+        later_gate = [check.PY, "scripts/check-wasm-tests.py"]
+        deadline = [check.PY, "cad/scripts/test-cad-browser.py"]
+        commands = [gate, later_gate, check.BROWSER_PREBUILD, deadline]
+        for keep_going in (False, True):
+            with self.subTest(keep_going=keep_going):
+                seen = []
+
+                def fake(command, **kwargs):
+                    seen.append(command)
+                    code = int(command in (gate, check.BROWSER_PREBUILD))
+                    return mock.Mock(returncode=code, stdout="compile error\n" if command == check.BROWSER_PREBUILD else "")
+
+                out, err = io.StringIO(), io.StringIO()
+                receipt = mock.Mock(run_id="run")
+                receipt.prepare.side_effect = lambda command, **kwargs: shlex.join(command)
+                with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                     mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), \
+                     contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                    _, passed = check.run_commands("browser", commands, {}, keep_going=keep_going, receipt=receipt)
+                self.assertFalse(passed)
+                self.assertIn(shlex.join(gate), err.getvalue())
+                self.assertIn(shlex.join(check.BROWSER_PREBUILD), err.getvalue())
+                self.assertIn("compile error\n", out.getvalue())
+                self.assertEqual(later_gate in seen, keep_going)
+                self.assertEqual(deadline in seen, keep_going)
+                observed = [call.args[1] for call in receipt.observe.call_args_list]
+                self.assertIn(gate, observed)
+                self.assertIn(check.BROWSER_PREBUILD, observed)
+
     def test_the_browser_job_cap_defaults_to_available_cpus_up_to_six(self):
         with mock.patch.dict(os.environ), mock.patch.object(check.os, "cpu_count", return_value=12):
             os.environ.pop("BOARDSTUDIO_CHECK_JOBS", None)

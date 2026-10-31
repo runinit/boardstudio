@@ -128,8 +128,8 @@ def browser() -> list[Command]:
         [PY, "scripts/model-lookup-pilot.py", "--gate"],
         [PY, "-B", "scripts/ergogen-parity/test_generate.py", "--source"],
         [PY, "cad/scripts/face-completeness-gate.py"],
-        [PY, "cad/scripts/test-cad-browser.py"],
         BROWSER_PREBUILD,
+        [PY, "cad/scripts/test-cad-browser.py"],
         # The harness binary prebuilds beside the crate launches; the smoke itself runs after
         # the batch, needing only the built site and binary. Fail-fast order changes deliberately:
         # launch failures now surface before the smoke instead of after it.
@@ -475,7 +475,7 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
     print("$ " + shlex.join(command), flush=True)
     lock_fd = browser_tools._inherited_build_lock()
     if not any(part in command for part in ("scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py", "cad/scripts/face-completeness-gate.py", "cad/scripts/test-cad-provider.py", "scripts/build-web.py",
-               "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py", "scripts/model-lookup-pilot.py", "scripts/ergogen-parity/test_generate.py")):
+               "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py", "scripts/model-lookup-pilot.py", "scripts/ergogen-parity/test_generate.py", "scripts/check-wasm-tests.py")):
         environment = environment.copy()
         environment.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
     lock_args = {"pass_fds": (lock_fd,)} if lock_fd is not None else {}
@@ -497,13 +497,14 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
         if completed is not None:
             completed(result.returncode, time.monotonic() - started, started_at, datetime.now(timezone.utc).isoformat())
         return result
-    if captured is not None and is_cargo_test(command):
-        # The native test-name guard reads this output; it is printed whole once the command ends.
+    if (captured is not None and is_cargo_test(command)) or command == BROWSER_PREBUILD:
+        # The test-name guard needs native output; the overlapping prebuild must not interleave.
         done = run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, text=True, **lock_args)
         text = output_text(done.stdout)
         print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
-        captured.append((command, text))
+        if captured is not None and is_cargo_test(command):
+            captured.append((command, text))
         if outputs is not None:
             outputs.append((command, text))
         code = done.returncode
@@ -849,6 +850,49 @@ def _run_lint_overlap(commands: list[Command], environment: dict[str, str], cwd:
         pool.shutdown(wait=True)
 
 
+def _run_browser_overlap(name: str, gates: list[Command], environment: dict[str, str], cwd: Path,
+                         captured: list[tuple[Command, str]] | None, *, keep_going: bool,
+                         receipt: verification_receipt.Collector | None) -> tuple[float, bool]:
+    """Run the prebuild beside the preceding gates, joining it before browser deadlines."""
+    total = 0.0
+    failed = False
+
+    def prepare(command):
+        outputs = []
+        attempt = receipt.prepare(command, step=name) if receipt is not None else None
+        child_env = environment.copy()
+        if receipt is not None:
+            child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
+        completed = (lambda code, elapsed, start, end: receipt.recording_failed(attempt, code, elapsed, start, end)) if receipt is not None else None
+        return (command, child_env, cwd, captured, outputs, completed), outputs, attempt
+
+    def observe(command, result, outputs, attempt):
+        nonlocal total, failed
+        elapsed, code, started_at, ended_at = result
+        total += elapsed
+        if receipt is not None:
+            try:
+                receipt.observe(name, command, code, elapsed, outputs[-1][1] if outputs else "",
+                                started_at=started_at, ended_at=ended_at, attempt_id=attempt)
+            except BaseException:
+                receipt.recording_failed(attempt, code, elapsed, started_at, ended_at)
+                raise
+        if code:
+            failed = True
+            print("check: command failed: " + shlex.join(command), file=sys.stderr)
+        return code == 0
+
+    prebuild_args, prebuild_outputs, prebuild_attempt = prepare(BROWSER_PREBUILD)
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="browser-prebuild") as pool:
+        future = pool.submit(run_serial, *prebuild_args)
+        for command in gates:
+            args, outputs, attempt = prepare(command)
+            if not observe(command, run_serial(*args), outputs, attempt) and not keep_going:
+                break
+        observe(BROWSER_PREBUILD, future.result(), prebuild_outputs, prebuild_attempt)
+    return total, not failed
+
+
 def run_commands(name: str, commands: list[Command], environment: dict[str, str], cwd: Path = ROOT,
                  captured: list[tuple[Command, str]] | None = None,
                  *, keep_going: bool = False,
@@ -867,6 +911,14 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
     total = 0.0
     any_failed = False
     index = 0
+    if browser_step and check_jobs() > 1 and BROWSER_PREBUILD in commands:
+        index = commands.index(BROWSER_PREBUILD) + 1
+        total, passed = _run_browser_overlap(name, commands[:index - 1], environment, cwd, captured,
+                                             keep_going=keep_going, receipt=receipt)
+        if not passed:
+            if not keep_going:
+                return total, False
+            any_failed = True
     while index < len(commands):
         command = commands[index]
         if browser_step and check_jobs() > 1 and (is_crate_launch(command) or is_harness_build(command)):
