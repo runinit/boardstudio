@@ -101,7 +101,11 @@ says so. Documentation-only changes run only the documentation checks.
 **Full check.** The default runs documentation link checks, build and content tool tests, rustfmt and
 Clippy, native Rust and provider tests, a checked web build, native/WASM boundary checks and mounted
 headless browser tests. Name steps (`python3 scripts/check.py --list`) to run only some. Each command
-and step prints its wall time. The checked `build` skips `wasm-opt` and the optimized page build; the
+and step prints its wall time. On machines with 8 or more CPUs the full check runs `lint`, `test` and
+`build` at the same time, each as its own `check.py` child whose output prints whole in plan order;
+`lint` then builds into `target/lint`, and a shared jobserver caps rustc across the three. Smaller
+machines, `BOARDSTUDIO_CHECK_JOBS=1`, `--receipt` and partial plans keep the serial order.
+The checked `build` skips `wasm-opt` and the optimized page build; the
 opt-in `release` step (`python3 scripts/check.py release`) keeps both and is what ships.
 Running the `browser` step by itself first rebuilds the checked page so its real-page drag smoke
 cannot pass against stale frontend assets. Run `python3 scripts/check.py drag-smoke` for that small

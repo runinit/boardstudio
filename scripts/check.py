@@ -40,6 +40,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 import argparse
 import codecs
+import contextlib
 import io
 import importlib.util
 import json
@@ -574,8 +575,15 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                  captured: list[tuple[Command, str]] | None = None,
                  outputs: list[tuple[Command, str]] | None = None,
                  receipt: verification_receipt.Collector | None = None,
-                 step: str = "") -> tuple[float, list[Command]]:
-    """Runs independent launches together, printing each completed launch's output whole."""
+                 step: str = "",
+                 command_environments: dict[tuple[str, ...], dict[str, str]] | None = None,
+                 elapsed_by_command: dict[tuple[str, ...], float] | None = None,
+                 in_order: bool = False) -> tuple[float, list[Command]]:
+    """Runs independent launches together, printing each completed launch's output whole.
+
+    `command_environments` overrides the environment per command; `elapsed_by_command`
+    collects each command's wall time (commands must be distinct). With `in_order`,
+    completed outputs print in batch order instead of completion order."""
     lock_fd = browser_tools._inherited_build_lock()
     # Workers retain completed results even if submit is interrupted before it
     # returns the corresponding future to the main thread.
@@ -600,10 +608,14 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         started = time.monotonic()
         started_at = datetime.now(timezone.utc).isoformat()
         print(f"check: start {started_at} $ {shlex.join(command)}", flush=True)
-        child_env = environment.copy()
+        base = environment
+        if command_environments is not None:
+            base = command_environments.get(tuple(command), environment)
+        child_env = base.copy()
         if receipt is not None:
             child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
-        if "cad/scripts/test-cad.py" not in command:
+        # Coordinators re-validate the lock and propagate it to their own commands.
+        if "cad/scripts/test-cad.py" not in command and "scripts/check.py" not in command:
             child_env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
         done = launch_command(command, registry=registry, cwd=ROOT, env=child_env, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, text=True,
@@ -662,6 +674,28 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         submitting = False
         pending = {future for _, future in futures}
         commands_by_future = {future: command for command, future in futures}
+        index_by_future = {future: index for index, (_, future) in enumerate(futures)}
+        buffered: dict[int, tuple[Command, tuple]] = {}
+        next_index = 0
+
+        def emit(command: Command, result: tuple) -> None:
+            code, output, elapsed, started_at, ended_at, attempt = result
+            text = output_text(output)
+            if receipt is not None:
+                receipt.observe(step, command, code, elapsed, text, started_at=started_at,
+                                ended_at=ended_at, attempt_id=attempt)
+            if captured is not None and is_cargo_test(command):
+                captured.append((command, text))
+            if outputs is not None:
+                outputs.append((command, text))
+            if code:
+                failed.append(command)
+            if elapsed_by_command is not None:
+                elapsed_by_command[tuple(command)] = elapsed
+            print("$ " + shlex.join(command), flush=True)
+            print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
+            print(f"  ({elapsed:.1f}s)", flush=True)
+
         while pending:
             finished, pending = wait(pending, return_when=FIRST_COMPLETED)
             with registry["lock"]:
@@ -672,20 +706,15 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                 if future.cancelled():
                     continue
                 command = commands_by_future[future]
-                code, output, elapsed, started_at, ended_at, attempt = future.result()
-                text = output_text(output)
-                if receipt is not None:
-                    receipt.observe(step, command, code, elapsed, text, started_at=started_at,
-                                    ended_at=ended_at, attempt_id=attempt)
-                if captured is not None and is_cargo_test(command):
-                    captured.append((command, text))
-                if outputs is not None:
-                    outputs.append((command, text))
-                if code:
-                    failed.append(command)
-                print("$ " + shlex.join(command), flush=True)
-                print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
-                print(f"  ({elapsed:.1f}s)", flush=True)
+                result = future.result()
+                if in_order:
+                    buffered[index_by_future[future]] = (command, result)
+                else:
+                    emit(command, result)
+            while in_order and next_index in buffered:
+                command, result = buffered.pop(next_index)
+                emit(command, result)
+                next_index += 1
     except BaseException as caught:
         error = caught
     finally:
@@ -1101,6 +1130,104 @@ def build_preflight(*, cad: bool = False, cad_wasm: bool = False) -> bool:
     return True
 
 
+OVERLAP_MIN_CPUS = 8
+OVERLAP_STEPS = frozenset({"lint", "test", "build"})
+
+
+def _overlap_split(plan: list[tuple[str, list[Command]]],
+                   *, receipt: verification_receipt.Collector | None) -> tuple[
+                       list[tuple[str, list[Command]]], list[tuple[str, list[Command]]],
+                       list[tuple[str, list[Command]]]] | None:
+    """Split off a lint/test/build group to overlap, or None to stay serial.
+
+    Overlap needs all three steps as one contiguous block, enough CPUs, parallel jobs,
+    and no receipt; hosted 4 vCPU runs, `--only`/quick subsets and single-job runs keep
+    the serial order.
+    """
+    if receipt is not None or check_jobs() <= 1 or (os.cpu_count() or 0) < OVERLAP_MIN_CPUS:
+        return None
+    names = [name for name, _ in plan]
+    if not OVERLAP_STEPS.issubset(names):
+        return None
+    indices = sorted(names.index(step) for step in OVERLAP_STEPS)
+    if indices != list(range(indices[0], indices[0] + 3)):
+        return None
+    return plan[:indices[0]], plan[indices[0]:indices[0] + 3], plan[indices[0] + 3:]
+
+
+def _overlap_child_commands(group: list[tuple[str, list[Command]]],
+                            update_native_baseline: bool) -> tuple[
+                                list[Command], dict[tuple[str, ...], dict[str, str]]]:
+    """Child `check.py <step>` commands for one overlapped group, with their environments.
+
+    Single-step children cannot overlap again. `lint` builds into `target/lint` so it does
+    not queue behind `test` on the shared target lock; serial runs keep the shared target.
+    """
+    batch: list[Command] = []
+    environments: dict[tuple[str, ...], dict[str, str]] = {}
+    for name, _ in group:
+        command = [sys.executable, "scripts/check.py", name]
+        if name == "test" and update_native_baseline:
+            command.append("--update-native-baseline")
+        environment = os.environ.copy()
+        if name == "test":
+            environment.pop("APPDIR", None)
+        if name == "lint":
+            environment["CARGO_TARGET_DIR"] = "target/lint"
+        batch.append(command)
+        environments[tuple(command)] = environment
+    return batch, environments
+
+
+@contextlib.contextmanager
+def _overlap_jobserver(environments: dict[tuple[str, ...], dict[str, str]]):
+    """Share one fifo jobserver across the overlapped children, capping rustc at the CPU count.
+
+    Yields the child MAKEFLAGS, or None when an outer jobserver is already inherited. Cargo
+    honours the fifo (a 2-token probe held both tokens and bounded rustc); the fifo is
+    removed afterwards, including on interrupts.
+    """
+    parent_flags = os.environ.get("MAKEFLAGS", "")
+    if "--jobserver" in parent_flags:
+        yield None
+        return
+    directory = tempfile.mkdtemp(prefix="check-jobserver-")
+    path = os.path.join(directory, "jobserver")
+    os.mkfifo(path)
+    handle = os.open(path, os.O_RDWR)
+    try:
+        os.write(handle, b"+" * max(1, (os.cpu_count() or 1) - 1))
+        value = f"--jobserver-auth=fifo:{path}"
+        if parent_flags:
+            value = f"{parent_flags} {value}"
+        for environment in environments.values():
+            environment["MAKEFLAGS"] = value
+        yield value
+    finally:
+        os.close(handle)
+        os.unlink(path)
+        os.rmdir(directory)
+
+
+def _run_overlapped_steps(group: list[tuple[str, list[Command]]],
+                          update_native_baseline: bool) -> tuple[dict[str, float], list[str]]:
+    """Run one overlapped group as child `check.py` steps; returns step walls and failed steps.
+
+    Every child runs to completion on the shared `run_parallel` machinery; each child's
+    output prints whole, in plan order.
+    """
+    for name, _ in group:
+        print(f"== {name}", flush=True)
+    batch, environments = _overlap_child_commands(group, update_native_baseline)
+    walls: dict[tuple[str, ...], float] = {}
+    with _overlap_jobserver(environments):
+        _, failed = run_parallel(batch, os.environ.copy(), command_environments=environments,
+                                 elapsed_by_command=walls, in_order=True)
+    elapsed = {name: walls[tuple(command)] for (name, _), command in zip(group, batch)}
+    failed_steps = [name for (name, _), command in zip(group, batch) if command in failed]
+    return elapsed, failed_steps
+
+
 def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool = False,
              *, keep_going: bool = False, partial: bool = False) -> int:
     if _RECEIPT is not None:
@@ -1152,7 +1279,8 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=F
         _RECEIPT = None
         return code
 
-    for name, commands in plan:
+    def run_step(name: str, commands: list[Command]) -> bool:
+        nonlocal baseline_written
         print(f"== {name}", flush=True)
         environment = os.environ.copy()
         if name == "test":
@@ -1165,7 +1293,7 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=F
                 environment = wasm_bindgen_tools.configure(environment, ROOT)
             except ValueError as error:
                 print(f"check: {error}", file=sys.stderr)
-                return finish(1)
+                return False
             # Match the page runner's bounded budget for direct wasm-pack crate batches.
             environment.setdefault("WASM_BINDGEN_TEST_TIMEOUT", "120")
             # Test wasm without DWARF is about a seventh of the size, which is most of a launch.
@@ -1186,13 +1314,40 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=F
             baseline_written = baseline_written or written
         if not passed:
             print(f"check: step '{name}' failed", file=sys.stderr)
+            return False
+        return True
+
+    overlap = _overlap_split(plan, receipt=receipt)
+    run_started = time.monotonic() if overlap is not None else None
+    if overlap is not None:
+        pre, group, post = overlap
+        for name, commands in pre:
+            if not run_step(name, commands):
+                return finish(1)
+        step_walls, failed_steps = _run_overlapped_steps(group, update_native_baseline)
+        for name, seconds in step_walls.items():
+            totals[name] = totals.get(name, 0.0) + seconds
+        if failed_steps:
+            for name in failed_steps:
+                print(f"check: step '{name}' failed", file=sys.stderr)
             return finish(1)
+        if update_native_baseline:
+            # The test child records its own baseline; the parent ran no native tests itself.
+            baseline_written = True
+        for name, commands in post:
+            if not run_step(name, commands):
+                return finish(1)
+    else:
+        for name, commands in plan:
+            if not run_step(name, commands):
+                return finish(1)
     if update_native_baseline and not baseline_written:
         print("check: --update-native-baseline: no native `cargo test` ran, so the baseline is unchanged",
               file=sys.stderr)
         return finish(1)
+    total = time.monotonic() - run_started if run_started is not None else sum(totals.values())
     print("check: step times: " + ", ".join(f"{name} {seconds:.1f}s" for name, seconds in totals.items())
-          + f", total {sum(totals.values()):.1f}s")
+          + f", total {total:.1f}s")
     if partial:
         print("check: partial steps passed: " + ", ".join(dict.fromkeys(names))
               + " (subset only; full browser gate not run)")

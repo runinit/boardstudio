@@ -1,6 +1,26 @@
 # 19: Run lint, test and build together
 
-Status: ready-for-agent
+Status: resolved
+
+## Resolution (2026-10-31)
+
+`_run_plan` now splits a contiguous `lint`/`test`/`build` block into child `check.py <step>`
+processes on the shared `run_parallel` machinery (process groups, cancellation) when
+`OVERLAP_MIN_CPUS = 8` CPUs are present, `check_jobs() > 1`, and no `--receipt` is active.
+Serial `repo`/`tooling` run first, then the group, then `browser`; any group failure skips
+`browser` and every failed step is reported. Each child's output prints whole in plan order
+(`in_order`), with immediate start/end markers; step times are per-child walls and the total
+is run wall, not a sum. `lint` gets `CARGO_TARGET_DIR=target/lint` only when overlapping
+(the harness clippy keeps its `--manifest-path`; only its target dir moves, which Cargo
+supports). `--update-native-baseline` passes to the `test` child only. The fifo jobserver
+(`cpu_count - 1` tokens, `MAKEFLAGS=--jobserver-auth=fifo:<path>`) is kept: a scratch-target
+proof build of `-p boardstudio-contracts` showed both tokens held mid-build with peak rustc
+3 against 5 uncapped, and tokens back to full afterwards. An outer `MAKEFLAGS` jobserver is
+reused instead of replaced. Hosted `repo tooling lint test` / `build browser` plans,
+`--only`, quick plans, `BOARDSTUDIO_CHECK_JOBS=1` and under-8-CPU machines stay serial with
+unchanged command order. `test-check.py` grew 14 tests (82 green). Still to be measured from
+the parent shell: the full cold run, the Clippy/native-test failure mutations, and the
+stop-rule numbers.
 Type: build
 Blocked by: none
 Parent: [map](../map.md)
