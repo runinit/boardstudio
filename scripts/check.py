@@ -78,7 +78,7 @@ TOOLING_TESTS = (
     "scripts/test-build-web.py", "scripts/test-build-patched-wasm-bindgen.py", "scripts/test-serve-web.py",
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
-    "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
+    "scripts/test-gitnexus-stop-hook.py",
     "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py", "scripts/test-parallel-interrupt.py", "scripts/test-verify-no-node.py", "scripts/test-build-time.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
     "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
@@ -87,6 +87,9 @@ TOOLING_TESTS = (
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 ISOLATED = ("presentation::case_workspace::",)
 DRAG_SMOKE = [PY, "scripts/run-drag-browser.py"]
+HARNESS_MANIFEST = "tools/browser-harness/Cargo.toml"
+HARNESS_PREBUILD: Command = ["cargo", "build", "--locked", "--manifest-path", HARNESS_MANIFEST,
+                             "--package", "boardstudio-browser-harness", "--bin", "drag-smoke"]
 LAYOUT_TEST_CSS: list[str] = [
     "dx", "build", "--web", "--no-default-features", "--features", "page", "--cargo-args=--locked",
 ]
@@ -101,10 +104,14 @@ def typecheck() -> list[Command]:
              *WASM_PAGE, "--bin", "boardstudio-web"]]
 
 
+def is_harness_build(command: Command) -> bool:
+    """A prebuild of the drag-smoke binary: joins a crate-launch batch, then the smoke runs."""
+    return command == HARNESS_PREBUILD
+
+
 def browser() -> list[Command]:
     wasm_pack = ["wasm-pack", "test", "--headless", "--chrome", "web", "--locked", *WASM_PAGE]
     return [
-        DRAG_SMOKE,
         [PY, "cad/scripts/test-cad-capture-controls.py"],
         [PY, "cad/scripts/test-cold-responses.py"],
         [PY, "scripts/check-wasm-tests.py"],
@@ -113,6 +120,10 @@ def browser() -> list[Command]:
         [PY, "-B", "scripts/ergogen-parity/test_generate.py", "--source"],
         [PY, "cad/scripts/face-completeness-gate.py"],
         [PY, "cad/scripts/test-cad-browser.py"],
+        # The harness binary prebuilds beside the crate launches; the smoke itself runs after
+        # the batch, needing only the built site and binary. Fail-fast order changes deliberately:
+        # launch failures now surface before the smoke instead of after it.
+        HARNESS_PREBUILD,
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/host", "--locked", "--features", "page",
          "--lib"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/runtime", "--locked", "--lib"],
@@ -131,6 +142,7 @@ def browser() -> list[Command]:
         # webdriver.json gives it the desktop viewport it needs.
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "--skip", "setup_guide::"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "setup_guide::"],
+        DRAG_SMOKE,
         [*wasm_pack, "--bin", "boardstudio-web", "--", "--list"],
         [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
          "--result-json", "web/target/test-results/browser.json"],
@@ -152,7 +164,6 @@ WEB_WASM_PACKAGES: tuple[str, ...] = (
 # `--no-deps` keeps Clippy off the vendored cgmath fork; its lints are audited separately.
 # The browser harness lives outside the workspace with its own lockfile, so it
 # gets its own manifest-scoped format and lint commands.
-HARNESS_MANIFEST = "tools/browser-harness/Cargo.toml"
 LINT: list[list[str]] = [
     ["cargo", "fmt", "--all", "--check"],
     ["cargo", "clippy", "--workspace", "--locked", "--all-targets", "--no-deps", "--", "-D", "warnings"],
@@ -185,7 +196,9 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
     # The routine build skips wasm-opt and the optimized Dioxus build; `release` keeps both.
     "build": (True, [[PY, "scripts/build-web.py", "--fast"]]),
     "release": (False, [[PY, "scripts/build-web.py"]]),
-    "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cad.py"]]),
+    # test-import-kicad-parts builds its own example binary, so it runs in this batch rather
+    # than alone in tooling; `check.py tooling` no longer runs it.
+    "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cad.py"], [PY, "scripts/test-import-kicad-parts.py"]]),
     "typecheck": (False, typecheck()),
     "browser": (True, browser()),
     "drag-smoke": (False, [DRAG_SMOKE]),
@@ -211,6 +224,14 @@ WASM_FRAME_RE = re.compile(r"^\s*at [^\s(]+\.wasm\.([^\s(]+)")
 def is_crate_launch(command: Command) -> bool:
     """One `wasm-pack test` launch of a presentation crate: independent of every other launch."""
     return launch_crate(command) is not None
+
+
+def is_root_clippy(command: Command) -> bool:
+    return command[:2] == ["cargo", "clippy"] and "--manifest-path" not in command
+
+
+def is_harness_clippy(command: Command) -> bool:
+    return command[:2] == ["cargo", "clippy"] and HARNESS_MANIFEST in command
 
 
 def browser_crates(commands: Sequence[Command] | None = None) -> tuple[str, ...]:
@@ -765,26 +786,81 @@ def _report_launch_failure(command: Command, text: str) -> None:
         print("check: " + summary, file=sys.stderr)
 
 
+def _run_lint_overlap(commands: list[Command], environment: dict[str, str], cwd: Path,
+                      captured: list[tuple[Command, str]] | None,
+                      receipt: verification_receipt.Collector | None = None) -> tuple[float, bool]:
+    """Run `lint` with the harness clippy beside the two root clippys.
+
+    The root clippys stay serial with each other (shared host lock); every other command,
+    including the harness clippy's result, is observed in plan order.
+    """
+    total = 0.0
+    pending: list[tuple[Command, object, list, float]] = []
+    pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="lint-harness")
+
+    def observe(command: Command, outputs: list, code: int, elapsed: float,
+                started_at: str, ended_at: str, attempt: str | None) -> bool:
+        if receipt is not None:
+            receipt.observe("lint", command, code, elapsed, outputs[-1][1] if outputs else "",
+                            started_at=started_at, ended_at=ended_at, attempt_id=attempt)
+        return code == 0
+
+    def flush() -> bool:
+        nonlocal total
+        ok = True
+        for command, future, outputs, attempt in pending:
+            elapsed, code, started_at, ended_at = future.result()
+            total += elapsed
+            if not observe(command, outputs, code, elapsed, started_at, ended_at, attempt):
+                ok = False
+        pending.clear()
+        return ok
+
+    try:
+        rest = []
+        for command in commands:
+            serial_outputs: list[tuple[Command, str]] = []
+            child_env = environment.copy()
+            args = (command, child_env, cwd, captured, serial_outputs)
+            attempt = receipt.prepare(command, step="lint") if receipt is not None else None
+            if is_harness_clippy(command):
+                # Submitted before the root clippys run, so it overlaps them.
+                pending.append((command, pool.submit(run_serial, *args), serial_outputs, attempt))
+            else:
+                rest.append((command, args, attempt))
+        for command, args, attempt in rest:
+            elapsed, code, started_at, ended_at = run_serial(*args)
+            total += elapsed
+            if not observe(command, args[4], code, elapsed, started_at, ended_at, attempt):
+                return total, flush() and False
+        return total, flush()
+    finally:
+        pool.shutdown(wait=True)
+
+
 def run_commands(name: str, commands: list[Command], environment: dict[str, str], cwd: Path = ROOT,
                  captured: list[tuple[Command, str]] | None = None,
                  *, keep_going: bool = False,
                  receipt: verification_receipt.Collector | None = None) -> tuple[float, bool]:
-    """Runs a step's commands; consecutive crate launches in `browser`, and the independent
-    workspaces of `test`, run together. `captured` collects each `cargo test` command's output."""
+    """Runs a step's commands; consecutive crate launches (and the harness prebuild) in
+    `browser`, and the independent workspaces of `test`, run together. `captured` collects
+    each `cargo test` command's output."""
     if name == "test" and check_jobs() > 1 and len(commands) > 1:
         elapsed, failed = run_parallel(commands, environment, captured, receipt=receipt, step=name)
         for command in failed:
             print("check: command failed: " + shlex.join(command), file=sys.stderr)
         return elapsed, not failed
+    if name == "lint" and check_jobs() > 1 and any(is_harness_clippy(command) for command in commands):
+        return _run_lint_overlap(commands, environment, cwd, captured, receipt=receipt)
     browser_step = is_browser_step(name)
     total = 0.0
     any_failed = False
     index = 0
     while index < len(commands):
         command = commands[index]
-        if browser_step and check_jobs() > 1 and is_crate_launch(command):
+        if browser_step and check_jobs() > 1 and (is_crate_launch(command) or is_harness_build(command)):
             end = index
-            while end < len(commands) and is_crate_launch(commands[end]):
+            while end < len(commands) and (is_crate_launch(commands[end]) or is_harness_build(commands[end])):
                 end += 1
             batch_outputs: list[tuple[Command, str]] = []
             elapsed, failed = run_parallel(commands[index:end], environment, outputs=batch_outputs,
@@ -1095,6 +1171,8 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
             plan.append(("browser", commands))
     if selection.cad:
         plan.append(("test", [[PY, "cad/scripts/test-cad.py"]]))
+    if selection.extra_tests:
+        plan.append(("test", [[PY, path] for path in selection.extra_tests]))
     return plan
 
 

@@ -56,6 +56,13 @@ def attributed_wall(records, crates):
     return total
 
 
+def real_cpu(records):
+    """Summed user+system time of the units that recorded it; None for logs from before `cpu`."""
+    if not any("cpu" in r for r in records):
+        return None
+    return sum(r.get("cpu", 0.0) for r in records)
+
+
 def compare(names, data):
     print(f"{'step':10s}" + "".join(f"{n + ' wall':>16s}{'compile':>9s}{'cpu':>7s}" for n in names))
     for s in ["repo", "tooling", "lint", "build", "test", "browser"]:
@@ -76,7 +83,11 @@ def compare(names, data):
             row += f"{m[2] - m[1]:16.1f}{act:9.1f}{sum(i[2] for i in ivs):7.0f}"
         print(row)
     print(f"{'total':10s}" + "".join(f"{sum(x[2] - x[1] for x in data[n][1] if x[1]):16.1f}{'':9s}{sum(r['secs'] for r in data[n][0]):7.0f}" for n in names))
-    g = collections.defaultdict(lambda: {n: 0 for n in names})
+    for n in names:
+        cpu = real_cpu(data[n][0])
+        if cpu is not None:
+            print(f"{n}: real CPU {cpu:.0f}s (user+system of rustc children)")
+    g =collections.defaultdict(lambda: {n: 0 for n in names})
     for n in names:
         for r in data[n][0]:
             g[tree(r)][n] += r["secs"]

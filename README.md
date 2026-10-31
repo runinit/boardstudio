@@ -162,9 +162,10 @@ outside it because it patches the vendored Monstertruck crates with its own lock
 root, which also lets it build from a worktree nested under another checkout.
 
 A new worktree can skip most of its cold build by seeding copy-on-write copies of an idle
-worktree's target dirs: run `python3 scripts/seed-worktree-target.py DONOR` inside the new
-worktree. It refuses a busy donor, a toolchain mismatch, or a destination that already has
-targets.
+worktree's target dirs. With the one-time `git config core.hooksPath scripts/git-hooks`, `git worktree add`
+does this automatically (`seed-worktree-target.py --auto`); by hand, run
+`python3 scripts/seed-worktree-target.py DONOR` inside the new worktree. It refuses a busy donor,
+a toolchain mismatch, or a destination that already has targets.
 
 The repository has no TypeScript or Node dependency; Python scripts handle build, content preparation and checks. Footprint generation runs in Rust inside Core and the page. User-supplied
 JavaScript generators are not executed. Bundled model export includes used assets;

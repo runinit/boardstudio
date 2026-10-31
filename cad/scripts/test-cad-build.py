@@ -5,6 +5,7 @@ import http.server
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -126,7 +127,8 @@ class CadBuildTests(unittest.TestCase):
 
     def test_native_tests_run_library_and_provider_and_propagate_failures(self):
         with patch.object(build, "run", return_value=self.PASSED) as run, \
-                contextlib.redirect_stdout(io.StringIO()):
+                contextlib.redirect_stdout(io.StringIO()), \
+                patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
             build.test_cad()
         commands = [call.args[0] for call in run.call_args_list]
         self.assertEqual([command[3] for command in commands[:2]],
@@ -145,7 +147,8 @@ class CadBuildTests(unittest.TestCase):
             self.assertTrue(any(command[:len(selection)] == selection for command in owner_commands), selection)
         self.assertTrue(all(command[3] == "monstertruck-qualification/Cargo.toml"
                             for command in commands[2:]))
-        with patch.object(build, "run", side_effect=[None, subprocess.CalledProcessError(1, "cargo")]):
+        with patch.object(build, "run", side_effect=[None, subprocess.CalledProcessError(1, "cargo")]), \
+                patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
             with self.assertRaises(subprocess.CalledProcessError):
                 build.test_cad()
 
@@ -153,7 +156,7 @@ class CadBuildTests(unittest.TestCase):
         for index in range(len(build.OWNER_TESTS)):
             with self.subTest(index=index), patch.object(build, "run", side_effect=[
                 *([self.PASSED] * (index + 2)), subprocess.CalledProcessError(7, "cargo")
-            ]) as run, contextlib.redirect_stdout(io.StringIO()):
+            ]) as run, contextlib.redirect_stdout(io.StringIO()), patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
                 with self.assertRaises(subprocess.CalledProcessError):
                     build.test_cad()
                 self.assertEqual(run.call_count, index + 3)
@@ -173,14 +176,15 @@ class CadBuildTests(unittest.TestCase):
                            for step in range(len(build.OWNER_TESTS) + 2)]
                 with self.subTest(package=package, selection=selection, output=output), \
                         patch.object(build.subprocess, "run", side_effect=results) as run, \
-                        contextlib.redirect_stdout(io.StringIO()):
+                        contextlib.redirect_stdout(io.StringIO()), patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
                     with self.assertRaisesRegex(RuntimeError, "no executed tests"):
                         build.test_cad()
                     self.assertEqual(run.call_count, index + 3)
 
     def test_required_owner_runs_retain_success_and_failure_output(self):
         with patch.object(build.subprocess, "run", return_value=self.PASSED) as run, \
-                contextlib.redirect_stdout(io.StringIO()) as printed:
+                contextlib.redirect_stdout(io.StringIO()) as printed, \
+                patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
             build.test_cad()
         self.assertEqual(printed.getvalue(), self.PASSED.stdout * len(build.OWNER_TESTS))
         for call in run.call_args_list[2:]:
@@ -190,12 +194,45 @@ class CadBuildTests(unittest.TestCase):
             self.assertTrue(call.kwargs["check"])
         failure = subprocess.CalledProcessError(7, "cargo", output="first real Cargo failure\n")
         with patch.object(build.subprocess, "run", side_effect=[self.PASSED, self.PASSED, failure]) as run, \
-                contextlib.redirect_stdout(io.StringIO()) as printed:
+                contextlib.redirect_stdout(io.StringIO()) as printed, \
+                patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
             with self.assertRaises(subprocess.CalledProcessError) as raised:
                 build.test_cad()
         self.assertIs(raised.exception, failure)
         self.assertEqual(run.call_count, 3)
         self.assertEqual(printed.getvalue(), failure.stdout)
+
+    def test_parallel_runs_one_lane_per_target_and_prints_in_order(self):
+        def tagged(command, **kwargs):
+            target = Path(kwargs["env"]["CARGO_TARGET_DIR"]).parent.name
+            return subprocess.CompletedProcess([], 0, stdout=f"<{target}>\n" + self.PASSED.stdout)
+        with patch.object(build, "run", side_effect=tagged) as run, \
+                contextlib.redirect_stdout(io.StringIO()) as printed, \
+                patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "4"}):
+            build.test_cad()
+        targets = [Path(call.kwargs["env"]["CARGO_TARGET_DIR"]).parent.name
+                   for call in run.call_args_list]
+        self.assertEqual(sorted(set(targets)),
+                         ["monstertruck", "monstertruck-qualification", "wasm"])
+        # Output stays in command order whatever the thread interleaving.
+        self.assertEqual(printed.getvalue(),
+                         "<monstertruck>\n" + self.PASSED.stdout
+                         + "<wasm>\n" + self.PASSED.stdout
+                         + ("<monstertruck-qualification>\n" + self.PASSED.stdout) * len(build.OWNER_TESTS))
+
+    def test_parallel_surfaces_first_failure_with_its_output(self):
+        failure = subprocess.CalledProcessError(7, "cargo", output="first lane failed\n")
+        def maybe_fail(command, **kwargs):
+            if "monstertruck/Cargo.toml" in command:
+                raise failure
+            return self.PASSED
+        with patch.object(build, "run", side_effect=maybe_fail), \
+                contextlib.redirect_stdout(io.StringIO()) as printed, \
+                patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "4"}):
+            with self.assertRaises(subprocess.CalledProcessError) as raised:
+                build.test_cad()
+        self.assertIs(raised.exception, failure)
+        self.assertEqual(printed.getvalue(), "first lane failed\n")
 
     def test_provider_tests_are_registered_or_accounted_for(self):
         scripts = {path.name for path in (REPO_ROOT / "cad/wasm/tests").glob("*.cjs")}

@@ -1,6 +1,18 @@
 # 08: Reduce browser launch overhead
 
-Status: ready-for-agent
+Status: wontfix
+
+## Resolution (2026-10-30): neither hypothesis clears 20 s
+
+Measured from the jobs4 cold log instead of a new dry run. First-launch window: 170 units,
+237 CPU-s over 134 s wall, of which the DUI stack (host/runtime/web_sys/js_sys) is only ~26
+CPU-s — the wall is first-party compile chains (layout/case/parts/core), not the dry stack.
+Per-launch durations: case 140 / pcb 137 / parts 134 (cold compile of real suites) then
+host 44 / runtime 41 / keycaps-library-keymap-layout 31-36 / catalogue 25 / ui-model 21 /
+ui-shared 16. Launches run 4-at-a-time, so stripping any non-critical-path launch (e.g. the
+16 s ui-shared from the 44 s batch) saves ~0 s wall; only batch maximums matter. H02's 6 s
+bindgen likewise cannot move a 44 s batch by 20 s. Reopen if launches go serial or the dry
+stack exceeds half of a batch's critical path.
 Type: task
 Blocked by: [02](02-measurement-kit.md)
 Parent: [map](../map.md)

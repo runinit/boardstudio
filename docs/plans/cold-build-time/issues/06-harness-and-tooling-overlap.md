@@ -1,6 +1,17 @@
 # 06: Overlap the harness and tooling compiles
 
-Status: ready-for-agent
+Status: resolved
+
+## Resolution (2026-10-30)
+
+Three commits: harness clippy beside the root clippys (results observed in plan order);
+harness prebuild in the crate batch with the smoke after it; kicad-parts test moved to the
+`test` batch (`tooling` no longer runs it). Contract suites green (64 + 18).
+Lint 134.0 s -> 110.5 s (-24 s); root wasm compile-active 61.9 s -> 64.5 s (+4%, inside the
+10% line). Full cold jobs4: 1082.8 s all green, counts held (2378 + 27). jobs2 vs jobs4 is a
+wash (1100.9 s vs 1082.8 s) — keeping the default 4. Caveat: `check.py tooling` with
+`BOARDSTUDIO_CHECK_JOBS=1` fails 5 pre-existing interrupt-timing tests, proven identical on the
+base commit; unrelated to this ticket.
 Type: build
 Blocked by: [02](02-measurement-kit.md)
 Parent: [map](../map.md)

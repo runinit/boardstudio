@@ -31,6 +31,7 @@ wasm-bindgen-test = "=0.3.79"
 
 [patch.crates-io]
 cgmath = { path = "../../renderer/vendor/cgmath-next-0.18.1" }
+Inflector = { path = "../monstertruck-qualification/vendor/inflector" }
 monstertruck-core = { path = "../monstertruck-qualification/vendor/monstertruck-core" }
 monstertruck-derive = { path = "../monstertruck-qualification/vendor/monstertruck-derive" }
 monstertruck-geometry = { path = "../monstertruck-qualification/vendor/monstertruck-geometry" }

@@ -126,7 +126,8 @@ class CachePolicyTests(unittest.TestCase):
     def test_native_caches_every_cad_target_dir(self):
         [step] = cache_steps(job("native"))
         cached = set(re.findall(r"^ +(\S+) -> target$", step, re.M))
-        built = {f"cad/{d}" for d in re.findall(r'CAD_ROOT / "([^"]+)/target"', CAD_BUILD)}
+        [targets] = re.findall(r'NATIVE_TEST_TARGETS = \((.*?)\)', CAD_BUILD, re.S)
+        built = {f"cad/{d}" for d in re.findall(r'"([^"]+)/target"', targets)}
         self.assertIn("cad/monstertruck-qualification", built)
         self.assertLessEqual(built, cached, "cad_build.py builds into a target dir the CI cache skips")
 

@@ -103,6 +103,22 @@ about 700 to 800 s; a cold run in an existing worktree to about 900 to 1000 s.
 - 2026-10-30: CI `CARGO_BUILD_JOBS` experiment deferred to last; structural work (code audit,
   tests) comes first. Try `BOARDSTUDIO_CHECK_JOBS` before any exception.
 - 2026-10-30: BSD-2-Clause for Inflector (07) may go on the `deny.toml` allow list if needed.
+- 2026-10-31: lanes stay on by default. Cold `test lint build browser` confined to 4 CPU threads
+  and 16 GB (`taskset`, `systemd-run`) took 1512.5 s with `BOARDSTUDIO_CHECK_JOBS=4` and 1673.3 s
+  with `1`, no OOM kills in either. This approximates a hosted runner; it is not one, and these
+  threads are on separate physical cores. `memory.peak` counts page cache, so it does not bound
+  real memory use.
+- 2026-10-31: full cold run after the KiCad driver shares the workspace's Core: 1031.2 s, all
+  gates green (`test` 240.8 s to 202.3 s). `secs` in the unit logs is wall time and overlap inflates
+  it, so sums across lane and pre-lane runs do not compare; `rustc-log.py` now records real CPU
+  (`cpu`), 4543 s at this head. No earlier run has that field, so the CPU change since the 1461 s
+  baseline is unmeasured.
+- 2026-10-31: new worktrees seed automatically through `scripts/git-hooks/post-checkout` once
+  `core.hooksPath` is set. Backdating source mtimes to keep path crates fresh is rejected: it cut a
+  seeded native build from 48 s to 10 s, but the Core test binary then embedded the donor's path,
+  so tests could read the donor's fixtures.
+- 2026-10-31: keep KiCad as the independent test oracle. Production code does not run it, and no
+  Rust DRC was found to replace it.
 
 ## Waiting on the user
 

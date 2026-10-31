@@ -487,6 +487,40 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertNotIn("security", check.DEFAULT)
         self.assertNotIn("typecheck", check.DEFAULT)
 
+    def test_lint_overlaps_harness_clippy_with_root_clippys(self):
+        # Two parties: the harness (submitted after the first root clippy) blocks until the
+        # second root clippy is in flight beside it.
+        barrier = threading.Barrier(2, timeout=10)
+        seen = []
+
+        def fake_serial(command, environment, cwd, captured, outputs):
+            text = " ".join(command)
+            if check.is_harness_clippy(command) or "wasm32-unknown-unknown" in text:
+                barrier.wait()
+            seen.append(text)
+            return 0.0, 0, "s", "e"
+
+        commands = [c for c in check.LINT if c[:2] == ["cargo", "clippy"]]
+        self.assertEqual(len(commands), 3)
+        with mock.patch.object(check, "run_serial", side_effect=fake_serial):
+            elapsed, passed = check._run_lint_overlap(commands, {}, check.ROOT, None)
+        self.assertTrue(passed)
+        roots = [text for text in seen if "--manifest-path" not in text]
+        self.assertEqual(len(roots), 2)
+        # Root clippys keep their plan order even though the harness runs beside them.
+        self.assertLess(seen.index(roots[0]), seen.index(roots[1]))
+
+    def test_lint_overlap_reports_harness_failure(self):
+        def fake_serial(command, environment, cwd, captured, outputs):
+            if check.is_harness_clippy(command):
+                return 0.0, 1, "s", "e"
+            return 0.0, 0, "s", "e"
+
+        commands = [c for c in check.LINT if c[:2] == ["cargo", "clippy"]]
+        with mock.patch.object(check, "run_serial", side_effect=fake_serial):
+            elapsed, passed = check._run_lint_overlap(commands, {}, check.ROOT, None)
+        self.assertFalse(passed)
+
     def test_lint_runs_wasm_clippy_over_the_web_workspace_crates(self):
         # Native Clippy builds the non-WASM stubs, so the WASM-gated web crates
         # (and their browser tests) need an explicit WASM-target Clippy command.
@@ -580,7 +614,14 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         with mock.patch.object(check, "run_plan", side_effect=record):
             self.assertEqual(check.run(["browser"]), 0)
         self.assertEqual([name for name, _ in captured["plan"]], ["build", "browser"])
-        self.assertEqual(captured["plan"][-1][1][0], check.DRAG_SMOKE)
+        commands = captured["plan"][-1][1]
+        launches = [index for index, command in enumerate(commands) if check.is_crate_launch(command)]
+        smoke = commands.index(check.DRAG_SMOKE)
+        # Fail-fast order changed deliberately: the smoke runs after the whole crate-launch
+        # batch, whose binary it prebuilds beside.
+        self.assertGreater(smoke, launches[-1])
+        prebuild = commands.index(check.HARNESS_PREBUILD)
+        self.assertEqual(prebuild, launches[0] - 1)
 
     def test_drag_smoke_can_run_as_a_fresh_build_preflight(self):
         captured = {}

@@ -63,6 +63,21 @@ class AttributionTests(unittest.TestCase):
         self.assertAlmostEqual(attrib, REPORT.active_union(self.records()))
 
 
+class RealCpuTests(unittest.TestCase):
+    def test_wrapper_records_child_cpu_and_report_totals_it(self):
+        import json, os, subprocess, sys, tempfile
+        code = "sum(range(10**7))"
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "units.jsonl"
+            env = dict(os.environ, BUILDTIME_LOG=str(log))
+            subprocess.run([sys.executable, "-B", str(KIT / "rustc-log.py"), sys.executable, "-c", code,
+                            "--crate-name", "burner"], env=env, check=True)
+            record = json.loads(log.read_text())
+        self.assertGreater(record["cpu"], 0.05)
+        self.assertAlmostEqual(REPORT.real_cpu([record]), record["cpu"])
+        self.assertIsNone(REPORT.real_cpu([{"crate": "old", "start": 0.0, "secs": 1.0}]))
+
+
 class SeedRefusalTests(unittest.TestCase):
     def make_tree(self, base, toolchain="same", targets=()):
         base.mkdir(parents=True, exist_ok=True)
@@ -87,6 +102,87 @@ class SeedRefusalTests(unittest.TestCase):
             self.make_tree(donor, "a", SEED.TARGETS)
             self.make_tree(dest, "a")
             self.assertEqual(SEED.refusals(donor, dest), [])
+
+
+class SeedBehaviourTests(unittest.TestCase):
+    make_tree = SeedRefusalTests.make_tree
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.orig_copy = SEED.copy
+        self.addCleanup(setattr, SEED, "copy", self.orig_copy)
+
+    def test_skips_missing_dirs_and_seeds_the_rest(self):
+        donor, dest = self.root / "donor", self.root / "dest"
+        self.make_tree(donor, "a", ["target", "cad/wasm/target"])
+        self.make_tree(dest, "a")
+        copied = []
+        SEED.copy = lambda src, dst: (copied.append(dst.relative_to(dest).as_posix()), dst.mkdir(parents=True))
+        self.assertEqual(SEED.seed(donor, dest), 0)
+        self.assertEqual(copied, ["target", "cad/wasm/target"])
+
+    def test_refuses_donor_without_target(self):
+        donor, dest = self.root / "donor", self.root / "dest"
+        self.make_tree(donor, "a", ["cad/wasm/target"])
+        self.make_tree(dest, "a")
+        self.assertTrue(any("no target" in r for r in SEED.refusals(donor, dest)))
+
+    def test_failed_copy_removes_partial_destination(self):
+        import subprocess
+        donor, dest = self.root / "donor", self.root / "dest"
+        self.make_tree(donor, "a", ["target", "cad/wasm/target"])
+        self.make_tree(dest, "a")
+
+        def fake(src, dst):
+            dst.mkdir(parents=True)
+            if "wasm" in str(dst):
+                (dst / "half").write_text("x")
+                raise subprocess.CalledProcessError(1, "cp")
+        SEED.copy = fake
+        self.assertEqual(SEED.seed(donor, dest), 1)
+        self.assertFalse((dest / "target").exists())
+        self.assertFalse((dest / "cad/wasm/target").exists())
+
+    def test_locks_are_held_during_copy(self):
+        donor, dest = self.root / "donor", self.root / "dest"
+        self.make_tree(donor, "a", ["target"])
+        self.make_tree(dest, "a")
+        seen = []
+
+        def fake(src, dst):
+            with SEED.donor_idle(donor, ["target"]) as idle:
+                seen.append(idle)
+            dst.mkdir()
+        SEED.copy = fake
+        self.assertEqual(SEED.seed(donor, dest), 0)
+        self.assertEqual(seen, [False])
+        with SEED.donor_idle(donor, ["target"]) as idle:
+            self.assertTrue(idle)
+
+    def test_auto_prefers_most_dirs_then_newest_and_skips_busy(self):
+        import os, subprocess
+        dest = self.root / "dest"
+        self.make_tree(dest, "a")
+        subprocess.run(["git", "init", "-q", str(dest)], check=True)
+        names = {"few": ["target"], "many_old": ["target", "cad/wasm/target"],
+                 "many_new": ["target", "cad/wasm/target"], "wrong": SEED.TARGETS, "none": []}
+        for i, (name, dirs) in enumerate(names.items()):
+            wt = self.root / name
+            self.make_tree(wt, "b" if name == "wrong" else "a", dirs)
+            if dirs:
+                info = wt / "target" / ".rustc_info.json"
+                info.write_text("{}")
+                os.utime(info, (1000 + (10 if name == "many_new" else i),) * 2)
+        listing = "".join(f"worktree {self.root / n}\n\n" for n in ["dest", *names])
+        orig = SEED.subprocess.run
+        self.addCleanup(setattr, SEED.subprocess, "run", orig)
+        SEED.subprocess.run = lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=listing)
+        self.assertEqual(SEED.choose_donor(dest), self.root / "many_new")
+        with SEED.donor_idle(self.root / "many_new", ["target"]):
+            self.assertEqual(SEED.choose_donor(dest), self.root / "many_old")
 
 
 if __name__ == "__main__":

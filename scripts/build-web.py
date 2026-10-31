@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import time
 import json
@@ -68,6 +69,67 @@ def provider_commands(fast: bool = False) -> list[tuple[list[str], Path]]:
             if command[:2] == ["wasm-pack", "build"]:
                 command.insert(command.index("--locked"), "--no-opt")
     return commands
+
+
+def provider_lanes(fast: bool = False) -> tuple[list[tuple[list[str], Path]], ...]:
+    """Split provider commands into overlap lanes.
+
+    Lane A keeps the four `wasm-pack` builds serial: they share the workspace
+    target dir, where Cargo's single target-dir lock would serialize them
+    anyway. Lane B (CAD WASM) builds in its own isolated target dir. Ergogen
+    staging runs no cargo and stays serial before the pool.
+    """
+    lanes: dict[str, list[tuple[list[str], Path]]] = {"A": [], "B": []}
+    for pair in provider_commands(fast):
+        command, _ = pair
+        text = " ".join(command)
+        if command[:2] == ["wasm-pack", "build"]:
+            lanes["A"].append(pair)
+        elif "build-cad-wasm.py" in text:
+            lanes["B"].append(pair)
+        elif "stage-ergogen-models.py" in text:
+            continue
+        else:
+            raise ValueError(f"unassigned provider command: {text}")
+    if not (len(lanes["A"]) == 4 and len(lanes["B"]) == 1):
+        raise ValueError("provider lanes changed shape: " +
+                         ", ".join(f"{name}={len(lane)}" for name, lane in lanes.items()))
+    return (lanes["A"], lanes["B"])
+
+
+def _run_captured(command: list[str], cwd: Path, env: dict[str, str] | None) -> str:
+    fd = browser_tools._inherited_build_lock()
+    proc = subprocess.run(command, cwd=cwd, env=env, check=False,
+                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                          **({"pass_fds": (fd,)} if fd is not None else {}))
+    output = f"$ {' '.join(command)}\n{proc.stdout}"
+    if proc.returncode:
+        raise subprocess.CalledProcessError(proc.returncode, command, output=output)
+    return output
+
+
+def _run_lane(name: str, steps: list[tuple[list[str], Path, dict[str, str] | None]]) -> str:
+    chunks = [f"--- lane {name}: {len(steps)} command(s) ---"]
+    for command, cwd, env in steps:
+        chunks.append(_run_captured(command, cwd, env))
+    chunks.append(f"--- lane {name}: done ---")
+    return "\n".join(chunks)
+
+
+def run_pool(lanes: list[tuple[str, list[tuple[list[str], Path, dict[str, str] | None]]]]) -> None:
+    """Run lanes concurrently; print each lane's output whole, in order.
+
+    Only the first failure surfaces, with its lane's output.
+    """
+    with ThreadPoolExecutor(max_workers=len(lanes), thread_name_prefix="build-lane") as pool:
+        futures = [pool.submit(_run_lane, name, steps) for name, steps in lanes]
+        results = [future.result() if future.exception() is None else future.exception()
+                   for future in futures]
+    for item in results:
+        if isinstance(item, BaseException):
+            print(getattr(item, "output", None) or "", end="", flush=True)
+            raise item
+        print(item, flush=True)
 
 
 def copy_runtime_assets(site: Path, provider_root: Path | None = None) -> None:
@@ -156,44 +218,72 @@ def embed_offline_worker(site: Path, worker_dir: Path = OFFLINE_WORKER) -> None:
     (site / "service-worker.js").write_text(bootstrap)
 
 
+def dx_command(route: str, *, release: bool, fast: bool
+               ) -> tuple[list[str], Path, dict[str, str] | None]:
+    prefix = ROUTES[route]
+    command = ["dx", "build", "--web", "--base-path", prefix,
+               "--no-default-features", "--features", "page", "--cargo-args=--locked"]
+    if release:
+        command.insert(3, "--release")
+    env = None
+    if fast:
+        # Checked builds are never debugged, and DWARF is most of dx's wasm-bindgen pass.
+        command[3:3] = ["--debug-symbols", "false"]
+        env = dict(os.environ, CARGO_PROFILE_WASM_DEV_DEBUG="false")
+    return command, WEB, env
+
+
+def package_route(output: Path, route: str, release: bool) -> None:
+    public = dx_public(release)
+    if not public.is_dir():
+        raise FileNotFoundError(f"Dioxus did not produce its web public directory: {public}")
+    site = route_site(output, route)
+    if site.exists():
+        shutil.rmtree(site)
+    site.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(public, site)
+    copy_runtime_assets(site)
+    embed_offline_worker(site)
+
+
 def build(output: Path, *, release: bool = True, prepare_providers: bool = True,
           routes: tuple[str, ...] = DEFAULT_ROUTES, fast: bool = False) -> Path:
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    if prepare_providers:
-        prepare_runtime_providers(fast)
+    overlap_dx = fast and prepare_providers and len(routes) == 1
     public = dx_public(release)
-
+    if overlap_dx and public.exists():
+        shutil.rmtree(public)
+    if prepare_providers:
+        # Multi-route dx builds share one public dir, so those stay serial with each other;
+        # only the single-route page build overlaps the provider lanes.
+        prepare_runtime_providers(fast,
+                                  dx_lanes=[("dx", [dx_command(routes[0], release=release, fast=fast)])]
+                                  if overlap_dx else [])
     for route in routes:
-        prefix = ROUTES[route]
-        if public.exists():
-            shutil.rmtree(public)
-        command = ["dx", "build", "--web", "--base-path", prefix,
-                   "--no-default-features", "--features", "page", "--cargo-args=--locked"]
-        if release:
-            command.insert(3, "--release")
-        env = None
-        if fast:
-            # Checked builds are never debugged, and DWARF is most of dx's wasm-bindgen pass.
-            command[3:3] = ["--debug-symbols", "false"]
-            env = dict(os.environ, CARGO_PROFILE_WASM_DEV_DEBUG="false")
-        run(command, cwd=WEB, env=env)
-        if not public.is_dir():
-            raise FileNotFoundError(f"Dioxus did not produce its web public directory: {public}")
-        site = route_site(output, route)
-        if site.exists():
-            shutil.rmtree(site)
-        site.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(public, site)
-        copy_runtime_assets(site)
-        embed_offline_worker(site)
+        if not overlap_dx:
+            if public.exists():
+                shutil.rmtree(public)
+            command, cwd, env = dx_command(route, release=release, fast=fast)
+            run(command, cwd=cwd, env=env)
+        package_route(output, route, release)
     print(output, flush=True)
     return output
 
 
-def prepare_runtime_providers(fast: bool = False) -> None:
+Lane = tuple[str, list[tuple[list[str], "Path", "dict[str, str] | None"]]]
+
+
+def prepare_runtime_providers(fast: bool = False, dx_lanes: list[Lane] | None = None) -> None:
+    # Ergogen staging runs no cargo: serial first, in about a second.
     for command, cwd in provider_commands(fast):
-        run(command, cwd=cwd)
+        if "stage-ergogen-models.py" in " ".join(command):
+            run(command, cwd=cwd)
+    lane_a, lane_b = provider_lanes(fast)
+    lanes = [("providers", [(command, cwd, None) for command, cwd in lane_a]),
+             ("cad", [(command, cwd, None) for command, cwd in lane_b]),
+             *(dx_lanes or [])]
+    run_pool(lanes)
     shutil.copy2(ROOT / "catalogue/modules/imported-modules.json",
                  WEB / "assets/imported-modules.json")
     stage_runtime_assets()

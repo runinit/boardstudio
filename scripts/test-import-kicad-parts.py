@@ -22,8 +22,9 @@ class ImportKicadPartsTests(unittest.TestCase):
     def setUpClass(cls):
         root = SCRIPT.parents[1]
         fd = browser_tools._inherited_build_lock()
-        subprocess.run(["cargo", "build", "--manifest-path", str(root / "core/Cargo.toml"), "--locked",
-                        "--example", "artifact_request"], check=True,
+        # Same feature set as check.py's workspace test run, so Core compiles once.
+        subprocess.run(["cargo", "build", "--manifest-path", str(root / "Cargo.toml"), "--workspace",
+                        "--exclude", "boardstudio-footprints", "--locked", "--example", "artifact_request"], check=True,
                        **({"pass_fds": (fd,)} if fd is not None else {}))
 
     def test_explicit_roles_retain_duplicate_smd_pads_and_reject_holes_and_source_drift_atomically(self):
