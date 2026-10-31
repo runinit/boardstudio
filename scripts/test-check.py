@@ -543,7 +543,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             "import sys; sys.path.insert(0, 'scripts'); import check\n"
             "py = sys.executable\n"
             "slow = [py, '-c', 'import time; time.sleep(60)']\n"
-            "fast = [py, '-c', 'print(\"FINISHED-STEP-OUTPUT\")']\n"
+            "fast = [py, '-c', 'print(\"FINISHED-\" + \"STEP-OUTPUT\")']\n"
             "check.run_parallel([slow, fast], {}, in_order=True)\n"
         )
         process = subprocess.Popen([sys.executable, "-c", script], cwd=check.ROOT, text=True,
