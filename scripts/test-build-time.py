@@ -34,7 +34,7 @@ class ColdRefusalTests(unittest.TestCase):
         self.assertTrue(any("symlink" in r for r in reasons))
 
     def test_refuses_under_load(self):
-        reasons = COLD.refusal_reasons({}, lambda p: False, 3.0)
+        reasons = COLD.refusal_reasons({}, lambda p: False, 6.5)
         self.assertTrue(any("load" in r for r in reasons))
 
     def test_clean_setup_has_no_refusal(self):

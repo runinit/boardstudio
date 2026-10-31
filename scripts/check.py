@@ -854,7 +854,7 @@ def _run_browser_overlap(name: str, gates: list[Command], environment: dict[str,
                          captured: list[tuple[Command, str]] | None, *, keep_going: bool,
                          receipt: verification_receipt.Collector | None) -> tuple[float, bool]:
     """Run the prebuild beside the preceding gates, joining it before browser deadlines."""
-    total = 0.0
+    started = time.monotonic()
     failed = False
 
     def prepare(command):
@@ -867,9 +867,8 @@ def _run_browser_overlap(name: str, gates: list[Command], environment: dict[str,
         return (command, child_env, cwd, captured, outputs, completed), outputs, attempt
 
     def observe(command, result, outputs, attempt):
-        nonlocal total, failed
+        nonlocal failed
         elapsed, code, started_at, ended_at = result
-        total += elapsed
         if receipt is not None:
             try:
                 receipt.observe(name, command, code, elapsed, outputs[-1][1] if outputs else "",
@@ -890,7 +889,8 @@ def _run_browser_overlap(name: str, gates: list[Command], environment: dict[str,
             if not observe(command, run_serial(*args), outputs, attempt) and not keep_going:
                 break
         observe(BROWSER_PREBUILD, future.result(), prebuild_outputs, prebuild_attempt)
-    return total, not failed
+    # Wall time: these overlap, so summing them would overstate the step.
+    return time.monotonic() - started, not failed
 
 
 def run_commands(name: str, commands: list[Command], environment: dict[str, str], cwd: Path = ROOT,

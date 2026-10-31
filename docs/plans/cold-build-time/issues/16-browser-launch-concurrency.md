@@ -7,7 +7,12 @@ Parent: [map](../map.md)
 
 ## Outcome
 
-Part 1 rejected: the default remains 4. At 8 jobs, launches took 301–334 s
+**Corrected 2026-10-31.** Part 1 is kept with a default of `min(6, cpu_count)`, and part 2 stays dropped.
+The rejection below was wrong: a stall of about 300 s hit every browser run from the Pi agent's shell,
+including at 4 jobs and with no runtime change, and no run from the Claude shell. From the Claude shell,
+jobs=6 had a 59 s batch, jobs=8 63 s and jobs=4 76 s, with no stall. See [17](17-browser-overlap.md).
+
+Original outcome: Part 1 rejected: the default remains 4. At 8 jobs, launches took 301–334 s
 (`.evidence/build-time/t16-j8-1.log`); at 6, case took 301 s and keycaps 285 s,
 with a 284.8 s batch versus 76.9 s at 4 (`.evidence/build-time/t16-j6-1.log`).
 The 6-job pass was terminated by the user, not counted as a test failure. Test bodies

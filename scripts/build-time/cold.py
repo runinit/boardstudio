@@ -18,7 +18,7 @@ WIPE = [
     "web/assets/ergogen-models", "web/assets/renderer",
 ]
 TARGETS = [p for p in WIPE if p.endswith("target")]
-LOAD_LIMIT = 3.0
+LOAD_LIMIT = 5.0
 
 
 def refusal_reasons(env, islink, loadavg):

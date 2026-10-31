@@ -98,6 +98,8 @@ Second round, after the single browser build (986.6 s cold):
 | [16](issues/16-browser-launch-concurrency.md) | More crate launches; prebuild page test | 4-job batch 76.9 s; 6-job batch 284.8 s; page launch still compiled | Both rejected; default stays 4 |
 | [17](issues/17-browser-overlap.md) | Overlap gates and page filters; strip A/B | Gate overlap: browser 564.4 s; parallel page focus 108.2 to 68 s, but full browser 525.5 s; strip full browser 611.3 s | All rejected on 284–287 s launch stalls; browser figures are not comparable gains |
 | [18](issues/18-browser-test-cleanup.md) | Bounded waits; test overlap and irrelevant tests | unknown until `layout` is timed | Do; removals need approval |
+| [19](issues/19-overlap-steps.md) | Run lint, test and build together | -200 to -250 (local only) | Do |
+| [20](issues/20-merge-cad-workspaces.md) | Merge the CAD library and wasm workspaces | about 0 local, -300 to -350 CPU-s | Do |
 
 The final kept state has no runtime change: cold total 1256.2 s, browser 701.0 s,
 all count floors met but a 284.1 s launch stall remained. See ticket 17 for logs

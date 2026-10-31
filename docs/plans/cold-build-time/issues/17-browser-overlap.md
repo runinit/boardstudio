@@ -7,7 +7,19 @@ Parent: [map](../map.md)
 
 ## Outcome
 
-Part 1 rejected: the first warm full browser pass exited 0, but its `library`
+**Corrected 2026-10-31.** Parts 1 and 2 are kept, and part 3 (strip) stays out, since its proc-macro rebuild
+was measured and it was not needed. The rejections below were confounded by the stall.
+
+Likely mechanism: `wasm-bindgen-test-runner` 0.2.129 reads no test output until `goto` returns, with
+`page_load: Duration::from_secs(300).max(test)`, so a page slow to reach `load` costs about 300 s while its
+tests pass. Launches now navigate with `pageLoadStrategy: "eager"`. The Pi shell, stalled in 8 of 8 runs
+before, ran clean once after it (246.4 s browser step). Why pages load slowly there is unknown.
+
+Full cold run with the kept parts: 986.6 s to **868.6 s**, browser 446.6 s to 313.7 s, same 693 launch test
+names, 112 page tests, 2378 native tests, 15 drag checks, slowest launch 58 s
+(`.evidence/build-time/browser-round2.log`). No flake sweep yet.
+
+Original outcome, kept for the record: Part 1 rejected: the first warm full browser pass exited 0, but its `library`
 launch took 287.1 s, above the 120 s stall limit; the part was reverted without
 further passes (`.evidence/build-time/t17p1-browser-1.log`). The browser step was
 564.4 s; the reference cold browser step was 446.6 s (not a comparable warm
