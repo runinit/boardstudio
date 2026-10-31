@@ -117,34 +117,39 @@ class SeedBehaviourTests(unittest.TestCase):
 
     def test_skips_missing_dirs_and_seeds_the_rest(self):
         donor, dest = self.root / "donor", self.root / "dest"
-        self.make_tree(donor, "a", ["target", "cad/wasm/target"])
+        self.make_tree(donor, "a", ["target", "cad/monstertruck/target"])
         self.make_tree(dest, "a")
         copied = []
         SEED.copy = lambda src, dst: (copied.append(dst.relative_to(dest).as_posix()), dst.mkdir(parents=True))
         self.assertEqual(SEED.seed(donor, dest), 0)
-        self.assertEqual(copied, ["target", "cad/wasm/target"])
+        self.assertEqual(copied, ["target", "cad/monstertruck/target"])
+
+    def test_merged_cad_workspace_seeds_one_target_dir(self):
+        self.assertIn("cad/monstertruck/target", SEED.TARGETS)
+        self.assertNotIn("cad/wasm/target", SEED.TARGETS)
+        self.assertNotIn("cad/wasm/target", COLD.WIPE)
 
     def test_refuses_donor_without_target(self):
         donor, dest = self.root / "donor", self.root / "dest"
-        self.make_tree(donor, "a", ["cad/wasm/target"])
+        self.make_tree(donor, "a", ["cad/monstertruck/target"])
         self.make_tree(dest, "a")
         self.assertTrue(any("no target" in r for r in SEED.refusals(donor, dest)))
 
     def test_failed_copy_removes_partial_destination(self):
         import subprocess
         donor, dest = self.root / "donor", self.root / "dest"
-        self.make_tree(donor, "a", ["target", "cad/wasm/target"])
+        self.make_tree(donor, "a", ["target", "cad/monstertruck/target"])
         self.make_tree(dest, "a")
 
         def fake(src, dst):
             dst.mkdir(parents=True)
-            if "wasm" in str(dst):
+            if "monstertruck" in str(dst):
                 (dst / "half").write_text("x")
                 raise subprocess.CalledProcessError(1, "cp")
         SEED.copy = fake
         self.assertEqual(SEED.seed(donor, dest), 1)
         self.assertFalse((dest / "target").exists())
-        self.assertFalse((dest / "cad/wasm/target").exists())
+        self.assertFalse((dest / "cad/monstertruck/target").exists())
 
     def test_locks_are_held_during_copy(self):
         donor, dest = self.root / "donor", self.root / "dest"
@@ -167,8 +172,8 @@ class SeedBehaviourTests(unittest.TestCase):
         dest = self.root / "dest"
         self.make_tree(dest, "a")
         subprocess.run(["git", "init", "-q", str(dest)], check=True)
-        names = {"few": ["target"], "many_old": ["target", "cad/wasm/target"],
-                 "many_new": ["target", "cad/wasm/target"], "wrong": SEED.TARGETS, "none": []}
+        names = {"few": ["target"], "many_old": ["target", "cad/monstertruck/target"],
+                 "many_new": ["target", "cad/monstertruck/target"], "wrong": SEED.TARGETS, "none": []}
         for i, (name, dirs) in enumerate(names.items()):
             wt = self.root / name
             self.make_tree(wt, "b" if name == "wrong" else "a", dirs)

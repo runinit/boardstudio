@@ -352,7 +352,7 @@ and transformed seams. They may disprove a bound; passing them cannot prove it.
 ## 3. Numerical qualification of the actual query
 
 The selected dependency is `parry3d-f64 = 0.31.1` in
-[cad/wasm/Cargo.lock](../../../cad/wasm/Cargo.lock). The installed locked source
+[cad/monstertruck/Cargo.lock](../../../cad/monstertruck/Cargo.lock). The installed locked source
 `parry3d-f64-0.31.1/src/query/default_query_dispatcher.rs` dispatches composite
 meshes down to triangle support-map/GJK queries for distance and closest points.
 Its `query/gjk/gjk.rs` uses absolute/relative termination tests and support-scale

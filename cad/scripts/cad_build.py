@@ -77,8 +77,8 @@ def wasm_inputs_digest(*, no_opt=False):
     digest.update(Path(__file__).read_bytes())
     roots = [
         (CAD_ROOT.parent, ("Cargo.toml", "rust-toolchain.toml")),
-        (CAD_ROOT / "wasm", ("Cargo.toml", "Cargo.lock", "src", "assets")),
-        (CAD_ROOT / "monstertruck", ("Cargo.toml", "src")),
+        (CAD_ROOT / "wasm", ("Cargo.toml", "src", "assets")),
+        (CAD_ROOT / "monstertruck", ("Cargo.toml", "Cargo.lock", "src")),
         (contracts, ("Cargo.toml", "src")),
         (CAD_ROOT.parent / "renderer/vendor/cgmath-next-0.18.1", ("Cargo.toml", "src")),
     ]
@@ -114,7 +114,7 @@ def build_wasm(*, no_opt=False):
             stale.unlink(missing_ok=True)
     stamp.parent.mkdir(parents=True, exist_ok=True)
     wasm_opt = ["--no-opt"] if no_opt else []
-    env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "wasm/target"))
+    env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "monstertruck/target"))
     run(
         [
             "wasm-pack",
@@ -136,16 +136,16 @@ def build_wasm(*, no_opt=False):
 
 
 # Every target dir the native tests build into; the CI cache test parses these literals.
-NATIVE_TEST_TARGETS = ("monstertruck/target", "wasm/target", "monstertruck-qualification/target")
+NATIVE_TEST_TARGETS = ("monstertruck/target", "monstertruck-qualification/target")
 
 
 def native_test_commands():
     prefix = ["cargo", "test", "--manifest-path"]
     suffix = ["--release", "--locked"]
-    library_target, wasm_target, owner_target = NATIVE_TEST_TARGETS
+    library_target, owner_target = NATIVE_TEST_TARGETS
     return [
-        ([*prefix, "monstertruck/Cargo.toml", *suffix], library_target),
-        ([*prefix, "wasm/Cargo.toml", *suffix], wasm_target),
+        ([*prefix, "monstertruck/Cargo.toml", "-p", "boardstudio-cad", "-p", "boardstudio-cad-wasm",
+          *suffix], library_target),
         *(([*prefix, "monstertruck-qualification/Cargo.toml", "-p", package, *selection, *suffix],
            owner_target) for package, *selection in OWNER_TESTS),
     ]
@@ -169,10 +169,10 @@ def _run_lane(lane):
 
 
 def _test_cad_serial(commands):
-    for command, target in commands[:2]:
+    for command, target in commands[:1]:
         run(command, env=dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / target)))
     # Filter legacy suites; external fixtures are read only by the tests that use them.
-    for command, target in commands[2:]:
+    for command, target in commands[1:]:
         try:
             result = run(command, env=dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / target)),
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)

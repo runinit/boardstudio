@@ -162,9 +162,10 @@ the receipt) at review handoff.
 | `scripts/` | Build, content preparation and checks |
 
 The Rust crates share one Cargo workspace (root `Cargo.toml`, `Cargo.lock` and
-`target/`), so dependencies compile once per profile and target. `cad/wasm` stays
-outside it because it patches the vendored Monstertruck crates with its own lockfile. It declares an empty `[workspace]` so cargo treats it as its own
-root, which also lets it build from a worktree nested under another checkout.
+`target/`), so dependencies compile once per profile and target. `cad/monstertruck` stays
+outside it with its own workspace and lockfile, covering the `cad/wasm` member, because it
+patches the vendored Monstertruck crates. It declares `[workspace]` so cargo treats it as its own
+root, which also lets both crates build from a worktree nested under another checkout.
 
 A new worktree can skip most of its cold build by seeding copy-on-write copies of an idle
 worktree's target dirs. With the one-time `git config core.hooksPath scripts/git-hooks`, `git worktree add`

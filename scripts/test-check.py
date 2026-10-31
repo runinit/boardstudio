@@ -53,14 +53,14 @@ class CheckTests(unittest.TestCase):
         launch.assert_not_called()
         metadata.assert_not_called()
 
-    def test_page_build_preflight_reports_cad_wasm_target(self):
+    def test_page_build_preflight_reports_merged_cad_target(self):
         output = io.StringIO()
         plan = [("build", [[check.PY, "scripts/build-web.py", "--fast"]])]
         with mock.patch.object(check, "_run_plan", return_value=0), \
                 mock.patch.object(check.shutil, "disk_usage", return_value=mock.Mock(free=1024 ** 3)), \
                 contextlib.redirect_stdout(output):
             self.assertEqual(check.run_plan(plan), 0)
-        self.assertIn(str(ROOT / "cad/wasm/target"), output.getvalue())
+        self.assertIn(str(ROOT / "cad/monstertruck/target"), output.getvalue())
 
     def test_cad_only_plan_reports_its_build_targets(self):
         output = io.StringIO()
@@ -69,8 +69,9 @@ class CheckTests(unittest.TestCase):
                 mock.patch.object(check.shutil, "disk_usage", return_value=mock.Mock(free=1024 ** 3)), \
                 contextlib.redirect_stdout(output):
             self.assertEqual(check.run_plan(plan), 0)
-        for target in ("cad/monstertruck/target", "cad/wasm/target", "cad/monstertruck-qualification/target"):
+        for target in ("cad/monstertruck/target", "cad/monstertruck-qualification/target"):
             self.assertIn(str(ROOT / target), output.getvalue())
+        self.assertNotIn("cad/wasm/target", output.getvalue())
 
     def test_preflight_reports_configured_target_and_tmpdir(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -14,7 +14,7 @@ import contextlib, fcntl, shutil, subprocess, sys
 from pathlib import Path
 
 TARGETS = [
-    "target", "cad/wasm/target", "cad/monstertruck/target",
+    "target", "cad/monstertruck/target",
     "cad/monstertruck-qualification/target", "tools/browser-harness/target",
 ]
 
