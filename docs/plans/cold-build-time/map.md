@@ -91,13 +91,17 @@ about 700 to 800 s; a cold run in an existing worktree to about 900 to 1000 s.
 | [14](issues/14-dioxus-default-features.md) | Remove Dioxus default features | -3 | -41 | none | 1 day + upkeep | **Drop** |
 | [15](issues/15-cad-test-dev-deps.md) | Trim CAD test dependencies | -2 to -5 | -20 to -50 | none | half a day | **Drop** |
 
-Second round, after the single browser build (986.6 s cold). Estimates are from one run's logs:
+Second round, after the single browser build (986.6 s cold):
 
-| # | Ticket | Cold wall | Verdict |
-|---|---|---:|---|
-| [16](issues/16-browser-launch-concurrency.md) | More crate launches at once; prebuild the page test | -20 to -35 | Do first |
-| [17](issues/17-browser-overlap.md) | Overlap gates and page filters; strip A/B | -125 to -180 | Do, part by part |
+| # | Ticket | Measured wall | Verdict |
+|---|---|---|---|
+| [16](issues/16-browser-launch-concurrency.md) | More crate launches; prebuild page test | 4-job batch 76.9 s; 6-job batch 284.8 s; page launch still compiled | Both rejected; default stays 4 |
+| [17](issues/17-browser-overlap.md) | Overlap gates and page filters; strip A/B | Gate overlap: browser 564.4 s; parallel page focus 108.2 to 68 s, but full browser 525.5 s; strip full browser 611.3 s | All rejected on 284–287 s launch stalls; browser figures are not comparable gains |
 | [18](issues/18-browser-test-cleanup.md) | Bounded waits; test overlap and irrelevant tests | unknown until `layout` is timed | Do; removals need approval |
+
+The final kept state has no runtime change: cold total 1256.2 s, browser 701.0 s,
+all count floors met but a 284.1 s launch stall remained. See ticket 17 for logs
+and the limits of these measurements.
 
 ## Decisions so far
 

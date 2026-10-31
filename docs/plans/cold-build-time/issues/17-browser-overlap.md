@@ -1,9 +1,52 @@
 # 17: Overlap the idle parts of the browser step
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: [16](16-browser-launch-concurrency.md)
 Parent: [map](../map.md)
+
+## Outcome
+
+Part 1 rejected: the first warm full browser pass exited 0, but its `library`
+launch took 287.1 s, above the 120 s stall limit; the part was reverted without
+further passes (`.evidence/build-time/t17p1-browser-1.log`). The browser step was
+564.4 s; the reference cold browser step was 446.6 s (not a comparable warm
+before/after). Load at start was 1.70. Unit checks passed: 67 `test-check.py`
+tests and 59 `test-run-wasm-tests.py` tests. No mutation or 4-CPU run was attempted
+because the first pass failed the stall rule. The cause and whether this 4-job
+stall also occurs on the base are unverified; earlier 6/8-job stalls are in ticket 16.
+
+Part 2 rejected: a focused parallel page run passed all 112 tests in 68 s versus
+108.2 s for the previous serial page run; the three filters took 26.9, 61.7 and
+27.5 s (`.evidence/build-time/t17p2-focused.{log,json}`). The first full browser
+pass exited 0, but its crate-batch `library` launch stalled for 286.3 s and
+therefore failed the 120 s limit (`.evidence/build-time/t17p2-browser-1.log`).
+No further passes, mutation or 4-CPU run were attempted. Load at the full pass
+start was 5.41, so its 525.5 s browser wall is not a reliable gain comparison.
+The implementation was reverted. The 0.2.129 runner creates a distinct
+`tempfile::tempdir()` per invocation and binds an ephemeral loopback port in
+headless mode ([source](https://github.com/wasm-bindgen/wasm-bindgen/blob/0.2.129/crates/cli/src/wasm_bindgen_test_runner.rs));
+the 2-job sibling experiments passed, but they do not explain the stalls.
+
+Part 3 rejected: the strip prebuild took 99 s after a warm non-strip build,
+compiling 210 units including 27 proc-macro compilation lines
+(`.evidence/build-time/t17p3-prebuild.log`, load 5.15). The first full browser
+pass exited 0 but its `library` launch stalled for 284.8 s, failing the 120 s
+limit (`.evidence/build-time/t17p3-browser-1.log`, load 3.71). Browser wall was
+611.3 s versus 564.4 s for the earlier non-strip warm pass, but these include
+stalls and are not reliable performance comparisons. The strip changes were
+reverted. No further passes, panic-location check, mutation or 4-CPU run were
+attempted after the stall. Both Python test suites passed (65 and 59 tests).
+
+Final kept state (no runtime change from the starting head): full cold check exited 0
+in 1256.2 s, browser 701.0 s, versus 986.6 s and 446.6 s in the reference. The
+count floor held: the same 693 crate-launch names, 112 page tests, 2378 native
+baselined tests, 15 drag checks and 364 CAD browser checks. However, the
+`ui-shared -- panels::` launch took 284.1 s, so this is **not a stall-free run**
+(`.evidence/build-time/t16-17-final.log`; comparison in
+`.evidence/build-time/t16-17-final-comparison.txt`). The final run started at
+load 1.56. No scratch-base reproduction was run; the final retained runtime code
+is unchanged from the starting head.
 
 ## Evidence
 
