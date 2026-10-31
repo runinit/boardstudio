@@ -1,9 +1,28 @@
 # 16: Run more crate launches at once; prebuild the page test
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: none
 Parent: [map](../map.md)
+
+## Outcome
+
+Part 1 rejected: the default remains 4. At 8 jobs, launches took 301–334 s
+(`.evidence/build-time/t16-j8-1.log`); at 6, case took 301 s and keycaps 285 s,
+with a 284.8 s batch versus 76.9 s at 4 (`.evidence/build-time/t16-j6-1.log`).
+The 6-job pass was terminated by the user, not counted as a test failure. Test bodies
+were normal; the delay was outside them, in startup or teardown. CPU and memory did
+not explain it. The cause is unknown. Two later 8-job passes had already been started
+before the stop instruction was received. Three focused 2-job passes each for
+`ui-shared` and `layout` passed, refuting sibling overlap as the explanation
+(`.evidence/build-time/t16-sibling-*.log`). No live process/fd snapshot was captured.
+
+Part 2 rejected after the prescribed single approach. Only `web/Cargo.toml` has a
+`default` feature among the selected packages. A fresh isolated target prebuild with
+`--lib --bin boardstudio-web --no-default-features` and the page features took 102 s;
+the subsequent page `--list` launch took 16 s and still compiled `boardstudio-web`
+in the dev profile (9.34 s). This fails the freshness requirement; no cold gain is
+claimed. Logs: `.evidence/build-time/t16-page-fresh-{prebuild,launch}.log`.
 
 ## Evidence
 
