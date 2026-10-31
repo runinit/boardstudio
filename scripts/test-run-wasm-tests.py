@@ -316,8 +316,9 @@ class RunWasmTestsTests(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertIn("executed 2, failed 0", out)
         calls = self.log.read_text().splitlines()
-        self.assertEqual(calls, [
-            "--list",
+        # Filters launch concurrently, so only the listing's position is fixed.
+        self.assertEqual(calls[0], "--list")
+        self.assertCountEqual(calls[1:], [
             "presentation::mechanical_settings::contextual_layer_tests::",
             "presentation::panels::scroll_tests::",
         ])
