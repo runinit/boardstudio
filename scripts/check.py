@@ -279,10 +279,11 @@ def is_browser_step(name: str) -> bool:
 
 
 def check_jobs() -> int:
+    default = min(6, os.cpu_count() or 4)
     try:
-        return max(1, int(os.environ.get("BOARDSTUDIO_CHECK_JOBS", "4")))
+        return max(1, int(os.environ.get("BOARDSTUDIO_CHECK_JOBS", str(default))))
     except ValueError:
-        return 4
+        return default
 
 
 def launch_order(command: Command) -> int:

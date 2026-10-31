@@ -780,14 +780,19 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                                  "the receipt keeps the only attempt's exit code and whole output")
                 self.assertEqual(check.summarize_wasm_failure(stalled)["kind"], "timeout")
 
-    def test_the_browser_job_cap_defaults_to_four_and_one_means_serial(self):
-        with mock.patch.dict(os.environ):
+    def test_the_browser_job_cap_defaults_to_available_cpus_up_to_six(self):
+        with mock.patch.dict(os.environ), mock.patch.object(check.os, "cpu_count", return_value=12):
             os.environ.pop("BOARDSTUDIO_CHECK_JOBS", None)
-            self.assertEqual(check.check_jobs(), 4)
+            self.assertEqual(check.check_jobs(), 6)
             os.environ["BOARDSTUDIO_CHECK_JOBS"] = "junk"
-            self.assertEqual(check.check_jobs(), 4)
+            self.assertEqual(check.check_jobs(), 6)
             os.environ["BOARDSTUDIO_CHECK_JOBS"] = "0"
             self.assertEqual(check.check_jobs(), 1)
+            os.environ.pop("BOARDSTUDIO_CHECK_JOBS")
+            with mock.patch.object(check.os, "cpu_count", return_value=4):
+                self.assertEqual(check.check_jobs(), 4)
+            with mock.patch.object(check.os, "cpu_count", return_value=None):
+                self.assertEqual(check.check_jobs(), 4)
 
     def test_build_is_fast_and_release_is_opt_in(self):
         self.assertIn("--fast", check.STEPS["build"][1][0])
