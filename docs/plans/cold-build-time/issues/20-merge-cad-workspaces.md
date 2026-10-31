@@ -1,6 +1,6 @@
 # 20: Merge the CAD library and wasm workspaces
 
-Status: resolved
+Status: ready-for-agent
 
 ## Resolution (2026-10-31)
 

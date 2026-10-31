@@ -21,7 +21,7 @@ members = [
   "web/crates/keycaps",
   "web/crates/test-floor",
 ]
-# cad/wasm keeps its own lockfile and patched Monstertruck dependency graph.
+# cad/wasm belongs to the cad/monstertruck workspace, with its own lockfile and patched Monstertruck graph.
 exclude = [
   "cad/wasm",
   "renderer/vendor/cgmath-next-0.18.1",

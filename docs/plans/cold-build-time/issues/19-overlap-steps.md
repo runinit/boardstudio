@@ -1,6 +1,6 @@
 # 19: Run lint, test and build together
 
-Status: resolved
+Status: ready-for-agent
 
 ## Resolution (2026-10-31)
 

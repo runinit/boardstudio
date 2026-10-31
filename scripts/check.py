@@ -649,6 +649,7 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
     previous_term = signal.getsignal(signal.SIGTERM) if main_thread else None
     previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, signals) if main_thread else None
     registry["mask"] = previous_mask if main_thread else signal.pthread_sigmask(signal.SIG_BLOCK, set())
+    buffered: dict[int, tuple[Command, tuple]] = {}
     try:
         if main_thread:
             def interrupt(signum, _frame):
@@ -675,7 +676,6 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         pending = {future for _, future in futures}
         commands_by_future = {future: command for command, future in futures}
         index_by_future = {future: index for index, (_, future) in enumerate(futures)}
-        buffered: dict[int, tuple[Command, tuple]] = {}
         next_index = 0
 
         def emit(command: Command, result: tuple) -> None:
@@ -804,6 +804,12 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
             except BaseException as caught:
                 if error is None:
                     error = caught
+        if in_order and error is not None:
+            # Ordered output is held back; without this an interrupt loses a finished step's errors.
+            for command, result in buffered.values():
+                print("$ " + shlex.join(command), flush=True)
+                text = output_text(result[1])
+                print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
         if receipt is not None and error is not None:
             for command, result in completed:
                 code, output, elapsed, started_at, ended_at, attempt = result
@@ -832,8 +838,8 @@ def _run_lint_overlap(commands: list[Command], environment: dict[str, str], cwd:
                       receipt: verification_receipt.Collector | None = None) -> tuple[float, bool]:
     """Run `lint` with the harness clippy beside the two root clippys.
 
-    The root clippys stay serial with each other (shared host lock); every other command,
-    including the harness clippy's result, is observed in plan order.
+    The root clippys stay serial with each other (shared host lock); the harness has its own
+    target. Every other command, including the harness clippy's result, is observed in plan order.
     """
     total = 0.0
     pending: list[tuple[Command, object, list, float]] = []
@@ -865,6 +871,8 @@ def _run_lint_overlap(commands: list[Command], environment: dict[str, str], cwd:
             args = (command, child_env, cwd, captured, serial_outputs)
             attempt = receipt.prepare(command, step="lint") if receipt is not None else None
             if is_harness_clippy(command):
+                # Its own target: sharing lint's overlap target would queue it on their lock.
+                child_env.pop("CARGO_TARGET_DIR", None)
                 # Submitted before the root clippys run, so it overlaps them.
                 pending.append((command, pool.submit(run_serial, *args), serial_outputs, attempt))
             else:
@@ -1170,8 +1178,6 @@ def _overlap_child_commands(group: list[tuple[str, list[Command]]],
         if name == "test" and update_native_baseline:
             command.append("--update-native-baseline")
         environment = os.environ.copy()
-        if name == "test":
-            environment.pop("APPDIR", None)
         if name == "lint":
             environment["CARGO_TARGET_DIR"] = "target/lint"
         batch.append(command)
@@ -1181,7 +1187,7 @@ def _overlap_child_commands(group: list[tuple[str, list[Command]]],
 
 @contextlib.contextmanager
 def _overlap_jobserver(environments: dict[tuple[str, ...], dict[str, str]]):
-    """Share one fifo jobserver across the overlapped children, capping rustc at the CPU count.
+    """Share one fifo jobserver across the overlapped children, capping rustc near the CPU count (each cargo also holds an implicit token).
 
     Yields the child MAKEFLAGS, or None when an outer jobserver is already inherited. Cargo
     honours the fifo (a 2-token probe held both tokens and bounded rustc); the fifo is

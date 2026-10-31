@@ -76,7 +76,7 @@ def provider_lanes(fast: bool = False) -> tuple[list[tuple[list[str], Path]], ..
 
     Lane A keeps the four `wasm-pack` builds serial: they share the workspace
     target dir, where Cargo's single target-dir lock would serialize them
-    anyway. Lane B (CAD WASM) builds in its own isolated target dir. Ergogen
+    anyway. Lane B (CAD WASM) builds in the CAD workspace's target dir. Ergogen
     staging runs no cargo and stays serial before the pool.
     """
     lanes: dict[str, list[tuple[list[str], Path]]] = {"A": [], "B": []}

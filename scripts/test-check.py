@@ -525,6 +525,35 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         # Root clippys keep their plan order even though the harness runs beside them.
         self.assertLess(seen.index(roots[0]), seen.index(roots[1]))
 
+    def test_lint_overlap_keeps_the_harness_off_the_overlap_target(self):
+        environments = {}
+
+        def fake_serial(command, environment, cwd, captured, outputs):
+            environments[check.is_harness_clippy(command)] = environment
+            return 0.0, 0, "s", "e"
+
+        commands = [c for c in check.LINT if c[:2] == ["cargo", "clippy"]]
+        with mock.patch.object(check, "run_serial", side_effect=fake_serial):
+            check._run_lint_overlap(commands, {"CARGO_TARGET_DIR": "target/lint"}, check.ROOT, None)
+        self.assertEqual(environments[False]["CARGO_TARGET_DIR"], "target/lint")
+        self.assertNotIn("CARGO_TARGET_DIR", environments[True])
+
+    def test_ordered_batch_interrupt_prints_finished_output(self):
+        script = (
+            "import sys; sys.path.insert(0, 'scripts'); import check\n"
+            "py = sys.executable\n"
+            "slow = [py, '-c', 'import time; time.sleep(60)']\n"
+            "fast = [py, '-c', 'print(\"FINISHED-STEP-OUTPUT\")']\n"
+            "check.run_parallel([slow, fast], {}, in_order=True)\n"
+        )
+        process = subprocess.Popen([sys.executable, "-c", script], cwd=check.ROOT, text=True,
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        time.sleep(3)
+        process.terminate()
+        output, _ = process.communicate(timeout=20)
+        self.assertNotEqual(process.returncode, 0)
+        self.assertIn("FINISHED-STEP-OUTPUT", output)
+
     def test_lint_overlap_reports_harness_failure(self):
         def fake_serial(command, environment, cwd, captured, outputs):
             if check.is_harness_clippy(command):
@@ -1278,8 +1307,6 @@ driver status: signal: 9 (SIGKILL)
         self.assertEqual(lint_env["KEEP"], "1")
         for command in batch[1:]:
             self.assertNotIn("CARGO_TARGET_DIR", environments[tuple(command)])
-        self.assertNotIn("APPDIR", environments[tuple(batch[2])])
-        self.assertIn("APPDIR", environments[tuple(batch[0])])
         batch, _ = check._overlap_child_commands(group, False)
         self.assertNotIn("--update-native-baseline", batch[2])
         # Single-step children cannot overlap again.
