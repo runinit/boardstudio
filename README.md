@@ -114,7 +114,8 @@ on purpose, with `BOARDSTUDIO_ALLOW_NO_KICAD=1`; the KiCad integration tests hav
 **Browser tests.** The runner checks that every listed test actually executes. Each presentation crate
 under `web/crates/` is one test launch (`wasm-pack test --headless --chrome web/crates/<crate> --lib`,
 which starts its own `chromedriver` and Chrome); the Case workspace, panel and setup guide tests run
-separately because their mounted fixtures need an isolated DOM. The check runs up to four crate launches
+separately because their mounted fixtures need an isolated DOM. One `cargo test --no-run` compiles them all
+first; every launch dev-depends on `web/crates/test-floor` so it finds those builds fresh. The check runs up to four crate launches
 at once (`BOARDSTUDIO_CHECK_JOBS`, `1` for serial) and builds test wasm without debug info
 (`CARGO_PROFILE_DEV_DEBUG=false`, which is most of a launch's cost; run `wasm-pack test` by hand,
 without the variable, for source-level debugging). Use `python3 scripts/check.py browser --only <crate>...`

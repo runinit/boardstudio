@@ -19,6 +19,7 @@ members = [
   "web/crates/keymap",
   "web/crates/library",
   "web/crates/keycaps",
+  "web/crates/test-floor",
 ]
 # cad/wasm keeps its own lockfile and patched Monstertruck dependency graph.
 exclude = [

@@ -117,6 +117,11 @@ about 700 to 800 s; a cold run in an existing worktree to about 900 to 1000 s.
   `core.hooksPath` is set. Backdating source mtimes to keep path crates fresh is rejected: it cut a
   seeded native build from 48 s to 10 s, but the Core test binary then embedded the donor's path,
   so tests could read the donor's fixtures.
+- 2026-10-31: browser crate launches share one prebuild (`check-speed` 13, a variation of option A
+  that keeps `wasm-pack` launches). Every launch dev-depends on `web/crates/test-floor`, so one
+  `cargo test --no-run` serves all 12 crates. Full cold run 1031.2 s to 986.6 s, `browser` 491.2 s
+  to 446.6 s, wasm32 debug Core builds 4 to 1, the same 693 launch test names, 112 page tests and
+  2378 native tests. `check.py browser --only <crate>` now builds every web crate when cold.
 - 2026-10-31: keep KiCad as the independent test oracle. Production code does not run it, and no
   Rust DRC was found to replace it.
 

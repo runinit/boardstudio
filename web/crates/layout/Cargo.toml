@@ -51,7 +51,12 @@ boardstudio-web-case = { path = "../case", features = ["test-support"] }
 boardstudio-web-parts = { path = "../parts", features = ["test-support"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+# Not used by the tests: gives every browser test launch the same features, so one prebuild serves them all.
+boardstudio-web-test-floor = { path = "../test-floor" }
 wasm-bindgen-test = "=0.3.79"
+
+[package.metadata.cargo-machete]
+ignored = ["boardstudio-web-test-floor"]
 
 [lints]
 workspace = true

@@ -90,6 +90,15 @@ DRAG_SMOKE = [PY, "scripts/run-drag-browser.py"]
 HARNESS_MANIFEST = "tools/browser-harness/Cargo.toml"
 HARNESS_PREBUILD: Command = ["cargo", "build", "--locked", "--manifest-path", HARNESS_MANIFEST,
                              "--package", "boardstudio-browser-harness", "--bin", "drag-smoke"]
+# One cargo invocation compiles every crate launch's test binary in parallel; launches queued on the
+# build lock otherwise. web/crates/test-floor keeps each launch's features equal to this one's.
+BROWSER_PREBUILD: Command = [
+    "cargo", "test", "--no-run", "--locked", "--target", "wasm32-unknown-unknown", "--lib",
+    "--features", "boardstudio-web-host/page",
+    *[arg for crate in ("case", "catalogue", "host", "keycaps", "keymap", "layout", "library", "parts",
+                        "pcb", "runtime", "ui-model", "ui-shared")
+      for arg in ("--package", f"boardstudio-web-{crate}")],
+]
 LAYOUT_TEST_CSS: list[str] = [
     "dx", "build", "--web", "--no-default-features", "--features", "page", "--cargo-args=--locked",
 ]
@@ -120,6 +129,7 @@ def browser() -> list[Command]:
         [PY, "-B", "scripts/ergogen-parity/test_generate.py", "--source"],
         [PY, "cad/scripts/face-completeness-gate.py"],
         [PY, "cad/scripts/test-cad-browser.py"],
+        BROWSER_PREBUILD,
         # The harness binary prebuilds beside the crate launches; the smoke itself runs after
         # the batch, needing only the built site and binary. Fail-fast order changes deliberately:
         # launch failures now surface before the smoke instead of after it.

@@ -271,6 +271,18 @@ class CheckTests(unittest.TestCase):
                 found = True
         self.assertTrue(found, "CI must configure an unconditional tooling step")
 
+    def test_browser_prebuild_covers_every_crate_launch(self):
+        prebuilt = {arg.removeprefix("boardstudio-web-") for arg in check.BROWSER_PREBUILD
+                    if arg.startswith("boardstudio-web-") and "/" not in arg}
+        self.assertEqual(prebuilt, set(check.browser_crates()))
+        floor = (ROOT / "web/crates/test-floor/Cargo.toml").read_text()
+        for crate in prebuilt:
+            self.assertIn(f'boardstudio-web-{crate} = {{ path = "../{crate}"', floor)
+            manifest = (ROOT / f"web/crates/{crate}/Cargo.toml").read_text()
+            self.assertIn('boardstudio-web-test-floor = { path = "../test-floor" }', manifest)
+        self.assertIn('boardstudio-web-test-floor = { path = "crates/test-floor" }',
+                      (ROOT / "web/Cargo.toml").read_text())
+
     def test_ergogen_gate_transition_contract(self):
         workflow = (ROOT / ".github/workflows/check.yaml").read_text()
         gate = [check.PY, "-B", "scripts/ergogen-parity/test_generate.py", "--hermetic"]

@@ -37,13 +37,12 @@ web-sys = { version = "=0.3.106", features = [
 ] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-# Not used by the tests: gives this browser test launch the same dependency features as the others,
-# so they share one build of Core and Dioxus.
-boardstudio-web-ui-shared = { path = "../ui-shared" }
+# Not used by the tests: gives every browser test launch the same features, so one prebuild serves them all.
+boardstudio-web-test-floor = { path = "../test-floor" }
 wasm-bindgen-test = "=0.3.79"
 
 [package.metadata.cargo-machete]
-ignored = ["boardstudio-web-ui-shared"]
+ignored = ["boardstudio-web-test-floor"]
 
 [lints]
 workspace = true
