@@ -759,7 +759,8 @@ class RunWasmTestsTests(unittest.TestCase):
             with runner.desktop_webdriver_config({}) as env:
                 config_path = Path(env[runner.WEBDRIVER_CONFIG_ENV])
                 self.assertEqual(json.loads(config_path.read_text()), {
-                    "goog:chromeOptions": {"args": ["--window-size=1280,900"]}
+                    "goog:chromeOptions": {"args": ["--window-size=1280,900"]},
+                    "pageLoadStrategy": "eager",
                 })
             self.assertFalse(config_path.exists())
             supplied = self.dir / "caller-webdriver.json"

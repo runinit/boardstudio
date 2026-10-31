@@ -548,6 +548,9 @@ def desktop_webdriver_config(env, root=ROOT):
         args.append("--window-size=1280,900")
     if chrome is not None:
         options["binary"] = chrome
+    # The runner reads no test output until navigation returns, and allows that 300 s, so a page
+    # slow to reach `load` otherwise stalls a passing launch silently.
+    base.setdefault("pageLoadStrategy", "eager")
     with TemporaryDirectory(prefix="boardstudio-wasm-webdriver-") as temporary:
         config = Path(temporary) / "webdriver.json"
         config.write_text(json.dumps(base))
