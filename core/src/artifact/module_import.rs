@@ -425,6 +425,7 @@ pub(super) fn import(
             reference,
             pose,
             side,
+            anchor: None,
             locked: None,
             keycap: None,
             outline: None,

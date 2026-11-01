@@ -70,6 +70,7 @@ fn fixture() -> ProjectDoc {
                 rotation: 0.0,
             },
             side: Side::Front,
+            anchor: None,
             locked: None,
             keycap: None,
             outline: None,

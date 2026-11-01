@@ -16,7 +16,7 @@ whole column.
 ## Development
 
 Install the Rust version in `rust-toolchain.toml`, `wasm-pack` 0.15.0, Dioxus CLI
-0.7.10 and Python 3.11+. Node is not needed to build or run the app; it is required for the `tooling` check step and the browser drag smoke (the Browser tests paragraph covers the `NODE_PATH` detail). KiCad CLI 10 is required for PCB integration checks. Browser tests require
+0.7.10 and Python 3.11+. The default checks use the Rust browser harness and do not require Node or Playwright. KiCad CLI 10 is required for PCB integration checks. Browser tests require
 Chrome/Chromium and its compatible ChromeDriver.
 
 ```sh
@@ -83,6 +83,14 @@ python3 scripts/check.py         # the full pre-PR check
 
 A single Core Rust test runs with `cargo test -p boardstudio_core --test integration <filter>`.
 
+**Optional Node/npm execution check.** On Linux, install `strace` and run
+`python3 scripts/verify-no-node.py -- COMMAND [ARG ...]` around the command to check.
+The verifier first runs its own PATH and absolute-path positive controls, then traces
+the command and descendants. It fails on attempts to execute a pathname named `node`
+or `npm`, on command failure, or if tracing cannot be verified. It observes only the
+traced process tree: renamed or embedded runtimes and the GitHub Actions runtime are
+outside its scope. It does not change CI or replace the required verification checks.
+
 **Routine loop.** `quick` takes the files changed against `main` (plus untracked files; or name
 them with `--files`) and runs the documentation checks, rustfmt and Clippy, WASM page compilation,
 the native tests of the changed crates and everything that depends on them, and the browser tests
@@ -118,8 +126,7 @@ presentation code. Browser setup installs the locked wasm-bindgen runner before 
 The browser step opens the packaged page and runs a trusted mouse-drag smoke over
 Part, Column, Stagger and Ctrl+Offset. It checks live preview, pointer capture, saved document state
 and exact Undo. Its success receipt and failure log are kept under `web/target/test-results/drag-browser/`.
-CI installs the pinned `playwright-core` runner; local browser checks need it on `NODE_PATH` and a
-Chrome or Chromium executable available as `CHROME_BIN`.
+Browser checks use the Rust harness and a Chrome or Chromium executable available as `CHROME_BIN`.
 
 **Verification receipts.** Add `--receipt PATH` to any check invocation to write a JSON receipt at
 `PATH` and a reviewer summary at `PATH.md`, both derived only from the output that invocation
@@ -153,6 +160,11 @@ The Rust crates share one Cargo workspace (root `Cargo.toml`, `Cargo.lock` and
 `target/`), so dependencies compile once per profile and target. `cad/wasm` stays
 outside it because it patches the vendored Monstertruck crates with its own lockfile. It declares an empty `[workspace]` so cargo treats it as its own
 root, which also lets it build from a worktree nested under another checkout.
+
+A new worktree can skip most of its cold build by seeding copy-on-write copies of an idle
+worktree's target dirs: run `python3 scripts/seed-worktree-target.py DONOR` inside the new
+worktree. It refuses a busy donor, a toolchain mismatch, or a destination that already has
+targets.
 
 The repository has no TypeScript or Node dependency; Python scripts handle build, content preparation and checks. Footprint generation runs in Rust inside Core and the page. User-supplied
 JavaScript generators are not executed. Bundled model export includes used assets;

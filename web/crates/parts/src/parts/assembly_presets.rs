@@ -658,6 +658,7 @@ pub fn document_with_assembly(
                 rotation: member.pose.rotation,
             },
             side: member.side.clone(),
+            anchor: None,
             locked: None,
             properties: Some(properties),
             generator_parameters: None,

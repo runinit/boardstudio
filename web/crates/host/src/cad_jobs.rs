@@ -2068,6 +2068,7 @@ mod tests {
                 rotation: 27.0,
             },
             side: Side::Front,
+            anchor: None,
             locked: None,
             keycap: None,
             outline: None,

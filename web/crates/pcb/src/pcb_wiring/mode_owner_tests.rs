@@ -225,6 +225,7 @@ fn test_part(id: &str, definition_id: &str) -> Part {
             rotation: 0.0,
         },
         side: Side::Front,
+        anchor: None,
         locked: None,
         keycap: None,
         outline: None,

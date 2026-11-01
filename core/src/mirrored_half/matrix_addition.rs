@@ -611,7 +611,7 @@ fn reflected_matrix(
                 .unwrap_or_else(|| name.clone()),
         );
     }
-    let mut reflected = layout::reflected(source, &template, facts.mapping, false)?;
+    let mut reflected = layout::reflected(source, &template, facts.mapping, false, false)?;
     remap_mirrored_anchor(&mut reflected, &facts.halves, &addition.mirror_id)?;
     for cell in &mut reflected.cells {
         if !cell.enabled || cell.deleted {

@@ -33,6 +33,7 @@ fn fixture(keys: usize) -> ProjectDoc {
     });
     for index in 0..keys {
         doc.parts.push(Part {
+            anchor: None,
             id: format!("key-{index}"),
             definition_id: "switch".into(),
             reference: format!("SW{}", index + 1),
@@ -79,7 +80,7 @@ fn measure(keys: usize) {
                 positions: vec![Position {
                     id: "key-0".into(),
                     at: Vec2 {
-                        x: revision as f64 * 0.1,
+                        x: (revision + 1) as f64 * 0.1,
                         y: 0.0,
                     },
                 }],

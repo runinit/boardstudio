@@ -91,8 +91,13 @@ class BuildWebTests(unittest.TestCase):
                 default = BUILD.build(root / "default", prepare_providers=False)
                 output = BUILD.build(root / "output", prepare_providers=False,
                                      routes=("subpath", "root"))
+                (output / "site-root/stale.txt").write_text("preserved")
+                (output / "site-subpath/boardstudio/stale.txt").write_text("removed")
+                BUILD.build(output, prepare_providers=False)
+                self.assertTrue((output / "site-root/stale.txt").is_file())
+                self.assertFalse((output / "site-subpath/boardstudio/stale.txt").exists())
 
-            self.assertEqual(len(calls), 3)
+            self.assertEqual(len(calls), 4)
             self.assertFalse((default / "site-root").exists())
             self.assertEqual((default / "site-subpath/boardstudio/index.html").read_text(), "/boardstudio/")
             root_site = output / "site-root"

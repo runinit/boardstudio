@@ -3,7 +3,7 @@
 Status: resolved
 Type: grilling
 Blocked by: [04](04-layout-kernel-order-of-operations.md)
-Map: [map.md](../map.md) · Decision: [ADR-0034](../../../adr/0036-matrices-follow-ergogen-point-layout.md)
+Map: [map.md](../map.md) · Decision: [ADR-0036](../../../adr/0036-matrices-follow-ergogen-point-layout.md)
 
 ## Question
 

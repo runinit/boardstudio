@@ -7,10 +7,15 @@
                           (partial subset; skips full page build and drag smoke)
   check.py browser --keep-going      continue independent browser launches after a failure
   check.py quick          the routine loop: only the checks that cover your changed files
+                          run the full check once after focused checks and fixes
   check.py quick --files F...   the same for the named files instead of the git diff
   check.py test --update-native-baseline   after the tests pass, record the executed native test
                           names as the new baseline (use when tests were removed or renamed on purpose)
   check.py --list         print every step and its commands
+
+For a shared local build lock, open and flock ~/.cache/tmp/boardstudio-build.lock
+on a shell file descriptor, then export BOARDSTUDIO_BUILD_LOCK_FD with that descriptor
+number before starting check.py. The scheduler validates and holds it for the whole run.
 
 Steps:
   repo*       documentation link check and its tests
@@ -34,22 +39,31 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 import argparse
-import datetime
+import codecs
+import io
+import importlib.util
+import json
 import os
+import shutil
 from pathlib import Path
 import re
 import shlex
+import signal
+import threading
 import subprocess
 import sys
-import threading
+import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import browser_tools  # noqa: E402  (needs the scripts directory on sys.path)
 import check_native_tests  # noqa: E402  (needs the scripts directory on sys.path)
 import verification_receipt  # noqa: E402  (needs the scripts directory on sys.path)
+import wasm_bindgen_tools  # noqa: E402
+
 
 PY = "python3"
 # One workspace invocation compiles Core once for every crate's tests. Footprints runs
@@ -60,12 +74,14 @@ CARGO_TESTS: list[list[str]] = [
 ]
 TOOLING_TESTS = (
     "cad/scripts/test-cad-build.py", "cad/scripts/test-measure-cad.py",
-    "cad/scripts/test-measure-cad-runtime.cjs", "scripts/test-build-web.py", "scripts/test-serve-web.py",
+    "cad/scripts/test-face-completeness-gate.py",
+    "scripts/test-build-web.py", "scripts/test-build-patched-wasm-bindgen.py", "scripts/test-serve-web.py",
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
     "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
-    "scripts/test-model-lookup.cjs", "scripts/test-ergogen-parity.cjs", "scripts/test-drag-project-poll.cjs", "scripts/test-verification-receipt.py",
+    "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py", "scripts/test-parallel-interrupt.py", "scripts/test-verify-no-node.py", "scripts/test-build-time.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
+    "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
     "scripts/test-ci-workflow.py",
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
@@ -89,8 +105,13 @@ def browser() -> list[Command]:
     wasm_pack = ["wasm-pack", "test", "--headless", "--chrome", "web", "--locked", *WASM_PAGE]
     return [
         DRAG_SMOKE,
+        [PY, "cad/scripts/test-cad-capture-controls.py"],
+        [PY, "cad/scripts/test-cold-responses.py"],
         [PY, "scripts/check-wasm-tests.py"],
         [PY, "cad/scripts/test-cad-provider.py"],
+        [PY, "scripts/model-lookup-pilot.py", "--gate"],
+        [PY, "-B", "scripts/ergogen-parity/test_generate.py", "--source"],
+        [PY, "cad/scripts/face-completeness-gate.py"],
         [PY, "cad/scripts/test-cad-browser.py"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/host", "--locked", "--features", "page",
          "--lib"],
@@ -129,6 +150,9 @@ WEB_WASM_PACKAGES: tuple[str, ...] = (
 )
 
 # `--no-deps` keeps Clippy off the vendored cgmath fork; its lints are audited separately.
+# The browser harness lives outside the workspace with its own lockfile, so it
+# gets its own manifest-scoped format and lint commands.
+HARNESS_MANIFEST = "tools/browser-harness/Cargo.toml"
 LINT: list[list[str]] = [
     ["cargo", "fmt", "--all", "--check"],
     ["cargo", "clippy", "--workspace", "--locked", "--all-targets", "--no-deps", "--", "-D", "warnings"],
@@ -136,6 +160,10 @@ LINT: list[list[str]] = [
     # web workspace crates are also linted under an explicit WASM target.
     ["cargo", "clippy", *[arg for pkg in WEB_WASM_PACKAGES for arg in ("--package", pkg)],
      "--target", "wasm32-unknown-unknown", "--all-targets", "--locked", "--no-deps", "--", "-D", "warnings"],
+    # The browser harness lives outside the workspace with its own lockfile, so
+    # it gets its own manifest-scoped format and lint commands.
+    ["cargo", "fmt", "--manifest-path", HARNESS_MANIFEST, "--", "--check"],
+    ["cargo", "clippy", "--manifest-path", HARNESS_MANIFEST, "--all-targets", "--locked", "--no-deps", "--", "-D", "warnings"],
 ]
 
 STEPS: dict[str, tuple[bool, list[Command]]] = {
@@ -147,8 +175,11 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
         [PY, "-B", "scripts/test-check-adr-index.py"],
         [PY, "scripts/check-adr-index.py"],
     ]),
-    "tooling": (True, [["node", "--version"], *[
-        ["node", script] if script.endswith(".cjs") else [PY, "-B", script]
+    "tooling": (True, [[PY, "-B", "scripts/ergogen-parity/test_generate.py", "--hermetic"],
+                       [PY, "-B", "cad/scripts/test-face-completeness-web.py", "--hermetic"],
+                       [PY, "-B", "cad/scripts/test-provider-pages.py", "--hermetic"],
+                       [PY, "-B", "cad/scripts/test-cad-provider-gate.py"], *[
+        [PY, "-B", script]
         for script in TOOLING_TESTS]]),
     "lint": (True, LINT),
     # The routine build skips wasm-opt and the optimized Dioxus build; `release` keeps both.
@@ -399,38 +430,111 @@ def format_wasm_failure_summary(output_or_summary: str | dict[str, object] | Non
     return "; ".join(parts)
 
 
-def _utcnow() -> str:
-    """Wall-clock UTC for log attribution; monotonic stays the only duration source."""
-    return datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%SZ")
+def launch_command(command, *, registry=None, **kwargs):
+    if registry is not None:
+        return _parallel_process(command, registry, **kwargs)
+    return subprocess.run(command, **kwargs)
 
 
 def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                captured: list[tuple[Command, str]] | None = None,
-               outputs: list[tuple[Command, str]] | None = None) -> tuple[float, int]:
-    print(f"$ {shlex.join(command)}  [start {_utcnow()}]", flush=True)
+               outputs: list[tuple[Command, str]] | None = None,
+               completed=None, build_capture=None) -> tuple[float, int, str, str]:
+    print("$ " + shlex.join(command), flush=True)
+    lock_fd = browser_tools._inherited_build_lock()
+    if not any(part in command for part in ("scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py", "cad/scripts/face-completeness-gate.py", "cad/scripts/test-cad-provider.py", "scripts/build-web.py",
+               "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py", "scripts/model-lookup-pilot.py", "scripts/ergogen-parity/test_generate.py")):
+        environment = environment.copy()
+        environment.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
+    lock_args = {"pass_fds": (lock_fd,)} if lock_fd is not None else {}
     started = time.monotonic()
+    started_at = datetime.now(timezone.utc).isoformat()
+    print(f"check: start {started_at} $ {shlex.join(command)}", flush=True)
+    def run(*args, **kwargs):
+        if build_capture is not None:
+            build_capture("before", None)
+        try:
+            result = launch_command(*args, **kwargs)
+        except OSError as error:
+            message = f"startup failed: {error}\n"
+            if kwargs.get("stdout") != subprocess.PIPE:
+                print(message, end="", file=sys.stderr, flush=True)
+            result = subprocess.CompletedProcess(command, 127, stdout=message)
+        if build_capture is not None:
+            build_capture("after", result.returncode)
+        if completed is not None:
+            completed(result.returncode, time.monotonic() - started, started_at, datetime.now(timezone.utc).isoformat())
+        return result
     if captured is not None and is_cargo_test(command):
         # The native test-name guard reads this output; it is printed whole once the command ends.
-        done = subprocess.run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, text=True)
+        done = run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True, **lock_args)
         text = output_text(done.stdout)
         print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
         captured.append((command, text))
         if outputs is not None:
             outputs.append((command, text))
         code = done.returncode
-    elif outputs is not None and is_wasm_pack_test(command):
-        done = subprocess.run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, text=True)
+    elif outputs is not None and (is_wasm_pack_test(command) or "scripts/run-drag-browser.py" in command):
+        done = run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True, **lock_args)
         text = output_text(done.stdout)
         print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
         outputs.append((command, text))
         code = done.returncode
     else:
-        code = subprocess.run(command, cwd=cwd, env=environment).returncode
+        code = run(command, cwd=cwd, env=environment, **lock_args).returncode
     elapsed = time.monotonic() - started
-    print(f"  ({elapsed:.1f}s) [end {_utcnow()}]", flush=True)
-    return elapsed, code
+    ended_at = datetime.now(timezone.utc).isoformat()
+    print(f"check: end {ended_at} exit {code} ({elapsed:.1f}s)", flush=True)
+    return elapsed, code, started_at, ended_at
+
+
+def _parallel_process(command, registry, **kwargs):
+    with registry["lock"]:
+        if registry["cancelled"]:
+            return None
+        try:
+            # A worker inherits the scheduler's blocked signals. Restore the
+            # caller's mask in a fresh interpreter, without preexec_fn.
+            wrapper = """import os, signal, sys
+# Python startup changes its environment and ignores signals that Popen restored.
+with open('/proc/self/environ', 'rb') as source:
+    environment = dict(entry.split(b'=', 1) for entry in source.read().split(b'\\0') if entry)
+for name in ('SIGPIPE', 'SIGXFZ', 'SIGXFSZ'):
+    if hasattr(signal, name):
+        signal.signal(getattr(signal, name), signal.SIG_DFL)
+signal.pthread_sigmask(signal.SIG_SETMASK, [int(s) for s in sys.argv[1].split(',') if s])
+try:
+    os.execvpe(sys.argv[2], sys.argv[2:], environment)
+except OSError as error:
+    print(f"startup failed: {error}", file=sys.stderr)
+    sys.exit(127)
+"""
+            mask = ",".join(str(int(s)) for s in registry["mask"])
+            process = subprocess.Popen([sys.executable, "-I", "-S", "-c", wrapper, mask, *command],
+                                       start_new_session=True, **kwargs)
+        except OSError as error:
+            return subprocess.CompletedProcess(command, 127, f"startup failed: {error}\n")
+        registry["processes"].add(process)
+    # Observe completion without reaping the group leader. Keeping its PID
+    # reserved until batch cleanup prevents a later cancellation signal from
+    # targeting a reused process-group ID when descendants outlive the leader.
+    try:
+        decoder = io.IncrementalNewlineDecoder(
+            codecs.getincrementaldecoder(process.stdout.encoding)(errors=process.stdout.errors), translate=True)
+        chunks = []
+        while data := process.stdout.buffer.read1(65536):
+            chunks.append(decoder.decode(data))
+        chunks.append(decoder.decode(b"", final=True))
+        output = "".join(chunks)
+    except BaseException as error:
+        with registry["lock"]:
+            registry["read_failed"] = error
+        raise
+    status = os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOWAIT)
+    code = status.si_status if status.si_code == os.CLD_EXITED else -status.si_status
+    return subprocess.CompletedProcess(command, code, output)
 
 
 def run_parallel(batch: list[Command], environment: dict[str, str],
@@ -438,42 +542,220 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                  outputs: list[tuple[Command, str]] | None = None,
                  receipt: verification_receipt.Collector | None = None,
                  step: str = "") -> tuple[float, list[Command]]:
-    """Runs independent launches together, printing each one's output whole."""
-    console = threading.Lock()
+    """Runs independent launches together, printing each completed launch's output whole."""
+    lock_fd = browser_tools._inherited_build_lock()
+    # Workers retain completed results even if submit is interrupted before it
+    # returns the corresponding future to the main thread.
+    completed = []
+    registry = {"lock": threading.Lock(), "cancelled": False, "processes": set(), "workers": 0}
+    workers_changed = threading.Condition(registry["lock"])
 
-    def launch(command: Command) -> tuple[int, str, float]:
-        with console:
-            print(f"+ {shlex.join(command)}  [start {_utcnow()}]", flush=True)
-        started = time.monotonic()
+    def launch(command: Command):
+        with workers_changed:
+            if registry["cancelled"]:
+                return None
+            registry["workers"] += 1
         try:
-            done = subprocess.run(command, cwd=ROOT, env=environment, stdout=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT, text=True)
+            return run_worker(command)
         finally:
-            with console:
-                print(f"+ {shlex.join(command)}  [end {_utcnow()}]", flush=True)
-        return done.returncode, done.stdout, time.monotonic() - started
+            with workers_changed:
+                registry["workers"] -= 1
+                workers_changed.notify_all()
+
+    def run_worker(command: Command):
+        attempt = receipt.prepare(command, step=step) if receipt is not None else None
+        started = time.monotonic()
+        started_at = datetime.now(timezone.utc).isoformat()
+        print(f"check: start {started_at} $ {shlex.join(command)}", flush=True)
+        child_env = environment.copy()
+        if receipt is not None:
+            child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
+        if "cad/scripts/test-cad.py" not in command:
+            child_env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
+        done = launch_command(command, registry=registry, cwd=ROOT, env=child_env, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, text=True,
+                                 **({"pass_fds": (lock_fd,)} if lock_fd is not None else {}))
+        if done is None:
+            return None
+        code, output = done.returncode, done.stdout
+        ended_at = datetime.now(timezone.utc).isoformat()
+        elapsed = time.monotonic() - started
+        try:
+            print(f"check: end {ended_at} exit {code} $ {shlex.join(command)}", flush=True)
+        except BaseException:
+            if receipt is not None:
+                receipt.recording_failed(attempt, code, elapsed, started_at, ended_at)
+            raise
+        result = (code, output, elapsed, started_at, ended_at, attempt)
+        completed.append((command, result))
+        return result
 
     ordered = sorted(batch, key=launch_order)
     started = time.monotonic()
     failed: list[Command] = []
-    with ThreadPoolExecutor(max_workers=check_jobs()) as pool:
-        futures = {pool.submit(launch, command): command for command in ordered}
-        for future in as_completed(futures):
-            command = futures[future]
-            code, output, elapsed = future.result()
-            text = output_text(output)
-            with console:
-                print(f"$ {shlex.join(command)}", flush=True)
+    futures = []
+    error = None
+    submitting = True
+    interrupted = None
+    pool = ThreadPoolExecutor(max_workers=check_jobs())
+    main_thread = threading.current_thread() is threading.main_thread()
+    signals = {signal.SIGINT, signal.SIGTERM}
+    previous_int = signal.getsignal(signal.SIGINT) if main_thread else None
+    previous_term = signal.getsignal(signal.SIGTERM) if main_thread else None
+    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, signals) if main_thread else None
+    registry["mask"] = previous_mask if main_thread else signal.pthread_sigmask(signal.SIG_BLOCK, set())
+    try:
+        if main_thread:
+            def interrupt(signum, _frame):
+                nonlocal interrupted
+                interrupted = signum
+                signal.pthread_sigmask(signal.SIG_BLOCK, signals)
+                if sys.exception() is not None:
+                    return
+                if signum == signal.SIGINT:
+                    raise KeyboardInterrupt
+                raise SystemExit(143)
+            signal.signal(signal.SIGINT, interrupt)
+            signal.signal(signal.SIGTERM, interrupt)
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+        if main_thread:
+            signal.pthread_sigmask(signal.SIG_BLOCK, signals)
+        try:
+            for command in ordered:
+                futures.append((command, pool.submit(launch, command)))
+        finally:
+            if main_thread:
+                signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+        submitting = False
+        pending = {future for _, future in futures}
+        commands_by_future = {future: command for command, future in futures}
+        while pending:
+            finished, pending = wait(pending, return_when=FIRST_COMPLETED)
+            with registry["lock"]:
+                read_error = registry.get("read_failed")
+            if read_error is not None:
+                raise read_error
+            for future in finished:
+                if future.cancelled():
+                    continue
+                command = commands_by_future[future]
+                code, output, elapsed, started_at, ended_at, attempt = future.result()
+                text = output_text(output)
+                if receipt is not None:
+                    receipt.observe(step, command, code, elapsed, text, started_at=started_at,
+                                    ended_at=ended_at, attempt_id=attempt)
+                if captured is not None and is_cargo_test(command):
+                    captured.append((command, text))
+                if outputs is not None:
+                    outputs.append((command, text))
+                if code:
+                    failed.append(command)
+                print("$ " + shlex.join(command), flush=True)
                 print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
                 print(f"  ({elapsed:.1f}s)", flush=True)
-            if captured is not None and is_cargo_test(command):
-                captured.append((command, text))
-            if outputs is not None:
-                outputs.append((command, text))
-            if receipt is not None:
-                receipt.observe(step, command, code, elapsed, text)
-            if code:
-                failed.append(command)
+    except BaseException as caught:
+        error = caught
+    finally:
+        cancel = interrupted or (error is not None and (submitting or isinstance(error, (KeyboardInterrupt, SystemExit)) or registry.get("read_failed", False)))
+        cleanup_incomplete = False
+        previous_handler = None
+        def suppress_signals():
+            nonlocal previous_handler
+            mask = signal.pthread_sigmask(signal.SIG_BLOCK, signals)
+            previous_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            signal.pthread_sigmask(signal.SIG_SETMASK, mask)
+
+        if cancel and main_thread:
+            suppress_signals()
+        def cancel_workers():
+            with registry["lock"]:
+                registry["cancelled"] = True
+                processes = list(registry["processes"])
+            for _, future in futures:
+                future.cancel()
+            for process in processes:
+                try:
+                    os.killpg(process.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+            _, pending = wait([f for _, f in futures], timeout=0.5)
+            for process in processes:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            _, pending = wait(pending, timeout=2)
+            with workers_changed:
+                workers_done = workers_changed.wait_for(lambda: registry["workers"] == 0, timeout=2)
+            return bool(pending) or not workers_done
+
+        try:
+            if cancel:
+                cleanup_incomplete = cancel_workers()
+            if hasattr(pool, "shutdown"):
+                try:
+                    pool.shutdown(wait=not cleanup_incomplete, cancel_futures=cancel)
+                except (KeyboardInterrupt, SystemExit) as caught:
+                    if error is None:
+                        error = caught
+                    if previous_handler is None and main_thread:
+                        suppress_signals()
+                    cleanup_incomplete = cancel_workers()
+                    try:
+                        pool.shutdown(wait=not cleanup_incomplete, cancel_futures=True)
+                    except (KeyboardInterrupt, SystemExit):
+                        cleanup_incomplete = True
+            # Signals are finished; only now may group leaders be reaped and
+            # their process-group identifiers become reusable.
+            with registry["lock"]:
+                processes = list(registry["processes"])
+            for process in processes:
+                try:
+                    process.wait(timeout=0.1)
+                except subprocess.TimeoutExpired:
+                    cleanup_incomplete = True
+                finally:
+                    # A reader blocked on this stream holds its internal lock;
+                    # closing it here would itself block cleanup indefinitely.
+                    if not cleanup_incomplete and process.stdout is not None:
+                        process.stdout.close()
+            if cleanup_incomplete:
+                # ThreadPoolExecutor joins workers at interpreter exit even after shutdown(wait=False).
+                print("check: cleanup incomplete; worker termination is unconfirmed; "
+                      "interpreter exit may wait indefinitely for Python workers", file=sys.stderr, flush=True)
+        finally:
+            if main_thread:
+                signal.pthread_sigmask(signal.SIG_BLOCK, signals)
+                signal.signal(signal.SIGINT, previous_int)
+                signal.signal(signal.SIGTERM, previous_term)
+                signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+        # Include futures from test executors and results from submissions that
+        # raised after scheduling work but before returning their future.
+        for command, future in futures:
+            if future.cancelled() or (cleanup_incomplete and not future.done()):
+                continue
+            try:
+                result = future.result()
+                if result is not None and (command, result) not in completed:
+                    completed.append((command, result))
+            except BaseException as caught:
+                if error is None:
+                    error = caught
+        if receipt is not None and error is not None:
+            for command, result in completed:
+                code, output, elapsed, started_at, ended_at, attempt = result
+                try:
+                    receipt.observe(step, command, code, elapsed, output_text(output),
+                                    started_at=started_at, ended_at=ended_at, attempt_id=attempt)
+                except BaseException as caught:
+                    receipt.recording_failed(attempt, code, elapsed, started_at, ended_at)
+                    if error is None:
+                        error = caught
+    if error is None and interrupted is not None:
+        error = KeyboardInterrupt() if interrupted == signal.SIGINT else SystemExit(143)
+    if error is not None:
+        raise error
     return time.monotonic() - started, failed
 
 
@@ -518,12 +800,52 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
             index = end
             continue
         serial_outputs: list[tuple[Command, str]] = []
+        attempt = receipt.prepare(command, step=name) if receipt is not None else None
+        completed = (lambda code, elapsed, start, end: receipt.recording_failed(attempt, code, elapsed, start, end)) if receipt is not None else None
+        child_env = environment.copy()
         if receipt is not None:
-            receipt.prepare(command)
-        elapsed, code = run_serial(command, environment, cwd, captured, serial_outputs)
+            child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
+        args = (command, child_env, cwd, captured, serial_outputs)
+        build_capture = None
+        if receipt is not None and "scripts/build-web.py" in command:
+            state = {}
+            site = cwd / "web/target/site"
+            routes = "subpath"
+            for position, arg in enumerate(command):
+                if arg.startswith("--routes="):
+                    routes = arg.split("=", 1)[1]
+                elif arg == "--routes" and position + 1 < len(command):
+                    routes = command[position + 1]
+                elif arg.startswith("--output="):
+                    site = cwd / arg.split("=", 1)[1]
+                elif arg == "--output" and position + 1 < len(command):
+                    site = cwd / command[position + 1]
+            site = site.resolve()
+            observes_subpath = ("--providers-only" not in command and
+                                "subpath" in (route.strip() for route in routes.split(",")))
+            def build_capture(phase, code):
+                source = verification_receipt.source_identity(cwd)
+                if phase == "before":
+                    state["source"] = source
+                    _, state["site"] = verification_receipt.site_identity(site)
+                    receipt.build_bindings.append(verification_receipt.build_binding(
+                        receipt.run_id, attempt, source, None, None, None, False))
+                else:
+                    output, site_after = verification_receipt.site_identity(site) if code == 0 and observes_subpath else (None, None)
+                    receipt.build_bindings[-1] = verification_receipt.build_binding(
+                        receipt.run_id, attempt, state.get("source"), source, code, output,
+                        verification_receipt.fresh_site(state.get("site"), site_after))
+        elapsed, code, started_at, ended_at = (run_serial(*args, completed, build_capture)
+                                                if build_capture else
+                                                run_serial(*args, completed) if completed else run_serial(*args))
         total += elapsed
         if receipt is not None:
-            receipt.observe(name, command, code, elapsed, serial_outputs[-1][1] if serial_outputs else "")
+            try:
+                receipt.observe(name, command, code, elapsed, serial_outputs[-1][1] if serial_outputs else "",
+                                started_at=started_at, ended_at=ended_at, attempt_id=attempt)
+            except BaseException:
+                receipt.recording_failed(attempt, code, elapsed, started_at, ended_at)
+                raise
         if code:
             text = serial_outputs[-1][1] if serial_outputs else ""
             if is_crate_launch(command):
@@ -566,8 +888,10 @@ def run(names: list[str], update_native_baseline: bool = False,
                      if step == "drag-smoke" or (step == "browser" and has_drag_smoke)]
     if smoke_indices:
         # Fail before the page build, which is minutes of work the smoke cannot use without these.
+        # The opt-in Rust driver needs only Chrome; the default Node runner also needs its client.
         try:
-            browser_tools.locate()
+            browser_tools.validate_drag_driver()
+            browser_tools.locate_chrome()
         except browser_tools.MissingBrowserTool as error:
             print(f"check: {error}", file=sys.stderr)
             return 1
@@ -595,8 +919,83 @@ def guard_native_tests(commands: list[Command], captured: list[tuple[Command, st
     return check_native_tests.verify([text for _, text in captured], full=full, update=update)
 
 
+def cargo_target() -> Path:
+    metadata = subprocess.run(["cargo", "metadata", "--no-deps", "--format-version", "1", "--locked"],
+                              cwd=ROOT, capture_output=True, text=True, check=True)
+    target = Path(json.loads(metadata.stdout)["target_directory"])
+    if not target.is_absolute():
+        raise ValueError("target directory is not absolute")
+    return target
+
+
+def build_preflight(*, cad: bool = False, cad_wasm: bool = False) -> bool:
+    try:
+        browser_tools._inherited_build_lock()
+    except SystemExit as error:
+        print(f"check: {error}", file=sys.stderr)
+        return False
+    def report_target(target: Path) -> None:
+        ancestor = target
+        while not ancestor.exists() and ancestor != ancestor.parent:
+            ancestor = ancestor.parent
+        free = shutil.disk_usage(ancestor).free
+        print(f"check: build target filesystem free: {free / (1024 ** 3):.1f} GiB ({target}; measured at {ancestor})", flush=True)
+
+    try:
+        report_target(cargo_target())
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as error:
+        print(f"check: build target unknown: {error}", file=sys.stderr)
+    cad_targets = (["cad/monstertruck/target", "cad/wasm/target", "cad/monstertruck-qualification/target"]
+                   if cad else ["cad/wasm/target"] if cad_wasm else [])
+    if cad_targets:
+        for target in cad_targets:
+            try:
+                report_target(ROOT / target)
+            except OSError as error:
+                print(f"check: CAD build target unknown ({target}): {error}", file=sys.stderr)
+    temporary = Path(os.environ.get("TMPDIR") or tempfile.gettempdir())
+    try:
+        free = shutil.disk_usage(temporary).free
+        print(f"check: temporary filesystem free: {free / (1024 ** 3):.1f} GiB ({temporary})", flush=True)
+    except OSError as error:
+        print(f"check: cannot determine temporary filesystem free space ({temporary}): {error}", file=sys.stderr)
+    return True
+
+
 def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool = False,
              *, keep_going: bool = False, partial: bool = False) -> int:
+    if _RECEIPT is not None:
+        _RECEIPT.plan_commands(plan)
+    cad_build = any("cad/scripts/test-cad.py" in command for _, commands in plan for command in commands)
+    cad_wasm = any("scripts/build-web.py" in command and "--skip-providers" not in command
+                   for _, commands in plan for command in commands)
+    if (cad_build or cad_wasm or any(commands and (name in ("build", "release", "browser", "drag-smoke", "layout-test-css")
+                         or name.startswith("browser (only:")
+                         or any(command and command[0] in ("cargo", "wasm-pack") for command in commands))
+                         for name, commands in plan)) and not build_preflight(cad=cad_build, cad_wasm=cad_wasm):
+        return 1
+    direct = any(is_wasm_pack_test(command) for _, commands in plan for command in commands)
+    page = not os.environ.get("BOARDSTUDIO_WASM_TEST_COMMAND") and any(
+        "scripts/run-wasm-tests.py" in command for _, commands in plan for command in commands)
+    if direct or page:
+        spec = importlib.util.spec_from_file_location("run_wasm_tests", Path(__file__).with_name("run-wasm-tests.py"))
+        wasm_runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(wasm_runner)
+        try:
+            environment = wasm_runner.runner_environment(ROOT, browser_only=True)
+            with wasm_runner.desktop_webdriver_config(environment, ROOT) as environment:
+                selected = [(name, [command[:4] + ["--chromedriver", environment["CHROMEDRIVER"]] + command[4:]
+                                    if is_wasm_pack_test(command) else command for command in commands])
+                            for name, commands in plan]
+                return _run_plan(selected, update_native_baseline, keep_going=keep_going,
+                                 partial=partial, browser_environment=environment)
+        except wasm_runner.RunnerError as error:
+            print(f"check: {error}", file=sys.stderr)
+            return 1
+    return _run_plan(plan, update_native_baseline, keep_going=keep_going, partial=partial)
+
+
+def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=False, browser_environment=None):
     names = [name for name, _ in plan]
     # `--only` and any named-step/quick selection are focused; only the full default plan is not.
     focused = partial or tuple(names) != DEFAULT
@@ -610,7 +1009,7 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
     def finish(code: int) -> int:
         global _RECEIPT
         if receipt is not None:
-            receipt.finish(code, partial=focused)
+            receipt.finish(code, partial=focused, source_after=verification_receipt.source_identity(ROOT))
         _RECEIPT = None
         return code
 
@@ -621,6 +1020,13 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
             # An editor's AppImage directory redirects system KiCad's library lookup.
             environment.pop("APPDIR", None)
         if is_browser_step(name):
+            if browser_environment is not None:
+                environment.update(browser_environment)
+            try:
+                environment = wasm_bindgen_tools.configure(environment, ROOT)
+            except ValueError as error:
+                print(f"check: {error}", file=sys.stderr)
+                return finish(1)
             # Match the page runner's bounded budget for direct wasm-pack crate batches.
             environment.setdefault("WASM_BINDGEN_TEST_TIMEOUT", "120")
             # Test wasm without DWARF is about a seventh of the size, which is most of a launch.
@@ -674,8 +1080,9 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
         crates = {Path(package.directory).name for name, package in packages.items()
                   if name in selection.packages and package.directory.startswith("web/crates/")}
         if selection.full_rust:
-            # The real-page drag smoke uses the packaged site; quick checks deliberately skip builds.
-            commands = [command for command in browser() if "run-drag-browser.py" not in " ".join(command)]
+            # Quick deliberately skips checks requiring a packaged site.
+            commands = [command for command in browser() if not any(name in command for name in
+                        ("scripts/run-drag-browser.py", "cad/scripts/test-cold-responses.py"))]
         else:
             commands = select_browser_crate_launches(crates, browser())
             if selection.page_files:
@@ -759,6 +1166,8 @@ def _main(argv: list[str] | None = None) -> int:
     unknown = [name for name in args.steps if name not in STEPS]
     if args.steps != ["quick"] and unknown:
         parser.error(f"unknown step(s): {', '.join(unknown)}; choose from {', '.join(STEPS)}")
+    if not args.list:
+        browser_tools._inherited_build_lock()
     receipt = None
     if args.receipt:
         receipt = verification_receipt.Collector(
@@ -803,7 +1212,7 @@ def main(argv: list[str] | None = None) -> int:
         receipt, _RECEIPT = _RECEIPT, None
         if receipt is not None:
             names = tuple(dict.fromkeys(step for step, _ in receipt.plan))
-            receipt.finish(code, partial=names != DEFAULT)
+            receipt.finish(code, partial=names != DEFAULT, source_after=verification_receipt.source_identity(ROOT))
 
 
 if __name__ == "__main__":

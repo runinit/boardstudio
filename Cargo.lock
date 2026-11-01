@@ -308,6 +308,7 @@ version = "0.1.0"
 dependencies = [
  "boardstudio-application",
  "boardstudio-web-host",
+ "boardstudio-web-ui-shared",
  "boardstudio_core",
  "serde",
  "serde_json",
@@ -319,6 +320,7 @@ name = "boardstudio-web-host"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-web-ui-shared",
  "boardstudio_core",
  "futures-channel",
  "gloo-timers",
@@ -488,6 +490,7 @@ version = "0.1.0"
 dependencies = [
  "boardstudio-application",
  "boardstudio-web-host",
+ "boardstudio-web-ui-shared",
  "boardstudio_core",
  "futures-channel",
  "gloo-timers",
@@ -508,6 +511,7 @@ version = "0.1.0"
 dependencies = [
  "boardstudio-application",
  "boardstudio-web-runtime",
+ "boardstudio-web-ui-shared",
  "boardstudio_core",
  "dioxus",
  "serde_json",

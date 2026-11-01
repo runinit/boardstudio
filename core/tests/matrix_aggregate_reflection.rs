@@ -49,6 +49,7 @@ fn definitions() -> Vec<PartDefinition> {
 
 fn key_part(id: &str, x: f64, y: f64) -> Part {
     Part {
+        anchor: None,
         id: id.into(),
         definition_id: "switch".into(),
         reference: id.into(),
@@ -206,6 +207,8 @@ fn linked_pair_fixture() -> (CoreEngine, ProjectDoc) {
         mirror_link: Some(LayoutMirrorLink {
             source_id: "layout".into(),
             axis_x: 10.0,
+            split_gap: None,
+            spacing: None,
             correspondences: vec![MirroredCorrespondence {
                 companion_mode: None,
                 companion_tweak: None,

@@ -252,6 +252,7 @@ fn standalone_part(definition: &PartDefinition) -> Part {
             rotation: 0.0,
         },
         side: Side::Front,
+        anchor: None,
         keycap: None,
         outline: None,
         locked: None,

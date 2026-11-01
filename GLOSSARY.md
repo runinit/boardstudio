@@ -296,6 +296,14 @@ keys, whose combined pose the frame follows instead. The matrix may follow the t
 and rotation, or only some of them.
 _Avoid_: parent, reference (unqualified)
 
+**Part anchor**:
+A key of a matrix in the part's own layout that an independent part follows. Spread,
+Stagger and Splay carry in the anchor frame; Offset and Rotation apply for the part alone.
+The part may follow the target's X, Y and rotation, or only some of them (Follow). A dropped
+part anchors to the nearest key of its half and keeps the drop point, upright; Detach clears
+the anchor and places the part from the half origin.
+_Avoid_: parent, reference (unqualified)
+
 **Row offset**:
 An independent adjustment of one matrix row only.
 _Avoid_: shift (when the independent adjustment is meant)
@@ -350,6 +358,30 @@ An explicit constraint that holds its target at a fixed distance and angle measu
 source part's own axes. Turning the source swings the target around it, as a following
 companion moves with its key.
 _Avoid_: attach constraint (an attached companion is one that follows its key)
+
+**Split gap**:
+The stored editable distance between the two halves of a split board, measured key-edge to key-edge. It defaults from projected key envelopes at creation and never moves on its own: the adaptive pass widens the Current spacing around it instead, and narrowing back stops at the stored floor.
+_Avoid_: spacing (when the stored half distance is meant)
+
+**Current spacing**:
+The evaluated key-edge distance between the two halves. It never goes below the Split gap: it widens when the halves need the space and narrows back toward the stored floor.
+_Avoid_: Split gap (when the evaluated half distance is meant)
+
+**Half frame**:
+Each half's own placement frame for its matrices, positioned from the split axis by half the Split gap. A matrix origin on a stored-gap half is a within-half value; changing the gap moves both halves symmetrically without rewriting it.
+_Avoid_: board coordinates (when a stored-gap half's within-half placement is meant)
+
+**Half-frame part**:
+An independent Part on a stored-gap half, stored in that half's frame and evaluated at board-space through the half offset. Spacing changes never rewrite it; drags, constraints and spacing all work board-space.
+_Avoid_: board-space part (when a stored-gap half's within-half stored pose is meant)
+
+**Mirrored part**:
+A half-frame part with a Part correspondence on the mirror link. Either copy edits both; the partner realizes the reflected half-frame pose on every sync.
+_Avoid_: linked part (when the correspondence-mirrored half-frame pair is meant)
+
+**Local part**:
+A half-frame part with no Part correspondence, pinned local by the substitute flag so the default mirror never claims it. Removing the pin re-mirrors it at the reflected pose. A local part's overhang past the split axis still counts in the split minimum.
+_Avoid_: mirror-only part (when a pinned unmirrored half-frame part is meant)
 
 ### Editing
 

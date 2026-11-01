@@ -3,12 +3,12 @@
 Status: resolved
 Type: grilling
 Blocked by: [04](04-layout-kernel-order-of-operations.md), [07](07-matrix-anchors.md), [11](11-mirrored-halves-rules.md)
-Map: [map.md](../map.md) · Decision: [ADR-0034](../../../adr/0036-matrices-follow-ergogen-point-layout.md)
+Map: [map.md](../map.md) · Decision: [ADR-0036](../../../adr/0036-matrices-follow-ergogen-point-layout.md)
 
 ## Question
 
 Graduated from the map's Format reset fog after the layout and exception decisions
-settled. ADR-0034 already chooses a format bump, refusal of older documents and no
+settled. ADR-0036 already chooses a format bump, refusal of older documents and no
 migration. Decide the user-visible and storage-lifecycle details without reopening that
 choice:
 
@@ -171,7 +171,7 @@ implementation risks, not delivered support.
   save can persist them.
 - Merely bumping `CURRENT_VERSION` to 7 is unsafe: the migration loop has steps only
   through 5→6 and would reach `unreachable!` for 6. Adding a normal 6→7 step would
-  still migrate old inputs, contrary to ADR-0034. The implementation needs controlled
+  still migrate old inputs, contrary to ADR-0036. The implementation needs controlled
   no-migration validation on every load/import/Open route, not just a constant change.
 - Unreadable saved records already remain listed, with raw saved-JSON download and
   guarded confirmed deletion. Raw JSON is not a complete project-and-assets archive.

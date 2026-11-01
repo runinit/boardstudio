@@ -1,4 +1,11 @@
 //! Private, pure mapping from accepted matrix transform fields to existing edit operations.
+
+//! Ticket 03: the handle-rail layout lives here (instead of beside its
+//! overlay) so the pure geometry stays natively tested without touching the
+//! shared crate root, which ticket 02 owns this round.
+#[path = "handle_rail.rs"]
+pub mod handle_rail;
+
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::model::{
     AggregateAnchor, AggregateMethod, AnchorPart, EditOperation, Follow, HalfExceptionState,
@@ -912,8 +919,8 @@ impl SceneBasis {
 
     /// The basis for a parameter, or `None` when the scene has no such row or
     /// column. Row parameters read the column-0 key's frames; a key Shift reads
-    /// its own key's running frame. Bend and Padding have no drag gesture, so
-    /// their basis only feeds the exhaustiveness of the lookup.
+    /// its own key's running frame. Padding has no drag gesture, so its basis
+    /// only feeds the exhaustiveness of the lookup.
     pub fn for_parameter(scene: &MatrixScene, parameter: PlacementParameter) -> Option<Self> {
         if let PlacementParameter::ColumnOffset { column }
         | PlacementParameter::RowOffset { row: column }
@@ -959,6 +966,12 @@ impl SceneBasis {
             .map(Self::from_column)
     }
 }
+
+/// Ticket 05: the Bend drag rate and snap, matching the prototype's bend
+/// handle (half a degree per millimetre of horizontal travel, snapped to
+/// half degrees unless Alt is held).
+pub const BEND_DRAG_DEGREES_PER_MM: f64 = 0.5;
+pub const BEND_DRAG_SNAP_DEGREES: f64 = 0.5;
 
 /// The only place a web intent becomes a `SetMatrixPlacement`.
 pub fn placement_operation(
@@ -1096,13 +1109,16 @@ pub fn gesture_value(
             let along = dot(world_delta, axis) / dot(axis, axis);
             PlacementValue::Spread(snapped(start + along, snap.map(|step| step.x)))
         }
-        // Bend and Padding have no drag gesture: Bend turns the running frame
-        // rather than translating along an axis, and Padding steps along the
-        // pre-row frame no handle exposes. Both are Inspector-only until a
-        // gesture names their frame.
-        (_, PlacementValue::Bend(_)) => {
-            panic!("a carried Bend has no drag gesture; use the Inspector field")
-        }
+        // A Bend drag turns horizontal world travel into degrees at the
+        // prototype bend handle's rate: half a degree per millimetre, snapped
+        // to half degrees (Alt keeps the raw angle). The grid step never
+        // reaches a bend: it measures millimetres, not the running frame.
+        // Padding steps along the pre-row frame no handle exposes, so it
+        // stays Inspector-only.
+        (_, PlacementValue::Bend(start)) => PlacementValue::Bend(snapped(
+            start - world_delta.x * BEND_DRAG_DEGREES_PER_MM,
+            snap.map(|_| BEND_DRAG_SNAP_DEGREES),
+        )),
         (_, PlacementValue::Padding(_)) => {
             panic!("row Padding has no drag gesture; use the Inspector field")
         }
@@ -3293,6 +3309,65 @@ mod tests {
             step,
         );
         assert_eq!(value, PlacementValue::Stagger(0.0));
+    }
+
+    /// Ticket 05, RED: a Bend drag turns horizontal world travel into
+    /// degrees at the prototype's half-degree rate and snap. Row and key
+    /// bends share the mapping; vertical-only travel holds still.
+    #[test]
+    fn bend_drag_turns_horizontal_travel_into_snapped_degrees() {
+        let basis = SceneBasis {
+            stagger_axis: Vec2 { x: 0.0, y: 1.0 },
+            axis_x: Vec2 { x: 1.0, y: 0.0 },
+            axis_y: Vec2 { x: 0.0, y: 1.0 },
+            shift_axis_x: Vec2 { x: 1.0, y: 0.0 },
+            shift_axis_y: Vec2 { x: 0.0, y: 1.0 },
+            spread_axis: None,
+        };
+        let step = Some(Vec2 {
+            x: 4.7625,
+            y: 4.7625,
+        });
+        // Ten millimetres right turns the running frame five degrees down
+        // from zero, like the prototype's bend handle.
+        let value = gesture_value(
+            &basis,
+            PlacementParameter::RowBend { row: 0 },
+            PlacementValue::Bend(0.0),
+            Vec2 { x: 10.0, y: 0.0 },
+            step,
+        );
+        assert_eq!(value, PlacementValue::Bend(-5.0));
+        // The grid step never reaches a bend: it snaps to half degrees,
+        // and Alt keeps the raw angle.
+        let value = gesture_value(
+            &basis,
+            PlacementParameter::RowBend { row: 0 },
+            PlacementValue::Bend(2.0),
+            Vec2 { x: 3.3, y: 0.0 },
+            step,
+        );
+        assert_eq!(value, PlacementValue::Bend(0.5));
+        let value = gesture_value(
+            &basis,
+            PlacementParameter::KeyBend { row: 0, column: 1 },
+            PlacementValue::Bend(2.0),
+            Vec2 { x: 3.3, y: 0.0 },
+            None,
+        );
+        let PlacementValue::Bend(raw) = value else {
+            panic!("a key bend stays a bend");
+        };
+        assert!((raw - 0.35).abs() < 1e-12);
+        // Vertical-only travel holds the angle still.
+        let value = gesture_value(
+            &basis,
+            PlacementParameter::RowBend { row: 0 },
+            PlacementValue::Bend(2.0),
+            Vec2 { x: 0.0, y: 50.0 },
+            step,
+        );
+        assert_eq!(value, PlacementValue::Bend(2.0));
     }
 
     #[test]

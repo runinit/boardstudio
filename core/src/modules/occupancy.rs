@@ -841,7 +841,10 @@ pub(super) fn collisions(doc: &ProjectDoc, board_id: &str, result: &mut ModuleRe
             .into_iter()
             .flat_map(|profile| profile.clearance_volumes.iter().flatten())
         {
-            let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
+            // Ticket 12: collision solids follow the evaluated board pose of
+            // half-frame parts.
+            let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
+            let (sin, cos) = pose.rotation.to_radians().sin_cos();
             let surface_frame = definition.is_some_and(|definition| {
                 definition
                     .hardware_profile
@@ -863,8 +866,8 @@ pub(super) fn collisions(doc: &ProjectDoc, board_id: &str, result: &mut ModuleRe
                                     point.x
                                 };
                                 Vec2 {
-                                    x: part.pose.at.x + x * cos - point.y * sin,
-                                    y: part.pose.at.y + x * sin + point.y * cos,
+                                    x: pose.at.x + x * cos - point.y * sin,
+                                    y: pose.at.y + x * sin + point.y * cos,
                                 }
                             })
                             .collect(),

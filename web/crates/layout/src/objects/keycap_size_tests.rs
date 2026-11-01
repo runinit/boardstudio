@@ -188,6 +188,7 @@ fn overlap_filter_tracks_authoritative_add_and_toggle_selection() {
         Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: "a".into(),
             definition_id: "switch".into(),
             reference: "A".into(),
@@ -203,6 +204,7 @@ fn overlap_filter_tracks_authoritative_add_and_toggle_selection() {
         Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: "c".into(),
             definition_id: "switch".into(),
             reference: "C".into(),
@@ -218,6 +220,7 @@ fn overlap_filter_tracks_authoritative_add_and_toggle_selection() {
         Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: "b".into(),
             definition_id: "switch".into(),
             reference: "B".into(),
@@ -605,6 +608,7 @@ fn mixed_size_draft_uses_react_visible_document_part_order() {
     let make_part = |id: &str, reference: &str| Part {
         keycap: None,
         outline: None,
+        anchor: None,
         id: id.into(),
         definition_id: "switch".into(),
         reference: reference.into(),
@@ -670,6 +674,7 @@ async fn overlap_status_matches_react_selection_deduplication_and_truncation() {
         .map(|(index, reference)| Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: format!("part-{index}"),
             definition_id: "switch".into(),
             reference: (*reference).into(),
@@ -777,6 +782,7 @@ fn key_fixture() -> boardstudio_core::model::ProjectDoc {
     document.parts.push(Part {
         keycap: None,
         outline: None,
+        anchor: None,
         id: KEY_ID.into(),
         definition_id: "switch:base".into(),
         reference: "SW1".into(),

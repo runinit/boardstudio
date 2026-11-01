@@ -1604,7 +1604,7 @@ fn new_board(
         template.board_id = Some(to.clone());
         template.cells.clear();
         template.part_ids.clear();
-        let mut reflected = layout::reflected(matrix, &template, mapping, true)?;
+        let mut reflected = layout::reflected(matrix, &template, mapping, true, false)?;
         for cell in &mut reflected.cells {
             if !cell.enabled || cell.deleted {
                 continue;

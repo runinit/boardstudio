@@ -1054,7 +1054,10 @@ pub(crate) fn finding_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                         && (!specific || finding.target_ids.contains(&p.id))
                 }) {
                     if let Some(def) = doc.definitions.iter().find(|d| d.id == part.definition_id) {
-                        let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
+                        // Ticket 12: markers draw half-frame parts at their
+                        // evaluated board pose.
+                        let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
+                        let (sin, cos) = pose.rotation.to_radians().sin_cos();
                         contours.push(Contour {
                             points: def
                                 .courtyard
@@ -1062,8 +1065,8 @@ pub(crate) fn finding_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                                 .map(|p| {
                                     let x = if part.side == Side::Back { -p.x } else { p.x };
                                     Vec2 {
-                                        x: part.pose.at.x + x * cos - p.y * sin,
-                                        y: part.pose.at.y + x * sin + p.y * cos,
+                                        x: pose.at.x + x * cos - p.y * sin,
+                                        y: pose.at.y + x * sin + p.y * cos,
                                     }
                                 })
                                 .collect(),

@@ -532,7 +532,16 @@ fn write_detached_frame(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<Str
         .frame;
     let mut next = current.clone();
     next.anchor = None;
-    next.origin = frame.origin;
+    // The evaluated frame is board-space; half-frame storage is relative to
+    // the half offset, so a stored-gap detach keeps the world pose by
+    // re-expressing it.
+    next.origin = match layout::half_offset(doc, matrix_id) {
+        Some(offset) => Vec2 {
+            x: frame.origin.x - offset.x,
+            y: frame.origin.y - offset.y,
+        },
+        None => frame.origin,
+    };
     next.rotation = if frame.rotation == 0.0 {
         None
     } else {

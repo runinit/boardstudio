@@ -1,4 +1,4 @@
-use boardstudio_core::hash::sha256_hex;
+use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeSet,
     env, fs,
@@ -72,7 +72,12 @@ fn generate_bundled_ergogen_models(output: &Path) {
                 source_path.display()
             )
         });
-        let sha256 = sha256_hex(&source_bytes);
+        // Same text as `boardstudio_core::hash::sha256_hex`; a build dependency on Core would
+        // compile all of it for the host in every web build.
+        let sha256: String = Sha256::digest(&source_bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
         assert!(
             emitted_paths.insert(url_path.clone()),
             "bundled model staging path collision: {url_path}"

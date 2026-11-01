@@ -79,6 +79,7 @@ fn definitions() -> Vec<PartDefinition> {
 
 fn key_part(id: &str, x: f64, y: f64) -> Part {
     Part {
+        anchor: None,
         id: id.into(),
         definition_id: "switch".into(),
         reference: id.into(),
@@ -241,6 +242,55 @@ fn change_anchor_retargets_dependants_with_preview_cancel_and_undo() {
     let undone_doc = undone(&mut engine);
     assert_eq!(anchor_of(&undone_doc, "thumb"), anchor_of(&doc, "thumb"));
     assert_eq!(redone(&mut engine).matrices, committed.matrices);
+}
+
+#[test]
+fn reanchoring_a_matrix_moves_it_and_keeps_its_stored_frame() {
+    let (mut engine, doc) = anchored_fixture();
+    let origin_before = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "thumb")
+        .expect("thumb matrix")
+        .origin;
+    let anchor_before = anchor_of(&doc, "thumb");
+    let key_before = at(&doc, &member("thumb", 0, 0));
+    let moved = MatrixAnchor {
+        matrix_id: "main".into(),
+        row: 0,
+        column: 0,
+        follow: Follow {
+            x: true,
+            y: true,
+            rotation: true,
+        },
+        aggregate: None,
+    };
+    let (_, committed) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrixAnchor {
+            matrix_id: "thumb".into(),
+            anchor: moved.clone(),
+        },
+    );
+    // Re-anchoring moves the matrix onto the new anchor but keeps its stored
+    // frame: Origin is untouched.
+    assert_eq!(anchor_of(&committed, "thumb"), Some(moved));
+    assert_eq!(
+        committed
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "thumb")
+            .expect("thumb matrix")
+            .origin,
+        origin_before
+    );
+    assert_ne!(at(&committed, &member("thumb", 0, 0)), key_before);
+    // One Undo entry restores the old anchor and pose.
+    let undone_doc = undone(&mut engine);
+    assert_eq!(anchor_of(&undone_doc, "thumb"), anchor_before);
+    assert_eq!(at(&undone_doc, &member("thumb", 0, 0)), key_before);
 }
 
 fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
@@ -606,6 +656,8 @@ fn linked_anchored_fixture() -> (CoreEngine, ProjectDoc) {
         mirror_link: Some(LayoutMirrorLink {
             source_id: "layout".into(),
             axis_x: 10.0,
+            split_gap: None,
+            spacing: None,
             correspondences: vec![
                 MirroredCorrespondence {
                     companion_mode: None,
@@ -943,6 +995,8 @@ fn adding_to_a_linked_layout_is_refused_until_ticket_20() {
                 mirror_link: Some(LayoutMirrorLink {
                     source_id: "left-layout".into(),
                     axis_x: 10.0,
+                    split_gap: None,
+                    spacing: None,
                     correspondences: vec![],
                     exceptions: vec![],
                 }),
@@ -1009,14 +1063,16 @@ fn adding_to_a_linked_layout_is_refused_until_ticket_20() {
     // Relative Origin X negates while Y stays; the default (0,-19) is fixed.
     assert_eq!(claw.origin, Vec2 { x: 0.0, y: -19.0 });
     assert_eq!(mirror.origin, Vec2 { x: -0.0, y: -19.0 });
-    // Partner poses are the x=10 reflection of the source.
+    // Partner poses are the x=10 reflection of the source. Ticket 11: the
+    // 1x1 creation requested a 2 mm gap, so the stored gap is the 40 mm
+    // default and both anchored thumbs ride 19 mm farther out.
     assert_eq!(
         pose_of(&doc, &member("claw", 0, 0)).at,
-        Vec2 { x: 0.0, y: -19.0 }
+        Vec2 { x: -19.0, y: -19.0 }
     );
     assert_eq!(
         pose_of(&doc, &member("claw-mirror", 0, 0)).at,
-        Vec2 { x: 20.0, y: -19.0 }
+        Vec2 { x: 39.0, y: -19.0 }
     );
     // Layout membership and matrix correspondences cover both.
     let left = doc

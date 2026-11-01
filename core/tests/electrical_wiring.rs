@@ -54,6 +54,7 @@ fn definition(
 
 fn part(id: &str, definition_id: &str) -> Part {
     Part {
+        anchor: None,
         id: id.into(),
         definition_id: definition_id.into(),
         reference: id.into(),

@@ -1461,6 +1461,9 @@ pub fn component_part(
             reference,
             pose: Pose2 { at, rotation: 0.0 },
             side: Side::Front,
+            // Ticket 13: drops start detached; Core anchors them to the
+            // nearest key of the drop half on AddPart.
+            anchor: None,
             locked: None,
             properties: None,
             generator_parameters: definition
@@ -3475,6 +3478,7 @@ mod tests {
         Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: id.into(),
             definition_id: definition_id.into(),
             reference: reference.into(),
@@ -3810,6 +3814,8 @@ mod tests {
                     exceptions: vec![],
                     source_id: "layout-source".into(),
                     axis_x: 0.0,
+                    split_gap: None,
+                    spacing: None,
                 }),
             },
         ];

@@ -275,6 +275,7 @@ mod tests {
                 rotation,
             },
             side: boardstudio_core::model::Side::Front,
+            anchor: None,
             locked: None,
             properties: None,
             generator_parameters: None,

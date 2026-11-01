@@ -3625,6 +3625,7 @@ mod tests {
                 document.parts.push(boardstudio_core::model::Part {
                     keycap: None,
                     outline: None,
+                    anchor: None,
                     id: (*id).into(),
                     definition_id: "switch:base".into(),
                     reference: format!("SW-M{}", column + 1),
@@ -3668,6 +3669,8 @@ mod tests {
                 mirror_link: Some(LayoutMirrorLink {
                     source_id: "layout-left".into(),
                     axis_x: 50.0,
+                    split_gap: None,
+                    spacing: None,
                     correspondences: vec![MirroredCorrespondence {
                         companion_mode: None,
                         companion_tweak: None,

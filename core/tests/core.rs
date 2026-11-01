@@ -65,6 +65,7 @@ fn preview_does_not_commit_and_stale_edit_fails() {
         generator: None,
     });
     doc.parts.push(Part {
+        anchor: None,
         id: "k1".into(),
         definition_id: "switch".into(),
         reference: "SW1".into(),
@@ -279,6 +280,7 @@ fn mechanical_holes_do_not_need_pad_numbers() {
         })
         .collect();
     doc.parts.push(Part {
+        anchor: None,
         id: "switch".into(),
         definition_id: "switch".into(),
         reference: "SW1".into(),
@@ -335,6 +337,7 @@ fn part_envelope_tracks_committed_move() {
         generator: None,
     });
     doc.parts.push(Part {
+        anchor: None,
         id: "k1".into(),
         definition_id: "switch".into(),
         reference: "SW1".into(),
@@ -498,6 +501,7 @@ fn added_part_joins_board_and_envelope_then_removes_cleanly() {
         document: doc,
     });
     let part = Part {
+        anchor: None,
         id: "k1".into(),
         definition_id: "switch".into(),
         reference: "SW1".into(),
@@ -569,6 +573,7 @@ fn add_part_targets_board_and_removal_cleans_both_boards() {
         document: doc,
     });
     let part = Part {
+        anchor: None,
         id: "k1".into(),
         definition_id: "switch".into(),
         reference: "SW1".into(),
@@ -682,6 +687,7 @@ fn pcb_readiness_checks_pads_outlines_and_thickness() {
         generator: None,
     });
     doc.parts.push(Part {
+        anchor: None,
         id: "k1".into(),
         definition_id: "switch".into(),
         reference: "SW1".into(),
@@ -758,6 +764,7 @@ fn invalid_definition_geometry_blocks_own_board() {
             vias: vec![],
         });
         doc.parts.push(Part {
+            anchor: None,
             id: format!("{id}-part"),
             definition_id: format!("{id}-def"),
             reference: id.into(),
@@ -877,6 +884,7 @@ fn empty_definition_and_pad_ids_are_reported() {
         generator: None,
     });
     doc.parts.push(Part {
+        anchor: None,
         id: "p".into(),
         definition_id: "".into(),
         reference: "U1".into(),
@@ -942,6 +950,7 @@ fn duplicate_pad_nets_and_invalid_case_block_readiness() {
         generator: None,
     });
     doc.parts.push(Part {
+        anchor: None,
         id: "u1".into(),
         definition_id: "part".into(),
         reference: "U1".into(),
@@ -1528,6 +1537,7 @@ fn matrixless_linked_add_part_projects_from_either_half_and_preserves_omission()
         definition.id = "catalog:matrixless-addition".into();
         definition.name = "Matrixless addition".into();
         let part = Part {
+            anchor: None,
             id: part_id.into(),
             definition_id: definition.id.clone(),
             reference: reference.into(),
@@ -1664,6 +1674,7 @@ fn matrixless_native_pair_with_omitted_part() -> (CoreEngine, ProjectDoc) {
     previous_definition.kind = PartKind::Passive;
     document.definitions.push(previous_definition.clone());
     document.parts.push(Part {
+        anchor: None,
         id: "part-previous".into(),
         definition_id: previous_definition.id,
         reference: "J0".into(),
@@ -2534,6 +2545,16 @@ fn mirrored_pair_previews_restore_both_halves_and_nudges_stay_parametric() {
     assert_reflected_keys(&grown);
 }
 
+/// Board-space pose of a part from the scene transforms.
+fn board_pose(scene: &SceneDelta, id: &str) -> Pose2 {
+    scene
+        .transforms
+        .iter()
+        .find(|transform| transform.id == id)
+        .unwrap_or_else(|| panic!("missing transform {id}"))
+        .pose
+}
+
 #[test]
 fn mirrored_pair_links_extra_components_and_unlink_preserves_poses() {
     let (mut engine, doc) = linked_pair();
@@ -2555,12 +2576,15 @@ fn mirrored_pair_links_extra_components_and_unlink_preserves_poses() {
     if !left.part_ids.contains(&local.id) {
         left.part_ids.push(local.id.clone());
     }
-    doc = scene(engine.handle(edit(
+    let (joined_scene, joined) = scene(engine.handle(edit(
         doc.revision,
         EditPhase::Commit,
         EditOperation::SetLayout { layout: left },
-    )))
-    .1;
+    )));
+    doc = joined;
+    // Ticket 12: joining the half converts the drop to half-frame storage;
+    // the evaluated board pose is unchanged.
+    assert_eq!(board_pose(&joined_scene, &local.id), local.pose);
     let mut right = doc.matrices[1].clone();
     {
         let values = vec![7.0];
@@ -2573,49 +2597,55 @@ fn mirrored_pair_links_extra_components_and_unlink_preserves_poses() {
             record.stagger = value;
         }
     }
-    doc = scene(engine.handle(edit(
+    let (mirrored_scene, mirrored) = scene(engine.handle(edit(
         doc.revision,
         EditPhase::Commit,
         EditOperation::SetMatrix {
             matrix: right,
             definitions: None,
         },
-    )))
-    .1;
-    assert_eq!(
-        doc.parts
-            .iter()
-            .find(|part| part.id == local.id)
-            .unwrap()
-            .pose,
-        local.pose
-    );
+    )));
+    doc = mirrored;
     assert_eq!(doc.layouts[1].part_ids.len(), 1);
+    // Ticket 12: the linked partner mirrors in the half frame (stored halves
+    // negate about the origin) and evaluates to the board reflection.
+    let stored = doc
+        .parts
+        .iter()
+        .find(|part| part.id == local.id)
+        .unwrap()
+        .pose;
     let counterpart = doc
         .parts
         .iter()
         .find(|part| part.id == doc.layouts[1].part_ids[0])
         .unwrap();
-    assert!((counterpart.pose.at.x + local.pose.at.x - 20.0).abs() < 1e-8);
+    assert!((counterpart.pose.at.x + stored.at.x).abs() < 1e-8);
+    assert!((counterpart.pose.at.y - stored.at.y).abs() < 1e-8);
+    let placed = board_pose(&mirrored_scene, &local.id);
+    let mirrored_board = board_pose(&mirrored_scene, &counterpart.id);
+    assert!((mirrored_board.at.x + placed.at.x - 20.0).abs() < 1e-8);
+    assert!((mirrored_board.at.y - placed.at.y).abs() < 1e-8);
     let mut independent = doc.layouts[1].clone();
     independent.mirror_link = None;
-    let unlinked = scene(engine.handle(edit(
+    let (unlinked_scene, unlinked) = scene(engine.handle(edit(
         doc.revision,
         EditPhase::Commit,
         EditOperation::SetLayout {
             layout: independent,
         },
-    )))
-    .1;
+    )));
+    // Unlink preserves every evaluated pose; storage returns board-space.
     assert_eq!(
-        unlinked
-            .parts
+        unlinked_scene
+            .transforms
             .iter()
-            .map(|part| (&part.id, &part.pose))
+            .map(|transform| (&transform.id, transform.pose))
             .collect::<Vec<_>>(),
-        doc.parts
+        mirrored_scene
+            .transforms
             .iter()
-            .map(|part| (&part.id, &part.pose))
+            .map(|transform| (&transform.id, transform.pose))
             .collect::<Vec<_>>()
     );
     let mut change = unlinked.matrices[0].clone();
@@ -2717,6 +2747,8 @@ fn mirrored_pair_invalid_links_and_failed_previews_do_not_change_document() {
         exceptions: vec![],
         source_id: "right-layout".into(),
         axis_x: 10.0,
+        split_gap: None,
+        spacing: None,
     });
     assert!(matches!(
         engine.handle(edit(
@@ -3019,6 +3051,7 @@ fn matrix_duplicate_allocates_new_member_ids() {
 fn failed_matrix_preview_restores_document() {
     let mut doc = matrix_doc();
     doc.parts.push(Part {
+        anchor: None,
         id: "matrix/main/r0c1".into(),
         definition_id: "switch".into(),
         reference: "SW99".into(),
@@ -3431,6 +3464,7 @@ fn constraint_preview_commit_and_undo() {
     let mut doc = ProjectDoc::empty("p", "Project");
     for id in ["source", "target"] {
         doc.parts.push(Part {
+            anchor: None,
             id: id.into(),
             definition_id: "switch".into(),
             reference: id.into(),
@@ -4784,6 +4818,7 @@ fn undo_retains_only_the_latest_hundred_commits() {
     let mut engine = CoreEngine::new();
     let mut seed = ProjectDoc::empty("bounded-history", "0");
     seed.parts.push(Part {
+        anchor: None,
         id: "part-0".into(),
         definition_id: "catalog:unused".into(),
         reference: "P0".into(),

@@ -554,9 +554,13 @@ fn finish_board(
     let mut generated_traces = Vec::new();
     let mut generated_vias = Vec::new();
     for part_id in &board.part_ids {
-        let part = parts
+        let stored = parts
             .get(part_id.as_str())
             .ok_or_else(|| validation(format!("Missing part or definition: {part_id}")))?;
+        // Ticket 12: exports place half-frame parts at their evaluated board
+        // pose; storage stays within-half. The borrow extends the owned
+        // shadow only while a half-frame offset applies.
+        let part: &Part = &crate::matrix::layout::evaluated_part(doc, stored);
         let definition = definitions
             .get(part.definition_id.as_str())
             .ok_or_else(|| validation(format!("Missing part or definition: {part_id}")))?;

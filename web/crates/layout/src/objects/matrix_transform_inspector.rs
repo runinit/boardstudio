@@ -7,6 +7,7 @@ use boardstudio_core::model::{
     AggregateAnchor, AggregateMethod, AnchorPart, Follow, MatrixAnchor, MatrixSplayAffect, Mirror,
     Vec2,
 };
+use boardstudio_web_ui_model::state::{FieldPreview, FieldPreviewSource, FieldPreviewState};
 use boardstudio_web_ui_shared::controls::{
     BoardButton, BoardCheckbox, BoardDisclosure, BoardNumberField, BoardSelectField,
 };
@@ -773,6 +774,55 @@ pub(super) fn NumericTransformField(props: NumericTransformFieldProps) -> Elemen
     let current = draft();
     let error_message = error();
     let badge = props.badge.clone();
+    // Ticket 16: hovering or focusing this number field previews, in amber,
+    // the keys a change to it would move. The preview is transient view
+    // state: it never writes, and it clears on leave, blur, unmount or
+    // selection change. Contexts are optional so unit harnesses without an
+    // Editor root simply show no preview.
+    let field = props.field;
+    let preview_context = props.owner.context.clone();
+    let affect_signal = props.splay_affect;
+    let preview = try_use_context::<FieldPreview>();
+    let preview_source = try_use_context::<Option<FieldPreviewSource>>().flatten();
+    let shown = use_hook(|| std::rc::Rc::new(std::cell::RefCell::new(Vec::<String>::new())));
+    let show_preview = {
+        let shown = shown.clone();
+        move || {
+            let (Some(target), Some(source)) = (preview, preview_source.clone()) else {
+                return;
+            };
+            let Some(facts) = crate::matrix_relations::field_preview(
+                &source.document,
+                &source.scene.matrix_scenes,
+                &preview_context,
+                field,
+                affect_signal(),
+            ) else {
+                return;
+            };
+            *shown.borrow_mut() = facts.parts.clone();
+            target.show(FieldPreviewState {
+                parts: facts.parts,
+                hint: facts.hint,
+            });
+        }
+    };
+    let release_preview = {
+        let shown = shown.clone();
+        move || {
+            if let Some(target) = preview {
+                target.release(&shown.borrow());
+            }
+        }
+    };
+    use_drop({
+        let shown = shown.clone();
+        move || {
+            if let Some(target) = preview {
+                target.release(&shown.borrow());
+            }
+        }
+    });
     rsx! {
         BoardNumberField {
             class: if props.badge.is_some() { "m1-matrix-field m1-matrix-field-default" } else { "m1-matrix-field" },
@@ -790,7 +840,10 @@ pub(super) fn NumericTransformField(props: NumericTransformFieldProps) -> Elemen
                 dirty.set(true);
                 error.set(None);
             },
-            onblur: { let mut commit = commit.clone(); move |_| commit() },
+            onpointerenter: { let show_preview = show_preview.clone(); move |_| show_preview() },
+            onpointerleave: { let release_preview = release_preview.clone(); move |_| release_preview() },
+            onfocus: { let show_preview = show_preview.clone(); move |_| show_preview() },
+            onblur: { let mut commit = commit.clone(); let release_preview = release_preview.clone(); move |_| { commit(); release_preview(); } },
             onkeydown: {
                 let mut commit = commit.clone();
                 move |event: KeyboardEvent| match event.data().key() {

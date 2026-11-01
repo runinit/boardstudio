@@ -359,7 +359,7 @@ pub fn use_mirrored_pair(
             error.set(None);
             status.set(Some("Preparing mirrored pair definitions…".into()));
 
-            let request_copy = request.clone();
+            let mut request_copy = request.clone();
             let accepted = snapshot.clone();
             let owner = request.owner.clone();
             let runtime = runtime.clone();
@@ -564,6 +564,49 @@ pub fn use_mirrored_pair(
                         status.set(None);
                         return;
                     }
+                };
+                // Ticket 11: propose the stored gap before the preview, so the
+                // setup preview and the placed pair show the same adapted gap.
+                // The adapted value is translation-invariant, so one proposal
+                // covers every placement move and the commit stores it as-is.
+                let adapted_gap = match boardstudio_core::proposed_creation_gap(
+                    &accepted.document,
+                    &pair.matrix,
+                    pair.axis_x,
+                ) {
+                    Ok(gap) => gap,
+                    Err(message) => {
+                        preparing.set(None);
+                        form_state.write().stage = PairFormStage::Setup;
+                        error.set(Some(message));
+                        status.set(None);
+                        return;
+                    }
+                };
+                request_copy.gap_mm = adapted_gap;
+                let pair = if adapted_gap > geometry.gap_mm {
+                    let geometry = MirroredPairGeometryInput {
+                        left_name: request_copy.left_name.clone(),
+                        right_name: request_copy.right_name.clone(),
+                        gap_mm: adapted_gap,
+                    };
+                    match project_mirrored_pair(
+                        prepared.matrix.clone(),
+                        &ids,
+                        &geometry,
+                        boardstudio_core::model::Vec2::default(),
+                    ) {
+                        Ok(pair) => pair,
+                        Err(message) => {
+                            preparing.set(None);
+                            form_state.write().stage = PairFormStage::Setup;
+                            error.set(Some(message));
+                            status.set(None);
+                            return;
+                        }
+                    }
+                } else {
+                    pair
                 };
                 let preview_scenes = match runtime
                     .project_matrices(

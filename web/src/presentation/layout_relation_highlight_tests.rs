@@ -52,14 +52,11 @@ impl Probe {
         query(self.root_id, selector).unwrap_or_else(|| panic!("no element for {selector}"))
     }
 
-    /// Open the matrix Relations tab for the current selection.
+    /// Wait for the Relationships section beside the fields to list the
+    /// Inherited by references for the current selection.
     async fn open_relations(&self) {
-        click(
-            self.root_id,
-            ".m1-layout-component-tabs button:nth-child(2)",
-        );
         wait_until(
-            "the Relations tab lists the Inherited by references",
+            "the Relationships section lists the Inherited by references",
             || {
                 query(
                     self.root_id,
@@ -163,6 +160,137 @@ fn count(root_id: &str, selector: &str) -> u32 {
         .query_selector_all(&format!("#{root_id} {selector}"))
         .unwrap()
         .length()
+}
+
+/// Ticket 15: the Relations tab is gone. The breadcrumb sits above the fields and
+/// the facts live beside them in a Relationships section.
+#[wasm_bindgen_test]
+async fn the_relations_tab_is_gone_and_facts_live_beside_the_fields() {
+    let root_id = "relation-tab-retired";
+    let probe = mount(root_id).await;
+    probe.select(objects::TreeContext::Column {
+        matrix_id: MATRIX.into(),
+        column: 2,
+    });
+    wait_until("the placement breadcrumb renders above the fields", || {
+        query(
+            root_id,
+            "nav.m1-placement-crumbs[aria-label='How it is placed']",
+        )
+        .is_some()
+    })
+    .await;
+    assert!(
+        query(root_id, ".m1-layout-component-tabs").is_none(),
+        "no Inspector tab bar remains"
+    );
+    assert_eq!(
+        probe
+            .element("#m1-relations-heading")
+            .text_content()
+            .unwrap(),
+        "Relationships",
+        "the facts keep their section beside the fields"
+    );
+    assert!(
+        query(root_id, "li[data-relation-label='Inherited by']").is_some(),
+        "every Relations fact stays reachable"
+    );
+}
+
+/// Ticket 15: clicking a breadcrumb chip selects its object the normal way:
+/// Replace selection, no document write, no Undo entry.
+#[wasm_bindgen_test]
+async fn breadcrumb_carries_chip_selects_its_column_without_writing() {
+    let root_id = "relation-crumb-navigate";
+    let probe = mount(root_id).await;
+    probe.select(objects::TreeContext::Column {
+        matrix_id: MATRIX.into(),
+        column: 2,
+    });
+    wait_until("the Carries chip for Column 4 renders", || {
+        query(
+            root_id,
+            "nav.m1-placement-crumbs [data-crumb-label='Inherited by'] button",
+        )
+        .is_some()
+    })
+    .await;
+    let focus_before =
+        query(root_id, ".m1-split-focus-label").and_then(|label| label.text_content());
+    let before = probe.revision();
+    click(
+        root_id,
+        "nav.m1-placement-crumbs [data-crumb-label='Inherited by'] button",
+    );
+    let column = objects::TreeContext::Column {
+        matrix_id: MATRIX.into(),
+        column: 3,
+    };
+    wait_until("the chip selects Column 4", || {
+        probe
+            .adapter
+            .borrow()
+            .clone()
+            .expect("mounted adapter")
+            .selected_context
+            .read()
+            .clone()
+            .is_some_and(|scoped| scoped.context == column)
+    })
+    .await;
+    assert_eq!(
+        probe.revision(),
+        before,
+        "chip navigation writes nothing, so no Undo entry"
+    );
+    assert_eq!(
+        query(root_id, ".m1-split-focus-label").and_then(|label| label.text_content()),
+        focus_before,
+        "chip navigation never moves split focus"
+    );
+}
+
+/// Ticket 15: hovering a breadcrumb chip marks its parts with the violet
+/// dashed outline, distinct from the amber edit preview.
+#[wasm_bindgen_test]
+async fn hovering_a_breadcrumb_chip_highlights_only_its_keys() {
+    let root_id = "relation-crumb-hover";
+    let probe = mount(root_id).await;
+    probe.select(objects::TreeContext::Column {
+        matrix_id: MATRIX.into(),
+        column: 2,
+    });
+    wait_until("the Carries chip for Column 4 renders", || {
+        query(
+            root_id,
+            "nav.m1-placement-crumbs [data-crumb-label='Inherited by'] button",
+        )
+        .is_some()
+    })
+    .await;
+    let before = probe.revision();
+    let chip = probe.element("nav.m1-placement-crumbs [data-crumb-label='Inherited by'] button");
+    dispatch(&chip, "pointerenter");
+    wait_until("hovering the chip highlights Column 4's keys", || {
+        highlighted_columns(root_id) == vec!["3".to_owned(); ROWS as usize]
+    })
+    .await;
+    assert_eq!(
+        highlighted_columns(root_id),
+        vec!["3".to_owned(); ROWS as usize],
+        "hovering the chip marks exactly Column 4's keys (data-column 3)"
+    );
+    dispatch(&chip, "pointerleave");
+    wait_until("leaving the chip clears its highlight", || {
+        count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
+    })
+    .await;
+    assert_eq!(
+        probe.revision(),
+        before,
+        "highlighting never writes a document revision, so no Undo entry"
+    );
 }
 
 /// The `(row, column)` of every highlighted canvas key.
@@ -304,17 +432,13 @@ async fn mount_with(root_id: &'static str, matrix: serde_json::Value) -> Probe {
     probe
 }
 
-/// Column 3 is selected and its Relations tab is open; "Inherited by Column 4" is first.
+/// Column 3 is selected with its Relationships section open; "Inherited by Column 4" is first.
 async fn mount_column_relations(root_id: &'static str) -> Probe {
     let probe = mount(root_id).await;
     probe.select(objects::TreeContext::Column {
         matrix_id: MATRIX.into(),
         column: 2,
     });
-    wait_until("the Relations tab button renders", || {
-        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
-    })
-    .await;
     probe.open_relations().await;
     assert_eq!(
         probe.inherited_by_reference().text_content().unwrap(),
@@ -466,11 +590,6 @@ async fn bent_key_explains_its_cumulative_shift_and_opens_its_row() {
         row: 1,
         column: 0,
     });
-    wait_until("the Relations tab button renders", || {
-        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
-    })
-    .await;
-    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
     wait_until(
         "the key chain shows its Core-backed cumulative shift",
         || {
@@ -491,9 +610,20 @@ async fn bent_key_explains_its_cumulative_shift_and_opens_its_row() {
     );
     let before = probe.revision();
     click(root_id, "li[data-relation-label='Row shift'] button");
-    wait_until("activating Row shift opens the Properties tab", || {
-        query(root_id, ".m1-layout-component-tabs button:nth-child(1)")
-            .is_some_and(|tab| tab.get_attribute("aria-selected").unwrap_or_default() == "true")
+    let row = objects::TreeContext::Row {
+        matrix_id: MATRIX.into(),
+        row: 1,
+    };
+    wait_until("activating Row shift selects its row", || {
+        probe
+            .adapter
+            .borrow()
+            .clone()
+            .expect("mounted adapter")
+            .selected_context
+            .read()
+            .clone()
+            .is_some_and(|scoped| scoped.context == row)
     })
     .await;
     assert_eq!(
@@ -585,11 +715,6 @@ async fn anchored_follows_navigates_to_its_key_without_writing() {
         row: 0,
         column: 0,
     });
-    wait_until("the Relations tab button renders", || {
-        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
-    })
-    .await;
-    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
     wait_until("the anchor key names the matrix following it", || {
         query(root_id, "li[data-relation-label='Followed by']").is_some_and(|item| {
             item.text_content()
@@ -598,17 +723,9 @@ async fn anchored_follows_navigates_to_its_key_without_writing() {
         })
     })
     .await;
-    // Selecting another object returns to Properties, so wait for the reset
-    // to settle before re-opening Relations.
     probe.select(objects::TreeContext::Matrix {
         matrix_id: "thumb".into(),
     });
-    wait_until("the tab resets to Properties for the new selection", || {
-        query(root_id, ".m1-layout-component-tabs button:nth-child(1)")
-            .is_some_and(|tab| tab.get_attribute("aria-selected").unwrap_or_default() == "true")
-    })
-    .await;
-    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
     wait_until("the anchored matrix names its anchor key", || {
         query(root_id, "li[data-relation-label='Follows']").is_some_and(|item| {
             item.text_content()
@@ -654,11 +771,6 @@ async fn a_removed_anchor_key_leaves_its_follows_reference_inert() {
     probe.select(objects::TreeContext::Matrix {
         matrix_id: "thumb".into(),
     });
-    wait_until("the Relations tab button renders", || {
-        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
-    })
-    .await;
-    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
     wait_until("the anchored matrix names its anchor key", || {
         query(root_id, "li[data-relation-label='Follows']").is_some()
     })
@@ -721,11 +833,6 @@ async fn hidden_reference_names_its_layer_and_still_navigates() {
         row: 0,
         column: 0,
     });
-    wait_until("the Relations tab button renders", || {
-        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
-    })
-    .await;
-    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
     wait_until("the key chain renders", || {
         query(root_id, "li[data-relation-label='Row shift']").is_some()
     })
@@ -749,9 +856,20 @@ async fn hidden_reference_names_its_layer_and_still_navigates() {
     .await;
     let before = probe.revision();
     click(root_id, "li[data-relation-label='Row shift'] button");
-    wait_until("activating Row shift opens the Properties tab", || {
-        query(root_id, ".m1-layout-component-tabs button:nth-child(1)")
-            .is_some_and(|tab| tab.get_attribute("aria-selected").unwrap_or_default() == "true")
+    let row = objects::TreeContext::Row {
+        matrix_id: MATRIX.into(),
+        row: 0,
+    };
+    wait_until("activating Row shift selects its row", || {
+        probe
+            .adapter
+            .borrow()
+            .clone()
+            .expect("mounted adapter")
+            .selected_context
+            .read()
+            .clone()
+            .is_some_and(|scoped| scoped.context == row)
     })
     .await;
     assert_eq!(
@@ -769,11 +887,6 @@ async fn hovering_follows_highlights_the_anchor_key() {
     probe.select(objects::TreeContext::Matrix {
         matrix_id: "thumb".into(),
     });
-    wait_until("the Relations tab button renders", || {
-        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
-    })
-    .await;
-    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
     wait_until("the anchored matrix names its anchor key", || {
         query(root_id, "li[data-relation-label='Follows']").is_some()
     })
@@ -822,11 +935,6 @@ async fn selecting_parts_in_two_matrices_explains_the_single_context_chain() {
         mode: boardstudio_application::SelectionMode::Replace,
     });
     support::run_pending(&probe.runtime).await;
-    wait_until("the Relations tab button renders", || {
-        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
-    })
-    .await;
-    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
     wait_until("the spanning selection is explained, not merged", || {
         query(root_id, ".m1-relations-cross-matrix").is_some_and(|note| {
             note.text_content()
@@ -859,11 +967,6 @@ async fn hovering_an_aggregate_part_highlights_only_its_key() {
     probe.select(objects::TreeContext::Matrix {
         matrix_id: MATRIX.into(),
     });
-    wait_until("the Relations tab button renders", || {
-        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
-    })
-    .await;
-    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
     wait_until("the Relations tab lists the matrix", || {
         query(root_id, "li[data-relation-label='Matrix']").is_some()
     })
@@ -890,17 +993,9 @@ async fn hovering_an_aggregate_part_highlights_only_its_key() {
                                   { "matrixId": "main", "row": 1, "column": 4 }] } }),
         ))
         .await;
-    // Selecting another object returns to Properties, so wait for the reset
-    // to settle before re-opening Relations.
     probe.select(objects::TreeContext::Matrix {
         matrix_id: "thumb".into(),
     });
-    wait_until("the tab resets to Properties for the new selection", || {
-        query(root_id, ".m1-layout-component-tabs button:nth-child(1)")
-            .is_some_and(|tab| tab.get_attribute("aria-selected").unwrap_or_default() == "true")
-    })
-    .await;
-    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
     wait_until("the aggregate names one entry per part", || {
         count(root_id, "li[data-relation-label='Anchor part']") == 2
     })

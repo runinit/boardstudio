@@ -57,6 +57,7 @@ pub(super) fn add_for_mount(
         reference,
         pose,
         side: instance.host_face.clone(),
+        anchor: None,
         locked: None,
         properties: None,
         generator_parameters: None,
@@ -212,12 +213,15 @@ fn part_bounds(doc: &ProjectDoc, part: &Part) -> Option<Bounds> {
         .iter()
         .find(|definition| definition.id == part.definition_id)?;
     let flip = part.side == Side::Back;
+    // Ticket 12: host bounds follow the evaluated board pose of half-frame
+    // parts.
+    let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
     Bounds::from_points(
         definition
             .courtyard
             .iter()
             .copied()
-            .map(|point| transform(point, part.pose, flip)),
+            .map(|point| transform(point, pose, flip)),
     )
 }
 

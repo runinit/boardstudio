@@ -3,7 +3,7 @@
 Status: resolved
 Type: task
 Blocked by: [01](01-name-the-carried-parameters.md), [02](02-ergogen-anchor-and-mirror-semantics.md), [03](03-parity-fixture-pipeline.md), [04](04-layout-kernel-order-of-operations.md), [05](05-this-column-splay-representation.md), [06](06-origin-edits-hold-keys-still.md), [07](07-matrix-anchors.md), [08](08-uniform-pitch-consumers.md), [09](09-inspector-and-toolbar-prototype.md), [11](11-mirrored-halves-rules.md), [12](12-relations-and-highlight.md), [13](13-format-reset-and-recovery.md), [14](14-starters-and-demos.md)
-Map: [map.md](../map.md) · Decision: [ADR-0034](../../../adr/0036-matrices-follow-ergogen-point-layout.md)
+Map: [map.md](../map.md) · Decision: [ADR-0036](../../../adr/0036-matrices-follow-ergogen-point-layout.md)
 
 ## Question
 
@@ -26,7 +26,7 @@ This ticket also closes the map.
 
 Resolved on 2026-10-23. The accepted decisions are consolidated in [spec.md](../spec.md),
 with their later qualifications taking precedence. Aggregate anchors are explicitly
-deferred by the user's additional scope answer; ADR-0034 and the map now qualify the
+deferred by the user's additional scope answer; ADR-0036 and the map now qualify the
 first-build parity claim instead of promising complete Ergogen points coverage.
 
 The implementation is split into 13 dependent TDD build tickets, each with outcome,
@@ -73,7 +73,7 @@ progress; no production implementation or build has started.
   ticket 11's transported filter on linked partners. These are assembly of settled
   decisions, not new policy questions.
 - The remaining Aggregate anchors fog conflicts with an unconditional claim to
-  implement every Ergogen points concept in ADR-0034. Obtain an explicit scope choice
+  implement every Ergogen points concept in ADR-0036. Obtain an explicit scope choice
   before declaring the spec/map complete; do not silently defer or invent aggregate
   storage, degenerate-case rules or UI.
 - A pure kernel/types slice can be staged without changing the persisted model. The
@@ -91,6 +91,6 @@ untracked prototype working copy remains untouched.
 ### 2026-10-23 — aggregate scope accepted
 
 The user answered “y”: defer average/intersection aggregate anchors from this first
-build, explicitly qualify ADR-0034 and the spec's parity claim, and require a separate
+build, explicitly qualify ADR-0036 and the spec's parity claim, and require a separate
 future design rather than inventing aggregate storage/evaluation/UI in this slice.
 This closes the only genuinely undecided scope branch found by the coherence check.

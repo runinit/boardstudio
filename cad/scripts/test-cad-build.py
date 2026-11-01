@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """Verify pure-Rust CAD build stamp invalidation, cache reuse, and failure propagation."""
 import contextlib
+import http.server
 import importlib.util
 import io
 import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
+import threading
+import time
 import tomllib
 import unittest
+import urllib.request
 from unittest.mock import patch
 
 import cad_build as build
@@ -192,60 +197,16 @@ class CadBuildTests(unittest.TestCase):
         self.assertEqual(run.call_count, 3)
         self.assertEqual(printed.getvalue(), failure.stdout)
 
-    def test_provider_tests_are_registered_or_explicitly_opt_in(self):
+    def test_provider_tests_are_registered_or_accounted_for(self):
         scripts = {path.name for path in (REPO_ROOT / "cad/wasm/tests").glob("*.cjs")}
         opt_in = {
             "layered-adoption.cjs": "separate layered-adoption fixture corpus",
             "layered-adoption-reachability.cjs": "Core adoption disposition replay prerequisite",
             "keycap-print-legends.cjs": "separate printable keycap export regression",
         }
-        self.assertEqual(scripts, set(build.PROVIDER_TESTS) | opt_in.keys() | {"load-provider.cjs"})
-        self.assertTrue(all(opt_in.values()))
-
-    def packaged_provider(self):
-        self.wasm_sources()
-        package = self.root / "wasm/pkg"
-        package.mkdir()
-        (package / "boardstudio_cad_wasm.js").write_text("// WEB bindings")
-        (package / "boardstudio_cad_wasm_bg.wasm").write_bytes(b"wasm")
-        stamp = self.root / ".cache/cad/wasm-build.sha256"
-        stamp.parent.mkdir(parents=True)
-        stamp.write_text(build.wasm_inputs_digest(no_opt=True))
-        return package, stamp
-
-    def test_provider_runner_requires_node_and_current_complete_web_package(self):
-        with patch.object(build.shutil, "which", return_value=None):
-            with self.assertRaisesRegex(RuntimeError, "require Node"):
-                build.test_provider()
-        with patch.object(build.shutil, "which", return_value="node"), patch.object(build, "run") as run:
-            with self.assertRaisesRegex(RuntimeError, "missing"):
-                build.test_provider()
-            package, stamp = self.packaged_provider()
-            stamp.write_text("stale")
-            with self.assertRaisesRegex(RuntimeError, "stale"):
-                build.test_provider()
-            stamp.write_text(build.wasm_inputs_digest(no_opt=True))
-            (package / "boardstudio_cad_wasm.js").unlink()
-            with self.assertRaisesRegex(RuntimeError, "missing"):
-                build.test_provider()
-            run.assert_not_called()
-
-    def test_provider_runner_uses_web_package_and_propagates_regression_failures(self):
-        package, stamp = self.packaged_provider()
-        for no_opt in (True, False):
-            stamp.write_text(build.wasm_inputs_digest(no_opt=no_opt))
-            with self.subTest(no_opt=no_opt), patch.object(build.shutil, "which", return_value="node"), \
-                    patch.object(build, "run") as run:
-                build.test_provider()
-                self.assertEqual([call.args[0] for call in run.call_args_list], [
-                    ["node", str(self.root / "wasm/tests" / script),
-                     str(package / "boardstudio_cad_wasm.js"), "--web"] for script in build.PROVIDER_TESTS
-                ])
-        with patch.object(build.shutil, "which", return_value="node"), \
-                patch.object(build, "run", side_effect=subprocess.CalledProcessError(9, "node")) as run:
-            with self.assertRaises(subprocess.CalledProcessError):
-                build.test_provider()
-            run.assert_called_once()
+        mapped = {"step-face-completeness.cjs": "source for the required browser regression"}
+        self.assertEqual(scripts, opt_in.keys() | mapped.keys() | {"load-provider.cjs"})
+        self.assertTrue(all(opt_in.values()) and all(mapped.values()))
 
 
 class CadWorkspaceTests(unittest.TestCase):
@@ -310,6 +271,75 @@ class BrowserSmokeParserTests(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as raised:
                 browser.main()
         self.assertEqual(raised.exception.code, 1)
+
+
+class BrowserSessionCleanupTests(unittest.TestCase):
+    def run_with_delete_delay(self, delay):
+        class DriverHandler(http.server.BaseHTTPRequestHandler):
+            def reply(self, value):
+                body = json.dumps({"value": value}).encode()
+                try:
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(body)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+
+            def do_GET(self):
+                self.reply({})
+
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                if self.path == "/session":
+                    self.reply({"sessionId": "test"})
+                elif self.path.endswith("/execute/sync"):
+                    self.reply("<html>done</html>" if "outerHTML" in body["script"] else "done")
+                else:
+                    self.reply(None)
+
+            def do_DELETE(self):
+                time.sleep(delay)
+                self.reply(None)
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), DriverHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        open_url = urllib.request.urlopen
+        popen = subprocess.Popen
+        drivers = []
+
+        def start_driver(*args, **kwargs):
+            driver = popen([sys.executable, "-c", "import time; time.sleep(30)"], **kwargs)
+            drivers.append(driver)
+            return driver
+
+        def redirect(request, **kwargs):
+            request.full_url = f"http://127.0.0.1:{server.server_port}" + request.selector
+            return open_url(request, **kwargs)
+
+        try:
+            with patch.object(browser, "chromedriver", return_value="fake-driver"), \
+                    patch.object(browser.subprocess, "Popen", side_effect=start_driver), \
+                    patch.object(browser.urllib.request, "urlopen", side_effect=redirect):
+                return browser.run_page("http://example.invalid", browser="fake-browser", timeout=10)
+        finally:
+            self.assertEqual(len(drivers), 1)
+            self.assertIsNotNone(drivers[0].poll(), "owned driver must exit even when deletion times out")
+
+    def test_session_delete_can_finish_after_750ms(self):
+        self.assertEqual(self.run_with_delete_delay(1.0), "<html>done</html>")
+
+    def test_session_delete_timeout_is_reported(self):
+        started = time.monotonic()
+        with self.assertRaisesRegex(RuntimeError, "cleanup incomplete: session deletion failed: timed out"):
+            self.run_with_delete_delay(6.0)
+        self.assertGreater(time.monotonic() - started, 4.5)
+        self.assertLess(time.monotonic() - started, 10)
 
 
 if __name__ == "__main__":

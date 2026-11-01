@@ -39,7 +39,7 @@ pub(crate) use boardstudio_web_ui_model::state::*;
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
-    PointerLocation, coordinates, coordinates_at, pointer_location,
+    PointerLocation, coordinates, coordinates_at, coordinates_with_scale, pointer_location,
 };
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
@@ -53,6 +53,8 @@ pub(crate) use boardstudio_web_ui_shared::{
 #[allow(unused_imports)]
 pub(crate) use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
 
+pub mod anchor_badge;
+pub mod anchor_pick;
 pub mod matrix_relations;
 pub mod matrix_transform_lifecycle;
 pub mod matrix_transform_operation;
@@ -61,6 +63,8 @@ pub mod mirrored_pair_geometry;
 pub mod mirrored_pair_lifecycle;
 pub mod outline;
 pub mod outline_settings;
+pub mod part_rail;
+pub mod screen_scale;
 pub mod setup_guide_state;
 
 #[cfg(target_arch = "wasm32")]

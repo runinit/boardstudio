@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import browser_tools
 
 SCRIPT = Path(__file__).with_name("import-kicad-parts.py")
 SOURCE = '(footprint "test" (layer "F.Cu") (pad "1" smd rect (at 0 0) (size 1 1) (layers "F.Cu" "F.Paste" "F.Mask")) (pad "1" smd rect (at 3 0) (size 1 1) (layers "F.Cu" "F.Paste" "F.Mask")) (pad "2" np_thru_hole circle (at 6 0) (size 2 2) (drill 2) (layers "*.Cu" "*.Mask")))'
@@ -20,8 +21,10 @@ class ImportKicadPartsTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         root = SCRIPT.parents[1]
+        fd = browser_tools._inherited_build_lock()
         subprocess.run(["cargo", "build", "--manifest-path", str(root / "core/Cargo.toml"), "--locked",
-                        "--example", "artifact_request"], check=True)
+                        "--example", "artifact_request"], check=True,
+                       **({"pass_fds": (fd,)} if fd is not None else {}))
 
     def test_explicit_roles_retain_duplicate_smd_pads_and_reject_holes_and_source_drift_atomically(self):
         with tempfile.TemporaryDirectory() as name:

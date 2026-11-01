@@ -23,6 +23,13 @@ PACKAGES = {package.name: package for package in PACKAGES.values()}
 
 
 class QuickSelectionTests(unittest.TestCase):
+    def test_ergogen_source_edits_point_to_browser_check(self):
+        for path in ("scripts/ergogen-parity/cases.cjs", "scripts/ergogen-parity/generate.py",
+                     "scripts/ergogen-parity/test_generate.py"):
+            with self.subTest(path=path):
+                selection = quick.select([path], PACKAGES)
+                self.assertTrue(any("check.py browser" in note for note in selection.notes))
+
     def test_documentation_only_changes_need_no_rust_checks(self):
         selection = quick.select(["docs/plans/x/map.md", "README.md"], PACKAGES)
         self.assertFalse(selection.rust)
@@ -57,13 +64,16 @@ class QuickSelectionTests(unittest.TestCase):
         self.assertFalse(selection.rust)
 
     def test_measurement_protocol_edits_keep_the_tooling_only_quick_selection(self):
-        for path in ("cad/scripts/test-measure-cad.py", "cad/scripts/test-measure-cad-runtime.cjs"):
+        for path in ("cad/scripts/test-measure-cad.py", "cad/scripts/measure-cad-worker.cjs"):
             with self.subTest(path=path):
                 selection = quick.select([path], PACKAGES)
                 self.assertEqual(check.quick_plan(selection, PACKAGES),
                                  [("repo", check.STEPS["repo"][1]),
                                   ("tooling", check.STEPS["tooling"][1])])
                 self.assertFalse(selection.rust)
+        # The worker protocol runs in the browser provider gate, which a quick run does not cover.
+        selection = quick.select(["cad/scripts/measure-cad-worker.cjs"], PACKAGES)
+        self.assertTrue(any("check.py browser" in note for note in selection.notes))
 
     def test_page_sources_select_the_page_tests_by_file(self):
         selection = quick.select(["web/src/presentation/a.rs"], PACKAGES)
@@ -124,7 +134,8 @@ class QuickPlanTests(unittest.TestCase):
                     plan = dict(check.quick_plan(selection, PACKAGES))
                     self.assertEqual(plan["test"], check.CARGO_TESTS)
                     self.assertEqual(plan["browser"], [command for command in check.browser()
-                                                     if "run-drag-browser.py" not in " ".join(command)])
+                                                     if "run-drag-browser.py" not in " ".join(command)
+                                                     and "test-cold-responses.py" not in " ".join(command)])
                     runner = [command for command in plan["browser"]
                               if "scripts/run-wasm-tests.py" in command]
                     self.assertEqual(len(runner), 1)
@@ -136,12 +147,19 @@ class QuickPlanTests(unittest.TestCase):
         plan = self.plan(["Cargo.lock"])
         self.assertEqual(plan["test"], check.CARGO_TESTS)
         self.assertEqual(plan["browser"], [command for command in check.browser()
-                                             if "run-drag-browser.py" not in " ".join(command)])
+                                             if not any(name in command for name in
+                                                        ("scripts/run-drag-browser.py", "cad/scripts/test-cold-responses.py"))])
 
     def test_quick_full_rust_plan_skips_page_drag_smoke_without_building(self):
         plan = self.plan(["Cargo.lock"])
         self.assertNotIn("build", plan)
         self.assertFalse(any("run-drag-browser.py" in " ".join(command) for command in plan["browser"]))
+        self.assertNotIn([check.PY, "cad/scripts/test-cold-responses.py"], plan["browser"])
+
+    def test_quick_names_skipped_cad_browser_controls(self):
+        for path in ("cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py"):
+            selection = quick.select([path], PACKAGES)
+            self.assertTrue(any(path in note and "browser" in note for note in selection.notes))
 
     def test_changed_files_come_from_git_and_include_untracked_files(self):
         def fake(args, **kwargs):

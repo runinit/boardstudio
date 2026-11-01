@@ -1,9 +1,10 @@
 //! Layout-owned Objects, toolbar and Inspector composition.
 use super::objects;
 use super::workspace_composition::SharedObjectsInput;
+use boardstudio_web_ui_model::split_focus::SplitHalf;
 use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
 use dioxus::prelude::*;
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 type TransformToolOwner = (
     Option<boardstudio_application::Scope>,
@@ -96,7 +97,6 @@ pub(super) struct InspectorInput {
     pub(super) on_cancel_anchor_pick: EventHandler<()>,
     /// Select an aggregate anchor part's key without writing.
     pub(super) on_navigate_anchor_part: EventHandler<objects::TreeContext>,
-    pub(super) inspector_tab: Signal<LayoutInspectorTab>,
     pub(super) matrix_relations: Option<boardstudio_web_layout::matrix_relations::MatrixRelations>,
     /// Resolves a Relations reference against the live accepted document at click time:
     /// the request to submit (a component opens its Inspector context), or `None` when the
@@ -113,24 +113,20 @@ pub(super) struct InspectorInput {
     pub(super) findings_page: Option<super::layout_findings::InspectorMount>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum LayoutInspectorTab {
-    #[default]
-    Properties,
-    Relations,
-}
-
 /// Layout's selection, command, transform, and view state. Editor retains the
 /// cross-workspace owner and supplies the current selected tree context.
 #[derive(Clone, Copy)]
 pub(super) struct LayoutWorkspaceState {
     selection_kind: Signal<objects::LayoutSelectionKind>,
     snap_settings: Signal<objects::LayoutSnapSettings>,
-    inspector_tab: Signal<LayoutInspectorTab>,
     command_menu: Signal<Option<objects::LayoutCommandMenu>>,
     transform_tool: Signal<Option<objects::LayoutTransformTool>>,
     transform_tool_owner: Signal<Option<TransformToolOwner>>,
     transform_handles: Signal<bool>,
+    /// Ticket 14: view-only editing focus for split boards. Like Handles, this
+    /// is workspace state, never a document edit: it starts on the source half
+    /// and survives workspace switches and spacing changes.
+    split_focus: Signal<SplitHalf>,
     assembly_3d: Signal<bool>,
     splay_affect: Signal<boardstudio_core::model::MatrixSplayAffect>,
     pending_splay_origin_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
@@ -155,17 +151,17 @@ pub(super) struct LayoutWorkspaceState {
 }
 
 pub(super) fn use_layout_workspace_state(
-    selected_context: Signal<Option<objects::ScopedTreeContext>>,
+    _selected_context: Signal<Option<objects::ScopedTreeContext>>,
     workspace: Signal<&'static str>,
 ) -> LayoutWorkspaceState {
     let mut state = LayoutWorkspaceState {
         selection_kind: use_signal(objects::LayoutSelectionKind::default),
         snap_settings: use_signal(objects::LayoutSnapSettings::default),
-        inspector_tab: use_signal(LayoutInspectorTab::default),
         command_menu: use_signal(|| None),
         transform_tool: use_signal(|| None),
         transform_tool_owner: use_signal(|| None),
         transform_handles: use_signal(|| true),
+        split_focus: use_signal(SplitHalf::default),
         assembly_3d: use_signal(|| false),
         splay_affect: use_signal(|| boardstudio_core::model::MatrixSplayAffect::Following),
         pending_splay_origin_pick: use_signal(|| None),
@@ -192,7 +188,6 @@ pub(super) fn use_layout_workspace_state(
         ),
         add_object_menu_open: use_signal(|| false),
     };
-    use_contextual_inspector_tab_reset(selected_context, state.inspector_tab);
     let observed_workspace = workspace();
     use_effect(use_reactive!(|observed_workspace| {
         if observed_workspace != "Layout" {
@@ -219,9 +214,6 @@ impl LayoutWorkspaceState {
     pub(super) fn snap_settings(self) -> Signal<objects::LayoutSnapSettings> {
         self.snap_settings
     }
-    pub(super) fn inspector_tab(self) -> Signal<LayoutInspectorTab> {
-        self.inspector_tab
-    }
     pub(super) fn command_menu(self) -> Signal<Option<objects::LayoutCommandMenu>> {
         self.command_menu
     }
@@ -230,6 +222,9 @@ impl LayoutWorkspaceState {
     }
     pub(super) fn transform_handles(self) -> Signal<bool> {
         self.transform_handles
+    }
+    pub(super) fn split_focus(self) -> Signal<SplitHalf> {
+        self.split_focus
     }
     pub(super) fn assembly_3d(self) -> Signal<bool> {
         self.assembly_3d
@@ -351,24 +346,6 @@ pub(super) fn selection_kind_for_tree_context(
         | objects::TreeContext::Board { .. }
         | objects::TreeContext::LayoutGroup { .. } => None,
     }
-}
-
-/// Keep the shared tab choice scoped to the currently selected tree context.
-/// Unrelated accepted revisions leave that context equal and retain the user's
-/// tab, while selecting another object returns to its Properties.
-pub(super) fn use_contextual_inspector_tab_reset(
-    selected_context: Signal<Option<objects::ScopedTreeContext>>,
-    inspector_tab: Signal<LayoutInspectorTab>,
-) {
-    let observed_context = selected_context();
-    let previous_context = use_hook(|| Rc::new(RefCell::new(observed_context.clone())));
-    use_effect(use_reactive!(|observed_context| {
-        let mut inspector_tab = inspector_tab;
-        if previous_context.borrow().as_ref() != observed_context.as_ref() {
-            inspector_tab.set(LayoutInspectorTab::Properties);
-        }
-        *previous_context.borrow_mut() = observed_context.clone();
-    }));
 }
 
 pub(super) fn objects(input: ObjectsInput) -> Element {
@@ -495,7 +472,6 @@ mod workspace_state_tests {
         let mut selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
         let mut workspace = use_signal(|| "Layout");
         let state = use_layout_workspace_state(selected_context, workspace);
-        let mut inspector_tab = state.inspector_tab();
         let selection_kind = state.selection_kind();
         let mut pending_pick = state.pending_splay_origin_pick();
         let mut pending_anchor_pick = state.pending_anchor_pick();
@@ -526,13 +502,8 @@ mod workspace_state_tests {
             objects::LayoutSelectionKind::Key => "Key",
             objects::LayoutSelectionKind::Part => "Part",
         };
-        let inspector_tab_label = match inspector_tab() {
-            LayoutInspectorTab::Properties => "Properties",
-            LayoutInspectorTab::Relations => "Relations",
-        };
         let selection_present = selected_context().is_some();
         rsx! {
-            button { id: "layout-state-relations", onclick: move |_| inspector_tab.set(LayoutInspectorTab::Relations), "Relations" }
             button { id: "layout-state-select", onclick: move |_| {
                 let context = objects::TreeContext::Matrix { matrix_id: "matrix".into() };
                 selected_context.set(Some(objects::ScopedTreeContext {
@@ -546,7 +517,6 @@ mod workspace_state_tests {
             button { id: "layout-state-enter-3d", onclick: move |_| state.set_assembly_3d(true), "Enter 3D" }
             button { id: "layout-state-tool", onclick: move |_| active_tool.set(Some(objects::LayoutTransformTool::Stagger)), "Activate tool" }
             button { id: "layout-state-switch", onclick: move |_| workspace.set("Keycaps"), "Switch workspace" }
-            output { id: "layout-state-tab", "{inspector_tab_label}" }
             output { id: "layout-state-selection-kind", "{selection_kind_label}" }
             output { id: "layout-state-selection-present", "{selection_present}" }
             output { id: "layout-state-pending", "{pending_pick().is_some()}" }
@@ -575,27 +545,11 @@ mod workspace_state_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("Layout workspace state controls mount", || {
-            root.query_selector("#layout-state-relations")
+            root.query_selector("#layout-state-select")
                 .is_ok_and(|button| button.is_some())
         })
         .await;
 
-        click(&document, "layout-state-relations");
-        wait_until("the Relations tab becomes selected", || {
-            root.query_selector("#layout-state-tab")
-                .ok()
-                .flatten()
-                .is_some_and(|tab| tab.text_content().as_deref() == Some("Relations"))
-        })
-        .await;
-        assert_eq!(
-            document
-                .get_element_by_id("layout-state-tab")
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Relations")
-        );
         click(&document, "layout-state-select");
         wait_until("Layout selection state becomes present", || {
             root.query_selector("#layout-state-selection-present")
@@ -604,14 +558,6 @@ mod workspace_state_tests {
                 .is_some_and(|selected| selected.text_content().as_deref() == Some("true"))
         })
         .await;
-        assert_eq!(
-            document
-                .get_element_by_id("layout-state-tab")
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Properties")
-        );
         assert_eq!(
             document
                 .get_element_by_id("layout-state-selection-kind")
@@ -695,7 +641,7 @@ mod workspace_state_tests {
     }
 }
 
-pub(super) fn inspector(mut input: InspectorInput) -> Element {
+pub(super) fn inspector(input: InspectorInput) -> Element {
     let mut matrix_relationship_escape_target = use_signal(|| None::<objects::TreeSelectRequest>);
     let component_owner = input
         .component_inspector
@@ -719,19 +665,16 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             }
         }
     ));
-    let mut inspector_tab = input.inspector_tab;
     let mut return_target = matrix_relationship_escape_target;
     let on_matrix_relationship_escape =
         EventHandler::new(move |request: objects::TreeSelectRequest| {
             return_target.set(None);
-            inspector_tab.set(LayoutInspectorTab::Properties);
             input.on_select_context.call(request);
         });
     let relation_scope = input.relation_scope.clone();
     let relation_target = input.relation_target.clone();
     let relation_select = input.on_select_context;
     let mut relation_escape_target = matrix_relationship_escape_target;
-    let mut relation_tab = input.inspector_tab;
     let on_navigate_relation = EventHandler::new(move |context: objects::TreeContext| {
         let Some(scope) = relation_scope.clone() else {
             return;
@@ -749,17 +692,15 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         };
         if matches!(request.context, objects::TreeContext::Component { .. }) {
             relation_escape_target.set(Some(request.clone()));
-            relation_tab.set(LayoutInspectorTab::Properties);
         }
         relation_select.call(request);
     });
-    // Parameter entries select their owner and open the matching tool/editor on
-    // the Properties tab. The same currency guard applies: a target removed
+    // Parameter entries select their owner and open the matching tool/editor
+    // beside the selection. The same currency guard applies: a target removed
     // since the row was projected does nothing.
     let open_scope = input.relation_scope.clone();
     let open_target = input.relation_target.clone();
     let open_select = input.on_select_context;
-    let mut open_tab = input.inspector_tab;
     let on_open_owner_relation = EventHandler::new(move |context: objects::TreeContext| {
         let Some(scope) = open_scope.clone() else {
             return;
@@ -773,7 +714,6 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         let Some(request) = open_target(request) else {
             return;
         };
-        open_tab.set(LayoutInspectorTab::Properties);
         open_select.call(request);
     });
     if let Some(page) = input.findings_page.filter(|page| page.open) {
@@ -804,12 +744,10 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         };
     }
     let board_context_header = input.board_inspector_mount.projection.is_some();
-    let matrix_context_tabs = input.component_inspector.is_none()
+    let matrix_context = input.component_inspector.is_none()
         && input.outline_inspector.is_none()
         && input.board_inspector_mount.projection.is_none()
         && input.matrix_transform_inspector.projection.is_some();
-    let show_matrix_relations =
-        matrix_context_tabs && (input.inspector_tab)() == LayoutInspectorTab::Relations;
     rsx! {
         PendingSplayOriginPickEscape {
             pending: input.splay_origin_pick_pending,
@@ -840,35 +778,19 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             }
         }
         }
-        if matrix_context_tabs {
-            div { class: "m1-layout-component-tabs", role: "tablist", aria_label: "Inspector details",
-                button {
-                    role: "tab",
-                    aria_selected: "{(input.inspector_tab)() == LayoutInspectorTab::Properties}",
-                    onclick: move |_| input.inspector_tab.set(LayoutInspectorTab::Properties),
-                    "Properties"
-                }
-                button {
-                    role: "tab",
-                    aria_selected: "{(input.inspector_tab)() == LayoutInspectorTab::Relations}",
-                    onclick: move |_| input.inspector_tab.set(LayoutInspectorTab::Relations),
-                    "Relations"
+        if matrix_context {
+            if let Some(relations) = input.matrix_relations.clone() {
+                super::layout_matrix_relations::PlacementBreadcrumb {
+                    relations,
+                    on_navigate: on_navigate_relation,
+                    on_open_owner: on_open_owner_relation,
                 }
             }
         }
-        if show_matrix_relations {
-            super::layout_matrix_relations::MatrixRelationsPanel {
-                relations: input.matrix_relations.clone(),
-                mount: input.matrix_transform_inspector.clone(),
-                on_navigate: on_navigate_relation,
-                on_open_owner: on_open_owner_relation,
-            }
-        } else {
             if input.outline_inspector.is_none() {
                 if let Some(projection) = input.component_inspector {
                     super::inspector::LayoutComponentInspector {
                         projection,
-                        inspector_tab: input.inspector_tab,
                         pending_edits: input.component_inspector_pending_edits,
                         x: input.component_inspector_x,
                         y: input.component_inspector_y,
@@ -920,7 +842,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             }
             if input.matrix_transform_inspector.projection.is_some() {
                 objects::MatrixTransformInspector {
-                    mount: input.matrix_transform_inspector,
+                    mount: input.matrix_transform_inspector.clone(),
                     on_pick_splay_origin: input.on_pick_splay_origin,
                     on_pick_anchor: input.on_pick_anchor,
                     anchor_pick_pending: input.anchor_pick_pending,
@@ -939,7 +861,14 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                     mount: input.board_inspector_mount,
                 }
             }
-        }
+            if matrix_context {
+                super::layout_matrix_relations::MatrixRelationsPanel {
+                    relations: input.matrix_relations.clone(),
+                    mount: input.matrix_transform_inspector.clone(),
+                    on_navigate: on_navigate_relation,
+                    on_open_owner: on_open_owner_relation,
+                }
+            }
     }
 }
 

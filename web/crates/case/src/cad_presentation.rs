@@ -792,6 +792,7 @@ mod mounted_tests {
             snap_fraction: 1.0,
             geometry_snap: false,
             gap: None,
+            pixels_per_world: None,
             alt: false,
         });
         assert!(

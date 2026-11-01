@@ -191,6 +191,13 @@ pub(super) fn translate(
         | Op::SetKeycapSize { .. }
         | Op::ApplyOutlineEdit { .. }
         | Op::SetLayout { .. }
+        | Op::SetSplitGap { .. }
+        | Op::SetMirroredPart { .. }
+        | Op::SetPartAnchor { .. }
+        | Op::SetPartAnchorFollow { .. }
+        | Op::DetachPartAnchor { .. }
+        | Op::SetPartAnchorValues { .. }
+        | Op::SetPartRotation { .. }
         | Op::CreateMirroredPair { .. }
         | Op::SetConstraint { .. }
         | Op::RemoveConstraint { .. }

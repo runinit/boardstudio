@@ -677,6 +677,8 @@ pub fn Library(
     let query = search_query();
     cards.retain(|(document, _)| matches_project_search(document, &query));
     let no_search_matches = cards.is_empty() && !query.trim().is_empty();
+    let storage_readiness = runtime.storage_readiness();
+    let import_disabled = !matches!(storage_readiness, Ok(true));
     let import = runtime.clone();
     let menu_import = import.clone();
     let menu_save_copy = runtime.clone();
@@ -729,6 +731,9 @@ pub fn Library(
                     super::ThemePicker {}
                 }
             }
+            if let Err(error) = &storage_readiness {
+                p { role: "alert", class: "m1-status", "{error}" }
+            }
             if project_menu {
                     div { class: "m1-project-menu-actions",
                         button { class: "m1-library-new", r#type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu_top(),
@@ -744,10 +749,10 @@ pub fn Library(
                                 "Save project copy…"
                             }
                         }
-                        label { class: "m1-project-menu-open",
+                        label { class: "m1-project-menu-open", "aria-disabled": "{import_disabled}",
                             svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M2 6V4h6l2 2h8v3M2 6v11h14l2-8H5l-3 8" } }
                             "Open project…"
-                            input { class: "m1-project-file-input", r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
+                            input { class: "m1-project-file-input", r#type: "file", accept: ".boardstudio", disabled: import_disabled, onchange: move |event: FormEvent| {
                                 let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
                                 let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
                                 super::close_project_menu();
@@ -848,9 +853,9 @@ pub fn Library(
                             }
                             h2 { "Import project" }
                             p { "Bring in a keyboard file from your computer." }
-                            label { class: "board-button board-button--primary m1-library-import-action",
+                            label { class: "board-button board-button--primary m1-library-import-action", "aria-disabled": "{import_disabled}",
                                 "Import project"
-                                input { class: "m1-project-file-input", r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
+                                input { class: "m1-project-file-input", r#type: "file", accept: ".boardstudio", disabled: import_disabled, onchange: move |event: FormEvent| {
                                     let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
                                     let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
                                     super::close_project_menu();
@@ -1787,6 +1792,60 @@ mod mounted_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         root
+    }
+
+    #[wasm_bindgen_test]
+    async fn import_waits_for_storage_initialization() {
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        crate::runtime::project_name_test_support::set_storage_initializing(&runtime, true);
+        let root = mount_library(runtime.clone(), "import-readiness", false);
+        wait_until("import input renders", || {
+            root.query_selector("input.m1-project-file-input")
+                .unwrap()
+                .is_some()
+        })
+        .await;
+        let input = root
+            .query_selector("input.m1-project-file-input")
+            .unwrap()
+            .unwrap();
+        assert!(
+            input.has_attribute("disabled"),
+            "import must be disabled while storage initializes"
+        );
+        crate::runtime::project_name_test_support::set_storage_initializing(&runtime, false);
+        wait_until(
+            "import becomes enabled after storage initialization",
+            || !input.has_attribute("disabled"),
+        )
+        .await;
+        crate::runtime::project_name_test_support::fail_storage_initialization(
+            &runtime,
+            "injected failure",
+        );
+        runtime.report("another status");
+        wait_until(
+            "storage failure remains visible and import is disabled",
+            || {
+                input.has_attribute("disabled")
+                    && root
+                        .text_content()
+                        .is_some_and(|text| text.contains("injected failure"))
+            },
+        )
+        .await;
+        root.remove();
+        let menu = mount_menu(runtime, "import-readiness-menu");
+        wait_until("menu import renders disabled after storage failure", || {
+            menu.query_selector("input.m1-project-file-input:disabled")
+                .unwrap()
+                .is_some()
+                && menu
+                    .text_content()
+                    .is_some_and(|text| text.contains("injected failure"))
+        })
+        .await;
+        menu.remove();
     }
 
     #[wasm_bindgen_test]

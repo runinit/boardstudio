@@ -108,6 +108,7 @@ fn fixture() -> (ProjectDoc, TreeContext) {
             rotation: 0.0,
         },
         side: Side::Front,
+        anchor: None,
         locked: Some(false),
         properties: None,
         generator_parameters: None,

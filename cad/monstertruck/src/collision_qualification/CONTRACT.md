@@ -25,6 +25,6 @@ may use retained mesher parameters; it must still qualify numeric/coverage terms
 
 WASM size is recorded in the [Monstertruck release baseline](../../../../docs/research/cad/monstertruck-performance-baseline-2026-10-18.md);
 the bounded query cost and retained memory of the qualified path are measured
-by `cad/wasm/tests/qualified-analysis.cjs`. The private proof uses the
+by `cad/wasm/tests/qualified-analysis.mjs`. The private proof uses the
 already locked exact-rational dependency; it does not assume normalized
 BigRational arithmetic is an acceptable final hot path.

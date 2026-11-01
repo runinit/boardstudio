@@ -31,7 +31,7 @@ The first-build parity claim excludes aggregate anchors explicitly, not silently
 
 ## Notes
 
-- Decision record: [ADR-0034](../../adr/0036-matrices-follow-ergogen-point-layout.md). Earlier
+- Decision record: [ADR-0036](../../adr/0036-matrices-follow-ergogen-point-layout.md). Earlier
   contract: [ADR-0007](../../adr/0007-matrix-gestures-edit-named-parameters.md).
 - Evidence:
   - [Ergogen comparison](../../research/2026-10-22-ergogen-layout-engine-comparison.md), with
@@ -45,7 +45,7 @@ The first-build parity claim excludes aggregate anchors explicitly, not silently
   `codebase-design` where a ticket shapes a Core interface.
 - Tracker: [docs/agents/issue-tracker.md](../../agents/issue-tracker.md), Wayfinding
   operations.
-- Standing decisions (2026-10-22). Detail lives in ADR-0034; this is the gist:
+- Standing decisions (2026-10-22). Detail lives in ADR-0036; this is the gist:
   - Parity means behavioural, and is proven by golden fixtures. Ergogen YAML import is out.
   - The existing `Matrix` evolves; there is no new zone tree.
   - Offsets stay additive and act like ergogen `adjust`. They do not move the splay origin.
@@ -274,12 +274,12 @@ every UI wiring follow-up is integrated and no further tickets are planned.
 - **Aggregate anchors.** The user explicitly deferred average/intersection anchors on
   2026-10-23. This build covers accepted parameters and single-key anchors, not complete
   Ergogen points coverage. Future aggregate support needs its own representation,
-  evaluation/degenerate-case and UI decisions; see [ADR-0034](../../adr/0036-matrices-follow-ergogen-point-layout.md).
+  evaluation/degenerate-case and UI decisions; see [ADR-0036](../../adr/0036-matrices-follow-ergogen-point-layout.md).
 
 ## Out of scope
 
 - **Ergogen YAML import and export.** The data model should still map onto it cleanly
-  (ADR-0034).
+  (ADR-0036).
 - **Ergogen's override precedence between levels.** Additive offsets are a deliberate
   difference.
 - **Ergogen's `orient`, column-level compounding `shift`, and zone or global rotation about

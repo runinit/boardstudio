@@ -80,6 +80,7 @@ fn member(matrix: &str, row: u32, column: u32) -> String {
 
 fn key_part(id: &str, x: f64, y: f64) -> Part {
     Part {
+        anchor: None,
         id: id.into(),
         definition_id: "switch".into(),
         reference: id.into(),
@@ -222,6 +223,8 @@ fn anchored_mirrored_doc() -> ProjectDoc {
         mirror_link: Some(LayoutMirrorLink {
             source_id: "layout".into(),
             axis_x: 10.0,
+            split_gap: None,
+            spacing: None,
             correspondences: vec![mirror_kind("main"), mirror_kind("thumb")],
             exceptions: vec![],
         }),
