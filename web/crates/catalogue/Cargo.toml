@@ -7,7 +7,6 @@ publish = false
 description = "BoardStudio bundled component catalogue: loading, generator normalization and physical setup proposals."
 
 [dependencies]
-boardstudio-application = { path = "../../../application" }
 boardstudio_core = { path = "../../../core" }
 boardstudio-web-host = { path = "../host", features = ["page"] }
 serde = { version = "1", features = ["derive"] }

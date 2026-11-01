@@ -120,6 +120,10 @@ pub(crate) mod pcb_wiring {
     mod remap;
 
     #[cfg(test)]
+    #[path = "test_fixtures.rs"]
+    mod test_fixtures;
+
+    #[cfg(test)]
     #[path = "mode_owner_tests.rs"]
     mod mode_owner_tests;
 }
