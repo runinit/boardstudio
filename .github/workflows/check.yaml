@@ -71,7 +71,7 @@ jobs:
           key: cadrum-wasm-${{ hashFiles('cad/scripts/cadrum_build.py', 'cad/wasm/Cargo.lock') }}
       # Pull the published CAD toolchain image; cadrum_build.py builds it locally if this fails
       # (for example on forks, or before cad-image.yaml has published a changed Containerfile).
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         continue-on-error: true
         with:
           registry: ghcr.io
