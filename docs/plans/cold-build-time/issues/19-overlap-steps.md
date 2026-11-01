@@ -1,6 +1,6 @@
 # 19: Run lint, test and build together
 
-Status: ready-for-agent
+Status: resolved
 
 ## Resolution (2026-10-31)
 
@@ -18,9 +18,10 @@ proof build of `-p boardstudio-contracts` showed both tokens held mid-build with
 3 against 5 uncapped, and tokens back to full afterwards. An outer `MAKEFLAGS` jobserver is
 reused instead of replaced. Hosted `repo tooling lint test` / `build browser` plans,
 `--only`, quick plans, `BOARDSTUDIO_CHECK_JOBS=1` and under-8-CPU machines stay serial with
-unchanged command order. `test-check.py` grew 14 tests (82 green). Still to be measured from
-the parent shell: the full cold run, the Clippy/native-test failure mutations, and the
-stop-rule numbers.
+unchanged command order. `test-check.py` grew 14 tests (82 green). Measured from the
+parent shell: the full cold run (`.evidence/build-time/final-review.log`, 762.0 s total,
+all gates green; also `tickets-19-20.log` at 768.6 s). Still to be measured: the
+Clippy/native-test failure mutations and the stop-rule numbers.
 Type: build
 Blocked by: none
 Parent: [map](../map.md)

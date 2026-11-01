@@ -1,6 +1,6 @@
 # 20: Merge the CAD library and wasm workspaces
 
-Status: ready-for-agent
+Status: resolved
 
 ## Resolution (2026-10-31)
 
@@ -39,8 +39,10 @@ Follow-ups (stale but non-breaking, deliberately untouched): `cad/.dockerignore`
 the root `Cargo.toml` and `deny.toml` comments naming the old wasm workspace (`deny`
 scans the root workspace only, so `deny.toml` itself is unchanged); `measure-cad.py`'s
 `cad/wasm/target` probes (degrade to `exists=False`); `PROOF.md`'s bare-manifest cargo
-commands. Still to be measured from the parent shell: the full cold run, CAD native and
-browser counts, the CAD wasm byte size, and the stop-rule numbers.
+commands. Measured from the parent shell: the full cold run
+(`.evidence/build-time/final-review.log`, 762.0 s total, all gates green; also
+`tickets-19-20.log` at 768.6 s). Still to be measured: CAD native and browser counts,
+the CAD wasm byte size, and the stop-rule numbers.
 Type: build
 Blocked by: [19](19-overlap-steps.md)
 Parent: [map](../map.md)
