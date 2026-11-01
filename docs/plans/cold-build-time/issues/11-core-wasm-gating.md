@@ -1,6 +1,14 @@
 # 11: Gate wasm-bindgen in Core
 
-Status: ready-for-agent
+Status: resolved
+
+## Resolution (2026-10-30)
+
+`wasm-bindgen` and `js-sys` moved to wasm32-only deps; `use`, `#[wasm_bindgen]` sites and
+`archive_request` gated. No native `cargo tree` path remains. Clippy native and wasm pass, worker
+`.d.ts` byte-identical, `check.py test build browser` green (one CAD cold-responses flake on the
+first browser attempt, passed on rerun). Saving ~20 CPU-s in the root host tree (above the 15
+stop line); the cad/wasm O3 units are that tree's own dep and unaffected.
 Type: build
 Blocked by: [02](02-measurement-kit.md)
 Parent: [map](../map.md)

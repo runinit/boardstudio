@@ -11,6 +11,7 @@ import re
 import hashlib
 import subprocess
 import tempfile
+import threading
 import unittest
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
@@ -98,6 +99,58 @@ class RunWasmTestsTests(unittest.TestCase):
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             code = runner.main(["--root", str(self.dir), *argv])
         return code, out.getvalue(), err.getvalue()
+
+    def test_parallel_filters_report_in_original_order_even_when_they_finish_out_of_order(self):
+        second_finished = threading.Event()
+        finished = []
+
+        def fake_filter(filter_, env, root):
+            if filter_ == "first":
+                if not second_finished.wait(5):
+                    raise TimeoutError("second filter did not run concurrently")
+            finished.append(filter_)
+            if filter_ == "second":
+                second_finished.set()
+            return 0, {f"{filter_}::test": "ok"}, f"test {filter_}::test ... ok\n"
+
+        report_path = self.dir / "report.json"
+        with patch.object(runner, "run_filter", side_effect=fake_filter), \
+             patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), \
+             contextlib.redirect_stderr(io.StringIO()):
+            result = runner.run(["first", "second"], {}, env={}, result_json_path=report_path)
+        self.assertEqual(finished, ["second", "first"])
+        self.assertEqual(result[:4], (2, [], [], []))
+        report = json.loads(report_path.read_text())
+        self.assertEqual([item["filter"] for item in report["filters"]], ["first", "second"])
+        self.assertEqual([item["test"] for item in report["terminal_outcomes"]],
+                         ["first::test", "second::test"])
+        self.assertIn("first::test", Path(report["filters"][0]["log_path"]).read_text())
+        self.assertIn("second::test", Path(report["filters"][1]["log_path"]).read_text())
+
+    def test_one_job_runs_filters_serially(self):
+        calls = []
+
+        def fake_filter(filter_, env, root):
+            calls.append((filter_, threading.current_thread()))
+            return 0, {f"{filter_}::test": "ok"}, f"test {filter_}::test ... ok\n"
+
+        with patch.object(runner, "run_filter", side_effect=fake_filter), \
+             patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}), \
+             contextlib.redirect_stderr(io.StringIO()):
+            runner.run(["first", "second"], {}, env={})
+        self.assertEqual(calls, [("first", threading.current_thread()),
+                                 ("second", threading.current_thread())])
+
+    def test_parallel_failing_filter_fails_the_run(self):
+        self.fake('case "$1" in\n'
+                  'first) echo "test first::test ... ok" ;;\n'
+                  'second) echo "test second::test ... FAILED"; exit 1 ;;\n'
+                  'esac')
+        with patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), \
+             contextlib.redirect_stderr(io.StringIO()):
+            _, failed, _, problems, _ = runner.run(["first", "second"], {}, root=self.dir)
+        self.assertEqual(failed, ["second::test"])
+        self.assertEqual(problems, [])
 
     def test_explicit_bindgen_pair_reaches_page_and_direct_crate_launches(self):
         import check
@@ -263,8 +316,9 @@ class RunWasmTestsTests(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertIn("executed 2, failed 0", out)
         calls = self.log.read_text().splitlines()
-        self.assertEqual(calls, [
-            "--list",
+        # Filters launch concurrently, so only the listing's position is fixed.
+        self.assertEqual(calls[0], "--list")
+        self.assertCountEqual(calls[1:], [
             "presentation::mechanical_settings::contextual_layer_tests::",
             "presentation::panels::scroll_tests::",
         ])
@@ -706,7 +760,8 @@ class RunWasmTestsTests(unittest.TestCase):
             with runner.desktop_webdriver_config({}) as env:
                 config_path = Path(env[runner.WEBDRIVER_CONFIG_ENV])
                 self.assertEqual(json.loads(config_path.read_text()), {
-                    "goog:chromeOptions": {"args": ["--window-size=1280,900"]}
+                    "goog:chromeOptions": {"args": ["--window-size=1280,900"]},
+                    "pageLoadStrategy": "eager",
                 })
             self.assertFalse(config_path.exists())
             supplied = self.dir / "caller-webdriver.json"

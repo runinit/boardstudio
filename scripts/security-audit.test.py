@@ -57,7 +57,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
     def test_standalone_cad_audit_failure_is_propagated(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for lock in ("Cargo.lock", "cad/wasm/Cargo.lock", "cad/monstertruck/Cargo.lock",
+            for lock in ("Cargo.lock", "cad/monstertruck/Cargo.lock",
                          "renderer/vendor/cgmath-next-0.18.1/Cargo.lock"):
                 path = root / lock
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -86,7 +86,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
     def test_accepted_unsound_advisory_is_ignored(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for lock in ("Cargo.lock", "cad/wasm/Cargo.lock", "cad/monstertruck/Cargo.lock",
+            for lock in ("Cargo.lock", "cad/monstertruck/Cargo.lock",
                          "renderer/vendor/cgmath-next-0.18.1/Cargo.lock"):
                 path = root / lock
                 path.parent.mkdir(parents=True, exist_ok=True)

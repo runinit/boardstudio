@@ -101,7 +101,11 @@ says so. Documentation-only changes run only the documentation checks.
 **Full check.** The default runs documentation link checks, build and content tool tests, rustfmt and
 Clippy, native Rust and provider tests, a checked web build, native/WASM boundary checks and mounted
 headless browser tests. Name steps (`python3 scripts/check.py --list`) to run only some. Each command
-and step prints its wall time. The checked `build` skips `wasm-opt` and the optimized page build; the
+and step prints its wall time. On machines with 8 or more CPUs the full check runs `lint`, `test` and
+`build` at the same time, each as its own `check.py` child whose output prints whole in plan order;
+`lint` then builds into `target/lint`, and a shared jobserver caps rustc across the three. Smaller
+machines, `BOARDSTUDIO_CHECK_JOBS=1`, `--receipt` and partial plans keep the serial order.
+The checked `build` skips `wasm-opt` and the optimized page build; the
 opt-in `release` step (`python3 scripts/check.py release`) keeps both and is what ships.
 Running the `browser` step by itself first rebuilds the checked page so its real-page drag smoke
 cannot pass against stale frontend assets. Run `python3 scripts/check.py drag-smoke` for that small
@@ -114,7 +118,8 @@ on purpose, with `BOARDSTUDIO_ALLOW_NO_KICAD=1`; the KiCad integration tests hav
 **Browser tests.** The runner checks that every listed test actually executes. Each presentation crate
 under `web/crates/` is one test launch (`wasm-pack test --headless --chrome web/crates/<crate> --lib`,
 which starts its own `chromedriver` and Chrome); the Case workspace, panel and setup guide tests run
-separately because their mounted fixtures need an isolated DOM. The check runs up to four crate launches
+separately because their mounted fixtures need an isolated DOM. One `cargo test --no-run` compiles them all
+first; every launch dev-depends on `web/crates/test-floor` so it finds those builds fresh. The check runs up to four crate launches
 at once (`BOARDSTUDIO_CHECK_JOBS`, `1` for serial) and builds test wasm without debug info
 (`CARGO_PROFILE_DEV_DEBUG=false`, which is most of a launch's cost; run `wasm-pack test` by hand,
 without the variable, for source-level debugging). Use `python3 scripts/check.py browser --only <crate>...`
@@ -157,14 +162,16 @@ the receipt) at review handoff.
 | `scripts/` | Build, content preparation and checks |
 
 The Rust crates share one Cargo workspace (root `Cargo.toml`, `Cargo.lock` and
-`target/`), so dependencies compile once per profile and target. `cad/wasm` stays
-outside it because it patches the vendored Monstertruck crates with its own lockfile. It declares an empty `[workspace]` so cargo treats it as its own
-root, which also lets it build from a worktree nested under another checkout.
+`target/`), so dependencies compile once per profile and target. `cad/monstertruck` stays
+outside it with its own workspace and lockfile, covering the `cad/wasm` member, because it
+patches the vendored Monstertruck crates. It declares `[workspace]` so cargo treats it as its own
+root, which also lets both crates build from a worktree nested under another checkout.
 
 A new worktree can skip most of its cold build by seeding copy-on-write copies of an idle
-worktree's target dirs: run `python3 scripts/seed-worktree-target.py DONOR` inside the new
-worktree. It refuses a busy donor, a toolchain mismatch, or a destination that already has
-targets.
+worktree's target dirs. With the one-time `git config core.hooksPath scripts/git-hooks`, `git worktree add`
+does this automatically (`seed-worktree-target.py --auto`); by hand, run
+`python3 scripts/seed-worktree-target.py DONOR` inside the new worktree. It refuses a busy donor,
+a toolchain mismatch, or a destination that already has targets.
 
 The repository has no TypeScript or Node dependency; Python scripts handle build, content preparation and checks. Footprint generation runs in Rust inside Core and the page. User-supplied
 JavaScript generators are not executed. Bundled model export includes used assets;

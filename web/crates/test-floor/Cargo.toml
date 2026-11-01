@@ -1,0 +1,29 @@
+[package]
+name = "boardstudio-web-test-floor"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# Every browser test launch dev-depends on this crate, so all of them resolve one feature set and
+# find the units `scripts/check.py`'s single prebuild compiled. Without it each launch has its own
+# features, recompiles first-party crates, and queues on the build lock.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+boardstudio-web-case = { path = "../case", features = ["test-support"] }
+boardstudio-web-catalogue = { path = "../catalogue" }
+boardstudio-web-host = { path = "../host", features = ["page", "test-support"] }
+boardstudio-web-keycaps = { path = "../keycaps", features = ["test-support"] }
+boardstudio-web-keymap = { path = "../keymap", features = ["test-support"] }
+boardstudio-web-layout = { path = "../layout", features = ["test-support"] }
+boardstudio-web-library = { path = "../library", features = ["test-support"] }
+boardstudio-web-parts = { path = "../parts", features = ["test-support"] }
+boardstudio-web-pcb = { path = "../pcb", features = ["test-support"] }
+boardstudio-web-runtime = { path = "../runtime", features = ["test-support"] }
+boardstudio-web-ui-model = { path = "../ui-model", features = ["test-support"] }
+boardstudio-web-ui-shared = { path = "../ui-shared", features = ["test-support"] }
+
+[package.metadata.cargo-machete]
+ignored = ["boardstudio-web-case", "boardstudio-web-catalogue", "boardstudio-web-host", "boardstudio-web-keycaps", "boardstudio-web-keymap", "boardstudio-web-layout", "boardstudio-web-library", "boardstudio-web-parts", "boardstudio-web-pcb", "boardstudio-web-runtime", "boardstudio-web-ui-model", "boardstudio-web-ui-shared"]
+
+[lints]
+workspace = true

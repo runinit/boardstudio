@@ -39,9 +39,10 @@ pub use matrix::layout::part_correspondence;
 pub use matrix::layout::proposed_creation_gap;
 use model::*;
 use std::collections::{BTreeMap, BTreeSet};
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub struct CoreEngine {
     document: ProjectDoc,
     undo: Vec<ProjectDoc>,
@@ -53,9 +54,9 @@ pub struct CoreEngine {
     identity_ledger: mechanical::edit::MechanicalIdentityLedger,
 }
 
-#[wasm_bindgen]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl CoreEngine {
-    #[wasm_bindgen(constructor)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
     pub fn new() -> Self {
         Self::default()
     }
@@ -97,7 +98,7 @@ impl CoreEngine {
 }
 
 /// Handle an artifact request without mutating the stateful document engine.
-#[wasm_bindgen]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub fn artifact_request(json: &str) -> String {
     artifact::request(json)
 }
@@ -185,6 +186,7 @@ pub fn case_preparation_ready(
 }
 
 /// Archive payloads cross WASM as typed buffers, independently of JSON metadata.
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn archive_request(metadata: &str, buffers: js_sys::Array) -> js_sys::Array {
     use wasm_bindgen::JsCast;

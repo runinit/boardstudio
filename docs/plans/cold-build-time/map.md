@@ -91,6 +91,20 @@ about 700 to 800 s; a cold run in an existing worktree to about 900 to 1000 s.
 | [14](issues/14-dioxus-default-features.md) | Remove Dioxus default features | -3 | -41 | none | 1 day + upkeep | **Drop** |
 | [15](issues/15-cad-test-dev-deps.md) | Trim CAD test dependencies | -2 to -5 | -20 to -50 | none | half a day | **Drop** |
 
+Second round, after the single browser build (986.6 s cold):
+
+| # | Ticket | Measured wall | Verdict |
+|---|---|---|---|
+| [16](issues/16-browser-launch-concurrency.md) | More crate launches; prebuild page test | 4-job batch 76.9 s; 6-job batch 284.8 s; page launch still compiled | Both rejected; default stays 4 |
+| [17](issues/17-browser-overlap.md) | Overlap gates and page filters; strip A/B | Gate overlap: browser 564.4 s; parallel page focus 108.2 to 68 s, but full browser 525.5 s; strip full browser 611.3 s | All rejected on 284–287 s launch stalls; browser figures are not comparable gains |
+| [18](issues/18-browser-test-cleanup.md) | Bounded waits; test overlap and irrelevant tests | unknown until `layout` is timed | Do; removals need approval |
+| [19](issues/19-overlap-steps.md) | Run lint, test and build together | -200 to -250 (local only) | Do |
+| [20](issues/20-merge-cad-workspaces.md) | Merge the CAD library and wasm workspaces | about 0 local, -300 to -350 CPU-s | Do |
+
+The final kept state has no runtime change: cold total 1256.2 s, browser 701.0 s,
+all count floors met but a 284.1 s launch stall remained. See ticket 17 for logs
+and the limits of these measurements.
+
 ## Decisions so far
 
 - Keep `jobs = 12`, stable 1.98 and every gate.
@@ -103,6 +117,27 @@ about 700 to 800 s; a cold run in an existing worktree to about 900 to 1000 s.
 - 2026-10-30: CI `CARGO_BUILD_JOBS` experiment deferred to last; structural work (code audit,
   tests) comes first. Try `BOARDSTUDIO_CHECK_JOBS` before any exception.
 - 2026-10-30: BSD-2-Clause for Inflector (07) may go on the `deny.toml` allow list if needed.
+- 2026-10-31: lanes stay on by default. Cold `test lint build browser` confined to 4 CPU threads
+  and 16 GB (`taskset`, `systemd-run`) took 1512.5 s with `BOARDSTUDIO_CHECK_JOBS=4` and 1673.3 s
+  with `1`, no OOM kills in either. This approximates a hosted runner; it is not one, and these
+  threads are on separate physical cores. `memory.peak` counts page cache, so it does not bound
+  real memory use.
+- 2026-10-31: full cold run after the KiCad driver shares the workspace's Core: 1031.2 s, all
+  gates green (`test` 240.8 s to 202.3 s). `secs` in the unit logs is wall time and overlap inflates
+  it, so sums across lane and pre-lane runs do not compare; `rustc-log.py` now records real CPU
+  (`cpu`), 4543 s at this head. No earlier run has that field, so the CPU change since the 1461 s
+  baseline is unmeasured.
+- 2026-10-31: new worktrees seed automatically through `scripts/git-hooks/post-checkout` once
+  `core.hooksPath` is set. Backdating source mtimes to keep path crates fresh is rejected: it cut a
+  seeded native build from 48 s to 10 s, but the Core test binary then embedded the donor's path,
+  so tests could read the donor's fixtures.
+- 2026-10-31: browser crate launches share one prebuild (`check-speed` 13, a variation of option A
+  that keeps `wasm-pack` launches). Every launch dev-depends on `web/crates/test-floor`, so one
+  `cargo test --no-run` serves all 12 crates. Full cold run 1031.2 s to 986.6 s, `browser` 491.2 s
+  to 446.6 s, wasm32 debug Core builds 4 to 1, the same 693 launch test names, 112 page tests and
+  2378 native tests. `check.py browser --only <crate>` now builds every web crate when cold.
+- 2026-10-31: keep KiCad as the independent test oracle. Production code does not run it, and no
+  Rust DRC was found to replace it.
 
 ## Waiting on the user
 

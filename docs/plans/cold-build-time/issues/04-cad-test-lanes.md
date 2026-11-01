@@ -1,6 +1,15 @@
 # 04: Run the CAD test trees as lanes
 
-Status: ready-for-agent
+Status: resolved
+
+## Resolution (2026-10-30)
+
+`test_cad()` now builds `native_test_commands()` and runs one lane per target dir in a 3-thread
+pool, capturing each lane and printing whole in order; `BOARDSTUDIO_CHECK_JOBS=1` keeps the old
+serial path. `test-cad-build.py` grew 2 lane tests (18 green). Test step: 269.2 s -> 205.6 s
+(-64 s, above the 40 s stop line; includes ticket 07's regex removal, lanes alone ~-30 s under
+load 7). CAD lane ran at 8.7x parallelism. Counts held (2378 + 27). Warm peak tree RSS 2.7 GB,
+far under 24 GB. RED: one mutation per lane, all killed with the failing lane's output shown.
 Type: build
 Blocked by: [02](02-measurement-kit.md)
 Parent: [map](../map.md)

@@ -29,6 +29,7 @@ ttf-parser = "=0.25.1"
 num-rational = "=0.4.2"
 
 [patch.crates-io]
+Inflector = { path = "vendor/inflector" }
 monstertruck-core = { path = "vendor/monstertruck-core" }
 monstertruck-modeling = { path = "vendor/monstertruck-modeling" }
 monstertruck-io = { path = "vendor/monstertruck-io" }

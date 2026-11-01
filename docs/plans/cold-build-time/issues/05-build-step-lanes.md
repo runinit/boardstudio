@@ -1,6 +1,14 @@
 # 05: Overlap the page build with the provider builds
 
-Status: ready-for-agent
+Status: resolved
+
+## Resolution (2026-10-30)
+
+`provider_lanes()` (A: 4 wasm-pack serial, B: CAD wasm) plus a `dx` lane for fast single-route
+builds; ergogen staging serial first; shipped, multi-route and `--skip-providers` unchanged.
+Lanes confirm all three starting at ~1-5 s. H1 holds (page wasm hash identical serial vs overlap).
+Browser gate green. Three consecutive cold `build` runs: 198.4/197.6/196.4 s vs 282.1 s
+rebaseline (-85 s, above the 40 s stop line). `test-build-web.py` 13 green.
 Type: build
 Blocked by: [02](02-measurement-kit.md)
 Parent: [map](../map.md)

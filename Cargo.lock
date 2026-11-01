@@ -257,6 +257,7 @@ dependencies = [
  "boardstudio-web-parts",
  "boardstudio-web-pcb",
  "boardstudio-web-runtime",
+ "boardstudio-web-test-floor",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
  "boardstudio_core",
@@ -285,6 +286,7 @@ dependencies = [
  "boardstudio-web-host",
  "boardstudio-web-keycaps",
  "boardstudio-web-runtime",
+ "boardstudio-web-test-floor",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
  "boardstudio_core",
@@ -308,7 +310,7 @@ version = "0.1.0"
 dependencies = [
  "boardstudio-application",
  "boardstudio-web-host",
- "boardstudio-web-ui-shared",
+ "boardstudio-web-test-floor",
  "boardstudio_core",
  "serde",
  "serde_json",
@@ -320,7 +322,7 @@ name = "boardstudio-web-host"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
- "boardstudio-web-ui-shared",
+ "boardstudio-web-test-floor",
  "boardstudio_core",
  "futures-channel",
  "gloo-timers",
@@ -341,6 +343,7 @@ dependencies = [
  "boardstudio-application",
  "boardstudio-web-host",
  "boardstudio-web-runtime",
+ "boardstudio-web-test-floor",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
  "boardstudio_core",
@@ -364,6 +367,7 @@ dependencies = [
  "boardstudio-application",
  "boardstudio-web-host",
  "boardstudio-web-runtime",
+ "boardstudio-web-test-floor",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
  "boardstudio_core",
@@ -391,6 +395,7 @@ dependencies = [
  "boardstudio-web-keycaps",
  "boardstudio-web-parts",
  "boardstudio-web-runtime",
+ "boardstudio-web-test-floor",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
  "boardstudio_core",
@@ -416,6 +421,7 @@ dependencies = [
  "boardstudio-application",
  "boardstudio-web-host",
  "boardstudio-web-runtime",
+ "boardstudio-web-test-floor",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
  "boardstudio_core",
@@ -441,6 +447,7 @@ dependencies = [
  "boardstudio-web-catalogue",
  "boardstudio-web-host",
  "boardstudio-web-runtime",
+ "boardstudio-web-test-floor",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
  "boardstudio_core",
@@ -468,6 +475,7 @@ dependencies = [
  "boardstudio-web-host",
  "boardstudio-web-parts",
  "boardstudio-web-runtime",
+ "boardstudio-web-test-floor",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
  "boardstudio_core",
@@ -490,7 +498,7 @@ version = "0.1.0"
 dependencies = [
  "boardstudio-application",
  "boardstudio-web-host",
- "boardstudio-web-ui-shared",
+ "boardstudio-web-test-floor",
  "boardstudio_core",
  "futures-channel",
  "gloo-timers",
@@ -506,12 +514,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "boardstudio-web-test-floor"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-web-case",
+ "boardstudio-web-catalogue",
+ "boardstudio-web-host",
+ "boardstudio-web-keycaps",
+ "boardstudio-web-keymap",
+ "boardstudio-web-layout",
+ "boardstudio-web-library",
+ "boardstudio-web-parts",
+ "boardstudio-web-pcb",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio-web-ui-shared",
+]
+
+[[package]]
 name = "boardstudio-web-ui-model"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
  "boardstudio-web-runtime",
- "boardstudio-web-ui-shared",
+ "boardstudio-web-test-floor",
  "boardstudio_core",
  "dioxus",
  "serde_json",
@@ -527,6 +553,7 @@ dependencies = [
  "boardstudio-application",
  "boardstudio-web-host",
  "boardstudio-web-runtime",
+ "boardstudio-web-test-floor",
  "boardstudio-web-ui-model",
  "boardstudio_core",
  "dioxus",

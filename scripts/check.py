@@ -40,6 +40,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 import argparse
 import codecs
+import contextlib
 import io
 import importlib.util
 import json
@@ -78,7 +79,7 @@ TOOLING_TESTS = (
     "scripts/test-build-web.py", "scripts/test-build-patched-wasm-bindgen.py", "scripts/test-serve-web.py",
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
-    "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
+    "scripts/test-gitnexus-stop-hook.py",
     "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py", "scripts/test-parallel-interrupt.py", "scripts/test-verify-no-node.py", "scripts/test-build-time.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
     "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
@@ -87,6 +88,18 @@ TOOLING_TESTS = (
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 ISOLATED = ("presentation::case_workspace::",)
 DRAG_SMOKE = [PY, "scripts/run-drag-browser.py"]
+HARNESS_MANIFEST = "tools/browser-harness/Cargo.toml"
+HARNESS_PREBUILD: Command = ["cargo", "build", "--locked", "--manifest-path", HARNESS_MANIFEST,
+                             "--package", "boardstudio-browser-harness", "--bin", "drag-smoke"]
+# One cargo invocation compiles every crate launch's test binary in parallel; launches queued on the
+# build lock otherwise. web/crates/test-floor keeps each launch's features equal to this one's.
+BROWSER_PREBUILD: Command = [
+    "cargo", "test", "--no-run", "--locked", "--target", "wasm32-unknown-unknown", "--lib",
+    "--features", "boardstudio-web-host/page",
+    *[arg for crate in ("case", "catalogue", "host", "keycaps", "keymap", "layout", "library", "parts",
+                        "pcb", "runtime", "ui-model", "ui-shared")
+      for arg in ("--package", f"boardstudio-web-{crate}")],
+]
 LAYOUT_TEST_CSS: list[str] = [
     "dx", "build", "--web", "--no-default-features", "--features", "page", "--cargo-args=--locked",
 ]
@@ -101,10 +114,14 @@ def typecheck() -> list[Command]:
              *WASM_PAGE, "--bin", "boardstudio-web"]]
 
 
+def is_harness_build(command: Command) -> bool:
+    """A prebuild of the drag-smoke binary: joins a crate-launch batch, then the smoke runs."""
+    return command == HARNESS_PREBUILD
+
+
 def browser() -> list[Command]:
     wasm_pack = ["wasm-pack", "test", "--headless", "--chrome", "web", "--locked", *WASM_PAGE]
     return [
-        DRAG_SMOKE,
         [PY, "cad/scripts/test-cad-capture-controls.py"],
         [PY, "cad/scripts/test-cold-responses.py"],
         [PY, "scripts/check-wasm-tests.py"],
@@ -112,7 +129,12 @@ def browser() -> list[Command]:
         [PY, "scripts/model-lookup-pilot.py", "--gate"],
         [PY, "-B", "scripts/ergogen-parity/test_generate.py", "--source"],
         [PY, "cad/scripts/face-completeness-gate.py"],
+        BROWSER_PREBUILD,
         [PY, "cad/scripts/test-cad-browser.py"],
+        # The harness binary prebuilds beside the crate launches; the smoke itself runs after
+        # the batch, needing only the built site and binary. Fail-fast order changes deliberately:
+        # launch failures now surface before the smoke instead of after it.
+        HARNESS_PREBUILD,
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/host", "--locked", "--features", "page",
          "--lib"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/runtime", "--locked", "--lib"],
@@ -131,6 +153,7 @@ def browser() -> list[Command]:
         # webdriver.json gives it the desktop viewport it needs.
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "--skip", "setup_guide::"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "setup_guide::"],
+        DRAG_SMOKE,
         [*wasm_pack, "--bin", "boardstudio-web", "--", "--list"],
         [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
          "--result-json", "web/target/test-results/browser.json"],
@@ -152,7 +175,6 @@ WEB_WASM_PACKAGES: tuple[str, ...] = (
 # `--no-deps` keeps Clippy off the vendored cgmath fork; its lints are audited separately.
 # The browser harness lives outside the workspace with its own lockfile, so it
 # gets its own manifest-scoped format and lint commands.
-HARNESS_MANIFEST = "tools/browser-harness/Cargo.toml"
 LINT: list[list[str]] = [
     ["cargo", "fmt", "--all", "--check"],
     ["cargo", "clippy", "--workspace", "--locked", "--all-targets", "--no-deps", "--", "-D", "warnings"],
@@ -185,7 +207,9 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
     # The routine build skips wasm-opt and the optimized Dioxus build; `release` keeps both.
     "build": (True, [[PY, "scripts/build-web.py", "--fast"]]),
     "release": (False, [[PY, "scripts/build-web.py"]]),
-    "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cad.py"]]),
+    # test-import-kicad-parts builds its own example binary, so it runs in this batch rather
+    # than alone in tooling; `check.py tooling` no longer runs it.
+    "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cad.py"], [PY, "scripts/test-import-kicad-parts.py"]]),
     "typecheck": (False, typecheck()),
     "browser": (True, browser()),
     "drag-smoke": (False, [DRAG_SMOKE]),
@@ -211,6 +235,14 @@ WASM_FRAME_RE = re.compile(r"^\s*at [^\s(]+\.wasm\.([^\s(]+)")
 def is_crate_launch(command: Command) -> bool:
     """One `wasm-pack test` launch of a presentation crate: independent of every other launch."""
     return launch_crate(command) is not None
+
+
+def is_root_clippy(command: Command) -> bool:
+    return command[:2] == ["cargo", "clippy"] and "--manifest-path" not in command
+
+
+def is_harness_clippy(command: Command) -> bool:
+    return command[:2] == ["cargo", "clippy"] and HARNESS_MANIFEST in command
 
 
 def browser_crates(commands: Sequence[Command] | None = None) -> tuple[str, ...]:
@@ -248,10 +280,11 @@ def is_browser_step(name: str) -> bool:
 
 
 def check_jobs() -> int:
+    default = min(6, os.cpu_count() or 4)
     try:
-        return max(1, int(os.environ.get("BOARDSTUDIO_CHECK_JOBS", "4")))
+        return max(1, int(os.environ.get("BOARDSTUDIO_CHECK_JOBS", str(default))))
     except ValueError:
-        return 4
+        return default
 
 
 def launch_order(command: Command) -> int:
@@ -443,7 +476,7 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
     print("$ " + shlex.join(command), flush=True)
     lock_fd = browser_tools._inherited_build_lock()
     if not any(part in command for part in ("scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py", "cad/scripts/face-completeness-gate.py", "cad/scripts/test-cad-provider.py", "scripts/build-web.py",
-               "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py", "scripts/model-lookup-pilot.py", "scripts/ergogen-parity/test_generate.py")):
+               "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py", "scripts/model-lookup-pilot.py", "scripts/ergogen-parity/test_generate.py", "scripts/check-wasm-tests.py")):
         environment = environment.copy()
         environment.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
     lock_args = {"pass_fds": (lock_fd,)} if lock_fd is not None else {}
@@ -465,13 +498,14 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
         if completed is not None:
             completed(result.returncode, time.monotonic() - started, started_at, datetime.now(timezone.utc).isoformat())
         return result
-    if captured is not None and is_cargo_test(command):
-        # The native test-name guard reads this output; it is printed whole once the command ends.
+    if (captured is not None and is_cargo_test(command)) or command == BROWSER_PREBUILD:
+        # The test-name guard needs native output; the overlapping prebuild must not interleave.
         done = run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, text=True, **lock_args)
         text = output_text(done.stdout)
         print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
-        captured.append((command, text))
+        if captured is not None and is_cargo_test(command):
+            captured.append((command, text))
         if outputs is not None:
             outputs.append((command, text))
         code = done.returncode
@@ -541,8 +575,15 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                  captured: list[tuple[Command, str]] | None = None,
                  outputs: list[tuple[Command, str]] | None = None,
                  receipt: verification_receipt.Collector | None = None,
-                 step: str = "") -> tuple[float, list[Command]]:
-    """Runs independent launches together, printing each completed launch's output whole."""
+                 step: str = "",
+                 command_environments: dict[tuple[str, ...], dict[str, str]] | None = None,
+                 elapsed_by_command: dict[tuple[str, ...], float] | None = None,
+                 in_order: bool = False) -> tuple[float, list[Command]]:
+    """Runs independent launches together, printing each completed launch's output whole.
+
+    `command_environments` overrides the environment per command; `elapsed_by_command`
+    collects each command's wall time (commands must be distinct). With `in_order`,
+    completed outputs print in batch order instead of completion order."""
     lock_fd = browser_tools._inherited_build_lock()
     # Workers retain completed results even if submit is interrupted before it
     # returns the corresponding future to the main thread.
@@ -567,10 +608,14 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         started = time.monotonic()
         started_at = datetime.now(timezone.utc).isoformat()
         print(f"check: start {started_at} $ {shlex.join(command)}", flush=True)
-        child_env = environment.copy()
+        base = environment
+        if command_environments is not None:
+            base = command_environments.get(tuple(command), environment)
+        child_env = base.copy()
         if receipt is not None:
             child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
-        if "cad/scripts/test-cad.py" not in command:
+        # Coordinators re-validate the lock and propagate it to their own commands.
+        if "cad/scripts/test-cad.py" not in command and "scripts/check.py" not in command:
             child_env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
         done = launch_command(command, registry=registry, cwd=ROOT, env=child_env, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, text=True,
@@ -604,6 +649,7 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
     previous_term = signal.getsignal(signal.SIGTERM) if main_thread else None
     previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, signals) if main_thread else None
     registry["mask"] = previous_mask if main_thread else signal.pthread_sigmask(signal.SIG_BLOCK, set())
+    buffered: dict[int, tuple[Command, tuple]] = {}
     try:
         if main_thread:
             def interrupt(signum, _frame):
@@ -629,6 +675,27 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         submitting = False
         pending = {future for _, future in futures}
         commands_by_future = {future: command for command, future in futures}
+        index_by_future = {future: index for index, (_, future) in enumerate(futures)}
+        next_index = 0
+
+        def emit(command: Command, result: tuple) -> None:
+            code, output, elapsed, started_at, ended_at, attempt = result
+            text = output_text(output)
+            if receipt is not None:
+                receipt.observe(step, command, code, elapsed, text, started_at=started_at,
+                                ended_at=ended_at, attempt_id=attempt)
+            if captured is not None and is_cargo_test(command):
+                captured.append((command, text))
+            if outputs is not None:
+                outputs.append((command, text))
+            if code:
+                failed.append(command)
+            if elapsed_by_command is not None:
+                elapsed_by_command[tuple(command)] = elapsed
+            print("$ " + shlex.join(command), flush=True)
+            print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
+            print(f"  ({elapsed:.1f}s)", flush=True)
+
         while pending:
             finished, pending = wait(pending, return_when=FIRST_COMPLETED)
             with registry["lock"]:
@@ -639,20 +706,15 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                 if future.cancelled():
                     continue
                 command = commands_by_future[future]
-                code, output, elapsed, started_at, ended_at, attempt = future.result()
-                text = output_text(output)
-                if receipt is not None:
-                    receipt.observe(step, command, code, elapsed, text, started_at=started_at,
-                                    ended_at=ended_at, attempt_id=attempt)
-                if captured is not None and is_cargo_test(command):
-                    captured.append((command, text))
-                if outputs is not None:
-                    outputs.append((command, text))
-                if code:
-                    failed.append(command)
-                print("$ " + shlex.join(command), flush=True)
-                print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
-                print(f"  ({elapsed:.1f}s)", flush=True)
+                result = future.result()
+                if in_order:
+                    buffered[index_by_future[future]] = (command, result)
+                else:
+                    emit(command, result)
+            while in_order and next_index in buffered:
+                command, result = buffered.pop(next_index)
+                emit(command, result)
+                next_index += 1
     except BaseException as caught:
         error = caught
     finally:
@@ -742,6 +804,12 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
             except BaseException as caught:
                 if error is None:
                     error = caught
+        if in_order and error is not None:
+            # Ordered output is held back; without this an interrupt loses a finished step's errors.
+            for command, result in buffered.values():
+                print("$ " + shlex.join(command), flush=True)
+                text = output_text(result[1])
+                print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
         if receipt is not None and error is not None:
             for command, result in completed:
                 code, output, elapsed, started_at, ended_at, attempt = result
@@ -765,26 +833,134 @@ def _report_launch_failure(command: Command, text: str) -> None:
         print("check: " + summary, file=sys.stderr)
 
 
+def _run_lint_overlap(commands: list[Command], environment: dict[str, str], cwd: Path,
+                      captured: list[tuple[Command, str]] | None,
+                      receipt: verification_receipt.Collector | None = None) -> tuple[float, bool]:
+    """Run `lint` with the harness clippy beside the two root clippys.
+
+    The root clippys stay serial with each other (shared host lock); the harness has its own
+    target. Every other command, including the harness clippy's result, is observed in plan order.
+    """
+    total = 0.0
+    pending: list[tuple[Command, object, list, float]] = []
+    pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="lint-harness")
+
+    def observe(command: Command, outputs: list, code: int, elapsed: float,
+                started_at: str, ended_at: str, attempt: str | None) -> bool:
+        if receipt is not None:
+            receipt.observe("lint", command, code, elapsed, outputs[-1][1] if outputs else "",
+                            started_at=started_at, ended_at=ended_at, attempt_id=attempt)
+        return code == 0
+
+    def flush() -> bool:
+        nonlocal total
+        ok = True
+        for command, future, outputs, attempt in pending:
+            elapsed, code, started_at, ended_at = future.result()
+            total += elapsed
+            if not observe(command, outputs, code, elapsed, started_at, ended_at, attempt):
+                ok = False
+        pending.clear()
+        return ok
+
+    try:
+        rest = []
+        for command in commands:
+            serial_outputs: list[tuple[Command, str]] = []
+            child_env = environment.copy()
+            args = (command, child_env, cwd, captured, serial_outputs)
+            attempt = receipt.prepare(command, step="lint") if receipt is not None else None
+            if is_harness_clippy(command):
+                # Its own target: sharing lint's overlap target would queue it on their lock.
+                child_env.pop("CARGO_TARGET_DIR", None)
+                # Submitted before the root clippys run, so it overlaps them.
+                pending.append((command, pool.submit(run_serial, *args), serial_outputs, attempt))
+            else:
+                rest.append((command, args, attempt))
+        for command, args, attempt in rest:
+            elapsed, code, started_at, ended_at = run_serial(*args)
+            total += elapsed
+            if not observe(command, args[4], code, elapsed, started_at, ended_at, attempt):
+                return total, flush() and False
+        return total, flush()
+    finally:
+        pool.shutdown(wait=True)
+
+
+def _run_browser_overlap(name: str, gates: list[Command], environment: dict[str, str], cwd: Path,
+                         captured: list[tuple[Command, str]] | None, *, keep_going: bool,
+                         receipt: verification_receipt.Collector | None) -> tuple[float, bool]:
+    """Run the prebuild beside the preceding gates, joining it before browser deadlines."""
+    started = time.monotonic()
+    failed = False
+
+    def prepare(command):
+        outputs = []
+        attempt = receipt.prepare(command, step=name) if receipt is not None else None
+        child_env = environment.copy()
+        if receipt is not None:
+            child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
+        completed = (lambda code, elapsed, start, end: receipt.recording_failed(attempt, code, elapsed, start, end)) if receipt is not None else None
+        return (command, child_env, cwd, captured, outputs, completed), outputs, attempt
+
+    def observe(command, result, outputs, attempt):
+        nonlocal failed
+        elapsed, code, started_at, ended_at = result
+        if receipt is not None:
+            try:
+                receipt.observe(name, command, code, elapsed, outputs[-1][1] if outputs else "",
+                                started_at=started_at, ended_at=ended_at, attempt_id=attempt)
+            except BaseException:
+                receipt.recording_failed(attempt, code, elapsed, started_at, ended_at)
+                raise
+        if code:
+            failed = True
+            print("check: command failed: " + shlex.join(command), file=sys.stderr)
+        return code == 0
+
+    prebuild_args, prebuild_outputs, prebuild_attempt = prepare(BROWSER_PREBUILD)
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="browser-prebuild") as pool:
+        future = pool.submit(run_serial, *prebuild_args)
+        for command in gates:
+            args, outputs, attempt = prepare(command)
+            if not observe(command, run_serial(*args), outputs, attempt) and not keep_going:
+                break
+        observe(BROWSER_PREBUILD, future.result(), prebuild_outputs, prebuild_attempt)
+    # Wall time: these overlap, so summing them would overstate the step.
+    return time.monotonic() - started, not failed
+
+
 def run_commands(name: str, commands: list[Command], environment: dict[str, str], cwd: Path = ROOT,
                  captured: list[tuple[Command, str]] | None = None,
                  *, keep_going: bool = False,
                  receipt: verification_receipt.Collector | None = None) -> tuple[float, bool]:
-    """Runs a step's commands; consecutive crate launches in `browser`, and the independent
-    workspaces of `test`, run together. `captured` collects each `cargo test` command's output."""
+    """Runs a step's commands; consecutive crate launches (and the harness prebuild) in
+    `browser`, and the independent workspaces of `test`, run together. `captured` collects
+    each `cargo test` command's output."""
     if name == "test" and check_jobs() > 1 and len(commands) > 1:
         elapsed, failed = run_parallel(commands, environment, captured, receipt=receipt, step=name)
         for command in failed:
             print("check: command failed: " + shlex.join(command), file=sys.stderr)
         return elapsed, not failed
+    if name == "lint" and check_jobs() > 1 and any(is_harness_clippy(command) for command in commands):
+        return _run_lint_overlap(commands, environment, cwd, captured, receipt=receipt)
     browser_step = is_browser_step(name)
     total = 0.0
     any_failed = False
     index = 0
+    if browser_step and check_jobs() > 1 and BROWSER_PREBUILD in commands:
+        index = commands.index(BROWSER_PREBUILD) + 1
+        total, passed = _run_browser_overlap(name, commands[:index - 1], environment, cwd, captured,
+                                             keep_going=keep_going, receipt=receipt)
+        if not passed:
+            if not keep_going:
+                return total, False
+            any_failed = True
     while index < len(commands):
         command = commands[index]
-        if browser_step and check_jobs() > 1 and is_crate_launch(command):
+        if browser_step and check_jobs() > 1 and (is_crate_launch(command) or is_harness_build(command)):
             end = index
-            while end < len(commands) and is_crate_launch(commands[end]):
+            while end < len(commands) and (is_crate_launch(commands[end]) or is_harness_build(commands[end])):
                 end += 1
             batch_outputs: list[tuple[Command, str]] = []
             elapsed, failed = run_parallel(commands[index:end], environment, outputs=batch_outputs,
@@ -945,8 +1121,8 @@ def build_preflight(*, cad: bool = False, cad_wasm: bool = False) -> bool:
         report_target(cargo_target())
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as error:
         print(f"check: build target unknown: {error}", file=sys.stderr)
-    cad_targets = (["cad/monstertruck/target", "cad/wasm/target", "cad/monstertruck-qualification/target"]
-                   if cad else ["cad/wasm/target"] if cad_wasm else [])
+    cad_targets = (["cad/monstertruck/target", "cad/monstertruck-qualification/target"]
+                   if cad else ["cad/monstertruck/target"] if cad_wasm else [])
     if cad_targets:
         for target in cad_targets:
             try:
@@ -960,6 +1136,102 @@ def build_preflight(*, cad: bool = False, cad_wasm: bool = False) -> bool:
     except OSError as error:
         print(f"check: cannot determine temporary filesystem free space ({temporary}): {error}", file=sys.stderr)
     return True
+
+
+OVERLAP_MIN_CPUS = 8
+OVERLAP_STEPS = frozenset({"lint", "test", "build"})
+
+
+def _overlap_split(plan: list[tuple[str, list[Command]]],
+                   *, receipt: verification_receipt.Collector | None) -> tuple[
+                       list[tuple[str, list[Command]]], list[tuple[str, list[Command]]],
+                       list[tuple[str, list[Command]]]] | None:
+    """Split off a lint/test/build group to overlap, or None to stay serial.
+
+    Overlap needs all three steps as one contiguous block, enough CPUs, parallel jobs,
+    and no receipt; hosted 4 vCPU runs, `--only`/quick subsets and single-job runs keep
+    the serial order.
+    """
+    if receipt is not None or check_jobs() <= 1 or (os.cpu_count() or 0) < OVERLAP_MIN_CPUS:
+        return None
+    names = [name for name, _ in plan]
+    if not OVERLAP_STEPS.issubset(names):
+        return None
+    indices = sorted(names.index(step) for step in OVERLAP_STEPS)
+    if indices != list(range(indices[0], indices[0] + 3)):
+        return None
+    return plan[:indices[0]], plan[indices[0]:indices[0] + 3], plan[indices[0] + 3:]
+
+
+def _overlap_child_commands(group: list[tuple[str, list[Command]]],
+                            update_native_baseline: bool) -> tuple[
+                                list[Command], dict[tuple[str, ...], dict[str, str]]]:
+    """Child `check.py <step>` commands for one overlapped group, with their environments.
+
+    Single-step children cannot overlap again. `lint` builds into `target/lint` so it does
+    not queue behind `test` on the shared target lock; serial runs keep the shared target.
+    """
+    batch: list[Command] = []
+    environments: dict[tuple[str, ...], dict[str, str]] = {}
+    for name, _ in group:
+        command = [sys.executable, "scripts/check.py", name]
+        if name == "test" and update_native_baseline:
+            command.append("--update-native-baseline")
+        environment = os.environ.copy()
+        if name == "lint":
+            environment["CARGO_TARGET_DIR"] = "target/lint"
+        batch.append(command)
+        environments[tuple(command)] = environment
+    return batch, environments
+
+
+@contextlib.contextmanager
+def _overlap_jobserver(environments: dict[tuple[str, ...], dict[str, str]]):
+    """Share one fifo jobserver across the overlapped children, capping rustc near the CPU count (each cargo also holds an implicit token).
+
+    Yields the child MAKEFLAGS, or None when an outer jobserver is already inherited. Cargo
+    honours the fifo (a 2-token probe held both tokens and bounded rustc); the fifo is
+    removed afterwards, including on interrupts.
+    """
+    parent_flags = os.environ.get("MAKEFLAGS", "")
+    if "--jobserver" in parent_flags:
+        yield None
+        return
+    directory = tempfile.mkdtemp(prefix="check-jobserver-")
+    path = os.path.join(directory, "jobserver")
+    os.mkfifo(path)
+    handle = os.open(path, os.O_RDWR)
+    try:
+        os.write(handle, b"+" * max(1, (os.cpu_count() or 1) - 1))
+        value = f"--jobserver-auth=fifo:{path}"
+        if parent_flags:
+            value = f"{parent_flags} {value}"
+        for environment in environments.values():
+            environment["MAKEFLAGS"] = value
+        yield value
+    finally:
+        os.close(handle)
+        os.unlink(path)
+        os.rmdir(directory)
+
+
+def _run_overlapped_steps(group: list[tuple[str, list[Command]]],
+                          update_native_baseline: bool) -> tuple[dict[str, float], list[str]]:
+    """Run one overlapped group as child `check.py` steps; returns step walls and failed steps.
+
+    Every child runs to completion on the shared `run_parallel` machinery; each child's
+    output prints whole, in plan order.
+    """
+    for name, _ in group:
+        print(f"== {name}", flush=True)
+    batch, environments = _overlap_child_commands(group, update_native_baseline)
+    walls: dict[tuple[str, ...], float] = {}
+    with _overlap_jobserver(environments):
+        _, failed = run_parallel(batch, os.environ.copy(), command_environments=environments,
+                                 elapsed_by_command=walls, in_order=True)
+    elapsed = {name: walls[tuple(command)] for (name, _), command in zip(group, batch)}
+    failed_steps = [name for (name, _), command in zip(group, batch) if command in failed]
+    return elapsed, failed_steps
 
 
 def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool = False,
@@ -1013,7 +1285,8 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=F
         _RECEIPT = None
         return code
 
-    for name, commands in plan:
+    def run_step(name: str, commands: list[Command]) -> bool:
+        nonlocal baseline_written
         print(f"== {name}", flush=True)
         environment = os.environ.copy()
         if name == "test":
@@ -1026,7 +1299,7 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=F
                 environment = wasm_bindgen_tools.configure(environment, ROOT)
             except ValueError as error:
                 print(f"check: {error}", file=sys.stderr)
-                return finish(1)
+                return False
             # Match the page runner's bounded budget for direct wasm-pack crate batches.
             environment.setdefault("WASM_BINDGEN_TEST_TIMEOUT", "120")
             # Test wasm without DWARF is about a seventh of the size, which is most of a launch.
@@ -1047,13 +1320,40 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=F
             baseline_written = baseline_written or written
         if not passed:
             print(f"check: step '{name}' failed", file=sys.stderr)
+            return False
+        return True
+
+    overlap = _overlap_split(plan, receipt=receipt)
+    run_started = time.monotonic() if overlap is not None else None
+    if overlap is not None:
+        pre, group, post = overlap
+        for name, commands in pre:
+            if not run_step(name, commands):
+                return finish(1)
+        step_walls, failed_steps = _run_overlapped_steps(group, update_native_baseline)
+        for name, seconds in step_walls.items():
+            totals[name] = totals.get(name, 0.0) + seconds
+        if failed_steps:
+            for name in failed_steps:
+                print(f"check: step '{name}' failed", file=sys.stderr)
             return finish(1)
+        if update_native_baseline:
+            # The test child records its own baseline; the parent ran no native tests itself.
+            baseline_written = True
+        for name, commands in post:
+            if not run_step(name, commands):
+                return finish(1)
+    else:
+        for name, commands in plan:
+            if not run_step(name, commands):
+                return finish(1)
     if update_native_baseline and not baseline_written:
         print("check: --update-native-baseline: no native `cargo test` ran, so the baseline is unchanged",
               file=sys.stderr)
         return finish(1)
+    total = time.monotonic() - run_started if run_started is not None else sum(totals.values())
     print("check: step times: " + ", ".join(f"{name} {seconds:.1f}s" for name, seconds in totals.items())
-          + f", total {sum(totals.values()):.1f}s")
+          + f", total {total:.1f}s")
     if partial:
         print("check: partial steps passed: " + ", ".join(dict.fromkeys(names))
               + " (subset only; full browser gate not run)")
@@ -1095,6 +1395,8 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
             plan.append(("browser", commands))
     if selection.cad:
         plan.append(("test", [[PY, "cad/scripts/test-cad.py"]]))
+    if selection.extra_tests:
+        plan.append(("test", [[PY, path] for path in selection.extra_tests]))
     return plan
 
 

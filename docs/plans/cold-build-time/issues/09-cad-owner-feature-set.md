@@ -1,6 +1,17 @@
 # 09: One feature set for the CAD owner tests
 
-Status: ready-for-agent
+Status: wontfix
+
+## Resolution (2026-10-30): reverted per stop rule
+
+Implemented fully (dual `-p` on all 7 selections, sel5 widening fixed with exact dual filters,
+name-based guard with 82 expected names, RED-verified) and then reverted: the remaining prize is
+too small. After ticket 07 removed regex, variant counts only moved meshing 3->2 and geometry 2->1
+(io stays at 2), with the eliminated variants worth ~6 CPU-s in the reference log — under the 50
+CPU-s stop line. The cold comparison was load-polluted (+308 CPU-s with identical crate sets and
+uniform inflation), but the variant analysis is load-independent and conclusive. Reopen if a new
+multi-variant registry crate appears in this tree or unification becomes available. Revert commit:
+working tree restored to ticket 04's state; `test-cad-build.py` green.
 Type: build
 Blocked by: [04](04-cad-test-lanes.md)
 Parent: [map](../map.md)

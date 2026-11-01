@@ -8,11 +8,13 @@ import json
 import os
 import re
 import shlex
+import signal
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from unittest import mock
 
@@ -51,14 +53,14 @@ class CheckTests(unittest.TestCase):
         launch.assert_not_called()
         metadata.assert_not_called()
 
-    def test_page_build_preflight_reports_cad_wasm_target(self):
+    def test_page_build_preflight_reports_merged_cad_target(self):
         output = io.StringIO()
         plan = [("build", [[check.PY, "scripts/build-web.py", "--fast"]])]
         with mock.patch.object(check, "_run_plan", return_value=0), \
                 mock.patch.object(check.shutil, "disk_usage", return_value=mock.Mock(free=1024 ** 3)), \
                 contextlib.redirect_stdout(output):
             self.assertEqual(check.run_plan(plan), 0)
-        self.assertIn(str(ROOT / "cad/wasm/target"), output.getvalue())
+        self.assertIn(str(ROOT / "cad/monstertruck/target"), output.getvalue())
 
     def test_cad_only_plan_reports_its_build_targets(self):
         output = io.StringIO()
@@ -67,8 +69,9 @@ class CheckTests(unittest.TestCase):
                 mock.patch.object(check.shutil, "disk_usage", return_value=mock.Mock(free=1024 ** 3)), \
                 contextlib.redirect_stdout(output):
             self.assertEqual(check.run_plan(plan), 0)
-        for target in ("cad/monstertruck/target", "cad/wasm/target", "cad/monstertruck-qualification/target"):
+        for target in ("cad/monstertruck/target", "cad/monstertruck-qualification/target"):
             self.assertIn(str(ROOT / target), output.getvalue())
+        self.assertNotIn("cad/wasm/target", output.getvalue())
 
     def test_preflight_reports_configured_target_and_tmpdir(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -270,6 +273,18 @@ class CheckTests(unittest.TestCase):
                     and set(words[2:]) == {"repo", "tooling", "lint", "test"}):
                 found = True
         self.assertTrue(found, "CI must configure an unconditional tooling step")
+
+    def test_browser_prebuild_covers_every_crate_launch(self):
+        prebuilt = {arg.removeprefix("boardstudio-web-") for arg in check.BROWSER_PREBUILD
+                    if arg.startswith("boardstudio-web-") and "/" not in arg}
+        self.assertEqual(prebuilt, set(check.browser_crates()))
+        floor = (ROOT / "web/crates/test-floor/Cargo.toml").read_text()
+        for crate in prebuilt:
+            self.assertIn(f'boardstudio-web-{crate} = {{ path = "../{crate}"', floor)
+            manifest = (ROOT / f"web/crates/{crate}/Cargo.toml").read_text()
+            self.assertIn('boardstudio-web-test-floor = { path = "../test-floor" }', manifest)
+        self.assertIn('boardstudio-web-test-floor = { path = "crates/test-floor" }',
+                      (ROOT / "web/Cargo.toml").read_text())
 
     def test_ergogen_gate_transition_contract(self):
         workflow = (ROOT / ".github/workflows/check.yaml").read_text()
@@ -487,6 +502,69 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertNotIn("security", check.DEFAULT)
         self.assertNotIn("typecheck", check.DEFAULT)
 
+    def test_lint_overlaps_harness_clippy_with_root_clippys(self):
+        # Two parties: the harness (submitted after the first root clippy) blocks until the
+        # second root clippy is in flight beside it.
+        barrier = threading.Barrier(2, timeout=10)
+        seen = []
+
+        def fake_serial(command, environment, cwd, captured, outputs):
+            text = " ".join(command)
+            if check.is_harness_clippy(command) or "wasm32-unknown-unknown" in text:
+                barrier.wait()
+            seen.append(text)
+            return 0.0, 0, "s", "e"
+
+        commands = [c for c in check.LINT if c[:2] == ["cargo", "clippy"]]
+        self.assertEqual(len(commands), 3)
+        with mock.patch.object(check, "run_serial", side_effect=fake_serial):
+            elapsed, passed = check._run_lint_overlap(commands, {}, check.ROOT, None)
+        self.assertTrue(passed)
+        roots = [text for text in seen if "--manifest-path" not in text]
+        self.assertEqual(len(roots), 2)
+        # Root clippys keep their plan order even though the harness runs beside them.
+        self.assertLess(seen.index(roots[0]), seen.index(roots[1]))
+
+    def test_lint_overlap_keeps_the_harness_off_the_overlap_target(self):
+        environments = {}
+
+        def fake_serial(command, environment, cwd, captured, outputs):
+            environments[check.is_harness_clippy(command)] = environment
+            return 0.0, 0, "s", "e"
+
+        commands = [c for c in check.LINT if c[:2] == ["cargo", "clippy"]]
+        with mock.patch.object(check, "run_serial", side_effect=fake_serial):
+            check._run_lint_overlap(commands, {"CARGO_TARGET_DIR": "target/lint"}, check.ROOT, None)
+        self.assertEqual(environments[False]["CARGO_TARGET_DIR"], "target/lint")
+        self.assertNotIn("CARGO_TARGET_DIR", environments[True])
+
+    def test_ordered_batch_interrupt_prints_finished_output(self):
+        script = (
+            "import sys; sys.path.insert(0, 'scripts'); import check\n"
+            "py = sys.executable\n"
+            "slow = [py, '-c', 'import time; time.sleep(60)']\n"
+            "fast = [py, '-c', 'print(\"FINISHED-\" + \"STEP-OUTPUT\")']\n"
+            "check.run_parallel([slow, fast], {}, in_order=True)\n"
+        )
+        process = subprocess.Popen([sys.executable, "-c", script], cwd=check.ROOT, text=True,
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        time.sleep(3)
+        process.terminate()
+        output, _ = process.communicate(timeout=20)
+        self.assertNotEqual(process.returncode, 0)
+        self.assertIn("FINISHED-STEP-OUTPUT", output)
+
+    def test_lint_overlap_reports_harness_failure(self):
+        def fake_serial(command, environment, cwd, captured, outputs):
+            if check.is_harness_clippy(command):
+                return 0.0, 1, "s", "e"
+            return 0.0, 0, "s", "e"
+
+        commands = [c for c in check.LINT if c[:2] == ["cargo", "clippy"]]
+        with mock.patch.object(check, "run_serial", side_effect=fake_serial):
+            elapsed, passed = check._run_lint_overlap(commands, {}, check.ROOT, None)
+        self.assertFalse(passed)
+
     def test_lint_runs_wasm_clippy_over_the_web_workspace_crates(self):
         # Native Clippy builds the non-WASM stubs, so the WASM-gated web crates
         # (and their browser tests) need an explicit WASM-target Clippy command.
@@ -580,7 +658,14 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         with mock.patch.object(check, "run_plan", side_effect=record):
             self.assertEqual(check.run(["browser"]), 0)
         self.assertEqual([name for name, _ in captured["plan"]], ["build", "browser"])
-        self.assertEqual(captured["plan"][-1][1][0], check.DRAG_SMOKE)
+        commands = captured["plan"][-1][1]
+        launches = [index for index, command in enumerate(commands) if check.is_crate_launch(command)]
+        smoke = commands.index(check.DRAG_SMOKE)
+        # Fail-fast order changed deliberately: the smoke runs after the whole crate-launch
+        # batch, whose binary it prebuilds beside.
+        self.assertGreater(smoke, launches[-1])
+        prebuild = commands.index(check.HARNESS_PREBUILD)
+        self.assertEqual(prebuild, launches[0] - 1)
 
     def test_drag_smoke_can_run_as_a_fresh_build_preflight(self):
         captured = {}
@@ -727,14 +812,118 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                                  "the receipt keeps the only attempt's exit code and whole output")
                 self.assertEqual(check.summarize_wasm_failure(stalled)["kind"], "timeout")
 
-    def test_the_browser_job_cap_defaults_to_four_and_one_means_serial(self):
-        with mock.patch.dict(os.environ):
+    def test_browser_prebuild_overlaps_gates_but_finishes_before_browser_deadlines(self):
+        commands = check.browser()
+        prebuild_index = commands.index(check.BROWSER_PREBUILD)
+        gates = commands[:prebuild_index]
+        deadline = [check.PY, "cad/scripts/test-cad-browser.py"]
+        self.assertEqual(commands[prebuild_index + 1], deadline)
+        self.assertEqual(commands[prebuild_index + 2], check.HARNESS_PREBUILD)
+        started, release, finished = threading.Event(), threading.Event(), threading.Event()
+        seen = []
+
+        def fake(command, **kwargs):
+            seen.append(command)
+            if command == check.BROWSER_PREBUILD:
+                self.assertNotIn("BOARDSTUDIO_BUILD_LOCK_FD", kwargs["env"])
+                self.assertEqual(kwargs.get("stdout"), subprocess.PIPE)
+                started.set()
+                if not release.wait(5):
+                    raise TimeoutError("gate did not overlap prebuild")
+                finished.set()
+                return mock.Mock(returncode=0, stdout="whole compile output\n")
+            if command in gates:
+                self.assertTrue(started.wait(5))
+                self.assertEqual(kwargs["env"].get("BOARDSTUDIO_BUILD_LOCK_FD"), "42")
+                if command == gates[-1]:
+                    release.set()
+            if command == deadline:
+                self.assertTrue(finished.is_set())
+            return mock.Mock(returncode=0, stdout="")
+
+        output = io.StringIO()
+        receipt = mock.Mock(run_id="run")
+        receipt.prepare.side_effect = lambda command, **kwargs: shlex.join(command)
+        try:
+            with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                 mock.patch.object(check.browser_tools, "_inherited_build_lock", return_value=None), \
+                 mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), \
+                 contextlib.redirect_stdout(output):
+                _, passed = check.run_commands("browser", [*gates, check.BROWSER_PREBUILD, deadline],
+                                               {"BOARDSTUDIO_BUILD_LOCK_FD": "42"}, receipt=receipt)
+        finally:
+            release.set()
+        self.assertTrue(passed)
+        self.assertEqual([command for command in seen if command in gates], gates)
+        self.assertEqual(seen[-1], deadline)
+        self.assertIn("whole compile output\n", output.getvalue())
+        self.assertEqual(receipt.prepare.call_count, len(gates) + 2)
+        self.assertEqual(receipt.observe.call_count, len(gates) + 2)
+        observed = [call.args for call in receipt.observe.call_args_list]
+        self.assertEqual(next(args[4] for args in observed if args[1] == check.BROWSER_PREBUILD),
+                         "whole compile output\n")
+
+    def test_browser_prebuild_and_gates_remain_serial_with_one_job(self):
+        gate = [check.PY, "cad/scripts/test-cad-provider.py"]
+        deadline = [check.PY, "cad/scripts/test-cad-browser.py"]
+        commands = [gate, check.BROWSER_PREBUILD, deadline]
+        seen = []
+
+        def fake(command, **kwargs):
+            seen.append(command)
+            return mock.Mock(returncode=0, stdout="")
+
+        with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+             mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}), \
+             contextlib.redirect_stdout(io.StringIO()):
+            _, passed = check.run_commands("browser", commands, {})
+        self.assertTrue(passed)
+        self.assertEqual(seen, commands)
+
+    def test_failing_gate_and_prebuild_are_both_reported_and_keep_going_is_honoured(self):
+        gate = [check.PY, "cad/scripts/test-cad-provider.py"]
+        later_gate = [check.PY, "scripts/check-wasm-tests.py"]
+        deadline = [check.PY, "cad/scripts/test-cad-browser.py"]
+        commands = [gate, later_gate, check.BROWSER_PREBUILD, deadline]
+        for keep_going in (False, True):
+            with self.subTest(keep_going=keep_going):
+                seen = []
+
+                def fake(command, **kwargs):
+                    seen.append(command)
+                    code = int(command in (gate, check.BROWSER_PREBUILD))
+                    return mock.Mock(returncode=code, stdout="compile error\n" if command == check.BROWSER_PREBUILD else "")
+
+                out, err = io.StringIO(), io.StringIO()
+                receipt = mock.Mock(run_id="run")
+                receipt.prepare.side_effect = lambda command, **kwargs: shlex.join(command)
+                with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                     mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), \
+                     contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                    _, passed = check.run_commands("browser", commands, {}, keep_going=keep_going, receipt=receipt)
+                self.assertFalse(passed)
+                self.assertIn(shlex.join(gate), err.getvalue())
+                self.assertIn(shlex.join(check.BROWSER_PREBUILD), err.getvalue())
+                self.assertIn("compile error\n", out.getvalue())
+                self.assertEqual(later_gate in seen, keep_going)
+                self.assertEqual(deadline in seen, keep_going)
+                observed = [call.args[1] for call in receipt.observe.call_args_list]
+                self.assertIn(gate, observed)
+                self.assertIn(check.BROWSER_PREBUILD, observed)
+
+    def test_the_browser_job_cap_defaults_to_available_cpus_up_to_six(self):
+        with mock.patch.dict(os.environ), mock.patch.object(check.os, "cpu_count", return_value=12):
             os.environ.pop("BOARDSTUDIO_CHECK_JOBS", None)
-            self.assertEqual(check.check_jobs(), 4)
+            self.assertEqual(check.check_jobs(), 6)
             os.environ["BOARDSTUDIO_CHECK_JOBS"] = "junk"
-            self.assertEqual(check.check_jobs(), 4)
+            self.assertEqual(check.check_jobs(), 6)
             os.environ["BOARDSTUDIO_CHECK_JOBS"] = "0"
             self.assertEqual(check.check_jobs(), 1)
+            os.environ.pop("BOARDSTUDIO_CHECK_JOBS")
+            with mock.patch.object(check.os, "cpu_count", return_value=4):
+                self.assertEqual(check.check_jobs(), 4)
+            with mock.patch.object(check.os, "cpu_count", return_value=None):
+                self.assertEqual(check.check_jobs(), 4)
 
     def test_build_is_fast_and_release_is_opt_in(self):
         self.assertIn("--fast", check.STEPS["build"][1][0])
@@ -1042,6 +1231,341 @@ driver status: signal: 9 (SIGKILL)
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
             self.assertEqual(check.main(["browser", "--only", "library"]), 1)
         self.assertIn("first failure [raw WASM trap]", error.getvalue())
+
+    def test_overlap_groups_lint_test_build_and_keeps_everything_else_serial(self):
+        self.assertEqual(check.OVERLAP_MIN_CPUS, 8)
+        full = [(name, [[name]]) for name in ("repo", "tooling", "lint", "build", "test", "browser")]
+        with mock.patch.object(check.os, "cpu_count", return_value=16), \
+                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "4"}):
+            pre, group, post = check._overlap_split(full, receipt=None)
+            self.assertEqual([name for name, _ in pre], ["repo", "tooling"])
+            self.assertEqual([name for name, _ in group], ["lint", "build", "test"])
+            self.assertEqual([name for name, _ in post], ["browser"])
+            serial = [
+                ([(name, [[name]]) for name in ("repo", "tooling", "lint", "test")], "hosted native lacks build"),
+                ([(name, [[name]]) for name in ("build", "browser")], "hosted browser lacks lint/test"),
+                ([(name, [[name]]) for name in ("repo", "lint", "typecheck", "test")], "quick lacks build"),
+                ([("layout-test-css", [["x"]]), ("browser (only: case)", [["y"]])], "--only subset"),
+                ([(name, [[name]]) for name in ("lint", "repo", "test", "build")], "non-contiguous"),
+                ([("test", [["x"]])], "single step"),
+            ]
+            for plan, label in serial:
+                with self.subTest(label):
+                    self.assertIsNone(check._overlap_split(plan, receipt=None))
+            with mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
+                self.assertIsNone(check._overlap_split(full, receipt=None))
+            for cpus in (4, 7, None):
+                with self.subTest(cpus=cpus), mock.patch.object(check.os, "cpu_count", return_value=cpus):
+                    self.assertIsNone(check._overlap_split(full, receipt=None))
+            self.assertIsNone(check._overlap_split(full, receipt=mock.Mock()))
+
+    def test_hosted_ci_plans_stay_serial_with_unchanged_command_order(self):
+        launches = []
+
+        def fake_launch(command, **kwargs):
+            launches.append(command)
+            return mock.Mock(returncode=0, stdout="")
+
+        def normalize(command):
+            command = list(command)
+            if "--chromedriver" in command:
+                index = command.index("--chromedriver")
+                del command[index:index + 2]
+            return tuple(command)
+
+        with mock.patch.object(check, "_run_overlapped_steps",
+                               side_effect=AssertionError("CI plans must stay serial")), \
+                mock.patch.object(check, "launch_command", side_effect=fake_launch), \
+                mock.patch.object(check.os, "cpu_count", return_value=16), \
+                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "4"}), \
+                mock.patch.object(check, "guard_native_tests", return_value=(True, False)), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(check.run(["repo", "tooling", "lint", "test"]), 0)
+            native_count = len(launches)
+            self.assertEqual(check.run(["build", "browser"]), 0)
+        step_of = {tuple(command): step for step in check.DEFAULT
+                   for command in check.STEPS[step][1]}
+        order = [step_of[tuple(command)] for command in launches[:native_count]]
+        self.assertEqual(list(dict.fromkeys(order)), ["repo", "tooling", "lint", "test"])
+        build_commands, browser_launches = launches[native_count], launches[native_count + 1:]
+        self.assertEqual([build_commands], check.STEPS["build"][1])
+        self.assertEqual(sorted(normalize(command) for command in browser_launches),
+                         sorted(tuple(command) for command in check.STEPS["browser"][1]))
+
+    def test_overlap_children_are_single_steps_with_baseline_passthrough(self):
+        group = [("lint", []), ("build", []), ("test", [])]
+        with mock.patch.dict(os.environ, {"APPDIR": "/editor", "KEEP": "1"}):
+            os.environ.pop("CARGO_TARGET_DIR", None)
+            batch, environments = check._overlap_child_commands(group, True)
+        self.assertEqual(batch, [
+            [sys.executable, "scripts/check.py", "lint"],
+            [sys.executable, "scripts/check.py", "build"],
+            [sys.executable, "scripts/check.py", "test", "--update-native-baseline"],
+        ])
+        lint_env = environments[tuple(batch[0])]
+        self.assertEqual(lint_env["CARGO_TARGET_DIR"], "target/lint")
+        self.assertEqual(lint_env["KEEP"], "1")
+        for command in batch[1:]:
+            self.assertNotIn("CARGO_TARGET_DIR", environments[tuple(command)])
+        batch, _ = check._overlap_child_commands(group, False)
+        self.assertNotIn("--update-native-baseline", batch[2])
+        # Single-step children cannot overlap again.
+        with mock.patch.object(check.os, "cpu_count", return_value=16), \
+                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "4"}):
+            for name in ("lint", "build", "test"):
+                self.assertIsNone(check._overlap_split([(name, [["x"]])], receipt=None))
+
+    def test_overlap_children_need_no_driver_preflight(self):
+        for name in ("lint", "test", "build"):
+            for command in check.STEPS[name][1]:
+                self.assertNotEqual(command[:2], ["wasm-pack", "test"])
+                self.assertNotIn("scripts/run-wasm-tests.py", command)
+
+    def test_serial_lint_keeps_the_shared_target(self):
+        seen = []
+
+        def fake(command, **kwargs):
+            seen.append((command, dict(kwargs.get("env", {}))))
+            return mock.Mock(returncode=0, stdout="")
+
+        with mock.patch.dict(os.environ):
+            os.environ.pop("CARGO_TARGET_DIR", None)
+            with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(check.run(["lint"]), 0)
+        cargo = [(command, env) for command, env in seen if command[0] == "cargo"]
+        self.assertTrue(cargo)
+        for command, env in cargo:
+            self.assertNotIn("CARGO_TARGET_DIR", env)
+
+    def test_parallel_workers_keep_the_build_lock_for_check_children(self):
+        seen = {}
+
+        def fake(command, **kwargs):
+            seen[tuple(command)] = dict(kwargs["env"])
+            return mock.Mock(returncode=0, stdout="")
+
+        batch = [[sys.executable, "scripts/check.py", "lint"], ["cargo", "test"]]
+        environments = {tuple(batch[0]): {"BOARDSTUDIO_BUILD_LOCK_FD": "7", "A": "1"}}
+        base = {"BOARDSTUDIO_BUILD_LOCK_FD": "7", "B": "2"}
+        with mock.patch.object(check, "_parallel_process",
+                               side_effect=lambda command, registry, **kwargs: fake(command, **kwargs)), \
+                mock.patch.object(check.browser_tools, "_inherited_build_lock", return_value=None), \
+                contextlib.redirect_stdout(io.StringIO()):
+            check.run_parallel(batch, base, command_environments=environments)
+        self.assertEqual(seen[tuple(batch[0])]["BOARDSTUDIO_BUILD_LOCK_FD"], "7")
+        self.assertEqual(seen[tuple(batch[0])]["A"], "1")
+        self.assertNotIn("BOARDSTUDIO_BUILD_LOCK_FD", seen[tuple(batch[1])])
+
+    def test_overlap_jobserver_shares_tokens_and_removes_the_fifo(self):
+        environments = {"a": {}, "b": {}}
+        with mock.patch.object(check.os, "cpu_count", return_value=8):
+            with check._overlap_jobserver(environments) as value:
+                path = value.split("fifo:", 1)[1]
+                self.assertTrue(os.path.exists(path))
+                for env in environments.values():
+                    self.assertEqual(env["MAKEFLAGS"], value)
+                reader = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+                try:
+                    tokens = os.read(reader, 64)
+                finally:
+                    os.close(reader)
+                self.assertEqual(len(tokens), 7)
+                writer = os.open(path, os.O_WRONLY | os.O_NONBLOCK)
+                try:
+                    os.write(writer, tokens)
+                finally:
+                    os.close(writer)
+        self.assertFalse(os.path.exists(path))
+        self.assertFalse(os.path.exists(os.path.dirname(path)))
+
+    def test_overlap_jobserver_defers_to_an_outer_jobserver(self):
+        outer = "--jobserver-auth=fifo:/outer"
+        environments = {"a": {"MAKEFLAGS": outer}}
+        with mock.patch.dict(os.environ, {"MAKEFLAGS": outer}), \
+                mock.patch.object(check.tempfile, "mkdtemp",
+                                  side_effect=AssertionError("must not create a fifo")):
+            with check._overlap_jobserver(environments) as value:
+                self.assertIsNone(value)
+        self.assertEqual(environments["a"]["MAKEFLAGS"], outer)
+
+    def test_overlap_jobserver_removes_the_fifo_on_interrupt(self):
+        environments = {"a": {}}
+        path = None
+        with mock.patch.object(check.os, "cpu_count", return_value=8):
+            with self.assertRaises(KeyboardInterrupt):
+                with check._overlap_jobserver(environments) as value:
+                    path = value.split("fifo:", 1)[1]
+                    raise KeyboardInterrupt
+        self.assertFalse(os.path.exists(path))
+        self.assertFalse(os.path.exists(os.path.dirname(path)))
+
+    def _overlap_fakes(self, directory):
+        marker = Path(directory) / "build.done"
+        lint = [sys.executable, "-c",
+                "\n".join([
+                    "import time",
+                    "from pathlib import Path",
+                    f"marker = Path({str(marker)!r})",
+                    "deadline = time.monotonic() + 10",
+                    "while not marker.exists() and time.monotonic() < deadline:",
+                    "    time.sleep(0.01)",
+                    "print('LINT-OUTPUT-LINE-1\\nLINT-OUTPUT-LINE-2')",
+                    "raise SystemExit(1)",
+                ])]
+        build = [sys.executable, "-c",
+                 f"from pathlib import Path; Path({str(marker)!r}).touch(); print('BUILD-OUTPUT')"]
+        test = [sys.executable, "-c", "print('TEST-OUTPUT'); raise SystemExit(3)"]
+        mapping = {"lint": lint, "build": build, "test": test}
+
+        def fake_children(group, update):
+            batch = [mapping[name] for name, _ in group]
+            return batch, {tuple(command): dict(os.environ) for command in batch}
+
+        return fake_children
+
+    def test_overlapped_output_prints_whole_in_plan_order(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out = io.StringIO()
+            with mock.patch.object(check, "_overlap_child_commands",
+                                   side_effect=self._overlap_fakes(directory)), \
+                    mock.patch.object(check.os, "cpu_count", return_value=16), \
+                    mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "4"}), \
+                    contextlib.redirect_stdout(out):
+                elapsed, failed = check._run_overlapped_steps(
+                    [("lint", []), ("build", []), ("test", [])], False)
+        self.assertEqual(failed, ["lint", "test"])
+        self.assertEqual(list(elapsed), ["lint", "build", "test"])
+        text = out.getvalue()
+        self.assertTrue(text.startswith("== lint\n== build\n== test\n"))
+        # `build` finishes first (lint waits for its marker), yet prints second.
+        self.assertLess(text.index("LINT-OUTPUT-LINE-1"), text.index("BUILD-OUTPUT"))
+        self.assertLess(text.index("BUILD-OUTPUT"), text.index("TEST-OUTPUT"))
+        self.assertIn("LINT-OUTPUT-LINE-1\nLINT-OUTPUT-LINE-2", text)
+        self.assertEqual(text.count("check: start"), 3)
+        self.assertEqual(text.count("check: end"), 3)
+
+    def test_overlapped_failures_report_every_step_and_skip_browser(self):
+        with tempfile.TemporaryDirectory() as directory:
+            plan = [(name, [[f"{name}-placeholder"]]) for name in ("lint", "build", "test", "browser")]
+            out, err = io.StringIO(), io.StringIO()
+            with mock.patch.object(check, "_overlap_child_commands",
+                                   side_effect=self._overlap_fakes(directory)), \
+                    mock.patch.object(check, "run_commands", return_value=(0.0, True)) as stepped, \
+                    mock.patch.object(check.os, "cpu_count", return_value=16), \
+                    mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "4"}), \
+                    contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                self.assertEqual(check._run_plan(plan), 1)
+            stepped.assert_not_called()
+        errors = err.getvalue()
+        self.assertIn("check: step 'lint' failed", errors)
+        self.assertIn("check: step 'test' failed", errors)
+        self.assertNotIn("browser", errors)
+        text = out.getvalue()
+        for snippet in ("LINT-OUTPUT-LINE-1\nLINT-OUTPUT-LINE-2", "BUILD-OUTPUT", "TEST-OUTPUT"):
+            self.assertIn(snippet, text)
+
+    def test_overlapped_total_is_wall_not_a_sum(self):
+        plan = [(name, [[f"{name}-cmd"]]) for name in ("lint", "build", "test")]
+        out = io.StringIO()
+        walls = {"lint": 10.0, "build": 10.0, "test": 10.0}
+        with mock.patch.object(check, "_run_overlapped_steps", return_value=(walls, [])), \
+                mock.patch.object(check, "run_commands", return_value=(0.0, True)) as stepped, \
+                mock.patch.object(check.time, "monotonic", side_effect=[100.0, 112.0]), \
+                mock.patch.object(check.os, "cpu_count", return_value=16), \
+                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "4"}), \
+                contextlib.redirect_stdout(out):
+            self.assertEqual(check._run_plan(plan), 0)
+        stepped.assert_not_called()
+        self.assertIn("check: step times: lint 10.0s, build 10.0s, test 10.0s, total 12.0s",
+                      out.getvalue())
+
+    def test_overlapped_success_with_baseline_flag_does_not_claim_no_tests_ran(self):
+        plan = [(name, [[f"{name}-cmd"]]) for name in ("lint", "build", "test")]
+        walls = {"lint": 1.0, "build": 1.0, "test": 1.0}
+        with mock.patch.object(check, "_run_overlapped_steps", return_value=(walls, [])), \
+                mock.patch.object(check.os, "cpu_count", return_value=16), \
+                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "4"}), \
+                contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(check._run_plan(plan, update_native_baseline=True), 0)
+        self.assertNotIn("baseline is unchanged", err.getvalue())
+
+    def test_overlap_interrupt_ends_every_child_and_removes_the_fifo(self):
+        def process_dead(pid):
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                return True
+            except PermissionError:
+                return False
+            try:
+                with open(f"/proc/{pid}/stat") as handle:
+                    state = handle.read().rsplit(")", 1)[1].split()[2]
+            except OSError:
+                return True
+            return state == "Z"
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            child = r"""
+import os, subprocess, sys, time
+from pathlib import Path
+root = Path(sys.argv[1])
+tag = sys.argv[2]
+grandchild = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+(root / f"{tag}.pids").write_text(f"{os.getpid()} {grandchild.pid}")
+(root / f"{tag}.ready").write_text("ready")
+while True:
+    time.sleep(0.05)
+"""
+            runner = r"""
+import os, sys, tempfile
+sys.path.insert(0, sys.argv[1])
+import check
+child_source = sys.argv[2]
+work = sys.argv[3]
+jobdir = os.path.join(work, "jobserver-dir")
+os.makedirs(jobdir)
+tempfile.mkdtemp = lambda *args, **kwargs: jobdir
+def fake_children(group, update):
+    batch = []
+    for index, (name, _) in enumerate(group):
+        command = [sys.executable, "-c", child_source, work, f"child-{index}"]
+        batch.append(command)
+    return batch, {tuple(command): dict(os.environ) for command in batch}
+check._overlap_child_commands = fake_children
+check._run_overlapped_steps([("lint", []), ("test", []), ("build", [])], False)
+"""
+            proc = subprocess.Popen(
+                [sys.executable, "-c", runner, str(ROOT / "scripts"), child, directory],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+            try:
+                deadline = time.monotonic() + 10
+                ready = [root / f"child-{index}.ready" for index in range(3)]
+                while not all(path.exists() for path in ready) and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(all(path.exists() for path in ready), "overlap children did not start")
+                pids = []
+                for index in range(3):
+                    pids.extend(int(pid) for pid in (root / f"child-{index}.pids").read_text().split())
+                self.assertEqual(len(pids), 6)
+                jobdir = root / "jobserver-dir"
+                self.assertTrue((jobdir / "jobserver").exists(), "jobserver fifo was not created")
+                os.kill(proc.pid, signal.SIGTERM)
+                out, err = proc.communicate(timeout=15)
+                self.assertEqual(proc.returncode, 143, (out, err))
+                self.assertFalse(jobdir.exists(), "jobserver fifo directory was not removed")
+                for pid in pids:
+                    with self.subTest(pid=pid):
+                        deadline = time.monotonic() + 5
+                        while not process_dead(pid) and time.monotonic() < deadline:
+                            time.sleep(0.05)
+                        self.assertTrue(process_dead(pid), f"process {pid} survived the interrupt")
+            finally:
+                if proc.poll() is None:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                    proc.communicate(timeout=10)
 
 
 if __name__ == "__main__":

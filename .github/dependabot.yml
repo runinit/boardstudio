@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: cargo
-    directories: [/core, /application, /renderer, /cad/wasm, /web, /contracts/rust]
+    directories: [/core, /application, /renderer, /cad/monstertruck, /web, /contracts/rust]
     schedule:
       interval: weekly
     groups:
