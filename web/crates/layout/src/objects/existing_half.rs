@@ -761,8 +761,8 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                         }
                     },
                     Card { class: "layout-mirror-dock gap-4 p-4",
-                        header { class: "m1-matrix-setup-heading",
-                            h2 { "Mirror existing half" }
+                        header { class: "flex items-baseline justify-between gap-2",
+                            h2 { class: "m-0! text-[16px]!", "Mirror existing half" }
                         }
                         Callout { variant: CalloutVariant::Info,
                             "Keep the original in place and mirror its components too. Replace a component on one side when the halves need different hardware."
@@ -865,7 +865,7 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                                 Alert {
         variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
                             }
-                            footer { class: "m1-mirrored-pair-actions flex flex-wrap justify-end gap-2",
+                            footer { class: "flex flex-wrap justify-end gap-2",
                                 Button {
                                     variant: ButtonVariant::Secondary,
                                     class: "max-[760px]:min-h-control-touch",
@@ -931,6 +931,57 @@ mod adoption_tests {
             output { role: "status", aria_label: "Cancelled owners", "{cancelled:?}" }
             Button { onclick: move |_| cancellable.set(false), "Hold Mirror cancellation" }
         }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn mirror_dock_heading_keeps_its_layout_without_legacy_classes() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let stylesheet = document.create_element("style").unwrap();
+        stylesheet.set_text_content(Some(&format!(
+            "{}\n{}",
+            include_str!("../../../../assets/m1.css"),
+            include_str!("../../../../assets/tailwind.css")
+        )));
+        document.head().unwrap().append_child(&stylesheet).unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(form),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("Mirror dock mounts", || {
+            by_role_name(&root, "region", "Mirror existing half").is_some()
+        })
+        .await;
+        let region = by_role_name(&root, "region", "Mirror existing half").unwrap();
+        let heading = region.query_selector("h2").unwrap().unwrap();
+        let header = heading.parent_element().unwrap();
+        let classes = header.get_attribute("class").unwrap_or_default();
+        header
+            .set_attribute(
+                "class",
+                &classes
+                    .split_whitespace()
+                    .filter(|class| !class.starts_with("m1-"))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            )
+            .unwrap();
+        let window = web_sys::window().unwrap();
+        let header_style = window.get_computed_style(&header).unwrap().unwrap();
+        assert_eq!(header_style.get_property_value("display").unwrap(), "flex");
+        assert_eq!(header_style.get_property_value("gap").unwrap(), "8px");
+        assert_eq!(
+            window
+                .get_computed_style(&heading)
+                .unwrap()
+                .unwrap()
+                .get_property_value("font-size")
+                .unwrap(),
+            "16px"
+        );
+        stylesheet.remove();
+        root.remove();
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
