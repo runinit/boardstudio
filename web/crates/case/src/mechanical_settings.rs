@@ -24,6 +24,7 @@ use boardstudio_web_ui_shared::controls::{
 };
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
+    badge::{Badge, BadgeVariant},
     button::{Button, ButtonSize, ButtonVariant},
     callout::{Callout, CalloutVariant},
     checkbox::{Checkbox, CheckboxState},
@@ -32,6 +33,7 @@ use boardstudio_web_ui_shared::ui::{
     field::{Field, FieldError, FieldLabel},
     input::InputType,
     input_group::{InputGroup, InputGroupInput, InputGroupText, InputGroupTextarea},
+    item::{Item, ItemActions, ItemContent, ItemDescription, ItemGroup},
     select::{Select, SelectOption},
     toggle_group::{ToggleGroup, ToggleItem},
 };
@@ -762,24 +764,23 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
             + 1;
         return rsx! {
             section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
-                BoardButton {
-                    variant: BoardButtonVariant::Quiet,
-                    density: BoardButtonDensity::Compact,
-                    class: "m1-mechanical-context-return",
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
+                    button_type: "button",
+                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     onclick: move |_| props.on_select_layer.call(String::new()),
                     "Assembly settings"
                 }
                 h2 { "Gasket {index}" }
                 if support.is_previous {
-                    p { role: "status", class: "m1-mechanical-previous-result",
-                        "Showing previous generated geometry. Gasket measurements cannot be edited until the current assembly resolves."
-                    }
+                    div { role: "status", Callout { "Showing previous generated geometry. Gasket measurements cannot be edited until the current assembly resolves." } }
                 } else {
                     p { class: "m1-mechanical-help",
                         if support.unlinked { "This gasket is unlinked from its pair." } else { "This support is linked to its mirrored pair. Matching upper and lower pads resize together." }
                     }
                     if let Some(error) = support.fit_error.as_deref() {
-                        p { role: "alert", "{error} Preview and export stay blocked until it fits." }
+                        Alert { variant: AlertVariant::Destructive, "{error} Preview and export stay blocked until it fits." }
                     } else {
                         p { class: "m1-mechanical-help", "Fits at this position." }
                     }
@@ -813,15 +814,17 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         }
                         if !props.editable {
                             if let Some(reason) = props.disabled_reason.as_deref() {
-                                p { role: "status", "{reason}" }
+                                div { role: "status", Callout { "{reason}" } }
                             }
                         }
                     }
                     }
                     p { class: "m1-mechanical-help", "Prefer 10 mm cuts; use 5 mm increments for a tighter fit. Foam thickness and compression are shared by the floating stack." }
-                    button {
-                        r#type: "button",
-                        class: "m1-mechanical-context-settings",
+                    Button {
+                        variant: ButtonVariant::Ghost,
+                        size: ButtonSize::Sm,
+                        button_type: "button",
+                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         onclick: move |_| props.on_select_layer.call("gaskets".to_owned()),
                         "All gasket settings"
                     }
@@ -967,12 +970,14 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 }
                  }
                 }
-                BoardDisclosure { class: "m1-inspector-section",
-                    heading: rsx! { summary { "Mechanical diagnostics" } },
+                Collapsible { keep_mounted: true, default_open: false,
+                    CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Mechanical diagnostics" }
+                    CollapsibleContent { class: "data-[open=false]:hidden",
                 Diagnostics {
                     findings: props.findings.clone(),
                     on_show_finding: props.on_show_finding,
                 }
+                 }
                 }
                 Collapsible { keep_mounted: true, default_open: false,
                     CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Battery" }
@@ -3097,18 +3102,17 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
     );
     rsx! {
         section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
-            BoardButton {
-                variant: BoardButtonVariant::Quiet,
-                density: BoardButtonDensity::Compact,
-                class: "m1-mechanical-context-return",
+            Button {
+                variant: ButtonVariant::Ghost,
+                size: ButtonSize::Sm,
+                button_type: "button",
+                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 onclick: move |_| props.on_select_layer.call(String::new()),
                 "Assembly settings"
             }
             h2 { "{title}" }
             if props.layer.is_previous {
-                p { role: "status", class: "m1-mechanical-previous-result",
-                    "Showing previous generated geometry. Measurements describe the prior accepted revision; settings below reflect the current configuration."
-                }
+                div { role: "status", Callout { "Showing previous generated geometry. Measurements describe the prior accepted revision; settings below reflect the current configuration." } }
             }
             fieldset { class: "m1-mechanical-group", disabled: !props.editable,
                 for (field, label, value) in fields {
@@ -3125,16 +3129,18 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
                     }
                 }
                 if let Some(reason) = props.disabled_reason.as_deref() {
-                    p { role: "status", "{reason}" }
+                    div { role: "status", Callout { "{reason}" } }
                 }
             }
             if let Some(thickness) = props.layer.resolved_body_thickness {
                 p { class: "m1-mechanical-help", "Resolved thickness {thickness:.2} mm." }
             }
             if props.values.internal_gasket && matches!(props.layer.id.as_str(), "retainer" | "bottom") {
-                button {
-                    r#type: "button",
-                    class: "m1-mechanical-context-hardware",
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
+                    button_type: "button",
+                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     onclick: move |_| props.on_select_layer.call(String::new()),
                     "Edit shared closure hardware"
                 }
@@ -3142,17 +3148,24 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
             if !errors.is_empty() {
                 section { class: "m1-mechanical-group", aria_label: "Fit issues",
                     h3 { "Fit issues" }
-                    ul {
+                    ItemGroup {
                         for finding in errors.iter() {
                             { let id = finding.id.clone();
                             let message = finding.message.clone();
                             let on_show_finding = props.on_show_finding;
-                            rsx! { li { key: "{id}",
-                                span { "{message}" }
-                                button {
-                                    r#type: "button",
-                                    onclick: move |_| on_show_finding.call(id.clone()),
-                                    "Show"
+                            rsx! { Item { key: "{id}",
+                                Badge { variant: severity_badge(&finding.severity), "{severity_label(&finding.severity)}" }
+                                ItemContent { ItemDescription { "{message}" } }
+                                ItemActions {
+                                    Button {
+                                        variant: ButtonVariant::Ghost,
+                                        size: ButtonSize::Sm,
+                                        button_type: "button",
+                                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        aria_label: "Show finding {id}",
+                                        onclick: move |_| on_show_finding.call(id.clone()),
+                                        "Show"
+                                    }
                                 }
                             } }
                             }
@@ -3179,16 +3192,24 @@ fn gasket_fit_issues(
     rsx! {
         section { class: "m1-mechanical-group", aria_label: "Fit issues",
             h3 { "Fit issues" }
-            ul {
+            ItemGroup {
                 for finding in errors {
                     { let id = finding.id.clone();
                       let message = finding.message.clone();
-                      rsx! { li { key: "{id}",
-                          span { "{message}" }
-                          button {
-                              r#type: "button",
-                              onclick: move |_| on_show_finding.call(id.clone()),
-                              "Show"
+                      let severity = finding.severity.clone();
+                      rsx! { Item { key: "{id}",
+                          Badge { variant: severity_badge(&severity), "{severity_label(&severity)}" }
+                          ItemContent { ItemDescription { "{message}" } }
+                          ItemActions {
+                              Button {
+                                  variant: ButtonVariant::Ghost,
+                                  size: ButtonSize::Sm,
+                                  button_type: "button",
+                                  class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                  aria_label: "Show finding {id}",
+                                  onclick: move |_| on_show_finding.call(id.clone()),
+                                  "Show"
+                              }
                           }
                       } }
                     }
@@ -5196,19 +5217,25 @@ fn Diagnostics(props: DiagnosticsProps) -> Element {
         section { class: "m1-mechanical-group", aria_label: "Mechanical diagnostics",
             h3 { "Mechanical diagnostics · {props.findings.len()}" }
             if props.findings.is_empty() {
-                p { "No current mechanical findings." }
+                Callout { "No current mechanical findings." }
             }
-            ul {
+            ItemGroup {
                 for row in props.findings.iter() {
                     { let id = row.id.clone();
-                    let severity = severity_label(&row.severity);
                     let callback = props.on_show_finding;
-                    rsx! { li { key: "{id}",
-                        span { "{severity}: {row.message}" }
-                        button {
-                            r#type: "button",
-                            onclick: move |_| callback.call(id.clone()),
-                            "Show"
+                    rsx! { Item { key: "{id}",
+                        Badge { variant: severity_badge(&row.severity), "{severity_label(&row.severity)}" }
+                        ItemContent { ItemDescription { "{row.message}" } }
+                        ItemActions {
+                            Button {
+                                variant: ButtonVariant::Ghost,
+                                size: ButtonSize::Sm,
+                                button_type: "button",
+                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                aria_label: "Show finding {id}",
+                                onclick: move |_| callback.call(id.clone()),
+                                "Show"
+                            }
                         }
                     } }
                     }
@@ -5341,6 +5368,14 @@ fn severity_label(value: &Severity) -> &'static str {
         Severity::Error => "Error",
         Severity::Warning => "Warning",
         Severity::Info => "Info",
+    }
+}
+
+fn severity_badge(value: &Severity) -> BadgeVariant {
+    match value {
+        Severity::Error => BadgeVariant::Destructive,
+        Severity::Warning => BadgeVariant::Warning,
+        Severity::Info => BadgeVariant::Info,
     }
 }
 
@@ -5602,45 +5637,38 @@ mod contextual_layer_tests {
     async fn pending_action_disables_only_its_control() {
         mount_battery_test_page("case-pending-action-root", pending_action_test_page);
         rendered().await;
-        element("#case-pending-action-root .m1-mechanical-context-return").click();
-        rendered().await;
         let root = element("#case-pending-action-root");
-        let buttons = root.query_selector_all("button").unwrap();
-        let mut removed = 0;
-        for index in 0..buttons.length() {
-            let button = buttons
-                .item(index)
-                .unwrap()
-                .dyn_into::<web_sys::HtmlElement>()
-                .unwrap();
-            match button.text_content().unwrap_or_default().trim() {
-                "Remove" => {
-                    assert_eq!(
-                        button.has_attribute("disabled"),
-                        removed == 0,
-                        "only the pending plate removal is disabled"
-                    );
-                    removed += 1;
-                }
-                "Add process override" => assert!(
-                    !button.has_attribute("disabled"),
-                    "another action stays available"
-                ),
-                _ => {}
-            }
+        by_role_name(&root, "button", "Assembly settings")
+            .unwrap()
+            .click();
+        rendered().await;
+        let disabled = |name: &str| {
+            js_sys::Reflect::get(
+                &by_role_name(&root, "button", name).unwrap(),
+                &"disabled".into(),
+            )
+            .unwrap()
+            .as_bool()
+            .unwrap_or(false)
+        };
+        assert!(
+            disabled("Remove process override for plate"),
+            "only the pending plate removal is disabled"
+        );
+        for name in [
+            "Remove process override for plate foam",
+            "Remove process override for bottom foam",
+            "Remove process override for bottom",
+            "Add process override for U1 · Fixture part",
+        ] {
+            assert!(!disabled(name), "another action stays available: {name}");
         }
-        assert_eq!(removed, 4);
-        let fields = root.query_selector_all("input[type=number]").unwrap();
-        assert!(fields.length() > 0);
-        for index in 0..fields.length() {
-            assert!(
-                !fields
-                    .item(index)
-                    .unwrap()
-                    .dyn_into::<web_sys::HtmlInputElement>()
-                    .unwrap()
-                    .disabled()
-            );
+        for name in ["Plate thickness", "Wall thickness"] {
+            let field: web_sys::HtmlInputElement = by_role_name(&root, "spinbutton", name)
+                .unwrap()
+                .dyn_into()
+                .unwrap();
+            assert!(!field.disabled(), "unrelated fields stay editable: {name}");
         }
         root.remove();
     }
@@ -6459,9 +6487,8 @@ mod contextual_layer_tests {
         );
         rendered().await;
 
-        let panel =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings");
-        let text = panel.text_content().unwrap_or_default();
+        let scope = element("#case-contextual-mechanical-settings-test-root");
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("Plate"));
         assert!(text.contains("Assembly settings"));
         assert!(text.contains("Plate thickness"));
@@ -6470,7 +6497,9 @@ mod contextual_layer_tests {
         assert!(!text.contains("Current warning"));
         assert!(!text.contains("Case construction"));
         assert!(!text.contains("Bottom thickness"));
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-group[aria-label='Fit issues'] button").click();
+        by_role_name(&scope, "button", "Show finding current-error")
+            .unwrap()
+            .click();
         rendered().await;
         assert_eq!(
             element("#case-contextual-selected-finding")
@@ -6479,39 +6508,36 @@ mod contextual_layer_tests {
             Some("current-error")
         );
 
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-return")
+        by_role_name(&scope, "button", "Assembly settings")
+            .unwrap()
             .click();
         rendered().await;
-        let assembly_panel =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings");
+        let manufacturing_text = scope.text_content().unwrap_or_default();
         assert!(
-            assembly_panel
-                .query_selector("section[aria-label='Manufacturing overrides']")
-                .unwrap()
-                .is_some(),
+            manufacturing_text.contains("Per-part process overrides"),
             "the assembly settings should expose per-part manufacturing controls"
         );
-        let manufacturing_text = assembly_panel.text_content().unwrap_or_default();
         assert!(manufacturing_text.contains("Per-part process overrides 4"));
         assert!(manufacturing_text.contains("Stabilizer fit 0 wide keys"));
         assert_eq!(
-            all_by_role_name(&assembly_panel, "button", "Material").len(),
+            all_by_role_name(&scope, "button", "Material").len(),
             4,
             "each accepted standard process override should expose its material"
         );
         assert_eq!(
-            assembly_panel
+            scope
                 .text_content()
                 .unwrap_or_default()
                 .matches("Add process override")
                 .count(),
             1
         );
-        let text =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
+        assert!(
+            scope
                 .text_content()
-                .unwrap_or_default();
-        assert!(text.contains("Case construction"));
+                .unwrap_or_default()
+                .contains("Case construction")
+        );
 
         by_role_name(
             &element("#case-contextual-mechanical-settings-test-root"),
@@ -6521,14 +6547,12 @@ mod contextual_layer_tests {
         .unwrap()
         .click();
         rendered().await;
-        let text =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
-                .text_content()
-                .unwrap_or_default();
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("PCB thickness"));
         assert!(!text.contains("Plate thickness"));
         assert!(!text.contains("Resolved thickness"));
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-return")
+        by_role_name(&scope, "button", "Assembly settings")
+            .unwrap()
             .click();
         rendered().await;
 
@@ -6540,13 +6564,11 @@ mod contextual_layer_tests {
         .unwrap()
         .click();
         rendered().await;
-        let text =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
-                .text_content()
-                .unwrap_or_default();
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("Plate foam"));
         assert!(!text.contains("PCB thickness"));
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-return")
+        by_role_name(&scope, "button", "Assembly settings")
+            .unwrap()
             .click();
         rendered().await;
 
@@ -6558,13 +6580,11 @@ mod contextual_layer_tests {
         .unwrap()
         .click();
         rendered().await;
-        let text =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
-                .text_content()
-                .unwrap_or_default();
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("Bottom foam"));
         assert!(!text.contains("PCB thickness"));
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-return")
+        by_role_name(&scope, "button", "Assembly settings")
+            .unwrap()
             .click();
         rendered().await;
 
@@ -6576,10 +6596,7 @@ mod contextual_layer_tests {
         .unwrap()
         .click();
         rendered().await;
-        let text =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
-                .text_content()
-                .unwrap_or_default();
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("Bottom case"));
         assert!(text.contains("Bottom thickness"));
         assert!(text.contains("Wall thickness"));
@@ -6589,13 +6606,11 @@ mod contextual_layer_tests {
         assert!(!text.contains("Plate thickness"));
         assert!(!text.contains("Current warning"));
 
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-hardware")
+        by_role_name(&scope, "button", "Edit shared closure hardware")
+            .unwrap()
             .click();
         rendered().await;
-        let text =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
-                .text_content()
-                .unwrap_or_default();
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("Case construction"));
 
         by_role_name(
@@ -6606,10 +6621,7 @@ mod contextual_layer_tests {
         .unwrap()
         .click();
         rendered().await;
-        let text =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
-                .text_content()
-                .unwrap_or_default();
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("Top case"));
         assert!(text.contains("Wall thickness"));
         assert!(text.contains("Clearance"));
@@ -6637,17 +6649,17 @@ mod contextual_layer_tests {
     async fn previous_generated_layer_context_stays_visible_and_is_labeled() {
         mount_battery_test_page("case-previous-settings-test-root", previous_test_page);
         rendered().await;
-        let panel = element("#case-previous-settings-test-root .m1-mechanical-settings");
-        let text = panel.text_content().unwrap_or_default();
+        let scope = element("#case-previous-settings-test-root");
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("previous generated geometry"));
         assert!(text.contains("Resolved thickness 1.50 mm."));
         assert!(text.contains("Plate thickness"));
 
-        element("#case-previous-settings-test-root .m1-mechanical-context-return").click();
+        by_role_name(&scope, "button", "Assembly settings")
+            .unwrap()
+            .click();
         rendered().await;
-        let text = element("#case-previous-settings-test-root .m1-mechanical-settings")
-            .text_content()
-            .unwrap_or_default();
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("Previous resolved stack"));
         assert!(text.contains("Settings below reflect the current accepted configuration."));
         assert!(text.contains("Previous revision"));
@@ -7741,6 +7753,117 @@ mod contextual_layer_tests {
         assert!(
             stabilizer.contains("SetStabilizerKind") && stabilizer.contains("None"),
             "the stabilizer submits its typed change, got {stabilizer}"
+        );
+        root.remove();
+    }
+
+    fn diagnostics_test_page() -> Element {
+        let mut shown = use_signal(String::new);
+        rsx! {
+            Diagnostics {
+                findings: Rc::from([
+                    MechanicalFindingRow {
+                        id: "finding-error".into(),
+                        severity: Severity::Error,
+                        message: "Wall too thin".into(),
+                    },
+                    MechanicalFindingRow {
+                        id: "finding-warning".into(),
+                        severity: Severity::Warning,
+                        message: "Foam clearance tight".into(),
+                    },
+                ]),
+                on_show_finding: move |id| shown.set(id),
+            }
+            p { id: "case-diagnostics-shown", "{shown}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn diagnostics_name_each_finding_and_show_the_chosen_one() {
+        mount_battery_test_page("case-diagnostics-test-root", diagnostics_test_page);
+        rendered().await;
+        let root = element("#case-diagnostics-test-root");
+        let text = root.text_content().unwrap_or_default();
+        assert!(text.contains("Mechanical diagnostics · 2"));
+        assert!(text.contains("Error"));
+        assert!(text.contains("Wall too thin"));
+        assert!(text.contains("Warning"));
+        assert!(text.contains("Foam clearance tight"));
+        by_role_name(&root, "button", "Show finding finding-warning")
+            .unwrap()
+            .click();
+        rendered().await;
+        assert_eq!(
+            element("#case-diagnostics-shown").text_content().as_deref(),
+            Some("finding-warning"),
+            "the chosen finding is shown"
+        );
+        root.remove();
+    }
+
+    fn gasket_context_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut selected = use_signal(|| "gasket:gasket-1:lower".to_owned());
+        rsx! {
+            MechanicalSettings {
+                identity: test_identity(),
+                request_sequence,
+                values: Some(test_values(HardwareTransport::Wired, None)),
+                profiles: Rc::from([]),
+                profile_targets: Rc::from([]),
+                process_targets: Rc::from([]),
+                stabilizer_fits: Rc::from([]),
+                layers: Rc::from([]),
+                gasket_supports: Rc::from([MechanicalGasketSupportRow {
+                    id: "gasket-1".into(),
+                    region_id: "region-1".into(),
+                    outline_key: "outline-1".into(),
+                    anchor: 0.0,
+                    pair_id: None,
+                    length: 10.0,
+                    width: 5.0,
+                    unlinked: true,
+                    fit_error: None,
+                    is_previous: false,
+                }]),
+                fit_parts: Rc::from([]),
+                fit_parts_resolved: false,
+                hardware_mounts: Rc::from([]),
+                suggested_mounts: Rc::from([]),
+                findings: Rc::from([]),
+                selected_layer: selected(),
+                mismatch: None,
+                editable: true,
+                disabled_reason: None,
+                feedback: Rc::from([]),
+                summary_feedback: None,
+                on_request: move |_| {},
+                on_select_layer: move |id| selected.set(id),
+                on_show_finding: move |_| {},
+            }
+            p { id: "case-gasket-selected", "{selected}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn gasket_context_names_its_return_and_fields() {
+        mount_battery_test_page("case-gasket-test-root", gasket_context_test_page);
+        rendered().await;
+        let root = element("#case-gasket-test-root");
+        let text = root.text_content().unwrap_or_default();
+        assert!(text.contains("Gasket 1"));
+        assert!(text.contains("Fits at this position."));
+        assert!(by_role_name(&root, "spinbutton", "Cut length").is_some());
+        assert!(by_role_name(&root, "spinbutton", "Pad width").is_some());
+        by_role_name(&root, "button", "All gasket settings")
+            .unwrap()
+            .click();
+        rendered().await;
+        assert_eq!(
+            element("#case-gasket-selected").text_content().as_deref(),
+            Some("gaskets"),
+            "the gasket view returns to all gasket settings"
         );
         root.remove();
     }
