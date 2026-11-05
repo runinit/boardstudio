@@ -933,8 +933,9 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 }
                  }
                 }
-                BoardDisclosure { class: "m1-inspector-section", "aria-label": "Manufacturing overrides",
-                    heading: rsx! { summary { "Manufacturing overrides" } },
+                Collapsible { keep_mounted: true, default_open: false,
+                    CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Manufacturing overrides" }
+                    CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
                 ManufacturingControls {
                     identity: props.identity.clone(),
                     targets: props.process_targets.clone(),
@@ -944,6 +945,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     request_sequence,
                     on_request: props.on_request,
                 }
+                 }
                 }
                 DimensionControls {
                     identity: props.identity.clone(),
@@ -3285,9 +3287,11 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                     div { class: "m1-mechanical-profile", key: "{target.part_id}",
                         strong { "{target.name}" }
                         if let Some(process) = target.process.as_ref() {
-                            BoardButton {
-                                r#type: "button",
-                                class: "m1-mechanical-context-settings",
+                            Button {
+                                variant: ButtonVariant::Secondary,
+                                button_type: "button",
+                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                aria_label: "Remove process override for {target.name}",
                                 disabled: mechanical_action_pending(&format!("process:{}:remove", target.part_id)) || !props.editable,
                                 onclick: {
                                     let part_id = target.part_id.clone();
@@ -3298,50 +3302,41 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                                 },
                                 "Remove"
                             }
-                            div { class: "m1-mechanical-field",
-                                label {
-                                    span { "Method" }
-                                    if target.part_id.ends_with("foam") {
-                                        output { "Cut sheet" }
-                                    } else {
-                                        select {
-                                            aria_label: "Method",
-                                            disabled: !props.editable,
-                                            value: "{method_id(&process.method)}",
-                                            onchange: {
-                                                let part_id = target.part_id.clone();
-                                                let identity = props.identity.clone();
-                                                let mut sequence = props.request_sequence;
-                                                let on_request = props.on_request;
-                                                move |event: FormEvent| if let Some(method) = parse_method(&event.value()) {
-                                                    send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetProcessMethod { part_id: part_id.clone(), method });
-                                                }
-                                            },
-                                            option { value: "pcb-fr4", "PCB FR-4" }
-                                            option { value: "printed", "3D printed" }
-                                            option { value: "cnc", "CNC machined" }
-                                            option { value: "cut-sheet", "Cut sheet" }
+                            if target.part_id.ends_with("foam") {
+                                output { "Cut sheet" }
+                            } else {
+                                SettingsSelect {
+                                    label: "Method",
+                                    disabled: !props.editable,
+                                    value: method_id(&process.method).to_string(),
+                                    on_change: {
+                                        let part_id = target.part_id.clone();
+                                        let identity = props.identity.clone();
+                                        let mut sequence = props.request_sequence;
+                                        let on_request = props.on_request;
+                                        move |next: Option<String>| if let Some(method) = parse_method(&next.unwrap_or_default()) {
+                                            send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetProcessMethod { part_id: part_id.clone(), method });
                                         }
-                                    }
+                                    },
+                                    SelectOption::<String> { index: 0usize, value: "pcb-fr4".to_owned(), text_value: "PCB FR-4".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "PCB FR-4" }
+                                        SelectOption::<String> { index: 1usize, value: "printed".to_owned(), text_value: "3D printed".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "3D printed" }
+                                        SelectOption::<String> { index: 2usize, value: "cnc".to_owned(), text_value: "CNC machined".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "CNC machined" }
+                                        SelectOption::<String> { index: 3usize, value: "cut-sheet".to_owned(), text_value: "Cut sheet".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Cut sheet" }
                                 }
                             }
-                            div { class: "m1-mechanical-field",
-                                BoardSelectField {
-                                    label: "Material",
-                                    aria_label: "Material",
-                                    disabled: !props.editable,
-                                    value: "{process.material}",
-                                    onchange: {
-                                            let part_id = target.part_id.clone();
-                                            let identity = props.identity.clone();
-                                            let mut sequence = props.request_sequence;
-                                            let on_request = props.on_request;
-                                            move |event: FormEvent| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetProcessMaterial { part_id: part_id.clone(), material: event.value() })
-                                        },
-                                    for material in process_material_options(&target.part_id, &process.method) {
-                                            option { value: material, "{material}" }
-                                        }
-                                }
+                            SettingsChoiceField {
+                                label: "Material",
+                                aria_label: "Material",
+                                disabled: !props.editable,
+                                value: process.material.clone(),
+                                options: process_material_options(&target.part_id, &process.method).iter().map(|material| (material.to_string(), material.to_string())).collect::<Vec<_>>(),
+                                on_change: {
+                                        let part_id = target.part_id.clone();
+                                        let identity = props.identity.clone();
+                                        let mut sequence = props.request_sequence;
+                                        let on_request = props.on_request;
+                                        move |next: Option<String>| if let Some(material) = next { send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetProcessMaterial { part_id: part_id.clone(), material }) }
+                                    },
                             }
                             DimensionField {
                                 identity: props.identity.clone(),
@@ -3354,15 +3349,16 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                                 editable: props.editable,
                                 process_target: Some(target.part_id.clone()),
                             }
-                            p { class: "m1-mechanical-help", "Constraint set " code { "{process_constraint_version(process)}" }
-                                if !process.constraints_version.is_empty() && process.constraints_version != version {
-                                    small { role: "alert", "Unsupported constraint set. Diagnostics will block export." }
-                                }
+                            p { class: "m1-mechanical-help", "Constraint set " code { "{process_constraint_version(process)}" } }
+                            if !process.constraints_version.is_empty() && process.constraints_version != version {
+                                Alert { variant: AlertVariant::Destructive, "Unsupported constraint set. Diagnostics will block export." }
                             }
                         } else {
-                            BoardButton {
-                                r#type: "button",
-                                class: "m1-mechanical-context-settings",
+                            Button {
+                                variant: ButtonVariant::Secondary,
+                                button_type: "button",
+                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                aria_label: "Add process override for {target.name}",
                                 disabled: mechanical_action_pending(&format!("process:{}:add", target.part_id)) || !props.editable,
                                 onclick: {
                                     let part_id = target.part_id.clone();
@@ -3383,26 +3379,25 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                 for stabilizer in props.stabilizers.iter() {
                     div { class: "m1-mechanical-profile", key: "{stabilizer.part_id}",
                         strong { "{stabilizer.reference} · {stabilizer.key_units}u" }
-                        BoardSelectField {
+                        SettingsSelect {
                             label: "Stabilizer",
-                            class: "m1-mechanical-field",
                             aria_label: "Stabilizer for {stabilizer.reference}",
                             disabled: !props.editable,
-                            value: "{stabilizer_kind_id(&stabilizer.current.kind)}",
-                            onchange: {
+                            value: stabilizer_kind_id(&stabilizer.current.kind).to_string(),
+                            on_change: {
                                     let mut current = stabilizer.current.clone();
                                     let identity = props.identity.clone();
                                     let mut sequence = props.request_sequence;
                                     let on_request = props.on_request;
-                                    move |event: FormEvent| if let Some(kind) = parse_stabilizer_kind(&event.value()) {
+                                    move |next: Option<String>| if let Some(kind) = parse_stabilizer_kind(&next.unwrap_or_default()) {
                                         current.kind = kind;
                                         send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetStabilizerKind(current.clone()));
                                     }
                                 },
-                            option { value: "pcb-mount", "Cherry PCB mount · {stabilizer.default.units}u" }
-                                option { value: "none", "None" }
+                            SelectOption::<String> { index: 0usize, value: "pcb-mount".to_owned(), text_value: format!("Cherry PCB mount · {}u", stabilizer.default.units), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Cherry PCB mount · {stabilizer.default.units}u" }
+                                SelectOption::<String> { index: 1usize, value: "none".to_owned(), text_value: "None".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "None" }
                                 if stabilizer.current.profile.is_some() {
-                                    option { value: "plate-mount", "Custom plate mount" }
+                                    SelectOption::<String> { index: 2usize, value: "plate-mount".to_owned(), text_value: "Custom plate mount".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Custom plate mount" }
                                 }
                         }
                         p { class: "m1-mechanical-help", "Size and orientation follow the key layout." }
@@ -5358,7 +5353,10 @@ mod contextual_layer_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{MechanicalFeatureKind, MechanicalOpeningVertex, Vec2, Vec3};
-    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+    use boardstudio_web_ui_shared::{
+        test_role::{all_by_role_name, by_role_name},
+        test_wait::wait_until,
+    };
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -6497,10 +6495,7 @@ mod contextual_layer_tests {
         assert!(manufacturing_text.contains("Per-part process overrides 4"));
         assert!(manufacturing_text.contains("Stabilizer fit 0 wide keys"));
         assert_eq!(
-            assembly_panel
-                .query_selector_all("select[aria-label='Material']")
-                .unwrap()
-                .length(),
+            all_by_role_name(&assembly_panel, "button", "Material").len(),
             4,
             "each accepted standard process override should expose its material"
         );
@@ -7618,6 +7613,134 @@ mod contextual_layer_tests {
         assert!(
             fit.contains("RemoveCriticalFit") && fit.contains("fit-1"),
             "the fit removal names its item, got {fit}"
+        );
+        root.remove();
+    }
+
+    fn manufacturing_controls_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let stabilizer = MechanicalStabilizerOverride {
+            profile: None,
+            part_id: "plate".into(),
+            kind: MechanicalStabilizerKind::PcbMount,
+            units: 6.25,
+            rotation: None,
+        };
+        rsx! {
+            ManufacturingControls {
+                identity: test_identity(),
+                targets: Rc::from([
+                    MechanicalProcessTarget {
+                        part_id: "plate".into(),
+                        name: "Plate".into(),
+                        default_thickness: 1.5,
+                        process: Some(MechanicalPartProcess {
+                            part_id: "plate".into(),
+                            method: PlateMethod::Printed,
+                            material: "PLA".into(),
+                            thickness: 1.5,
+                            constraints_version: String::new(),
+                        }),
+                    },
+                    MechanicalProcessTarget {
+                        part_id: "bottom".into(),
+                        name: "Bottom".into(),
+                        default_thickness: 2.0,
+                        process: None,
+                    },
+                ]),
+                stabilizers: Rc::from([MechanicalStabilizerFit {
+                    part_id: "plate".into(),
+                    reference: "Space".into(),
+                    key_units: 6.25,
+                    default: stabilizer.clone(),
+                    current: stabilizer,
+                }]),
+                editable: true,
+                feedback: Rc::from([]),
+                request_sequence,
+                on_request: move |request: MechanicalSettingsRequest| {
+                    last_request.set(format!("{:?}", request.patch))
+                },
+            }
+            p { id: "case-manufacturing-last-request", "{last_request}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn manufacturing_controls_submit_typed_process_and_stabilizer_changes() {
+        mount_battery_test_page(
+            "case-manufacturing-test-root",
+            manufacturing_controls_test_page,
+        );
+        rendered().await;
+        let root = element("#case-manufacturing-test-root");
+        by_role_name(&root, "button", "Method").unwrap().click();
+        wait_until("the methods open", || {
+            by_role_name(&root, "listbox", "Method").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "CNC machined").unwrap());
+        rendered().await;
+        let method = element("#case-manufacturing-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            method.contains("SetProcessMethod") && method.contains("Cnc"),
+            "the method submits its typed change, got {method}"
+        );
+        by_role_name(&root, "button", "Material").unwrap().click();
+        wait_until("the materials open", || {
+            by_role_name(&root, "listbox", "Material").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "ABS").unwrap());
+        rendered().await;
+        let material = element("#case-manufacturing-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            material.contains("SetProcessMaterial") && material.contains("ABS"),
+            "the material submits its typed change, got {material}"
+        );
+        by_role_name(&root, "button", "Remove process override for Plate")
+            .unwrap()
+            .click();
+        rendered().await;
+        let removed = element("#case-manufacturing-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            removed.contains("RemoveProcessOverride") && removed.contains("plate"),
+            "the process removal names its part, got {removed}"
+        );
+        by_role_name(&root, "button", "Add process override for Bottom")
+            .unwrap()
+            .click();
+        rendered().await;
+        let added = element("#case-manufacturing-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            added.contains("AddProcessOverride") && added.contains("bottom"),
+            "the process addition names its part, got {added}"
+        );
+        by_role_name(&root, "button", "Stabilizer for Space")
+            .unwrap()
+            .click();
+        wait_until("the stabilizers open", || {
+            by_role_name(&root, "listbox", "Stabilizer for Space").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "None").unwrap());
+        rendered().await;
+        let stabilizer = element("#case-manufacturing-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            stabilizer.contains("SetStabilizerKind") && stabilizer.contains("None"),
+            "the stabilizer submits its typed change, got {stabilizer}"
         );
         root.remove();
     }
