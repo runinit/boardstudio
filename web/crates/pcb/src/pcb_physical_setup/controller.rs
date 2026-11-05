@@ -327,9 +327,9 @@ pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
     let reversible_id = format!("project-reversible-{}", dioxus::core::current_scope_id().0);
     rsx! {
         section { class: "grid gap-3.5", "aria-label": "Physical assembly",
-            div { class: "m1-project-setup-choice",
+            div { class: "grid gap-2",
                 span { "Keyboard configuration" }
-                ToggleGroup { aria_label: "Keyboard configuration", horizontal: true, disabled: projection.busy,
+                ToggleGroup { class: "grid! grid-cols-2 gap-2!", aria_label: "Keyboard configuration", horizontal: true, disabled: projection.busy,
                     pressed: Some([if split { 1usize } else { 0usize }].into_iter().collect()),
                     on_pressed_change: move |next: std::collections::HashSet<usize>| {
                         if next.contains(&0) || (next.is_empty() && !split) { topology_single.submit(PhysicalSetupIntent::ProjectTopology(false)); }
@@ -340,9 +340,9 @@ pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
                 }
             }
             if split {
-                div { class: "m1-project-setup-choice",
+                div { class: "grid gap-2",
                     span { "Half connection" }
-                    ToggleGroup { aria_label: "Half connection", horizontal: true, disabled: projection.busy,
+                    ToggleGroup { class: "grid! grid-cols-2 gap-2!", aria_label: "Half connection", horizontal: true, disabled: projection.busy,
                         pressed: Some([if projection.transport == HardwareTransport::Wireless { 0usize } else { 1usize }].into_iter().collect()),
                         on_pressed_change: move |next: std::collections::HashSet<usize>| {
                             if next.contains(&0) || (next.is_empty() && projection.transport == HardwareTransport::Wireless) { wireless.submit(PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wireless)); }
@@ -409,6 +409,44 @@ mod mounted_setup_tests {
             }),
         };
         project_setup_controls(mount)
+    }
+
+    #[wasm_bindgen_test]
+    async fn setup_choices_keep_two_column_layout_without_legacy_selectors() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(fixture);
+        dom.provide_root_context(Capture(Rc::new(RefCell::new(Vec::new()))));
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("setup mounts", || {
+            by_role_name(&root, "group", "Half connection").is_some()
+        })
+        .await;
+        for name in ["Keyboard configuration", "Half connection"] {
+            let group = by_role_name(&root, "group", name).expect("named setup group");
+            let group_classes = group.get_attribute("class").unwrap_or_default();
+            for expected in ["grid!", "grid-cols-2", "gap-2!"] {
+                assert!(
+                    group_classes
+                        .split_whitespace()
+                        .any(|class| class == expected),
+                    "{name}: missing {expected}"
+                );
+            }
+            let container = group.parent_element().expect("choice container");
+            let classes = container.get_attribute("class").unwrap_or_default();
+            for expected in ["grid", "gap-2"] {
+                assert!(
+                    classes.split_whitespace().any(|class| class == expected),
+                    "{name}: missing {expected}"
+                );
+            }
+        }
+        root.remove();
     }
 
     #[wasm_bindgen_test]
