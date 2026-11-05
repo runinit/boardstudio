@@ -12,8 +12,13 @@ mod ui {
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_core::model::PartDefinition;
     use boardstudio_web_runtime::pending_edits::PendingEditResult;
-    use boardstudio_web_ui_shared::controls::BoardDisclosure;
     use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+    use boardstudio_web_ui_shared::ui::{
+        collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+        field::{Field, FieldError, FieldLabel},
+        input::InputType,
+        input_group::{InputGroup, InputGroupInput},
+    };
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
     use std::cell::RefCell;
@@ -185,40 +190,52 @@ mod ui {
                 }
             }
         };
-        let on_section_toggle = move |event: MouseEvent| {
-            event.prevent_default();
-            section_chosen.set(true);
-            section_open.set(!section_open());
-        };
-
+        let name_id = format!(
+            "parts-definition-name-{}",
+            dioxus::core::current_scope_id().0
+        );
+        let name_error = failure();
         rsx! {
-            BoardDisclosure {
-                class: "m1-parts-definition-editor",
-                open: section_open(),
-                heading: rsx! { summary { onclick: on_section_toggle,
+            Collapsible {
+                keep_mounted: true,
+                open: Some(section_open()),
+                on_open_change: move |next| {
+                    section_chosen.set(true);
+                    section_open.set(next);
+                },
+                CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     span { "Edit footprint" }
                     small { "Custom geometry" }
-                } },
-                div { class: "m1-parts-definition-editor-body",
-                    section { class: "m1-parts-definition-editor-fields", "aria-label": "Custom component definition editor",
-                        label { class: "m1-parts-definition-name",
-                            "Name"
-                            input {
-                                aria_label: "Definition name",
-                                value: "{draft()}",
-                                oninput: move |event| {
-                                    draft.set(event.value());
-                                    draft_dirty.set(true);
-                                },
-                                onblur: on_blur,
-                                onkeydown: on_keydown,
+                }
+                CollapsibleContent { class: "data-[open=false]:hidden",
+                    div { class: "grid gap-2",
+                        section { class: "grid gap-2", "aria-label": "Custom component definition editor",
+                            Field { invalid: name_error.is_some(), class: "gap-1.5",
+                                FieldLabel { html_for: name_id.clone(), "Name" }
+                                InputGroup {
+                                    InputGroupInput {
+                                        id: name_id.clone(),
+                                        r#type: InputType::Text,
+                                        aria_label: "Definition name",
+                                        value: "{draft()}",
+                                        aria_invalid: name_error.is_some(),
+                                        oninput: move |event: FormEvent| {
+                                            draft.set(event.value());
+                                            draft_dirty.set(true);
+                                        },
+                                        attributes: vec![
+                                            dioxus::events::onblur(on_blur),
+                                            dioxus::events::onkeydown(on_keydown),
+                                        ],
+                                    }
+                                }
+                                if let Some(message) = name_error.as_deref() {
+                                    FieldError { "{message}" }
+                                }
                             }
                         }
-                        if let Some(message) = failure() {
-                            p { class: "m1-definition-error", role: "alert", "{message}" }
-                        }
+                        {children}
                     }
-                    {children}
                 }
             }
         }
@@ -662,6 +679,7 @@ mod mounted_tests {
     use crate::runtime::{Runtime, project_name_test_support as support};
     use boardstudio_application::{Event as AppEvent, Scope};
     use boardstudio_core::model::{PartDefinition, ProjectDoc};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use dioxus::prelude::*;
     use std::{cell::RefCell, rc::Rc};
     use wasm_bindgen::JsCast;
@@ -751,18 +769,22 @@ mod mounted_tests {
     }
 
     fn input(root: &web_sys::Element) -> HtmlInputElement {
-        root.query_selector("input[aria-label='Definition name']")
-            .unwrap()
-            .unwrap()
+        by_role_name(root, "textbox", "Definition name")
+            .expect("definition name field")
             .dyn_into()
             .unwrap()
     }
 
+    fn section_trigger(root: &web_sys::Element) -> web_sys::HtmlElement {
+        by_role_name(root, "button", "Edit footprint Custom geometry")
+            .expect("edit footprint section trigger")
+    }
+
     fn section_is_open(root: &web_sys::Element) -> bool {
-        root.query_selector("details")
-            .unwrap()
-            .unwrap()
-            .has_attribute("open")
+        section_trigger(root)
+            .get_attribute("aria-expanded")
+            .as_deref()
+            == Some("true")
     }
 
     fn pad_id_input(root: &web_sys::Element) -> HtmlInputElement {
@@ -856,12 +878,7 @@ mod mounted_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         settle().await;
-        root.query_selector("details summary")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+        section_trigger(&root).click();
         settle().await;
         let pad_id = pad_id_input(&root);
         type_value(&pad_id, "");
@@ -878,12 +895,7 @@ mod mounted_tests {
             .definition
             .set(snapshot.document.definitions[1].clone());
         settle().await;
-        root.query_selector("details summary")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+        section_trigger(&root).click();
         settle().await;
 
         assert_eq!(pad_id_input(&root).value(), "shared-pad");
@@ -1053,12 +1065,7 @@ mod mounted_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         settle().await;
-        root.query_selector("details summary")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+        section_trigger(&root).click();
         settle().await;
         let width = courtyard_width_input(&root);
         assert_eq!(width.value(), "10");
@@ -1128,12 +1135,7 @@ mod mounted_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         settle().await;
-        root.query_selector("details summary")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+        section_trigger(&root).click();
         settle().await;
         let field = pad_id_input(&root);
         type_value(&field, "renamed");
@@ -1238,12 +1240,7 @@ mod mounted_tests {
         );
         settle().await;
         if open_section {
-            root.query_selector("details summary")
-                .unwrap()
-                .unwrap()
-                .dyn_into::<web_sys::HtmlElement>()
-                .unwrap()
-                .click();
+            section_trigger(&root).click();
             settle().await;
         }
         (runtime, snapshot, scope, state, root)
@@ -1467,12 +1464,7 @@ mod mounted_tests {
         assert_eq!(added.document.revision, snapshot.document.revision + 1);
 
         if !section_is_open(&root) {
-            root.query_selector("details summary")
-                .unwrap()
-                .unwrap()
-                .dyn_into::<web_sys::HtmlElement>()
-                .unwrap()
-                .click();
+            section_trigger(&root).click();
             settle().await;
         }
         let remove = root
@@ -1962,12 +1954,7 @@ mod mounted_tests {
         );
 
         assert!(section_is_open(&root));
-        root.query_selector("details summary")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+        section_trigger(&root).click();
         settle().await;
         assert!(!section_is_open(&root));
 
