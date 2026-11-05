@@ -1291,7 +1291,13 @@
   "panels::policy::tests::malformed_or_absent_fields_default_independently",
   "panels::policy::tests::resize_width_respects_panel_and_available_workspace_bounds",
   "panels::policy::tests::valid_mode_survives_an_invalid_or_missing_right_width",
-  "pending_edit_helpers::tests::restore_requires_the_submitted_draft"
+  "pending_edit_helpers::tests::restore_requires_the_submitted_draft",
+  "ui::button::attribute_tests::button_owns_scalars_and_styles_but_keeps_id_fallback_and_unknown_attributes",
+  "ui::button::attribute_tests::removing_focus_preserves_the_native_blur_listener_mutation",
+  "ui::copy_rules_tests::copies_have_no_script_listener_icons_crate_or_dark_border",
+  "ui::copy_rules_tests::copies_record_provenance_and_data_slots",
+  "ui::copy_rules_tests::every_ui_file_is_listed",
+  "ui::sidenav::tests::resize_delta_is_local_to_the_active_pointer_and_side"
  ],
  "case_profile_region": [
   "accepts_a_strictly_inside_near_collinear_hole"
