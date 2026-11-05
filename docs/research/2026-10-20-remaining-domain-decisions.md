@@ -249,9 +249,9 @@ the opener, focuses Rows on mount, and on Cancel restores the connected opener o
 guide heading. Both named
 [matrix_cancel focus tests](../../web/crates/layout/src/objects/matrix_setup_focus_tests.rs#L88-L160)
 assert this using programmatic focus/click, not trusted keyboard traversal.
-[Shared-control tests](../../web/crates/ui-shared/src/controls.rs#L675-L831) cover
-associated number errors and popover return-to-trigger versus preserving outside
-focus. These are not unresolved universal focus policies.
+Shared-control tests in `web/crates/ui-shared/src/controls.rs` at commit `32daa7475`
+(since removed) covered associated number errors and popover return-to-trigger versus
+preserving outside focus. These are not unresolved universal focus policies.
 
 The actual [setup settlement](../../web/crates/layout/src/objects/matrix_setup_controller.rs#L525-L581)
 closes the form and selects the saved matrix; failure retains an error. It names
