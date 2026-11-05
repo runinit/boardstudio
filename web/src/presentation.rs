@@ -7412,7 +7412,7 @@ fn Editor() -> Element {
                 shared_viewer::DesignViewToolbarProps {
                     contextual_tools: Some(rsx! { workspace_navigation::InspectorActions {
                         label: "Keycaps tools", workspace, inspect_open, inspector_settings: inspector_panel_settings,
-                        generation: adapter.generation, actions: vec![("Profile", ".m1-keycaps-selected-key select[aria-label^=\"Profile override\"]", false), ("Legend", ".m1-keycaps-selected-key input[aria-label^=\"Legend for\"]", false), ("Color", ".m1-keycaps-selected-key input[type=color]", false)],
+                        generation: adapter.generation, actions: vec![("Profile", "[aria-label^='Keycap overrides for '] [data-slot='select-trigger'][aria-label^='Profile override for ']", false), ("Legend", "[aria-label^='Keycap overrides for '] [aria-label^='Legend for ']", false), ("Color", "[aria-label^='Keycap overrides for '] [aria-label^='Keycap color for ']", false)],
                         disabled: model.selected_part_ids.is_empty(),
                     } }),
                     label: "Keycaps".into(),

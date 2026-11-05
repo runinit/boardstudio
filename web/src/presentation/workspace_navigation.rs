@@ -47,10 +47,25 @@ pub(super) fn InspectorActions(
                         let Some(document) = web_sys::window().and_then(|window| window.document()) else { return; };
                         let Some(element) = document.query_selector(selector).ok().flatten() else { return; };
                         let mut ancestor = element.parent_element();
+                        let mut disclosures = Vec::new();
                         while let Some(parent) = ancestor {
                             if parent.tag_name().eq_ignore_ascii_case("details") { let _ = parent.set_attribute("open", ""); }
+                            if parent.get_attribute("data-slot").as_deref() == Some("collapsible-content")
+                                && let Some(owner) = parent.parent_element()
+                                && let Ok(Some(trigger)) = owner.query_selector(":scope > [data-slot='collapsible-trigger'][aria-expanded='false']")
+                                && let Ok(trigger) = trigger.dyn_into::<web_sys::HtmlElement>() {
+                                disclosures.push(trigger);
+                            }
                             ancestor = parent.parent_element();
                         }
+                        // Reveal outside-in: an inner trigger cannot be clicked while an outer
+                        // Collapsible is inert. Let each controlled component render before the next.
+                        for trigger in disclosures.into_iter().rev() {
+                            if workspace() != captured_workspace || generation() != captured_generation || !element.is_connected() { return; }
+                            trigger.click();
+                            gloo_timers::future::TimeoutFuture::new(0).await;
+                        }
+                        if workspace() != captured_workspace || generation() != captured_generation || !element.is_connected() { return; }
                         if let Ok(element) = element.dyn_into::<web_sys::HtmlElement>() {
                             if activate { element.click(); }
                             let _ = element.focus();
