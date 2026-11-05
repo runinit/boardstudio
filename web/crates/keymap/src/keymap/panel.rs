@@ -1,7 +1,17 @@
 use super::view::KeymapView;
 use crate::layer_edit::{KeymapLayerFeedback, KeymapLayerOperation};
 use boardstudio_application::Scope;
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::collapsible::{
+    Collapsible, CollapsibleContent, CollapsibleTrigger,
+};
+use boardstudio_web_ui_shared::ui::combobox::{Combobox, ComboboxOption};
+use boardstudio_web_ui_shared::ui::field::{Field, FieldError, FieldLabel};
+use boardstudio_web_ui_shared::ui::input::InputType;
+use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
+use boardstudio_web_ui_shared::ui::tabs::{Tabs, TabsContent, TabsList, TabsTrigger};
+use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -74,6 +84,9 @@ pub fn KeymapPanel(
     let no_matches = !search.is_empty() && matching_key_count == 0;
     let layer_count = view.layers.len();
     let key_count = view.keys.len();
+    let search_id = format!("keymap-panel-search-{}", dioxus::core::current_scope_id().0);
+    let key_picker_id = format!("keymap-panel-key-{}", dioxus::core::current_scope_id().0);
+    let selected_key_value = use_memo(use_reactive((&selected_key_id,), |(value,)| value));
 
     rsx! {
         section { class: "m1-keymap-panel", "aria-label": "Keymap",
@@ -92,64 +105,57 @@ pub fn KeymapPanel(
                 on_layer_operation,
             }
             }
-            div { class: "m1-keymap-actions", role: "group", "aria-label": "Keymap editors",
-                for (editor, label) in [
-                    (KeymapEditor::Keys, "Keys"),
-                    (KeymapEditor::Macros, "Macros"),
-                    (KeymapEditor::Encoders, "Encoders"),
-                ] {
-                    {
-                        let pressed = selected_editor() == editor;
-                        rsx! {
-                            BoardButton {
-                                class: "m1-keymap-editor-tab",
-                                pressed: Some(pressed),
-                                onclick: move |_| {
-                                    if selected_editor() != editor {
-                                        match editor {
-                                            KeymapEditor::Keys => keys_section_open.set(true),
-                                            KeymapEditor::Macros => macros_section_open.set(true),
-                                            KeymapEditor::Encoders => encoders_section_open.set(true),
-                                        }
-                                        selected_editor.set(editor);
-                                    }
-                                },
-                                "{label}"
-                            }
+            ToggleGroup { class: "m1-keymap-actions", aria_label: "Keymap editors", horizontal: true,
+                pressed: Some([match selected_editor() { KeymapEditor::Keys => 0usize, KeymapEditor::Macros => 1, KeymapEditor::Encoders => 2 }].into_iter().collect()),
+                on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                    let editor = if next.contains(&0) { Some(KeymapEditor::Keys) }
+                        else if next.contains(&1) { Some(KeymapEditor::Macros) }
+                        else if next.contains(&2) { Some(KeymapEditor::Encoders) }
+                        else { None };
+                    if let Some(editor) = editor && selected_editor() != editor {
+                        match editor {
+                            KeymapEditor::Keys => keys_section_open.set(true),
+                            KeymapEditor::Macros => macros_section_open.set(true),
+                            KeymapEditor::Encoders => encoders_section_open.set(true),
                         }
+                        selected_editor.set(editor);
                     }
-                }
+                },
+                ToggleItem { index: 0usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Keys" }
+                ToggleItem { index: 1usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Macros" }
+                ToggleItem { index: 2usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Encoders" }
             }
             if selected_editor() == KeymapEditor::Keys {
-                BoardDisclosure { class: "m1-keymap-editor-section", open: keys_section_open(),
-                    heading: rsx! { summary { onclick: move |event: MouseEvent| {
-                        event.prevent_default();
-                        keys_section_open.set(!keys_section_open());
-                    }, span { "{heading}" } } },
+                Collapsible { class: "m1-keymap-editor-section", open: keys_section_open(), keep_mounted: true,
+                    on_open_change: move |open| keys_section_open.set(open),
+                    CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{heading}" }
+                    CollapsibleContent { hidden: !keys_section_open(), inert: (!keys_section_open()).then_some(""),
                     div { class: "m1-keymap-section-body",
                         if show_navigation {
-                        label { class: "m1-keymap-search-label", "Find a key"
-                            input {
-                                class: "m1-keymap-search",
-                                r#type: "search",
-                                "aria-label": "Find a key",
+                        Field { class: "gap-1.5",
+                            FieldLabel { html_for: search_id.clone(), "Find a key" }
+                            InputGroup { InputGroupInput {
+                                id: search_id.clone(), r#type: InputType::Search,
+                                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                aria_label: "Find a key",
                                 value: "{query}",
                                 oninput: move |event: FormEvent| query.set(event.value()),
-                            }
+                            } }
                         }
-                        label { class: "m1-keymap-select-label", "Selected key"
-                            select {
-                                class: "m1-keymap-select",
-                                "aria-label": "Selected key",
-                                value: selected.map_or("", |key| key.id.as_ref()),
-                                onchange: move |event: FormEvent| on_select_key.call(event.value()),
-                                option { value: "", selected: selected.is_none(), "Choose on the layout…" }
-                                for key in view.keys.iter().filter(|key| key.search_index.contains(&search)) {
-                                    option {
-                                        key: "{key.id}",
-                                        value: "{key.id}",
-                                        selected: selected.is_some_and(|current| current.id == key.id),
-                                        "{key.reference} · {key.binding_title}"
+                        Field { class: "gap-1.5",
+                            FieldLabel { html_for: key_picker_id.clone(), "Selected key" }
+                            Combobox::<String> {
+                                id: key_picker_id.clone(),
+                                class: "max-[960px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch",
+                                aria_label: "Selected key", list_aria_label: "Selected key",
+                                placeholder: "Choose on the layout…",
+                                value: Some(selected_key_value.into()),
+                                on_value_change: move |value: Option<String>| if let Some(value) = value { on_select_key.call(value); },
+                                ComboboxOption::<String> { index: 0usize, value: "", text_value: "Choose on the layout…", "Choose on the layout…" }
+                                for (index, key) in view.keys.iter().filter(|key| key.search_index.contains(&search)).enumerate() {
+                                    {
+                                        let label = format!("{} · {}", key.reference, key.binding_title);
+                                        rsx! { ComboboxOption::<String> { key: "{key.id}", index: index + 1, value: key.id.to_string(), text_value: label.clone(), "{label}" } }
                                     }
                                 }
                             }
@@ -169,31 +175,31 @@ pub fn KeymapPanel(
                         }
                         {keys_editor}
                     }
+                    }
                 }
             } else if selected_editor() == KeymapEditor::Macros {
-                BoardDisclosure { class: "m1-keymap-editor-section", open: macros_section_open(),
-                    heading: rsx! { summary { onclick: move |event: MouseEvent| {
-                        event.prevent_default();
-                        macros_section_open.set(!macros_section_open());
-                    }, span { "Macros" } } },
+                Collapsible { class: "m1-keymap-editor-section", open: macros_section_open(), keep_mounted: true,
+                    on_open_change: move |open| macros_section_open.set(open),
+                    CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Macros" }
+                    CollapsibleContent { hidden: !macros_section_open(), inert: (!macros_section_open()).then_some(""),
                     div { class: "m1-keymap-section-body",
                         {macros_editor}
                     }
+                    }
                 }
             } else {
-                BoardDisclosure { class: "m1-keymap-editor-section", open: encoders_section_open(),
-                    heading: rsx! { summary { onclick: move |event: MouseEvent| {
-                        event.prevent_default();
-                        encoders_section_open.set(!encoders_section_open());
-                    }, span { "{encoder_heading}" } } },
+                Collapsible { class: "m1-keymap-editor-section", open: encoders_section_open(), keep_mounted: true,
+                    on_open_change: move |open| encoders_section_open.set(open),
+                    CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{encoder_heading}" }
+                    CollapsibleContent { hidden: !encoders_section_open(), inert: (!encoders_section_open()).then_some(""),
                     div { class: "m1-keymap-section-body",
                         {encoders_editor}
                     }
+                    }
                 }
             }
-            BoardButton {
-                class: "m1-keymap-export",
-                r#type: "button",
+            Button {
+                class: "w-full my-1 max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 disabled: !firmware_export_enabled,
                 onclick: move |_| on_export.call(()),
                 "Export ZMK source"
@@ -226,6 +232,19 @@ pub fn KeymapNavigation(
 ) -> Element {
     let mut query = use_signal(String::new);
     let search = query().to_lowercase();
+    let search_id = format!(
+        "keymap-navigation-search-{}",
+        dioxus::core::current_scope_id().0
+    );
+    let matching_keys: Vec<_> = view
+        .keys
+        .iter()
+        .filter(|key| key.search_index.contains(&search))
+        .collect();
+    let matching_ids: Vec<String> = matching_keys.iter().map(|key| key.id.to_string()).collect();
+    let selected_index = matching_keys
+        .iter()
+        .position(|key| selected_key_id.as_deref() == Some(key.id.as_ref()));
     rsx! {
         section { class: "m1-keymap-navigation", aria_label: "Keymap layers and keys",
             KeymapLayersSection {
@@ -238,21 +257,29 @@ pub fn KeymapNavigation(
                 on_layer_operation,
             }
 
-            label { class: "m1-keymap-search-label", "Find a key"
-                input { class: "m1-keymap-search", r#type: "search", aria_label: "Find a key",
-                    value: query(), oninput: move |event| query.set(event.value()) }
+            Field { class: "gap-1.5",
+                FieldLabel { html_for: search_id.clone(), "Find a key" }
+                InputGroup { InputGroupInput { id: search_id, r#type: InputType::Search, aria_label: "Find a key", class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    value: query(), oninput: move |event: FormEvent| query.set(event.value()) }
+                }
             }
-            div { class: "m1-keymap-key-navigation", role: "group", aria_label: "Keys on active layer",
-                for key in view.keys.iter().filter(|key| key.search_index.contains(&search)) {
-                    BoardButton { key: "{key.id}", class: "m1-navigation-row",
-                        pressed: Some(selected_key_id.as_deref() == Some(key.id.as_ref())),
-                        onclick: { let id = key.id.to_string(); move |_| on_select_key.call(id.clone()) },
+            ToggleGroup { class: "m1-keymap-key-navigation w-full", aria_label: "Keys on active layer", horizontal: false,
+                pressed: Some(selected_index.into_iter().collect()),
+                on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                    if let Some(index) = next.into_iter().next().or(selected_index)
+                        && let Some(id) = matching_ids.get(index) {
+                        on_select_key.call(id.clone());
+                    }
+                },
+                for (index, key) in matching_keys.iter().enumerate() {
+                    ToggleItem { key: "{key.id}", index, class: "w-full justify-start max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        aria_label: format!("{} {}", key.reference, key.binding_title),
                         strong { "{key.reference}" } span { "{key.binding_title}" }
                     }
                 }
-                if !view.keys.iter().any(|key| key.search_index.contains(&search)) {
-                    p { role: "status", "No keys match this search." }
-                }
+            }
+            if matching_keys.is_empty() {
+                p { role: "status", "No keys match this search." }
             }
         }
     }
@@ -275,52 +302,46 @@ fn KeymapLayersSection(
         .find(|layer| layer.id.as_ref() == active_layer_id)
         .or_else(|| view.layers.first());
     let layer_count = view.layers.len();
-    let layer_controls_key = active_layer.map(|layer| format!("{:?}:{}", scope, layer.id));
+    let mut layers_open = use_signal(|| true);
+    let tabs_id = format!("keymap-layer-tabs-{}", dioxus::core::current_scope_id().0);
     rsx! {
-        BoardDisclosure { class: "m1-keymap-layers", open: true,
-                heading: rsx! { summary { span { "Keymap layers" } } },
+        Collapsible { class: "m1-keymap-layers", open: layers_open(), on_open_change: move |open| layers_open.set(open), keep_mounted: true,
+            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Keymap layers" }
+            CollapsibleContent { hidden: !layers_open(), inert: (!layers_open()).then_some(""),
                 div { class: "m1-keymap-layers-content",
-                    div { role: "group", "aria-label": "Keymap layers",
-                        for (index, layer) in view.layers.iter().enumerate() {
-                            {
-                                let id = layer.id.clone();
-                                let selected_layer = active_layer.is_some_and(|active| active.id.as_ref() == layer.id.as_ref());
-                                rsx! {
-                                    button {
-                                        key: "{id}",
-                                        class: if selected_layer { "m1-keymap-layer is-active" } else { "m1-keymap-layer" },
-                                        type: "button",
-                                        "aria-pressed": "{selected_layer}",
-                                        onclick: move |_| on_layer.call(id.to_string()),
-                                        span { class: "m1-keymap-layer-index", "{index}" }
-                                        "{layer.name}"
-                                    }
+                    Tabs { value: active_layer.map(|layer| layer.id.to_string()),
+                        on_value_change: move |id: String| on_layer.call(id),
+                        TabsList { aria_label: "Keymap layers", aria_orientation: "vertical",
+                            for (index, layer) in view.layers.iter().enumerate() {
+                                TabsTrigger { key: "{layer.id}", value: layer.id.to_string(), index, id: Some(format!("{tabs_id}-tab-{index}")),
+                                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    aria_label: layer.name.to_string(),
+                                    span { class: "m1-keymap-layer-index", aria_hidden: "true", "{index}" }
+                                    "{layer.name}"
                                 }
                             }
                         }
-                    }
-                    if let (Some(layer), Some(layer_controls_key)) = (active_layer, layer_controls_key) {
-                        {
-                            let layer_id = layer.id.to_string();
-                            let layer_name = layer.name.to_string();
-                            let is_base = view.layers.first().is_some_and(|base| base.id == layer.id);
-                            rsx! {
-                                { rsx! { KeymapLayerControls {
-                                    key: "{layer_controls_key}",
-                                    layer_id,
-                                    layer_name,
-                                    is_base,
+                        for (index, layer) in view.layers.iter().enumerate() {
+                            TabsContent { key: "{layer.id}", value: layer.id.to_string(), index,
+                                aria_label: layer.name.to_string(),
+                                aria_labelledby: format!("{tabs_id}-tab-{index}"),
+                                KeymapLayerControls {
+                                    key: "{scope:?}:{layer.id}",
+                                    layer_id: layer.id.to_string(),
+                                    layer_name: layer.name.to_string(),
+                                    is_base: index == 0,
                                     layer_count,
                                     enabled: layer_operations_enabled,
                                     feedback: layer_feedback.clone(),
                                     on_operation: on_layer_operation,
-                                } } }
+                                }
                             }
                         }
                     }
                     p { class: "m1-keymap-empty", "Higher layers take precedence. Transparent keys fall through to the layer below." }
                 }
             }
+        }
     }
 }
 
@@ -358,33 +379,44 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
             layer_id: props.layer_id.clone(),
         });
     let layer_id = props.layer_id.clone();
+    let name_id = format!("keymap-layer-name-{}", dioxus::core::current_scope_id().0);
+    let error_id = format!("{name_id}-error");
     let feedback_error = props.feedback.as_ref().and_then(|feedback| match feedback {
         KeymapLayerFeedback::Failed(message) => Some(message.as_str()),
         KeymapLayerFeedback::Pending => None,
     });
+    let field_error = if feedback_error.is_none() {
+        name_failure()
+    } else {
+        None
+    };
 
     rsx! {
         div { class: "m1-keymap-layer-controls", role: "group", "aria-label": "Layer operations",
-            BoardButton {
-                r#type: "button",
+            Button {
+                variant: ButtonVariant::Secondary,
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 disabled: add_disabled,
                 onclick: move |_| props.on_operation.call(KeymapLayerOperation::Add),
                 "Add layer"
             }
-            label { class: "m1-keymap-layer-name-label", "Layer name"
-                input {
+            Field { class: "m1-keymap-layer-name-label gap-1.5", disabled: !props.enabled, invalid: field_error.is_some(),
+                FieldLabel { html_for: name_id.clone(), "Layer name" }
+                InputGroup {
+                InputGroupInput {
+                    id: name_id,
                     class: "m1-keymap-layer-name",
-                    r#type: "text",
-                    "aria-label": "Layer name",
-                    maxlength: 32,
+                    aria_label: "Layer name",
+                    aria_invalid: field_error.is_some(),
+                    aria_describedby: field_error.as_ref().map(|_| error_id.clone()),
                     value: "{name_draft}",
                     disabled: !props.enabled,
                     oninput: move |event: FormEvent| { name_failure.set(None); name_draft.set(event.value()); dirty.set(true); },
-                    onblur: {
+                    attributes: {
                         let name_draft = name_draft;
                         let on_operation = props.on_operation;
                         let layer_id = layer_id.clone();
-                        move |_| {
+                        vec![Attribute::new("maxlength", "32", None, false), dioxus::events::onblur(move |_| {
                             let name = name_draft();
                             if dirty() && props.enabled {
                                 dirty.set(false);
@@ -393,13 +425,18 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
                                     name,
                                 });
                             }
-                        }
+                        })]
                     },
+                }
+                }
+                if let Some(message) = field_error.as_deref() {
+                    div { id: error_id, FieldError { "{message}" } }
                 }
             }
             if !props.is_base {
-                BoardButton {
-                    r#type: "button",
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: remove_disabled,
                     onclick: {
                         let on_operation = props.on_operation;
@@ -415,17 +452,18 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
                 p { class: "m1-keymap-layer-paused", role: "status", "Layer changes are paused while another edit or save is in progress." }
             }
 
-            if let Some(message) = feedback_error { p { role: "alert", "{message}" } }
-            if feedback_error.is_none() && let Some(message) = name_failure() { p { role: "alert", "{message}" } }
+            if let Some(message) = feedback_error { Alert { variant: AlertVariant::Destructive, "{message}" } }
         }
     }
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
 mod disclosure_mounted_tests {
-    use super::super::view::KeymapLayerLabel;
+    use super::super::view::{KeymapKey, KeymapLayerLabel};
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use boardstudio_web_ui_shared::test_wait::wait_until;
     use std::{cell::RefCell, rc::Rc};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
@@ -438,23 +476,11 @@ mod disclosure_mounted_tests {
         active_layer: Rc<RefCell<String>>,
         render: Rc<RefCell<Option<Signal<u64>>>>,
         operations: Rc<RefCell<Vec<KeymapLayerOperation>>>,
+        selected_key: Rc<RefCell<Option<String>>>,
     }
 
-    #[component]
-    fn fixture() -> Element {
-        super::super::layer_controller::provide_idle_context();
-        let probe = use_context::<Probe>();
-        let version = use_signal(|| 0_u64);
-        *probe.render.borrow_mut() = Some(version);
-        let _ = version();
-        let active_layer_id = probe.active_layer.borrow().clone();
-        let scope = Scope {
-            session_epoch: SessionEpoch(1),
-            document_id: "keymap-disclosure-fixture".into(),
-            board_id: "board".into(),
-            instance_id: None,
-        };
-        let view = Rc::new(KeymapView {
+    fn sample_view() -> Rc<KeymapView> {
+        Rc::new(KeymapView {
             layers: vec![
                 KeymapLayerLabel {
                     id: Rc::from("base"),
@@ -465,10 +491,46 @@ mod disclosure_mounted_tests {
                     name: Rc::from("Function"),
                 },
             ],
-            keys: Vec::new(),
-        });
+            keys: [("key-a", "K1", "Alpha"), ("key-b", "K2", "Beta")]
+                .into_iter()
+                .map(|(id, reference, binding)| KeymapKey {
+                    id: Rc::from(id),
+                    reference: Rc::from(reference),
+                    pose: boardstudio_core::model::Pose2 {
+                        at: boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
+                        rotation: 0.0,
+                    },
+                    binding_title: Rc::from(binding),
+                    color: Rc::from("#fff"),
+                    size: boardstudio_core::model::Vec2 { x: 1.0, y: 1.0 },
+                    search_index: format!("{reference} {binding}").to_lowercase(),
+                })
+                .collect(),
+        })
+    }
+
+    fn sample_scope() -> Scope {
+        Scope {
+            session_epoch: SessionEpoch(1),
+            document_id: "keymap-disclosure-fixture".into(),
+            board_id: "board".into(),
+            instance_id: None,
+        }
+    }
+
+    #[component]
+    fn fixture() -> Element {
+        super::super::layer_controller::provide_idle_context();
+        let probe = use_context::<Probe>();
+        let version = use_signal(|| 0_u64);
+        *probe.render.borrow_mut() = Some(version);
+        let _ = version();
+        let active_layer_id = probe.active_layer.borrow().clone();
+        let scope = sample_scope();
+        let view = sample_view();
         let layer = probe.active_layer.clone();
         let operations = probe.operations.clone();
+        let selected_key = probe.selected_key.clone();
         rsx! {
             style { {include_str!("../../../../assets/m1.css")} }
             KeymapPanel {
@@ -480,7 +542,7 @@ mod disclosure_mounted_tests {
                 layer_feedback: None,
                 on_layer: move |id| *layer.borrow_mut() = id,
                 on_layer_operation: move |operation| operations.borrow_mut().push(operation),
-                on_select_key: |_| {},
+                on_select_key: move |id| *selected_key.borrow_mut() = Some(id),
                 on_export: |_| {},
                 firmware_export_enabled: true,
                 keys_editor: rsx! { div { "Key editor" } },
@@ -490,17 +552,37 @@ mod disclosure_mounted_tests {
         }
     }
 
+    #[component]
+    fn navigation_fixture() -> Element {
+        super::super::layer_controller::provide_idle_context();
+        let probe = use_context::<Probe>();
+        let selected = probe.selected_key.clone();
+        rsx! {
+            KeymapNavigation {
+                view: sample_view(), scope: sample_scope(), active_layer_id: "base".to_owned(),
+                selected_key_id: None, layer_operations_enabled: true, layer_feedback: None,
+                on_layer: |_| {}, on_layer_operation: |_| {},
+                on_select_key: move |id| *selected.borrow_mut() = Some(id),
+            }
+        }
+    }
+
     fn mount() -> (Probe, WebElement) {
+        mount_component(fixture)
+    }
+
+    fn mount_component(component: fn() -> Element) -> (Probe, WebElement) {
         let probe = Probe {
             active_layer: Rc::new(RefCell::new("base".into())),
             render: Rc::new(RefCell::new(None)),
             operations: Rc::new(RefCell::new(Vec::new())),
+            selected_key: Rc::new(RefCell::new(None)),
         };
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("keymap-layers-disclosure-test");
         document.body().unwrap().append_child(&root).unwrap();
-        let dom = VirtualDom::new(fixture);
+        let dom = VirtualDom::new(component);
         dom.provide_root_context(probe.clone());
         dioxus_web::launch::launch_virtual_dom(
             dom,
@@ -513,16 +595,6 @@ mod disclosure_mounted_tests {
         gloo_timers::future::TimeoutFuture::new(40).await;
     }
 
-    fn layers(root: &WebElement) -> WebElement {
-        root.query_selector("details.m1-keymap-layers")
-            .unwrap()
-            .expect("the Keymap Layers section is a native details disclosure")
-    }
-
-    fn click(element: WebElement) {
-        element.dyn_into::<HtmlElement>().unwrap().click();
-    }
-
     fn rerender(probe: &Probe) {
         let mut signal = probe
             .render
@@ -533,14 +605,220 @@ mod disclosure_mounted_tests {
         signal.set(signal() + 1);
     }
 
-    fn contains_button(root: &WebElement, expected: &str) -> bool {
-        let buttons = root.query_selector_all("button").unwrap();
-        (0..buttons.length()).any(|index| {
-            buttons
-                .item(index)
-                .and_then(|button| button.text_content())
-                .is_some_and(|label| label.trim() == expected)
+    #[wasm_bindgen_test]
+    async fn layers_are_accessible_tabs_and_select_the_requested_layer() {
+        let (probe, root) = mount();
+        rendered().await;
+        let main = by_role_name(&root, "tab", "Main").expect("Main layer tab");
+        let function = by_role_name(&root, "tab", "Function").expect("Function layer tab");
+        assert!(by_role_name(&root, "tablist", "Keymap layers").is_some());
+        let panel = by_role_name(&root, "tabpanel", "Main").expect("named active layer panel");
+        assert_eq!(
+            main.get_attribute("aria-controls").as_deref(),
+            Some(panel.id().as_str())
+        );
+        assert_eq!(
+            panel.get_attribute("aria-labelledby").as_deref(),
+            Some(main.id().as_str())
+        );
+        assert_eq!(main.get_attribute("aria-selected").as_deref(), Some("true"));
+        assert_eq!(
+            function.get_attribute("aria-selected").as_deref(),
+            Some("false")
+        );
+        function.click();
+        rendered().await;
+        assert_eq!(&*probe.active_layer.borrow(), "fn");
+        rerender(&probe);
+        rendered().await;
+        assert_eq!(
+            by_role_name(&root, "tab", "Function")
+                .unwrap()
+                .get_attribute("aria-selected")
+                .as_deref(),
+            Some("true")
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn editor_choice_roves_and_keeps_its_selection() {
+        let (_, root) = mount();
+        rendered().await;
+        let keys = by_role_name(&root, "button", "Keys").unwrap();
+        let macros = by_role_name(&root, "button", "Macros").unwrap();
+        assert_eq!(keys.get_attribute("aria-pressed").as_deref(), Some("true"));
+        keys.focus().unwrap();
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key("ArrowRight");
+        init.set_bubbles(true);
+        keys.dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap(),
+        )
+        .unwrap();
+        wait_until("the next editor receives focus", || {
+            macros.matches(":focus").unwrap()
         })
+        .await;
+        macros.click();
+        rendered().await;
+        assert_eq!(
+            macros.get_attribute("aria-pressed").as_deref(),
+            Some("true")
+        );
+        assert!(root.text_content().unwrap().contains("Macro editor"));
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn key_picker_filters_and_selects_the_named_key() {
+        let (probe, root) = mount();
+        rendered().await;
+        let picker = by_role_name(&root, "combobox", "Selected key").unwrap();
+        picker.focus().unwrap();
+        let key = |value: &str| {
+            let init = web_sys::KeyboardEventInit::new();
+            init.set_key(value);
+            init.set_bubbles(true);
+            init.set_cancelable(true);
+            picker
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                        .unwrap(),
+                )
+                .unwrap();
+        };
+        key("ArrowDown");
+        wait_until("key picker opens a named listbox", || {
+            by_role_name(&root, "listbox", "Selected key").is_some()
+        })
+        .await;
+        let input: HtmlInputElement = picker.clone().dyn_into().unwrap();
+        input.set_value("beta");
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+        wait_until("key picker filters", || {
+            by_role_name(&root, "option", "K2 · Beta").is_some()
+                && by_role_name(&root, "option", "K1 · Alpha").is_none()
+        })
+        .await;
+        key("ArrowDown");
+        wait_until("filtered key is active", || {
+            by_role_name(&root, "option", "K2 · Beta").is_some_and(|option| {
+                picker.get_attribute("aria-activedescendant").as_deref()
+                    == Some(option.id().as_str())
+            })
+        })
+        .await;
+        key("Enter");
+        wait_until("key selection is emitted", || {
+            probe.selected_key.borrow().as_deref() == Some("key-b")
+        })
+        .await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn navigation_keys_roving_focus_and_selection() {
+        let (probe, root) = mount_component(navigation_fixture);
+        rendered().await;
+        let first = by_role_name(&root, "button", "K1 Alpha").unwrap();
+        let second = by_role_name(&root, "button", "K2 Beta").unwrap();
+        first.focus().unwrap();
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key("ArrowDown");
+        init.set_bubbles(true);
+        first
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+        wait_until("next key receives focus", || {
+            second.matches(":focus").unwrap()
+        })
+        .await;
+        second.click();
+        wait_until("key navigation emits selection", || {
+            probe.selected_key.borrow().as_deref() == Some("key-b")
+        })
+        .await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn layer_tabs_roving_focus_wraps_and_supports_home_and_end() {
+        let (_, root) = mount();
+        rendered().await;
+        let main = by_role_name(&root, "tab", "Main").unwrap();
+        let function = by_role_name(&root, "tab", "Function").unwrap();
+        let key = |target: &HtmlElement, value: &str| {
+            let init = web_sys::KeyboardEventInit::new();
+            init.set_key(value);
+            init.set_bubbles(true);
+            init.set_cancelable(true);
+            target
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                        .unwrap(),
+                )
+                .unwrap();
+        };
+        assert_eq!(main.get_attribute("tabindex").as_deref(), Some("0"));
+        assert_eq!(function.get_attribute("tabindex").as_deref(), Some("-1"));
+        main.focus().unwrap();
+        for (source, value, destination) in [
+            (&main, "ArrowUp", &function),
+            (&function, "ArrowDown", &main),
+            (&main, "End", &function),
+            (&function, "Home", &main),
+        ] {
+            key(source, value);
+            wait_until("layer tab receives focus", || {
+                destination.matches(":focus").unwrap()
+            })
+            .await;
+        }
+        assert_eq!(
+            main.get_attribute("aria-selected").as_deref(),
+            Some("true"),
+            "arrow navigation does not activate a layer"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn layer_name_keeps_its_length_limit_and_commits_on_blur() {
+        let (probe, root) = mount();
+        rendered().await;
+        let input: HtmlInputElement = by_role_name(&root, "textbox", "Layer name")
+            .expect("layer name")
+            .dyn_into()
+            .unwrap();
+        assert_eq!(input.get_attribute("maxlength").as_deref(), Some("32"));
+        input.focus().unwrap();
+        input.set_value("Renamed");
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+            .unwrap();
+        input.blur().unwrap();
+        wait_until("the layer name is committed on blur", || {
+            !probe.operations.borrow().is_empty()
+        })
+        .await;
+        assert_eq!(
+            &*probe.operations.borrow(),
+            &[KeymapLayerOperation::Rename {
+                layer_id: "base".into(),
+                name: "Renamed".into(),
+            }]
+        );
+        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -548,37 +826,42 @@ mod disclosure_mounted_tests {
         let (probe, root) = mount();
         rendered().await;
 
-        let disclosure = layers(&root);
-        assert!(
-            disclosure.has_attribute("open"),
-            "Keymap layers starts expanded"
+        let disclosure = by_role_name(&root, "button", "Keymap layers").expect("layers disclosure");
+        assert_eq!(
+            disclosure.get_attribute("aria-expanded").as_deref(),
+            Some("true")
         );
-        let summary = disclosure.query_selector("summary").unwrap().unwrap();
-        assert_eq!(summary.text_content().unwrap().trim(), "Keymap layers");
-        assert!(!contains_button(&disclosure, "Remove layer"));
-        assert!(
-            disclosure
-                .query_selector(".m1-keymap-layer-protected")
-                .unwrap()
-                .is_none(),
-            "Base has no Dioxus-only protection sentence"
-        );
+        assert!(by_role_name(&root, "button", "Remove layer").is_none());
 
-        click(summary.clone());
+        disclosure.click();
         rendered().await;
-        assert!(!layers(&root).has_attribute("open"));
+        assert_eq!(
+            disclosure.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        let content = root
+            .owner_document()
+            .unwrap()
+            .get_element_by_id(
+                &disclosure
+                    .get_attribute("aria-controls")
+                    .expect("disclosure controls content"),
+            )
+            .expect("controlled content exists");
+        assert!(
+            content.has_attribute("hidden"),
+            "collapsed controls are not exposed"
+        );
         *probe.active_layer.borrow_mut() = "fn".into();
         rerender(&probe);
         rendered().await;
-        let collapsed = layers(&root);
-        assert!(
-            !collapsed.has_attribute("open"),
+        assert_eq!(
+            disclosure.get_attribute("aria-expanded").as_deref(),
+            Some("false"),
             "rerender retains disclosure choice"
         );
         assert_eq!(
-            collapsed
-                .query_selector("input[aria-label='Layer name']")
-                .unwrap()
+            by_role_name(&root, "textbox", "Layer name")
                 .unwrap()
                 .dyn_into::<HtmlInputElement>()
                 .unwrap()
@@ -586,17 +869,13 @@ mod disclosure_mounted_tests {
             "Function"
         );
 
-        click(collapsed.query_selector("summary").unwrap().unwrap());
+        disclosure.click();
         rendered().await;
-        let expanded = layers(&root);
-        assert!(expanded.has_attribute("open"));
-        assert!(contains_button(&expanded, "Remove layer"));
-        assert!(
-            expanded
-                .query_selector(".m1-keymap-layer-protected")
-                .unwrap()
-                .is_none()
+        assert_eq!(
+            disclosure.get_attribute("aria-expanded").as_deref(),
+            Some("true")
         );
+        assert!(by_role_name(&root, "button", "Remove layer").is_some());
         assert!(
             probe.operations.borrow().is_empty(),
             "disclosure interaction is view-only"

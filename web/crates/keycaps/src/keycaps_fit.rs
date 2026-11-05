@@ -5,7 +5,15 @@ use boardstudio_core::model::{
     Contour, Finding, KeycapResolution, Matrix, Part, Pose2, ProjectDoc, SceneDelta,
     Scope as FindingScope, Severity, Side, Vec2,
 };
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
+use boardstudio_web_ui_shared::ui::badge::{Badge, BadgeVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
+use boardstudio_web_ui_shared::ui::collapsible::{
+    Collapsible, CollapsibleContent, CollapsibleTrigger,
+};
+use boardstudio_web_ui_shared::ui::item::{Item, ItemContent, ItemSize};
+use boardstudio_web_ui_shared::ui::spinner::Spinner;
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -260,42 +268,44 @@ pub fn KeycapsFitInspector(
     }));
 
     rsx! {
-        BoardDisclosure { class: "m1-keycaps-disclosure m1-keycaps-fit-disclosure", open: findings_open(),
-            heading: rsx! { summary {
-                onclick: move |_| {
+        Collapsible { class: "m1-keycaps-disclosure m1-keycaps-fit-disclosure", open: findings_open(), keep_mounted: true,
+            on_open_change: move |open| {
                     findings_open_chosen.set(true);
-                    findings_open.set(!findings_open());
-                },
-                span { "Clearance findings" }
+                    findings_open.set(open);
+            },
+            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                span { "Clearance findings " }
                 small { "{title_detail}" }
-            } },
+            }
+            CollapsibleContent { hidden: !findings_open(), inert: (!findings_open()).then_some(""),
             section { class: "m1-keycaps-fit", "aria-label": "Clearance findings details",
             if let Some(state) = state.as_ref() {
                 if state.refreshing {
                     p { class: "m1-keycaps-fit-status", role: "status",
+                        Spinner {}
                         if accepted.is_some() { "Refreshing; the shown assessment is from an earlier revision." }
                         else { "Checking keycap fit…" }
                     }
                 }
                 if let Some(error) = state.error.as_ref() {
-                    div { class: "m1-keycaps-fit-error", role: "alert",
+                    Alert { variant: AlertVariant::Destructive,
                         p { "{error}" }
                         if accepted.is_some() {
                             p { "The last accepted assessment is retained and marked stale until a current result arrives." }
                         } else {
                             p { "No current assessment was accepted. Retry after checking the active board and worker." }
                         }
-                        BoardButton { class: "m1-keycaps-fit-retry", onclick: move |_| on_retry.call(()), "Retry assessment" }
+                        Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| on_retry.call(()), "Retry assessment" }
                     }
                 }
             } else {
                 p { class: "m1-keycaps-fit-status", role: "status", "Waiting for an accepted board snapshot." }
             }
             if !current && accepted.is_some() {
-                p { class: "m1-keycaps-fit-stale", "Earlier accepted findings · revision {accepted.unwrap().source.revision}" }
+                Callout { variant: CalloutVariant::Info, "Earlier accepted findings · revision {accepted.unwrap().source.revision}" }
             }
             if !current_case {
-                p { class: "m1-keycaps-fit-case-note",
+                Callout { variant: CalloutVariant::Warning,
                     "Current Case walls and solids have not been checked. Generate or update the Case preview for this revision."
                 }
             }
@@ -330,7 +340,8 @@ pub fn KeycapsFitInspector(
                     }
                 }
             }
-            p { class: "m1-keycaps-fit-note", "Checks use conservative keycap envelopes through full switch travel. Case walls and solids are included only for a current Case preview." }
+            Callout { variant: CalloutVariant::Info, "Checks use conservative keycap envelopes through full switch travel. Case walls and solids are included only for a current Case preview." }
+            }
             }
         }
     }
@@ -344,10 +355,10 @@ fn KeycapsFitFinding(
     mechanical_layer_ids: Rc<[String]>,
     on_navigate: EventHandler<FindingNavigationRequest>,
 ) -> Element {
-    let (severity, severity_class) = match &finding.severity {
-        Severity::Error => ("Error", "error"),
-        Severity::Warning => ("Warning", "warning"),
-        Severity::Info => ("Information", "info"),
+    let (severity, severity_variant) = match &finding.severity {
+        Severity::Error => ("Error", BadgeVariant::Destructive),
+        Severity::Warning => ("Warning", BadgeVariant::Warning),
+        Severity::Info => ("Information", BadgeVariant::Info),
     };
     let fitted = finding.id.ends_with("outline:corners:fitted");
     let navigation_target = finding_navigation_target_with_layers(
@@ -368,21 +379,23 @@ fn KeycapsFitFinding(
         target,
     });
     rsx! {
-        li { class: "m1-keycaps-fit-finding is-{severity_class}",
-            span { class: "wb-finding-mark", "aria-hidden": "true" }
-            div {
-                strong { class: "wb-finding-severity", "{severity}" }
+        li {
+            Item { size: ItemSize::Sm,
+            ItemContent {
+                Badge { variant: severity_variant, "{severity}" }
                 p { "{finding.message}" }
                 if fitted {
                     p { "The resulting outline has smaller corners than requested. Review the corner size and nearby spacing." }
                 }
                 if let (Some(action_label), Some(request)) = (action_label, request) {
-                    button {
-                        class: "wb-finding-action",
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         onclick: move |_| on_navigate.call(request.clone()),
                         "{action_label}"
                     }
                 }
+            }
             }
         }
     }
@@ -1246,7 +1259,6 @@ mod tests {
         Board, BoardContours, Contour, FindingMarker, KeycapResolution, Part, Pose2, Readiness,
         SceneDelta, Side, Transform, Vec2,
     };
-    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
     wasm_bindgen_test_configure!(run_in_browser);
@@ -1844,15 +1856,23 @@ mod tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         gloo_timers::future::TimeoutFuture::new(50).await;
-        let action = root
-            .query_selector(".wb-finding-action")
-            .unwrap()
-            .expect("current board target has an action");
+        let disclosure = boardstudio_web_ui_shared::test_role::by_role_name(
+            &root,
+            "button",
+            "Clearance findings 1",
+        )
+        .expect("findings disclosure");
         assert_eq!(
-            action.text_content().as_deref(),
-            Some("Select affected geometry")
+            disclosure.get_attribute("aria-expanded").as_deref(),
+            Some("true")
         );
-        action.dyn_ref::<web_sys::HtmlElement>().unwrap().click();
+        let action = boardstudio_web_ui_shared::test_role::by_role_name(
+            &root,
+            "button",
+            "Select affected geometry",
+        )
+        .expect("current board target has an action");
+        action.click();
         gloo_timers::future::TimeoutFuture::new(50).await;
         let received = root
             .query_selector("#fit-navigation-received")
@@ -1860,6 +1880,12 @@ mod tests {
             .unwrap()
             .text_content();
         assert_eq!(received.as_deref(), Some("true"));
+        disclosure.click();
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        assert_eq!(
+            disclosure.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
         root.remove();
     }
 }
