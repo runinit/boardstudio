@@ -27,6 +27,7 @@ Counts below compare base to this lane's source: occurrences of legacy tokens in
 - `python3 scripts/run-wasm-tests.py --files` for Case workspace, Export, ZMK, Layout workspace and relation highlight: PASS 18/18 (`browser-page.log`); after final test-only refactor, Case/Export/ZMK PASS 10/10 (`browser-page-final.log`).
 - `rustfmt --edition 2024 --check` on the nine changed files and `git diff --check`: PASS. No full gate was run.
 - Relation test RED attempts twice timed out at pre-existing canvas setup before reaching the attempted assertion; the unmodified suite passed 5/5 (`baseline-relations.log`), and the attempted slice was reverted. The final affected page subset also passed.
+- After commit `986fa2c11`, `git merge lane/024-delete-the-old-layer` reported `Already up to date` (parent at `64763a392`), so the checked source tree did not change. Post-merge Case/Export/ZMK page subset passed 10/10 (`post-merge-page.log`) and Case browser subset passed 100/100 (`post-merge-case.log`); the unchanged build result was reused.
 
 ## Remaining work / needs home
 
