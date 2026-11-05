@@ -125,7 +125,7 @@ async fn panel_drag_persists_only_its_final_width_on_pointer_cancel() {
         .unwrap();
     let handle =
         crate::test_role::by_role_name(&root_element, "separator", "Resize Objects").unwrap();
-    let frame = element(".m1-editor-body");
+    let frame = element(".dock-desk");
     let frame_left = frame.get_bounding_client_rect().left();
     dispatch_pointer(&handle, "pointerdown", 17, frame_left + 260.0);
     for width in [290.0, 310.0, 330.0, 350.0] {

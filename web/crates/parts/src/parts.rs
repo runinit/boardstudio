@@ -499,7 +499,7 @@ pub fn AddObjectComponentChooser(
         rsx! { div { role: "status", Spinner {} "Loading component catalogue…" } }
     };
     rsx! {
-        div { class: "m1-add-component-chooser",
+        div { class: "grid gap-2 min-w-0",
             if !layouts.is_empty() {
                 PartsChoiceField {
                     label: "Place in", aria_label: "Part placement layout", value: selected_layout,
@@ -521,7 +521,7 @@ pub fn AddObjectComponentChooser(
             }
             {content}
             Button { variant: ButtonVariant::Secondary,
-                class: "m1-add-browse max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                class: "mt-1 max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 onclick: move |_| on_browse.call(()),
                 "Browse all parts"
             }
@@ -1230,7 +1230,7 @@ pub fn ControllerSetupPicker(
     use_effect(use_reactive((&loaded, &needle, &chosen_id), move |_| {
         let _ = document::eval(
             r#"
-            const rail = document.querySelector('.m1-controller-choices');
+            const rail = document.querySelector('[role="group"][aria-label="Controllers"]');
             const card = rail?.querySelector('[aria-pressed="true"]');
             if (rail && card) rail.scrollTo({left: card.offsetLeft - rail.offsetLeft - (rail.clientWidth - card.offsetWidth) / 2,
                 behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
@@ -1422,7 +1422,7 @@ pub fn PartsInspectorPanel(
     });
 
     rsx! {
-        section { class: "m1-parts-inspector", "aria-label": "Selected component details",
+        section { class: "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto p-4 text-foreground", "aria-label": "Selected component details",
             assembly_editor::SavedAssembliesEditor {
                 snapshot: snapshot.clone(),
                 scope: scope.clone(),
@@ -1451,7 +1451,7 @@ pub fn PartsInspectorPanel(
             SelectedDefinition { entry: entry.clone() }
             if let Some(preset) = active_assembly {
                 Button {
-                    class: "m1-parts-place-assembly w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: placement_busy,
                     onclick: move |_| on_place_assembly.call(super::objects::MatrixPlacementSource::Preset(preset)),
                     "Place key assembly"
@@ -1509,7 +1509,7 @@ pub fn PartsInspectorPanel(
                 }
                 if let Some(definition_id) = controller_id {
                     Button {
-                        class: "m1-parts-place-controller w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: placement_busy,
                         onclick: move |_| on_place_controller.call(definition_id.clone()),
                         if placement_busy { "Preparing controller…" } else { "Place component" }
@@ -1536,7 +1536,7 @@ fn PartsInspectorPlacementAction(
     let can_apply_to_key = matrix_input_available(&entry.definition);
     rsx! {
         Button {
-            class: "m1-parts-place-component w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+            class: "w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
             disabled: busy || (apply_to_key && !can_apply_to_key),
             onclick: move |_| on_place.call(
                 super::part_placement::ComponentPlacementAction::PartsInspector {

@@ -109,7 +109,7 @@ async fn inspector_content_has_a_bounded_scroll_owner_outside_its_heading_and_me
     );
     let last = by_role("button", "Control 39");
     let owner = scroll_owner(&last).expect("long Inspector content must have a wheel-scrollable ancestor before the clipped editor frame");
-    let frame = element(".m1-editor-body");
+    let frame = element(".dock-desk");
     assert!(owner.client_height() > 0 && owner.client_height() < frame.client_height());
     assert_eq!(
         frame.scroll_height(),

@@ -319,7 +319,7 @@ pub fn PcbWiringInspector(props: PcbWiringInspectorProps) -> Element {
         SelectionView::Unsupported => rsx! {},
     };
     rsx! {
-        div { class: "m1-pcb-inspector-content",
+        div {
             {body}
         }
     }
@@ -669,7 +669,7 @@ fn switch_wiring(
     on_edit_board_wiring: EventHandler<()>,
 ) -> Element {
     rsx! {
-        section { class: "m1-pcb-wiring m1-pcb-switch-wiring",
+        section { class: "m1-pcb-wiring",
             p { class: "m1-pcb-wiring-breadcrumb", "{breadcrumb}" }
             h2 { "{title}" }
             p { "Switch wiring is inherited from its key assembly." }
@@ -959,7 +959,7 @@ fn pin_assignment_row(
                     small { "{detail}" }
                 }
             }
-            PcbChoice { class: "m1-pcb-wiring-pin-control", label_class: "m1-visually-hidden",
+            PcbChoice { class: "m1-pcb-wiring-pin-control", label_class: "sr-only",
                     label: format!("Pin for {}", row.label), aria_label: format!("Pin for {}", row.label),
                     value: row.value.clone().unwrap_or_default(), searchable: true,
                     disabled: !actions.editable || row.locked,
@@ -1105,6 +1105,15 @@ mod tests {
         })
         .await;
         let picker = by_role_name(&root, "combobox", "Pin for Row 1").unwrap();
+        let label = root.query_selector("label").unwrap().unwrap();
+        assert!(
+            label
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class == "sr-only"),
+            "the accessible pin label uses the new visually-hidden utility"
+        );
         let input: web_sys::HtmlInputElement = picker
             .clone()
             .dyn_into()

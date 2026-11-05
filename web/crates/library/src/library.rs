@@ -136,7 +136,7 @@ fn focus_library_search() {
             .and_then(|window| window.document())
             .and_then(|document| {
                 document
-                    .query_selector(".m1-keyboard-search input")
+                    .query_selector("[type=search][aria-label='Search saved keyboards']")
                     .ok()
                     .flatten()
             })
@@ -340,8 +340,8 @@ fn KeyboardCard(
                     }
                 }
                 span { class: "m1-keyboard-title", "{name}" }
-                span { class: "m1-keyboard-detail",
-                    span { class: "m1-keyboard-facts", "{detail}" }
+                span { class: "flex flex-wrap items-center gap-x-2 gap-y-1 px-1.5 text-muted-foreground text-[14px]",
+                    span { "{detail}" }
                     if current {
                         span { class: "m1-keyboard-current",
                             svg { class: "m1-library-check-icon", view_box: "0 0 20 20", "aria-hidden": "true", path { d: "m4 10 4 4 8-8" } }
@@ -790,7 +790,7 @@ pub fn Library(
                 }
             }
             if project_menu && !is_settings_page && browser.is_some() {
-                Button { variant: ButtonVariant::Secondary, class: "m1-browse-projects", onclick: move |_| {
+                Button { variant: ButtonVariant::Secondary, onclick: move |_| {
                     if let Some(mut browser) = browser { browser.0.set(true); }
                     super::close_project_menu();
                 }, "Browse projects" }
@@ -813,12 +813,12 @@ pub fn Library(
             }
             if project_menu {
                     div { class: "m1-project-menu-actions",
-                        Button { variant: ButtonVariant::Secondary, class: "m1-library-new", button_type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu_top(),
+                        Button { variant: ButtonVariant::Secondary, button_type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu_top(),
                             svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M10 3v14M3 10h14" } }
                             "New project"
                         }
                         if has_current {
-                            Button { variant: ButtonVariant::Secondary, class: "m1-project-copy-action", button_type: "button", onclick: move |_| {
+                            Button { variant: ButtonVariant::Secondary, button_type: "button", onclick: move |_| {
                                 super::close_project_menu();
                                 menu_save_copy.export_project_copy();
                             },
@@ -887,7 +887,7 @@ pub fn Library(
                             })], } }
                         }
                     if let Some(message) = name_failure() { div { id: "library-project-name-error", FieldError { "{message}" } } }
-                    span { class: "m1-project-current-status", "Revision {current_revision} · {current_durability}" }
+                    span { class: "text-muted-foreground text-[11px]", "Revision {current_revision} · {current_durability}" }
                     }
                 }
             div { class: if project_menu { "m1-library-content m1-library-scroll" } else { "m1-library-content" },
@@ -1040,12 +1040,12 @@ pub fn Library(
                     Alert { variant: AlertVariant::Destructive, class: "m1-save-error",
                         strong { "Unreadable saved keyboard: {record.label}" }
                         p { "{record.error}" }
-                        Button { variant: ButtonVariant::Secondary, class: "m1-project-raw-download", button_type: "button", onclick: {
+                        Button { variant: ButtonVariant::Secondary, button_type: "button", onclick: {
                             let runtime = runtime.clone();
                             let key = record.key.clone();
                             move |_| runtime.download_raw_project(key.clone())
                         }, "Download raw saved data" }
-                        Button { variant: ButtonVariant::Destructive, class: "m1-project-unreadable-delete", button_type: "button", disabled: record.token.is_none(),
+                        Button { variant: ButtonVariant::Destructive, button_type: "button", disabled: record.token.is_none(),
                             aria_haspopup: "dialog", aria_controls: "library-unreadable-delete",
                             aria_expanded: pending_unreadable().as_ref().is_some_and(|pending| pending.key == record.key),
                             onclick: move |_| {
@@ -1055,7 +1055,7 @@ pub fn Library(
                     }
                 }
                 if no_search_matches {
-                    p { class: "m1-keyboard-empty", "No keyboards match your search." }
+                    p { class: "my-3.5 mx-0 text-muted-foreground text-[13px]", "No keyboards match your search." }
                 }
                 if !project_menu {
                     div { class: "m1-library-actions",
@@ -1152,7 +1152,7 @@ pub fn Library(
                         }
                         p { class: "m1-library-guide-note", "Demo layouts are starting points; add and verify hardware before fabrication." }
                     }
-                    p { class: "m1-library-storage-note", "Projects are saved in this browser. Download a .boardstudio copy to move or back them up." }
+                    p { class: "mt-8", "Projects are saved in this browser. Download a .boardstudio copy to move or back them up." }
                 }
             }
             if project_menu {
@@ -1197,7 +1197,6 @@ pub fn Library(
                     AlertDialogActions {
                         AlertDialogCancel { attributes: vec![Attribute::new("disabled", deleting_project(), None, false)], "Cancel" }
                         Button { variant: ButtonVariant::Destructive,
-                            class: "m1-project-delete-confirm",
                             button_type: "button",
                             disabled: deleting_project(),
                             onclick: move |_| {
@@ -1533,7 +1532,7 @@ mod mounted_tests {
     }
 
     fn saved_card_count(root: &web_sys::Element) -> u32 {
-        root.query_selector_all(".m1-keyboard-card")
+        root.query_selector_all("[data-project-id] [aria-label^='Open '], [data-project-id] [aria-label^='Preview '], [data-project-id] [aria-label^='Recover from ']")
             .unwrap()
             .length()
     }
@@ -1557,8 +1556,10 @@ mod mounted_tests {
 
     /// The title of the only saved keyboard card, when the filtered listing shows one.
     fn saved_card_title(root: &web_sys::Element) -> Option<String> {
-        root.query_selector(".m1-keyboard-card .m1-keyboard-title")
+        root.query_selector("[data-project-id] [aria-label^='Open '], [data-project-id] [aria-label^='Preview '], [data-project-id] [aria-label^='Recover from ']")
             .unwrap()
+            .and_then(|action| action.first_element_child())
+            .and_then(|preview| preview.next_element_sibling())
             .and_then(|title| title.text_content())
     }
 
@@ -1618,17 +1619,22 @@ mod mounted_tests {
                 root.text_content()
                     .unwrap_or_default()
                     .contains("Healthy saved keyboard")
-                    && root
-                        .query_selector(".m1-project-raw-download")
-                        .unwrap()
-                        .is_some()
-                    && root
-                        .query_selector(".m1-project-unreadable-delete")
-                        .unwrap()
-                        .is_some()
+                    && by_role_name(&root, "button", "Download raw saved data").is_some()
+                    && by_role_name(&root, "button", "Delete unreadable keyboard…").is_some()
             },
         )
         .await;
+        for name in ["Download raw saved data", "Delete unreadable keyboard…"] {
+            let action = by_role_name(&root, "button", name).expect("recovery action is named");
+            assert!(
+                !action
+                    .get_attribute("class")
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .any(|class| class.starts_with("m1-")),
+                "recovery actions do not depend on removed legacy class names"
+            );
+        }
         assert!(root.text_content().unwrap().contains("partial-list-future"));
         click(&root, "Delete unreadable keyboard…");
         wait_until("unreadable deletion exposes an Alert Dialog", || {
@@ -1714,9 +1720,7 @@ mod mounted_tests {
         let root = mount_menu(runtime, "damaged-preview-fallback-mounted-regression");
         wait_for_project_cards(&root, 2).await;
 
-        let damaged_card = root
-            .query_selector(".m1-keyboard-card button[aria-label='Open Damaged preview keyboard']")
-            .unwrap()
+        let damaged_card = by_role_name(&root, "button", "Open Damaged preview keyboard")
             .expect("damaged preview remains an accessible Open action");
         assert!(damaged_card.get_attribute("disabled").is_none());
         assert!(
@@ -1732,9 +1736,7 @@ mod mounted_tests {
                 .contains("Open to check this keyboard")
         );
         assert!(
-            root.query_selector(".m1-keyboard-card button[aria-label='Open Healthy keyboard']",)
-                .unwrap()
-                .is_some(),
+            by_role_name(&root, "button", "Open Healthy keyboard").is_some(),
             "one damaged preview does not hide a healthy saved card"
         );
 
@@ -1795,9 +1797,7 @@ mod mounted_tests {
             "failed listing exposes retry"
         );
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card")
-                .unwrap()
-                .length(),
+            saved_card_count(&root),
             1,
             "the current project remains available while listing fails"
         );
@@ -1807,7 +1807,7 @@ mod mounted_tests {
         assert!(root.query_selector("[role='alert']").unwrap().is_none());
         assert!(root.text_content().unwrap().contains("Recovered keyboard"));
         assert!(
-            root.query_selector(".m1-keyboard-card [aria-current='true']")
+            root.query_selector("[data-project-id] [aria-current='true']")
                 .unwrap()
                 .is_some(),
             "retry keeps the current-project marker"
@@ -1970,7 +1970,7 @@ mod mounted_tests {
             "browser-selection-current"
         );
         assert!(
-            root.query_selector(".m1-library-selection")
+            root.query_selector("[aria-label='Keyboard details and starting guidance']")
                 .unwrap()
                 .unwrap()
                 .text_content()
@@ -1979,7 +1979,7 @@ mod mounted_tests {
         );
         click(&root, "Preview Current keyboard");
         wait_until("current keyboard preview is selected", || {
-            root.query_selector(".m1-library-selection > h2")
+            root.query_selector("[aria-label='Keyboard details and starting guidance'] > h2")
                 .unwrap()
                 .and_then(|heading| heading.text_content())
                 .as_deref()
@@ -1995,7 +1995,7 @@ mod mounted_tests {
             boardstudio_application::TerminalOutcome::Completed
         );
         wait_until("selected preview follows the accepted rename", || {
-            root.query_selector(".m1-library-selection > h2")
+            root.query_selector("[aria-label='Keyboard details and starting guidance'] > h2")
                 .unwrap()
                 .and_then(|heading| heading.text_content())
                 .as_deref()
@@ -2051,17 +2051,28 @@ mod mounted_tests {
         let copy = by_role_name(&root, "button", "Save project copy…")
             .expect("the Project menu exposes Save project copy");
         assert_eq!(copy.text_content().unwrap().trim(), "Save project copy…");
+        assert!(
+            !copy
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class.starts_with("m1-"))
+        );
 
         copy.dyn_into::<web_sys::HtmlElement>().unwrap().click();
         // The menu starts open, so "closed" is false before the click and proves its effect.
         wait_until("starting a project copy closes the menu", || {
-            root.query_selector("details.m1-project-menu")
+            root.query_selector("[aria-label='Project menu']")
                 .unwrap()
+                .and_then(|menu| menu.closest("details").unwrap())
                 .is_some_and(|menu| !menu.has_attribute("open"))
         })
         .await;
         let menu = root
-            .query_selector("details.m1-project-menu")
+            .query_selector("[aria-label='Project menu']")
+            .unwrap()
+            .unwrap()
+            .closest("details")
             .unwrap()
             .unwrap();
         assert!(
@@ -2094,6 +2105,14 @@ mod mounted_tests {
         .await;
         let dialog = by_role_name(&root, "alertdialog", "Delete “Safe project”?").unwrap();
         assert_eq!(dialog.get_attribute("aria-modal").as_deref(), Some("true"));
+        let confirm = by_role_name(&dialog, "button", "Delete keyboard").unwrap();
+        assert!(
+            !confirm
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class.starts_with("m1-"))
+        );
         let cancel = by_role_name(&dialog, "button", "Cancel").unwrap();
         cancel.click();
         wait_until("Cancel closes the named Alert Dialog", || {
@@ -2542,112 +2561,84 @@ mod mounted_tests {
         wait_for_saved_cards(&root, 4).await;
 
         let project_menu = root
-            .query_selector(".m1-project-menu-library")
+            .query_selector("[aria-label='Project menu']")
             .unwrap()
             .expect("menu instance uses the dropdown composition");
-        let mut menu_child = project_menu.first_element_child();
-        for expected in [
-            "m1-project-menu-heading",
-            "m1-project-menu-actions",
-            "m1-project-current",
-            "m1-library-content m1-library-scroll",
-            "m1-project-menu-footer",
-        ] {
-            let child = menu_child.expect("expected direct menu child");
-            assert_eq!(child.get_attribute("class").as_deref(), Some(expected));
-            menu_child = child.next_element_sibling();
-        }
-        assert!(menu_child.is_none(), "unexpected direct menu child");
+        let heading = project_menu.first_element_child().expect("menu heading");
+        let actions = heading.next_element_sibling().expect("project actions");
+        let current = actions.next_element_sibling().expect("current project");
+        let content = current.next_element_sibling().expect("saved keyboards");
+        let footer = content.next_element_sibling().expect("menu footer");
         assert!(
-            root.query_selector(".m1-project-menu-heading h2")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .unwrap()
-                .contains("Keyboards")
+            footer.next_element_sibling().is_none(),
+            "unexpected direct menu child"
         );
+        assert!(heading.text_content().unwrap().contains("Keyboards"));
+        assert_eq!(
+            current.get_attribute("aria-label").as_deref(),
+            Some("Current project")
+        );
+        assert!(content.text_content().unwrap().contains("Saved keyboards"));
+        let new_project =
+            by_role_name(&actions, "button", "New project").expect("new project action");
         assert!(
-            root.query_selector(".m1-project-menu-actions .m1-library-new")
-                .unwrap()
-                .is_some()
+            !new_project
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class.starts_with("m1-")),
+            "the project action does not depend on a dead legacy class"
         );
-        assert!(
-            root.query_selector(".m1-project-menu-actions .m1-project-menu-open")
-                .unwrap()
-                .is_some()
-        );
-        assert!(
-            root.query_selector(".m1-project-menu-footer button")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .unwrap()
-                .contains("Setup guide")
-        );
+        assert!(by_role_name(&actions, "button", "Open project…").is_some());
+        assert!(by_role_name(&footer, "button", "Setup guide").is_some());
 
         let search = search_field();
         assert_eq!(
             search.get_attribute("placeholder").as_deref(),
             Some("Search your keyboards")
         );
+        let search_wrapper = search
+            .closest("[data-slot=input-group]")
+            .unwrap()
+            .unwrap()
+            .parent_element()
+            .unwrap();
+        search_wrapper.remove_attribute("class").unwrap();
+        new_project.focus().unwrap();
+        focus_library_search();
+        wait_until(
+            "search receives focus without a legacy wrapper class",
+            || search.matches(":focus").unwrap(),
+        )
+        .await;
         type_value(&search, "  sOfLe  ");
         wait_until("the trimmed search leaves the current keyboard", || {
             saved_card_count(&root) == 1 && saved_card_title(&root).as_deref() == Some("Sofle v2")
         })
         .await;
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card")
-                .unwrap()
-                .length(),
+            saved_card_count(&root),
             1,
             "trimmed case-insensitive search includes the current keyboard"
         );
-        assert_eq!(
-            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Sofle v2")
-        );
+        assert_eq!(saved_card_title(&root).as_deref(), Some("Sofle v2"));
         type_value(&search, "alpha");
         wait_until("the alpha search shows Alpha Board", || {
             saved_card_count(&root) == 1
                 && saved_card_title(&root).as_deref() == Some("Alpha Board")
         })
         .await;
-        assert_eq!(
-            root.query_selector_all(".m1-keyboard-card")
-                .unwrap()
-                .length(),
-            1
-        );
-        assert_eq!(
-            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Alpha Board")
-        );
+        assert_eq!(saved_card_count(&root), 1);
+        assert_eq!(saved_card_title(&root).as_deref(), Some("Alpha Board"));
         type_value(&search, "untitled");
         wait_until("the untitled search shows the Untitled fallback", || {
             saved_card_count(&root) == 1
                 && saved_card_title(&root).as_deref() == Some("Untitled keyboard")
         })
         .await;
+        assert_eq!(saved_card_count(&root), 1);
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card")
-                .unwrap()
-                .length(),
-            1
-        );
-        assert_eq!(
-            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
+            saved_card_title(&root).as_deref(),
             Some("Untitled keyboard")
         );
         type_value(&search, "missing");
@@ -2669,12 +2660,7 @@ mod mounted_tests {
         })
         .await;
         assert_eq!(search.value(), "");
-        assert_eq!(
-            root.query_selector_all(".m1-keyboard-card")
-                .unwrap()
-                .length(),
-            4
-        );
+        assert_eq!(saved_card_count(&root), 4);
 
         assert_eq!(field().value(), "Sofle v2");
         let label = field().closest("[data-slot=label]").unwrap().unwrap();

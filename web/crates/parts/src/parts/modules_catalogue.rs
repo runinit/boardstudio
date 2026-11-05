@@ -441,12 +441,12 @@ pub fn ModuleSourcePreview(module: ModuleEntry) -> Element {
     );
     rsx! {
         section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Module source preview",
-            header { class: "m1-parts-module-preview-heading", style: "display: grid; gap: 4px; padding: 12px;",
+            header { style: "display: grid; gap: 4px; padding: 12px;",
                 h2 { style: "margin: 0; color: var(--wb-ink); font-size: 16px;", "{definition.name}" }
                 small { style: "color: var(--wb-muted);", "VIK module · {definition.variant}" }
             }
             if board_path.is_empty() {
-                p { class: "m1-parts-preview-status", role: "status", "This module snapshot has no recorded board contours." }
+                p { class: "text-primary", role: "status", "This module snapshot has no recorded board contours." }
             } else {
                 svg { role: "img", "aria-label": "{definition.name} source board and components", view_box: "{view_box}", style: "flex: 1; width: 100%; min-height: 0;",
                     g { transform: "scale(1,-1)",
@@ -468,7 +468,7 @@ pub fn ModuleSourcePreview(module: ModuleEntry) -> Element {
                     }
                 }
             }
-            p { class: "m1-parts-preview-status", style: "margin: 8px 12px;", "{source_summary}" }
+            p { class: "text-primary", style: "margin: 8px 12px;", "{source_summary}" }
         }
     }
 }
@@ -540,12 +540,12 @@ pub fn ModuleInspector(
         if project_owned { small { "Project snapshot" } }
         if let Some(placement_id) = placement_id {
             Button { variant: ButtonVariant::Secondary,
-                class: "m1-parts-place-assembly max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 onclick: move |_| on_open_placement.call(placement_id.clone()),
                 "Edit selected mounted placement"
             }
         }
-        Table { class: "m1-module-readiness",
+        Table {
             TableBody {
                 for (output, label) in readiness {
                     { let pending = definition.gates.iter().filter(|gate| gate.output == output).count();

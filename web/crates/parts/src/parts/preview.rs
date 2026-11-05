@@ -1002,7 +1002,7 @@ fn render_pad(pad: &Pad, copper_layer: &str, hide_drill: bool, hide_number: bool
     let rotation = pad.rotation.unwrap_or(0.0);
     rsx! {
         g { transform: "translate({pad.at.x} {pad.at.y}) rotate({rotation})",
-            rect { class: "m1-part-pad", "data-layer": "{copper_layer}", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}", rx: "{rx}" }
+            rect { class: "fill-geometry-part stroke-none", "data-layer": "{copper_layer}", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}", rx: "{rx}" }
             if let Some(drill) = pad.drill.filter(|drill| *drill > 0.0)
                 && !hide_drill {
                 circle { class: "{drill_class(pad)}", "data-layer": "Drills", r: "{drill / 2.0}" }
@@ -1063,7 +1063,7 @@ fn PartsPreviewLayers(
             list_id: "m1-parts-preview-layers-list",
             for (group_name, group_layers) in groups {
                 div { key: "{group_name}", class: "m1-layer-group", role: "group", "aria-label": "{group_name}",
-                    div { class: "m1-layer-group-heading", "{group_name}" }
+                    div { class: "pt-[9px] px-1.5 pb-1 text-muted-foreground font-semibold", "{group_name}" }
                     for layer in group_layers {
                         { let id = layer.id.clone();
                           let visible = !hidden.contains(&id);
@@ -1440,7 +1440,7 @@ mod tests {
 
         wait_for_button(&root, "3D model").await;
         click_button(&root, "3D model");
-        let alert = wait_for(&root, ".m1-case-view-status[role=alert]").await;
+        let alert = wait_for(&root, "[role=alert]").await;
         assert!(
             alert
                 .text_content()

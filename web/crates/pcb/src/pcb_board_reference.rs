@@ -898,7 +898,7 @@ pub fn Editor(
     let mut error_signal = error;
 
     rsx! {
-        PcbSection { class: "m1-case-physical-setup m1-board-reference", label: "Routed PCB reference",
+        PcbSection { class: "m1-case-physical-setup", label: "Routed PCB reference",
             p { "Preview a routed KiCad board with the case. Replace this reference after editing routing in KiCad." }
             PcbFile {
                     label: if reference.is_some() { "Replace KiCad board" } else { "Import KiCad board" },
@@ -918,7 +918,7 @@ pub fn Editor(
                 PcbCheck { label: "Use routed PCB in assembly", checked: reference.enabled, disabled,
                     on_change: move |enabled| on_action.call(Action::SetEnabled(enabled)),
                 }
-                div { class: "m1-board-reference-transform",
+                div {
                     PcbInput { label: "X (mm)", aria_label: "X (mm)",
                             r#type: InputType::Number, step: Some("0.1".into()), value: reference.pose.at.x.to_string(),
                             disabled,

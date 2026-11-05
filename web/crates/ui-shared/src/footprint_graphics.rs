@@ -127,7 +127,7 @@ pub fn FootprintGraphics(
     ));
     match &*graphics.read() {
         Some(Ok(Some(items))) => rsx! {
-            g { class: "m1-footprint-graphics", "data-status": "ready", "aria-hidden": "true",
+            g { "data-status": "ready", "aria-hidden": "true",
                 for (index, graphic) in items.iter().enumerate() {
                     {
                         let hidden = hidden_layers.as_ref().zip(part_side.as_ref()).is_some_and(|(hidden_layers, side)| {
@@ -139,7 +139,7 @@ pub fn FootprintGraphics(
             }
         },
         Some(Ok(None)) => rsx! {
-            g { class: "m1-footprint-graphics", "data-status": "ready", "aria-hidden": "true" }
+            g { "data-status": "ready", "aria-hidden": "true" }
         },
         Some(Err(error)) => rsx! {
             g { class: "m1-footprint-graphics-error", "data-status": "error",
@@ -147,7 +147,7 @@ pub fn FootprintGraphics(
                 text { x: 0, y: 3, transform: "scale(1,-1)", "Graphics unavailable" }
             }
         },
-        None => rsx! { g { class: "m1-footprint-graphics", "data-status": "loading" } },
+        None => rsx! { g { "data-status": "loading" } },
     }
 }
 

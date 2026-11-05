@@ -13,7 +13,7 @@ pub fn KeymapCanvas(
 ) -> Element {
     rsx! {
         g { class: "m1-keymap-layout",
-            g { class: "m1-keymap-outline", "aria-hidden": "true", "pointer-events": "none",
+            g { "aria-hidden": "true", "pointer-events": "none",
                 for (index, contour) in contours.iter().enumerate() {
                     polygon {
                         key: "outline-{index}",

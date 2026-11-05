@@ -105,7 +105,7 @@ pub fn KeymapPanel(
                 on_layer_operation,
             }
             }
-            ToggleGroup { class: "m1-keymap-actions", aria_label: "Keymap editors", horizontal: true,
+            ToggleGroup { class: "flex-wrap gap-1.5! mb-1", aria_label: "Keymap editors", horizontal: true,
                 pressed: Some([match selected_editor() { KeymapEditor::Keys => 0usize, KeymapEditor::Macros => 1, KeymapEditor::Encoders => 2 }].into_iter().collect()),
                 on_pressed_change: move |next: std::collections::HashSet<usize>| {
                     let editor = if next.contains(&0) { Some(KeymapEditor::Keys) }
@@ -167,7 +167,7 @@ pub fn KeymapPanel(
                             if no_matches {
                                 p { class: "m1-keymap-empty", role: "status", "No keys match this search." }
                             }
-                            p { class: "m1-keymap-selected-label", "{key.binding_title}" }
+                            p { class: "m-0 text-foreground text-base", "{key.binding_title}" }
                         } else if no_matches {
                             p { class: "m1-keymap-empty", role: "status", "No keys match this search." }
                         } else {
@@ -204,7 +204,7 @@ pub fn KeymapPanel(
                 onclick: move |_| on_export.call(()),
                 "Export ZMK source"
             }
-            p { class: "m1-keymap-export-note", "Local source export. Configure controller and wiring in PCB before building firmware." }
+            p { class: "m-0 mb-4 text-muted-foreground text-xs leading-normal", "Local source export. Configure controller and wiring in PCB before building firmware." }
         }
     }
 }
@@ -316,7 +316,7 @@ fn KeymapLayersSection(
                                 TabsTrigger { key: "{layer.id}", value: layer.id.to_string(), index, id: Some(format!("{tabs_id}-tab-{index}")),
                                     class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                     aria_label: layer.name.to_string(),
-                                    span { class: "m1-keymap-layer-index", aria_hidden: "true", "{index}" }
+                                    span { class: "flex-none min-w-5 text-muted-foreground tabular-nums", aria_hidden: "true", "{index}" }
                                     "{layer.name}"
                                 }
                             }
@@ -449,7 +449,7 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
                 }
             }
             if !props.enabled && props.feedback.is_none() {
-                p { class: "m1-keymap-layer-paused", role: "status", "Layer changes are paused while another edit or save is in progress." }
+                p { role: "status", "Layer changes are paused while another edit or save is in progress." }
             }
 
             if let Some(message) = feedback_error { Alert { variant: AlertVariant::Destructive, "{message}" } }
@@ -645,6 +645,11 @@ mod disclosure_mounted_tests {
     async fn editor_choice_roves_and_keeps_its_selection() {
         let (_, root) = mount();
         rendered().await;
+        let group = by_role_name(&root, "group", "Keymap editors").unwrap();
+        let classes = group.get_attribute("class").unwrap_or_default();
+        for expected in ["flex-wrap", "gap-1.5!", "mb-1"] {
+            assert!(classes.split_whitespace().any(|class| class == expected));
+        }
         let keys = by_role_name(&root, "button", "Keys").unwrap();
         let macros = by_role_name(&root, "button", "Macros").unwrap();
         assert_eq!(keys.get_attribute("aria-pressed").as_deref(), Some("true"));

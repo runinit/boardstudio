@@ -203,7 +203,7 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                         rsx! {}
                     } else {
                         rsx! {
-                            PcbSection { class: "m1-pcb-wiring-section m1-pcb-part-bindings", default_open: true, label: "Generator bindings",
+                            PcbSection { class: "m1-pcb-wiring-section", default_open: true, label: "Generator bindings",
                                 for (name, kind) in fields {
                                     if kind == "net" {
                                         {

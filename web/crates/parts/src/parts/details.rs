@@ -21,7 +21,7 @@ pub fn SelectedDefinition(entry: Option<CatalogEntry>) -> Element {
     rsx! {
         section { class: "m1-parts-details", "aria-label": "Selected component details",
             h2 { "{preferred_label(&definition)}" }
-            p { class: "m1-parts-detail-kind", "{category} footprint" }
+            p { "{category} footprint" }
             dl { class: "m1-parts-detail-list",
                 dt { "Definition ID" }
                 dd { code { "{definition.id}" } }

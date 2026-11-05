@@ -326,7 +326,7 @@ pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
     let split = projection.topology == HardwareTopology::Split;
     let reversible_id = format!("project-reversible-{}", dioxus::core::current_scope_id().0);
     rsx! {
-        section { class: "m1-project-physical-setup", "aria-label": "Physical assembly",
+        section { class: "grid gap-3.5", "aria-label": "Physical assembly",
             div { class: "m1-project-setup-choice",
                 span { "Keyboard configuration" }
                 ToggleGroup { aria_label: "Keyboard configuration", horizontal: true, disabled: projection.busy,
@@ -352,9 +352,9 @@ pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
                         ToggleItem { index: 1usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Wired" }
                     }
                 }
-                p { class: "m1-project-setup-note", if projection.reversible { "Use the same PCB on both halves, turned over on the right." } else { "Both halves use front-facing assemblies." } }
+                p { class: "m-0 text-muted-foreground text-sm leading-normal", if projection.reversible { "Use the same PCB on both halves, turned over on the right." } else { "Both halves use front-facing assemblies." } }
             }
-            FieldLabel { html_for: reversible_id.clone(), class: "m1-project-reversible-choice w-full min-h-control-touch",
+            FieldLabel { html_for: reversible_id.clone(), class: "flex items-center gap-2 text-foreground w-full min-h-control-touch",
                 Checkbox { id: reversible_id.clone(), aria_label: "Reversible layout", checked: Some(if projection.reversible { CheckboxState::Checked } else { CheckboxState::Unchecked }), disabled: projection.busy,
                     style: "min-width: 1rem; min-height: 1rem", on_checked_change: move |state| mount.submit(PhysicalSetupIntent::ProjectReversibleLayout(state == CheckboxState::Checked))
                 }

@@ -95,7 +95,7 @@ pub fn LayerToggleButton(
     rsx! {
         Item { size: ItemSize::Xs, class: "flex-nowrap gap-2 px-1 py-0",
             span { class: if visible { "m1-layer-swatch" } else { "m1-layer-swatch opacity-35" }, "data-layer": "{swatch}" }
-            span { class: if visible { "m1-layer-label flex-1" } else { "m1-layer-label flex-1 text-muted-foreground" }, "{label}" }
+            span { class: if visible { "min-w-0 flex-1" } else { "min-w-0 flex-1 text-muted-foreground" }, "{label}" }
             ToggleGroup {
                 aria_label: format!("{label} visibility"),
                 pressed: Some(if visible { HashSet::from([0usize]) } else { HashSet::new() }),
@@ -238,7 +238,7 @@ pub fn CanvasLayers(props: CanvasLayersProps) -> Element {
                                 role: "group",
                                 aria_label: "{group_title.clone().unwrap_or_else(|| \"Other layers\".into())}",
                                 if let Some(title) = group_title.as_ref() {
-                                    div { class: "m1-layer-group-heading", "{title}" }
+                                    div { class: "pt-[9px] px-1.5 pb-1 text-muted-foreground font-semibold", "{title}" }
                                 }
                                 for control in controls { {control} }
                             }
