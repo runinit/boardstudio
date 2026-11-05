@@ -23,6 +23,7 @@ pub(crate) fn EditorTextField(
     value: String,
     #[props(default)] aria_label: Option<String>,
     #[props(default)] disabled: bool,
+    #[props(default)] readonly: bool,
     #[props(default)] placeholder: Option<String>,
     #[props(default)] error: Option<String>,
     #[props(default)] oninput: EventHandler<FormEvent>,
@@ -42,6 +43,7 @@ pub(crate) fn EditorTextField(
                     r#type: InputType::Text,
                     value: "{value}",
                     disabled,
+                    readonly,
                     placeholder,
                     aria_label,
                     aria_invalid: has_error,
@@ -141,6 +143,47 @@ pub(crate) fn EditorSelect(
                 for (index, (option_value, option_text)) in options.into_iter().enumerate() {
                     SelectOption::<String> { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index, value: option_value, text_value: option_text.clone(), "{option_text}" }
                 }
+            }
+        }
+    }
+}
+
+/// Multiline text composition for the parts editors: Field + label + a native
+/// textarea in theme styling. No copied Textarea exists in `ui/`; the mapping
+/// sends textareas here and the legacy CSS has no global textarea rule, so a
+/// themed native control inside the Field structure is the faithful target.
+#[component]
+pub(crate) fn EditorTextarea(
+    label: String,
+    value: String,
+    #[props(default)] aria_label: Option<String>,
+    #[props(default)] disabled: bool,
+    #[props(default = 3)] rows: u8,
+    #[props(default = true)] spellcheck: bool,
+    #[props(default)] error: Option<String>,
+    #[props(default)] oninput: EventHandler<FormEvent>,
+) -> Element {
+    let id = editor_field_id("parts-editor-textarea");
+    let message_id = format!("{id}-message");
+    let has_error = error.is_some();
+    let described_by = has_error.then(|| message_id.clone());
+    rsx! {
+        Field { invalid: has_error, disabled, class: "gap-1.5 min-w-0",
+            FieldLabel { html_for: id.clone(), "{label}" }
+            textarea {
+                id: id.clone(),
+                class: "text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground flex min-h-control w-full min-w-0 rounded-md bg-field px-3 py-2 text-base transition-[color,box-shadow] outline-none focus-visible:ring-ring/50 focus-visible:ring-2 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
+                rows: rows as i64,
+                spellcheck,
+                value: "{value}",
+                disabled,
+                aria_label,
+                aria_invalid: has_error,
+                aria_describedby: described_by,
+                oninput: move |event: FormEvent| oninput.call(event),
+            }
+            if let Some(message) = error.as_deref() {
+                div { id: message_id, FieldError { "{message}" } }
             }
         }
     }
