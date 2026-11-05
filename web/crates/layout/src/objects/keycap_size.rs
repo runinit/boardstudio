@@ -179,7 +179,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
     let timer_generation = keyboard_generation.clone();
 
     rsx! {
-        section { class: "m1-key-size", aria_label: "Key size",
+        section { class: "grid min-w-0 gap-2.5 border-b border-border p-0 text-foreground", aria_label: "Key size",
         onkeydown: move |event: KeyboardEvent| {
             if event.key().to_string() == " " {
                 event.stop_propagation();
@@ -194,12 +194,14 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                 let width = units.x * scale;
                 let height = units.y * scale;
                 rsx! {
-                    figure { class: "m1-key-size-preview",
+                    figure { class: "m-0 mb-3 text-center",
                         svg {
+                            class: "block h-[100px] w-full",
                             view_box: "0 0 200 120",
                             role: "img",
                             "aria-label": "Keycap size {value_label}",
                             rect {
+                                class: "fill-secondary stroke-primary stroke-[1]",
                                 x: "{100.0 - width / 2.0}",
                                 y: "{60.0 - height / 2.0}",
                                 width: "{width}",
@@ -207,7 +209,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                                 rx: "5",
                             }
                             rect {
-                                class: "m1-key-size-preview-top",
+                                class: "fill-field stroke-border-strong stroke-[1]",
                                 x: "{104.0 - width / 2.0}",
                                 y: "{64.0 - height / 2.0}",
                                 width: "{(width - 8.0).max(1.0)}",
@@ -301,7 +303,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                     ("Rotate keycap").replace(' ', "-"),
                 );
                 rsx! {
-                    Label { html_for: check_id.clone(), class: "m1-key-size-rotate",
+                    Label { html_for: check_id.clone(), class: "flex items-center gap-2 pt-2",
                         Checkbox {
                             id: check_id.clone(),
                             aria_label: "Rotate keycap",
@@ -350,11 +352,11 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                 }
             }
             if let Some(error) = error {
-                FieldError { class: "m1-key-size-error", "{error}"  }
+                FieldError { "{error}"  }
             }
         }
         if let Some(warning) = overlap_warning {
-            div { role: "status", class: "m1-key-size-warning", Callout { variant: CalloutVariant::Warning, "{warning}" } }
+            div { role: "status", class: "-mt-1 mx-4 mb-3 rounded-[4px] border border-warning-dark bg-warning-light px-2.5 py-2 text-[14px] leading-[1.55] text-warning-dark", Callout { variant: CalloutVariant::Warning, "{warning}" } }
         }
     }
 }

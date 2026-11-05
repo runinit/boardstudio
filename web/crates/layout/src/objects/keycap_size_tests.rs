@@ -129,6 +129,85 @@ fn mounted(
     (probe, root)
 }
 
+#[wasm_bindgen_test]
+async fn key_size_preview_keeps_its_geometry_without_legacy_classes() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let stylesheet = document.create_element("style").unwrap();
+    stylesheet.set_text_content(Some(&format!(
+        "{}\n{}",
+        include_str!("../../../../assets/m1.css"),
+        include_str!("../../../../assets/tailwind.css")
+    )));
+    document.head().unwrap().append_child(&stylesheet).unwrap();
+    let key_owner = owner(
+        TreeContext::Row {
+            matrix_id: "m".into(),
+            row: 0,
+        },
+        &["a"],
+        1,
+    );
+    let (_, root) = mounted(projection(key_owner, &["a"], &[18.0]), None);
+    wait_until("key size mounts", || {
+        root.query_selector("section[aria-label='Key size']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    let section = root
+        .query_selector("section[aria-label='Key size']")
+        .unwrap()
+        .unwrap();
+    let descendants = section.query_selector_all("[class]").unwrap();
+    for node in (0..descendants.length()).filter_map(|i| descendants.item(i)) {
+        let element = node.dyn_into::<web_sys::Element>().unwrap();
+        let classes = element.get_attribute("class").unwrap_or_default();
+        element
+            .set_attribute(
+                "class",
+                &classes
+                    .split_whitespace()
+                    .filter(|class| !class.starts_with("m1-"))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            )
+            .unwrap();
+    }
+    let classes = section.get_attribute("class").unwrap_or_default();
+    section
+        .set_attribute(
+            "class",
+            &classes
+                .split_whitespace()
+                .filter(|class| !class.starts_with("m1-"))
+                .collect::<Vec<_>>()
+                .join(" "),
+        )
+        .unwrap();
+    let svg = section.query_selector("[role=img]").unwrap().unwrap();
+    let window = web_sys::window().unwrap();
+    assert_eq!(
+        window
+            .get_computed_style(&section)
+            .unwrap()
+            .unwrap()
+            .get_property_value("display")
+            .unwrap(),
+        "grid"
+    );
+    assert_eq!(
+        window
+            .get_computed_style(&svg)
+            .unwrap()
+            .unwrap()
+            .get_property_value("height")
+            .unwrap(),
+        "100px"
+    );
+    stylesheet.remove();
+    root.remove();
+}
+
 fn rerender(probe: &Probe) {
     let mut version = {
         let stored = probe.version.borrow();
