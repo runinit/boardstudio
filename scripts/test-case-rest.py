@@ -22,9 +22,17 @@ def action(role, name, verb="click", value=None):
 
 
 def dismiss_notifications():
-    for ref, item in browser("snapshot", "-i")["refs"].items():
-        if item.get("role") == "button" and item.get("name") == "close":
-            browser("click", "@"+ref)
+    for _ in range(3):
+        closed = False
+        for ref, item in browser("snapshot", "-i")["refs"].items():
+            if item.get("role") == "button" and item.get("name") == "close":
+                try:
+                    browser("click", "@"+ref)
+                    closed = True
+                except Exception:
+                    pass  # covered by an overlapping toast; retry after the top one closes
+        if not closed:
+            return
 
 
 def has(role, name):
