@@ -4,7 +4,9 @@ use super::binding_editor::{
     BindingEditFeedback, BindingEditRequest, BindingEditor, BindingTarget,
 };
 use boardstudio_core::model::EncoderDirection;
-use boardstudio_web_ui_shared::controls::BoardDisclosure;
+use boardstudio_web_ui_shared::ui::collapsible::{
+    Collapsible, CollapsibleContent, CollapsibleTrigger,
+};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -72,8 +74,7 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                         rsx! {
                             div { key: "{row_key}", class: "m1-keymap-encoder-row",
                                 h4 { "{label}" }
-                                BoardDisclosure { key: "{clockwise_key}", open: true,
-                                    heading: rsx! { summary { "Clockwise" } },
+                                EncoderSection { key: "{clockwise_key}", label: clockwise_label.clone(), title: "Clockwise", default_open: true,
                                     for component_key in [clockwise_component_key] {
                                         { rsx! { BindingEditor {
                                             key: "{component_key}",
@@ -95,8 +96,7 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                                         } } }
                                     }
                                 }
-                                BoardDisclosure { key: "{counterclockwise_key}", open: true,
-                                    heading: rsx! { summary { "Counterclockwise" } },
+                                EncoderSection { key: "{counterclockwise_key}", label: counterclockwise_label.clone(), title: "Counterclockwise", default_open: true,
                                     for component_key in [counterclockwise_component_key] {
                                         { rsx! { BindingEditor {
                                             key: "{component_key}",
@@ -128,8 +128,7 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                                         let component_key = format!("{editor_instance_id}-{target_key}");
                                         let key_label = format!("{label} push button");
                                         rsx! {
-                                            BoardDisclosure { key: "{target_key}",
-                                                heading: rsx! { summary { "Push button" } },
+                                            EncoderSection { key: "{target_key}", label: key_label.clone(), title: "Push button", default_open: false,
                                                 for component_key in [component_key] {
                                                     { rsx! { BindingEditor {
                                                         key: "{component_key}",
@@ -160,5 +159,104 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                 }
             }
         }
+    }
+}
+
+/// Keep each encoder direction mounted while it is collapsed, as the native disclosure did.
+#[component]
+fn EncoderSection(label: String, title: String, default_open: bool, children: Element) -> Element {
+    let mut open = use_signal(|| default_open);
+    rsx! {
+        Collapsible { open: open(), on_open_change: move |value| open.set(value), keep_mounted: true,
+            CollapsibleTrigger { aria_label: label, class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{title}" }
+            CollapsibleContent { hidden: !open(), inert: (!open()).then_some(""), {children} }
+        }
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod mounted_tests {
+    use super::*;
+    use crate::keymap::binding_controller::EncoderBindingRow;
+    use crate::keymap::binding_editor::EncoderInputIdentity;
+    use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+    use boardstudio_core::model::KeyBinding;
+    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[component]
+    fn fixture() -> Element {
+        let sequence = use_signal(|| 0);
+        let scope = Scope {
+            session_epoch: SessionEpoch(1),
+            document_id: "doc".into(),
+            board_id: "board".into(),
+            instance_id: None,
+        };
+        let projection = EncoderEditorProjection {
+            input_identity: EncoderInputIdentity {
+                scope,
+                token: SnapshotToken(1),
+                revision: 1,
+                projection_generation: 1,
+                electrical_fingerprint: None,
+            },
+            effective_layer_id: "base".into(),
+            rows: Rc::from([EncoderBindingRow {
+                id: Rc::from("encoder"),
+                label: Rc::from("Encoder 1"),
+                clockwise: KeyBinding::None,
+                counterclockwise: KeyBinding::None,
+                push_key_id: Some(Rc::from("key")),
+                push_binding: Some(KeyBinding::None),
+            }]),
+            layers: Rc::from([]),
+            macros: Rc::from([]),
+        };
+        rsx! { EncoderEditor { projection: Rc::new(projection), editor_instance_id: 1, request_sequence: sequence, enabled: true, feedback: None, on_change: |_| {} } }
+    }
+
+    #[wasm_bindgen_test]
+    async fn encoder_sections_have_distinct_names_and_retain_their_independent_states() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        let clockwise =
+            by_role_name(&root, "button", "Encoder 1 clockwise").expect("clockwise section");
+        let counter = by_role_name(&root, "button", "Encoder 1 counterclockwise")
+            .expect("counterclockwise section");
+        let push = by_role_name(&root, "button", "Encoder 1 push button").expect("push section");
+        assert_eq!(
+            clockwise.get_attribute("aria-expanded").as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            counter.get_attribute("aria-expanded").as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            push.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        clockwise.click();
+        push.click();
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        assert_eq!(
+            clockwise.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        assert_eq!(
+            counter.get_attribute("aria-expanded").as_deref(),
+            Some("true")
+        );
+        assert_eq!(push.get_attribute("aria-expanded").as_deref(), Some("true"));
+        root.remove();
     }
 }

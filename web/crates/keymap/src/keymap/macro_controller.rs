@@ -613,6 +613,7 @@ mod mounted_step_tests {
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::Event;
     use boardstudio_core::model::{KeyBinding, ProjectDoc};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::wait_until_step;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -722,11 +723,24 @@ mod mounted_step_tests {
     }
 
     fn input(root: &web_sys::Element, label: &str) -> web_sys::HtmlInputElement {
-        root.query_selector(&format!("input[aria-label='{label}']"))
-            .unwrap()
-            .unwrap()
-            .dyn_into()
-            .unwrap()
+        by_role_name(
+            root,
+            if label == "Keycode" {
+                "textbox"
+            } else {
+                "spinbutton"
+            },
+            label,
+        )
+        .unwrap()
+        .dyn_into()
+        .unwrap()
+    }
+
+    fn field_failure(root: &web_sys::Element, label: &str) -> Option<web_sys::Element> {
+        let input = input(root, label);
+        let id = input.get_attribute("aria-describedby")?;
+        root.owner_document()?.get_element_by_id(&id)
     }
 
     fn type_value(input: &web_sys::HtmlInputElement, value: &str) {
@@ -745,17 +759,10 @@ mod mounted_step_tests {
     }
 
     fn assert_inline_failure(root: &web_sys::Element, label: &str) {
-        let field = input(root, label).parent_element().unwrap();
-        let alert = field
-            .query_selector("small[role='alert']")
-            .unwrap()
-            .expect("the failure stays beside its own step field");
+        let alert =
+            field_failure(root, label).expect("the failure stays beside its own step field");
         assert!(alert.text_content().unwrap().contains("macro step failed"));
-        assert!(
-            root.query_selector("p.m1-keymap-macro-status")
-                .unwrap()
-                .is_none()
-        );
+        assert!(root.query_selector_all("[role='alert']").unwrap().length() == 1);
     }
 
     async fn failed_step_restores_unchanged_submitted_text(
@@ -780,11 +787,7 @@ mod mounted_step_tests {
         type_value(&input(&root, label), submitted);
         release.send(()).unwrap();
         settle_until(runtime, "the failed key field is restored", || {
-            input(&root, label).value() == accepted
-                && root
-                    .query_selector("small[role='alert']")
-                    .unwrap()
-                    .is_some()
+            input(&root, label).value() == accepted && field_failure(&root, label).is_some()
         })
         .await;
         assert_eq!(input(&root, label).value(), accepted);
@@ -817,13 +820,7 @@ mod mounted_step_tests {
         settle_until(
             runtime,
             "the newer draft remains beside the failure",
-            || {
-                input(&root, label).value() == newer
-                    && root
-                        .query_selector("small[role='alert']")
-                        .unwrap()
-                        .is_some()
-            },
+            || input(&root, label).value() == newer && field_failure(&root, label).is_some(),
         )
         .await;
         assert_eq!(input(&root, label).value(), newer);
@@ -852,19 +849,12 @@ mod mounted_step_tests {
         release.send(()).unwrap();
         settle_until(runtime, "the newest step edit is accepted", || {
             input(&root, "Keycode").value() == "C"
-                && root
-                    .query_selector("small[role='alert']")
-                    .unwrap()
-                    .is_none()
+                && field_failure(&root, "Keycode").is_none()
                 && accepted_step_value(runtime, "Keycode").as_deref() == Some("C")
         })
         .await;
         assert_eq!(input(&root, "Keycode").value(), "C");
-        assert!(
-            root.query_selector("small[role='alert']")
-                .unwrap()
-                .is_none()
-        );
+        assert!(field_failure(&root, "Keycode").is_none());
         for expected in ["C", "B", "A"] {
             let accepted = runtime.model().accepted.unwrap();
             assert_eq!(
@@ -913,32 +903,18 @@ mod mounted_step_tests {
         let mut generation = probe.generation.borrow().unwrap();
         generation += 1;
         rendered().await;
-        assert!(
-            root.query_selector("input[aria-label='Keycode']")
-                .unwrap()
-                .is_some()
-        );
+        assert!(by_role_name(&root, "textbox", "Keycode").is_some());
         release.send(()).unwrap();
         settle_until(runtime, "the departed field failure is discarded", || {
-            input(&root, "Keycode").value() == "A"
-                && root
-                    .query_selector("small[role='alert']")
-                    .unwrap()
-                    .is_none()
+            input(&root, "Keycode").value() == "A" && field_failure(&root, "Keycode").is_none()
         })
         .await;
         assert!(
-            root.query_selector("small[role='alert']")
-                .unwrap()
-                .is_none(),
+            field_failure(&root, "Keycode").is_none(),
             "a departed owner's failure is silent while the same logical field remains mounted"
         );
         assert_eq!(input(&root, "Keycode").value(), "A");
-        assert!(
-            root.query_selector("p.m1-keymap-macro-status")
-                .unwrap()
-                .is_none()
-        );
+        assert!(root.query_selector("[role='alert']").unwrap().is_none());
         root.remove();
     }
 
@@ -1023,10 +999,7 @@ mod mounted_step_tests {
             || {
                 input(&root, label).value() == newer
                     && accepted_step_value(runtime, label).as_deref() == Some(accepted)
-                    && root
-                        .query_selector("small[role='alert']")
-                        .unwrap()
-                        .is_none()
+                    && field_failure(&root, label).is_none()
             },
         )
         .await;
@@ -1036,11 +1009,7 @@ mod mounted_step_tests {
             "the older landing does not replace a newer exact draft"
         );
         assert_accepted_step_value(runtime, label, accepted);
-        assert!(
-            root.query_selector("small[role='alert']")
-                .unwrap()
-                .is_none()
-        );
+        assert!(field_failure(&root, label).is_none());
         root.remove();
     }
 
@@ -1059,25 +1028,36 @@ mod mounted_step_tests {
     {
         let (probe, root) = mounted().await;
         let runtime = &probe.runtime;
-        let kind = || {
-            root.query_selector("select[aria-label='Original step 1']")
-                .unwrap()
-                .unwrap()
-                .dyn_into::<web_sys::HtmlSelectElement>()
-                .unwrap()
-        };
+        let kind = || by_role_name(&root, "button", "Original step 1").unwrap();
         let (entered, release) = support::gate_next_core_reply(runtime);
-        kind().set_value("wait");
-        let event = web_sys::EventInit::new();
-        event.set_bubbles(true);
-        kind()
-            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
+        kind().click();
+        rendered().await;
+        let list = by_role_name(&root, "listbox", "Original step 1").unwrap();
+        let end = web_sys::KeyboardEventInit::new();
+        end.set_key("End");
+        end.set_bubbles(true);
+        end.set_cancelable(true);
+        list.dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &end).unwrap(),
+        )
+        .unwrap();
+        rendered().await;
+        let option = by_role_name(&root, "option", "wait").unwrap();
+        let key = web_sys::KeyboardEventInit::new();
+        key.set_key("Enter");
+        key.set_bubbles(true);
+        key.set_cancelable(true);
+        option
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &key)
+                    .unwrap(),
+            )
             .unwrap();
         support::drive_pending(runtime);
         entered.await.unwrap();
         rendered().await;
         assert_eq!(
-            kind().value(),
+            kind().text_content().unwrap().trim(),
             "wait",
             "the original owner displays its pending kind"
         );
@@ -1091,7 +1071,7 @@ mod mounted_step_tests {
         workspace.set("Keymap");
         rendered().await;
         assert_eq!(
-            kind().value(),
+            kind().text_content().unwrap().trim(),
             "tap",
             "returning before the held reply shows the accepted kind, without reviving old observation"
         );
@@ -1106,7 +1086,7 @@ mod mounted_step_tests {
         );
         release.send(()).unwrap();
         settle_until(runtime, "the departed panel edit reaches Core", || {
-            kind().value() == "wait"
+            kind().text_content().unwrap().trim() == "wait"
                 && runtime.model().accepted.as_ref().is_some_and(|accepted| {
                     accepted.document.keymap.as_ref().unwrap().macros[0].steps[0]
                         == MacroStep::Wait { ms: 100 }
@@ -1119,12 +1099,8 @@ mod mounted_step_tests {
             MacroStep::Wait { ms: 100 },
             "leaving the panel never cancels authoritative Session work"
         );
-        assert_eq!(kind().value(), "wait");
-        assert!(
-            root.query_selector("small[role='alert'], p.m1-keymap-macro-status")
-                .unwrap()
-                .is_none()
-        );
+        assert_eq!(kind().text_content().unwrap().trim(), "wait");
+        assert!(root.query_selector("[role='alert']").unwrap().is_none());
         root.remove();
     }
 }

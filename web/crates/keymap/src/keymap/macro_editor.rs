@@ -1,7 +1,13 @@
 //! Private read-only projection and typed view for saved Keymap macros.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{KeymapMacro, MacroChange, MacroStep, ProjectDoc};
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardSelectField};
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
+use boardstudio_web_ui_shared::ui::field::{Field, FieldError, FieldLabel};
+use boardstudio_web_ui_shared::ui::input::InputType;
+use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
+use boardstudio_web_ui_shared::ui::select::{Select, SelectOption};
 use dioxus::prelude::*;
 use std::sync::Arc;
 use std::{cell::RefCell, rc::Rc};
@@ -179,10 +185,10 @@ pub fn MacroEditor(props: MacroEditorProps) -> Element {
         section { class: "m1-keymap-macros",
             h3 { "Macros" }
             if let Some(message) = feedback_text {
-                p { class: "m1-keymap-macro-status", role: "status", "{message}" }
+                Alert { variant: AlertVariant::Destructive, "{message}" }
             }
             if macros.is_empty() {
-                p { class: "m1-keymap-empty", "Build a sequence of key taps, presses, releases and delays, then assign it to a key." }
+                Callout { variant: CalloutVariant::Info, "Build a sequence of key taps, presses, releases and delays, then assign it to a key." }
             }
             for item in macros.iter() {
                 if let Some(sequence) = sequence_for(&props.sequences, &item.id).cloned() {
@@ -201,8 +207,9 @@ pub fn MacroEditor(props: MacroEditorProps) -> Element {
                     }
                 }
             }
-            BoardButton {
-                r#type: "button",
+            Button {
+                variant: ButtonVariant::Secondary,
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 disabled: busy || macros.len() >= 128 || super::macro_controller::action_pending(None, MacroEditTarget::AddMacro),
                 onclick: move |_| {
                     if macro_count >= 128 { return; }
@@ -338,16 +345,16 @@ fn MacroCard(props: MacroCardProps) -> Element {
                     } }
                 }
             }
-            BoardButton {
-                r#type: "button", disabled: !props.enabled || !can_add_step || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::AddStep),
+            Button {
+                variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !props.enabled || !can_add_step || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::AddStep),
                 onclick: move |_| {
                     if !can_add_step { return; }
                     request(&add_context, MacroEditTarget::AddStep, Some(add_macro_id.clone()), Some(add_sequence.clone()),
                         MacroEditChange::Change(MacroChange::AddStep { value: tap_a() }));
                 }, "Add step"
             }
-            BoardButton {
-                r#type: "button", disabled: !props.enabled || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::RemoveMacro),
+            Button {
+                variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !props.enabled || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::RemoveMacro),
                 onclick: move |_| request(&remove_context, MacroEditTarget::RemoveMacro,
                     Some(remove_macro_id.clone()), None, MacroEditChange::Remove),
                 "Remove macro"
@@ -419,25 +426,31 @@ fn StepEditor(props: StepEditorProps) -> Element {
         "{:?}:{}:{}:{}:{}",
         props.scope, props.scope_generation, props.editor_instance_id, props.macro_id, index
     );
+    let select_id = format!("macro-step-kind-{}", dioxus::core::current_scope_id().0);
+    let current_kind = use_memo(use_reactive((&kind,), |(kind,)| Some(kind.to_owned())));
     rsx! {
         div { class: "m1-keymap-macro-step",
-            BoardSelectField {
-                label: "Step {index + 1}",
+            Field { class: "gap-1.5", disabled: !props.enabled,
+                FieldLabel { html_for: select_id.clone(), "Step {index + 1}" }
+                Select::<String> {
+                id: select_id,
+                class: "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch",
                 aria_label: crate::macro_accessible_names::step_kind_control_name(&props.macro_name, index),
-                value: "{kind}",
+                value: Some(current_kind.into()),
                 disabled: !props.enabled,
-                onchange: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); move |event: FormEvent| {
-                        let next = match event.value().as_str() {
+                on_value_change: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); move |value: Option<String>| {
+                        let Some(value) = value else { return; };
+                        let next = match value.as_str() {
                             "wait" => MacroStep::Wait { ms: 100 },
                             "press" => press_a(), "release" => release_a(), _ => tap_a(),
                         };
                         request(&context, MacroEditTarget::StepKind { index }, Some(macro_id.clone()), Some(sequence.clone()),
                             MacroEditChange::Change(MacroChange::Step { index, value: next }));
                     } },
-                option { value: "tap", "tap" }
-                    option { value: "press", "press" }
-                    option { value: "release", "release" }
-                    option { value: "wait", "wait" }
+                for (option_index, option) in ["tap", "press", "release", "wait"].into_iter().enumerate() {
+                    SelectOption::<String> { index: option_index, value: option, text_value: option, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{option}" }
+                }
+                }
             }
             if let MacroStep::Wait { .. } = displayed {
                 NumberDraft {
@@ -472,8 +485,8 @@ fn StepEditor(props: StepEditorProps) -> Element {
                     }) },
                 }
             }
-            BoardButton {
-                r#type: "button", disabled: !props.enabled || props.sequence.len() <= 1 || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::RemoveStep { index }),
+            Button {
+                variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !props.enabled || props.sequence.len() <= 1 || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::RemoveStep { index }),
                 onclick: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); move |_| {
                     if sequence_len <= 1 { return; }
                     request(&context, MacroEditTarget::RemoveStep { index }, Some(macro_id.clone()), Some(sequence.clone()),
@@ -524,19 +537,29 @@ fn TextDraft(props: TextDraftProps) -> Element {
     let on_commit = props.on_commit;
     let trim = props.trim_on_commit;
     let commit_if_unchanged = props.commit_if_unchanged;
+    let id = format!("macro-text-{}", dioxus::core::current_scope_id().0);
+    let error_id = format!("{id}-error");
+    let message = failure();
     rsx! {
-        label { "{props.label}"
-            input {
-                aria_label: "{props.aria_label}", maxlength: props.max_length, value: "{draft}", disabled: !props.enabled,
-                oninput: move |event| { failure.set(None); draft.set(event.value()); dirty.set(true); },
-                onblur: move |_| {
+        Field { class: "gap-1.5", disabled: !props.enabled, invalid: message.is_some(),
+            FieldLabel { html_for: id.clone(), "{props.label}" }
+            InputGroup { InputGroupInput {
+                id, aria_label: props.aria_label, value: "{draft}", disabled: !props.enabled,
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                aria_invalid: message.is_some(), aria_describedby: message.as_ref().map(|_| error_id.clone()),
+                oninput: move |event: FormEvent| { failure.set(None); draft.set(event.value()); dirty.set(true); },
+                attributes: {
+                    let mut attributes = vec![dioxus::events::onblur(move |_| {
                     let raw = draft();
                     let value = if trim { raw.trim().to_owned() } else { raw };
                     if dirty() || commit_if_unchanged { dirty.set(false); on_commit.call(value); }
+                    })];
+                    if let Some(max) = props.max_length { attributes.push(Attribute::new("maxlength", max.to_string(), None, false)); }
+                    attributes
                 }
-            }
-            if let Some(message) = failure() {
-                small { role: "alert", "{message}" }
+            } }
+            if let Some(message) = message.as_deref() {
+                div { id: error_id, FieldError { "{message}" } }
             }
         }
     }
@@ -574,20 +597,26 @@ fn NumberDraft(props: NumberDraftProps) -> Element {
             .is_some_and(|entry| matches!(entry.status, MacroEditStatus::Pending)),
     );
     let on_commit = props.on_commit;
+    let id = format!("macro-number-{}", dioxus::core::current_scope_id().0);
+    let error_id = format!("{id}-error");
+    let message = failure();
     rsx! {
-        label { "{props.label}"
-            input {
-                aria_label: "{props.aria_label}", r#type: "number", min: "0", max: "10000",
+        Field { class: "gap-1.5", disabled: !props.enabled, invalid: message.is_some(),
+            FieldLabel { html_for: id.clone(), "{props.label}" }
+            InputGroup { InputGroupInput {
+                id, aria_label: props.aria_label, r#type: InputType::Number, min: "0", max: "10000",
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 value: "{draft}", disabled: !props.enabled,
-                oninput: move |event| { failure.set(None); draft.set(event.value()); dirty.set(true); },
-                onblur: move |_| {
+                aria_invalid: message.is_some(), aria_describedby: message.as_ref().map(|_| error_id.clone()),
+                oninput: move |event: FormEvent| { failure.set(None); draft.set(event.value()); dirty.set(true); },
+                attributes: vec![dioxus::events::onblur(move |_| {
                     let raw = draft();
                     let parsed = if raw.is_empty() { Some(0) } else { raw.parse::<u32>().ok() };
                     if let Some(value) = parsed && dirty() { dirty.set(false); on_commit.call(value); }
-                }
-            }
-            if let Some(message) = failure() {
-                small { role: "alert", "{message}" }
+                })],
+            } }
+            if let Some(message) = message.as_deref() {
+                div { id: error_id, FieldError { "{message}" } }
             }
         }
     }
@@ -677,8 +706,10 @@ mod mounted_accessible_name_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{KeyBinding, KeymapConfiguration, KeymapLayer, KeymapMacro};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use boardstudio_web_ui_shared::test_wait::wait_until;
     use std::cell::RefCell;
-    use wasm_bindgen::{JsCast, JsValue};
+    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
     use web_sys::{Element as DomElement, HtmlInputElement};
 
@@ -751,11 +782,10 @@ mod mounted_accessible_name_tests {
         let (root, _) = mount();
         settle().await;
 
-        assert!(element("select[aria-label='Macro 1 step 1']").is_ok());
-        assert!(element("select[aria-label='Macro 1 step 2']").is_ok());
-        assert!(element("input[aria-label='Keycode']").is_ok());
-        assert!(element("input[aria-label='Delay (ms)']").is_ok());
-        assert!(element("[aria-label^='keymap-macro-11-131081']").is_err());
+        assert!(by_role_name(&root, "button", "Macro 1 step 1").is_some());
+        assert!(by_role_name(&root, "button", "Macro 1 step 2").is_some());
+        assert!(by_role_name(&root, "textbox", "Keycode").is_some());
+        assert!(by_role_name(&root, "spinbutton", "Delay (ms)").is_some());
 
         root.remove();
     }
@@ -765,9 +795,7 @@ mod mounted_accessible_name_tests {
         let (root, requests) = mount();
         settle().await;
 
-        let input: HtmlInputElement = root
-            .query_selector("input[aria-label='Keycode']")
-            .unwrap()
+        let input: HtmlInputElement = by_role_name(&root, "textbox", "Keycode")
             .unwrap()
             .dyn_into()
             .unwrap();
@@ -776,6 +804,67 @@ mod mounted_accessible_name_tests {
         settle().await;
 
         assert!(requests.borrow().is_empty());
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn step_kind_select_supports_typeahead_selection_and_escape() {
+        let (root, requests) = mount();
+        settle().await;
+        let trigger = by_role_name(&root, "button", "Macro 1 step 1").unwrap();
+        let key = |target: &web_sys::HtmlElement, value: &str| {
+            let event = web_sys::KeyboardEventInit::new();
+            event.set_key(value);
+            event.set_bubbles(true);
+            event.set_cancelable(true);
+            target
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
+                        .unwrap(),
+                )
+                .unwrap();
+        };
+        trigger.focus().unwrap();
+        key(&trigger, "Enter");
+        wait_until("step kind list opens", || {
+            by_role_name(&root, "listbox", "Macro 1 step 1").is_some()
+        })
+        .await;
+        let list = by_role_name(&root, "listbox", "Macro 1 step 1").unwrap();
+        key(&list, "w");
+        wait_until("wait is focused by typeahead", || {
+            by_role_name(&root, "option", "wait")
+                .is_some_and(|option| option.matches(":focus").unwrap())
+        })
+        .await;
+        key(&by_role_name(&root, "option", "wait").unwrap(), "Enter");
+        wait_until("step kind edit is emitted", || {
+            !requests.borrow().is_empty()
+        })
+        .await;
+        assert_eq!(
+            requests.borrow()[0].target,
+            MacroEditTarget::StepKind { index: 0 }
+        );
+        wait_until("select closes and returns focus", || {
+            trigger.get_attribute("aria-expanded").as_deref() == Some("false")
+                && trigger.matches(":focus").unwrap()
+        })
+        .await;
+        key(&trigger, "Enter");
+        wait_until("step kind list reopens", || {
+            trigger.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+        .await;
+        key(
+            &by_role_name(&root, "listbox", "Macro 1 step 1").unwrap(),
+            "Escape",
+        );
+        wait_until("escape closes and returns focus", || {
+            trigger.get_attribute("aria-expanded").as_deref() == Some("false")
+                && trigger.matches(":focus").unwrap()
+        })
+        .await;
         root.remove();
     }
 
@@ -798,14 +887,5 @@ mod mounted_accessible_name_tests {
 
     async fn settle() {
         gloo_timers::future::TimeoutFuture::new(40).await;
-    }
-
-    fn element(selector: &str) -> Result<DomElement, JsValue> {
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector(&format!("#keymap-macro-label-test-root {selector}"))?
-            .ok_or_else(|| JsValue::from_str("expected mounted macro editor control"))
     }
 }

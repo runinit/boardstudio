@@ -8,6 +8,7 @@ use crate::layer_edit::KeymapLayerOperation;
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::{KeyBinding, MacroStep, ProjectDoc};
+use boardstudio_web_ui_shared::test_role::by_role_name;
 use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
 use dioxus::prelude::*;
 use std::{
@@ -868,29 +869,23 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
             .await
             .unwrap();
         wait_until("the pending macro step controls are disabled", || {
-            root.query_selector("fieldset.m1-keymap-macro > button")
-                .ok()
-                .flatten()
+            by_role_name(&root, "button", "Add step")
                 .is_some_and(|button| button.has_attribute("disabled"))
         })
         .await;
         // One sequence-changing action at a time; all step fields remain available.
         assert!(
-            root.query_selector("fieldset.m1-keymap-macro > button")
-                .unwrap()
-                .unwrap()
-                .has_attribute("disabled")
-        );
-        assert!(
-            root.query_selector("div.m1-keymap-macro-step > button")
-                .unwrap()
+            by_role_name(&root, "button", "Add step")
                 .unwrap()
                 .has_attribute("disabled")
         );
         assert!(
-            !root
-                .query_selector("div.m1-keymap-macro-step select")
+            by_role_name(&root, "button", "Remove step 1")
                 .unwrap()
+                .has_attribute("disabled")
+        );
+        assert!(
+            !by_role_name(&root, "button", "Original step 1")
                 .unwrap()
                 .has_attribute("disabled")
         );
@@ -926,7 +921,7 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
             steps_are(&runtime, &expected)
                 && (eligible
                     || root
-                        .query_selector("label small[role='alert']")
+                        .query_selector("[role='alert']")
                         .ok()
                         .flatten()
                         .and_then(|alert| alert.text_content())
@@ -952,7 +947,7 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
         );
         if !eligible {
             assert!(
-                root.query_selector("label small[role='alert']")
+                root.query_selector("[role='alert']")
                     .unwrap()
                     .and_then(|alert| alert.text_content())
                     .is_some_and(|message| message.contains("macro step")),
@@ -1244,11 +1239,23 @@ fn macro_doc() -> ProjectDoc {
 
 fn macro_input(root: &web_sys::Element, label: &str) -> web_sys::HtmlInputElement {
     use wasm_bindgen::JsCast;
-    root.query_selector(&format!("input[aria-label='{label}']"))
-        .unwrap()
-        .unwrap()
-        .dyn_into()
-        .unwrap()
+    by_role_name(
+        root,
+        if label.starts_with("Macro name") || label == "Keycode" {
+            "textbox"
+        } else {
+            "spinbutton"
+        },
+        label,
+    )
+    .unwrap()
+    .dyn_into()
+    .unwrap()
+}
+
+fn macro_field_failure(root: &web_sys::Element, label: &str) -> Option<web_sys::Element> {
+    let id = macro_input(root, label).get_attribute("aria-describedby")?;
+    root.owner_document()?.get_element_by_id(&id)
 }
 
 fn type_value(input: &web_sys::HtmlInputElement, value: &str) {
@@ -1280,10 +1287,7 @@ async fn newer_macro_draft_with_older_failure(label: &str, first: &str, newer: &
         "the newer draft and the older inline failure are shown",
         || {
             macro_input(&root, label).value() == newer
-                && root
-                    .query_selector("label small[role='alert']")
-                    .ok()
-                    .flatten()
+                && macro_field_failure(&root, label)
                     .and_then(|alert| alert.text_content())
                     .is_some_and(|text| text.contains("macro executor failed"))
         },
@@ -1291,9 +1295,7 @@ async fn newer_macro_draft_with_older_failure(label: &str, first: &str, newer: &
     .await;
     let input = macro_input(&root, label);
     assert_eq!(input.value(), newer, "a newer draft is never overwritten");
-    let alert = root
-        .query_selector("label small[role='alert']")
-        .unwrap()
+    let alert = macro_field_failure(&root, label)
         .expect("the older failure reports inline beside the newer draft");
     assert!(
         alert
@@ -1302,9 +1304,7 @@ async fn newer_macro_draft_with_older_failure(label: &str, first: &str, newer: &
             .contains("macro executor failed")
     );
     assert!(
-        root.query_selector("p.m1-keymap-macro-status")
-            .unwrap()
-            .is_none(),
+        root.query_selector_all("[role='alert']").unwrap().length() == 1,
         "a bound field's failure is not duplicated in the panel status"
     );
     root.remove();
@@ -1335,20 +1335,14 @@ async fn a_failed_unchanged_macro_number_restores_the_accepted_value_with_an_inl
         "the unchanged macro number is restored with its failure",
         || {
             macro_input(&root, "Original tapMs").value() == "30"
-                && root
-                    .query_selector("label small[role='alert']")
-                    .ok()
-                    .flatten()
+                && macro_field_failure(&root, "Original tapMs")
                     .and_then(|alert| alert.text_content())
                     .is_some_and(|text| text.contains("macro executor failed"))
         },
     )
     .await;
     assert_eq!(macro_input(&root, "Original tapMs").value(), "30");
-    let alert = root
-        .query_selector("label small[role='alert']")
-        .unwrap()
-        .expect("the failure reports inline");
+    let alert = macro_field_failure(&root, "Original tapMs").expect("the failure reports inline");
     assert!(
         alert
             .text_content()
@@ -1397,11 +1391,7 @@ async fn a_second_macro_field_edit_replaces_the_observation_and_both_edits_undo(
     .await;
     assert_eq!(tap_ms(&runtime), 66);
     assert_eq!(macro_input(&root, "Original tapMs").value(), "66");
-    assert!(
-        root.query_selector("label small[role='alert']")
-            .unwrap()
-            .is_none()
-    );
+    assert!(macro_field_failure(&root, "Original tapMs").is_none());
     for expected in [55, 30] {
         runtime.submit(Event::Undo {
             operation_id: runtime.operation(),
