@@ -1,6 +1,7 @@
 # 018: Case settings, part 2: mounts, openings, battery, manufacturing and pairs
 
-Status: ready-for-agent
+Status: claimed
+Owner: lane/018-case-settings-2 (.worktrees/lane-018-case-settings-2)
 Type: build
 Blocked by: [017: Case settings, part 1: dimensions, construction and profiles](017-case-settings-1.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
