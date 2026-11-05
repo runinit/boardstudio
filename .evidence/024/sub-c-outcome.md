@@ -44,6 +44,7 @@ Counts are matches of the requested quoted-start (`"m1-*`/`"board-*`) or dotted-
 - Tailwind CLI compiled to stdout only; checked geometry fill, no stroke, important gap and arbitrary 9px padding — passed (`tailwind-green.log`). First `/dev/stdout` attempt stalled and was terminated; first retry expected the wrong variable alias before the corrected check.
 - `scripts/mutation-check.py` with the PCB old-label mutation and previously-green browser baseline — killed, source restored exactly (`mutation-run.log`; hash-bearing generated result file removed per evidence policy).
 - `rustfmt --edition 2024 --config skip_children=true --check` on all changed Rust sources and both dock tests — passed; `git diff --check` — passed.
+- Parent `lane/024-delete-the-old-layer` was merged at `64763a392`; Git reported `Already up to date`. Post-merge repeats of typecheck, the six-crate native tests (103), the six-crate browser subsets (303), and the targeted page tests (6) all passed (`post-merge-{typecheck,native,browser,page}.log`).
 - Full `check.py build` and full gate not run. Its provider staging writes outside the owned paths and may generate CSS, contrary to this sub-lane's hard restrictions; the page subset links/runs WASM but is not the packaged product build. Combined ticket review and strict old-CSS gate remain for the coordinator.
 
 ## Incident
