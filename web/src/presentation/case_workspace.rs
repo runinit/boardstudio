@@ -1810,26 +1810,13 @@ mod mounted_live_scene_tests {
         assert!(text.contains(&current_finding.message));
         assert!(!text.contains("Current diagnostic for accepted geometry"));
         assert!(!text.contains("Stale diagnostic from previous geometry"));
-        let rows = inspector.query_selector_all("li").unwrap();
-        let finding_row = (0..rows.length())
-            .filter_map(|index| rows.item(index))
-            .find(|element| {
-                element
-                    .text_content()
-                    .unwrap_or_default()
-                    .contains(&current_finding.message)
-            })
-            .expect("current resolution finding is shown in the Inspector");
-        let show_button = finding_row
-            .dyn_into::<web_sys::Element>()
-            .unwrap()
-            .query_selector("button")
-            .unwrap()
-            .expect("current finding has a Show action");
-        show_button
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+        by_role_name(
+            &inspector,
+            "button",
+            &format!("Show finding {}", current_finding.id),
+        )
+        .expect("current finding has a Show action")
+        .click();
         settle().await;
         assert_eq!(
             document
