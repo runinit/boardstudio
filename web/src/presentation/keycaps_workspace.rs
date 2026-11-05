@@ -11,7 +11,9 @@ use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use super::{keycaps_finding_marker, keycaps_navigation};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::Contour;
-use boardstudio_web_ui_shared::controls::BoardDisclosure;
+use boardstudio_web_ui_shared::ui::collapsible::{
+    Collapsible, CollapsibleContent, CollapsibleTrigger,
+};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -364,8 +366,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                     p { class: "m1-keycaps-empty-note", role: "status", "Add switches in Layout to configure keycaps." }
                 }
                 if let Some(actions) = settings_actions.clone() {
-                    BoardDisclosure { class: "m1-keycaps-disclosure",
-                        heading: rsx! { summary { "Matrix profiles" } },
+                    WorkspaceDisclosure { class: "m1-keycaps-disclosure", label: "Matrix profiles", default_open: false,
                         section { class: "m1-keycaps-settings", "aria-label": "Matrix profiles",
                             for matrix in view.matrices.iter() {
                                 KeycapsMatrixSettingsEditor { key: "{matrix.id}", matrix_id: matrix.id.to_string(), matrix_name: matrix.name.to_string(), settings: matrix.settings.clone(), actions: actions.clone() }
@@ -374,8 +375,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                         }
                     }
                 }
-                BoardDisclosure { class: "m1-keycaps-disclosure m1-keycaps-selected-key", open: true,
-                    heading: rsx! { summary { "{selected_title}" } },
+                WorkspaceDisclosure { class: "m1-keycaps-disclosure m1-keycaps-selected-key", label: selected_title, default_open: true,
                     div { class: "m1-keycaps-selected-key-body",
                         KeycapsKeyList {
                             view: view.clone(),
@@ -402,6 +402,22 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                 h2 { "Keycaps unavailable" }
                 p { "The current board has no Keycaps projection." }
             }
+        }
+    }
+}
+
+#[component]
+fn WorkspaceDisclosure(
+    class: String,
+    label: String,
+    default_open: bool,
+    children: Element,
+) -> Element {
+    let mut open = use_signal(|| default_open);
+    rsx! {
+        Collapsible { class, open: open(), on_open_change: move |value| open.set(value), keep_mounted: true,
+            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{label}" }
+            CollapsibleContent { hidden: !open(), inert: (!open()).then_some(""), {children} }
         }
     }
 }

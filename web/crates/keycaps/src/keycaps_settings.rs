@@ -9,8 +9,17 @@ use boardstudio_core::model::{
     KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure, BoardSelectField};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::collapsible::{
+    Collapsible, CollapsibleContent, CollapsibleTrigger,
+};
+use boardstudio_web_ui_shared::ui::field::{Field, FieldError, FieldLabel};
+use boardstudio_web_ui_shared::ui::input::InputType;
+use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
+use boardstudio_web_ui_shared::ui::select::{Select, SelectOption};
+use boardstudio_web_ui_shared::ui::spinner::Spinner;
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
@@ -1355,6 +1364,96 @@ fn emit_settings_change(
     });
 }
 
+const PROFILES: &[(&str, &str)] = &[
+    ("cherry", "Cherry"),
+    ("oem", "OEM"),
+    ("dcs", "DCS"),
+    ("dsa", "DSA"),
+    ("sa", "SA"),
+    ("hi-pro", "Hi-Pro"),
+    ("g20", "G20"),
+    ("choc", "Choc"),
+];
+const MOUNTS: &[(&str, &str)] = &[
+    ("mx", "MX cross"),
+    ("choc-v1", "Choc v1"),
+    ("choc-v2", "Choc v2 cross"),
+    ("alps", "Alps"),
+];
+
+#[component]
+fn SettingsSection(
+    label: String,
+    #[props(default)] class: String,
+    #[props(default)] default_open: bool,
+    children: Element,
+) -> Element {
+    let mut open = use_signal(|| default_open);
+    rsx! {
+        Collapsible { class, open: open(), on_open_change: move |value| open.set(value), keep_mounted: true,
+            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{label}" }
+            CollapsibleContent { hidden: !open(), inert: (!open()).then_some(""), {children} }
+        }
+    }
+}
+
+#[component]
+fn SettingsChoice(
+    label: String,
+    aria_label: String,
+    value: String,
+    options: Vec<(String, String)>,
+    on_change: EventHandler<String>,
+) -> Element {
+    let id = format!("keycaps-choice-{}", dioxus::core::current_scope_id().0);
+    let current = use_memo(use_reactive((&value,), |(value,)| Some(value)));
+    rsx! {
+        Field { class: "gap-1.5", FieldLabel { html_for: id.clone(), "{label}" }
+            Select::<String> {
+                id, aria_label, value: Some(current.into()),
+                class: "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch",
+                on_value_change: move |value: Option<String>| if let Some(value) = value { on_change.call(value); },
+                for (index, (value, text)) in options.into_iter().enumerate() {
+                    SelectOption::<String> { index, value, text_value: text.clone(), class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{text}" }
+                }
+            }
+        }
+    }
+}
+
+fn settings_options(first: &str, remaining: &[(&str, &str)]) -> Vec<(String, String)> {
+    std::iter::once((String::new(), first.to_owned()))
+        .chain(
+            remaining
+                .iter()
+                .map(|(value, label)| ((*value).to_owned(), (*label).to_owned())),
+        )
+        .collect()
+}
+
+#[component]
+fn SettingsInput(
+    label: String,
+    aria_label: String,
+    value: String,
+    r#type: InputType,
+    #[props(default)] min: Option<String>,
+    #[props(default)] max: Option<String>,
+    #[props(default)] step: Option<String>,
+    #[props(default)] placeholder: Option<String>,
+    oninput: EventHandler<FormEvent>,
+) -> Element {
+    let id = format!("keycaps-input-{}", dioxus::core::current_scope_id().0);
+    rsx! {
+        Field { class: "gap-1.5", FieldLabel { html_for: id.clone(), "{label}" }
+            InputGroup { InputGroupInput { id, aria_label, r#type, value, min, max, step, placeholder,
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                oninput: move |event: FormEvent| oninput.call(event),
+            } }
+        }
+    }
+}
+
 #[derive(Props, Clone, PartialEq)]
 pub struct KeycapsBoardSettingsEditorProps {
     pub settings: KeycapBoardSettings,
@@ -1392,20 +1491,17 @@ pub fn KeycapsBoardSettingsEditor(props: KeycapsBoardSettingsEditorProps) -> Ele
     let clearance_target = target.clone();
     let clearance_baseline = baseline.clone();
     rsx! {
-        BoardDisclosure { class: "m1-keycaps-disclosure", open: true,
-            heading: rsx! { summary { "Board colors" } },
+        SettingsSection { class: "m1-keycaps-disclosure", label: "Board colors", default_open: true,
             section { class: "m1-keycaps-settings", aria_label: "Board colors",
-                label { "Keycap color",
-                    input { r#type: "color", aria_label: "Board keycap color", value: "{settings.color}",
-                        oninput: move |event| emit_settings_change(&color_actions, color_target.clone(), color_baseline.clone(), KeycapEditChange::BoardColor(event.value())) }
+                SettingsInput { label: "Keycap color", aria_label: "Board keycap color", r#type: InputType::Color, value: settings.color.clone(),
+                    oninput: move |event: FormEvent| emit_settings_change(&color_actions, color_target.clone(), color_baseline.clone(), KeycapEditChange::BoardColor(event.value()))
                 }
-                label { "Legend color",
-                    input { r#type: "color", aria_label: "Board legend color", value: "{settings.legend_color}",
-                        oninput: move |event| emit_settings_change(&legend_actions, legend_target.clone(), legend_baseline.clone(), KeycapEditChange::BoardLegendColor(event.value())) }
+                SettingsInput { label: "Legend color", aria_label: "Board legend color", r#type: InputType::Color, value: settings.legend_color.clone(),
+                    oninput: move |event: FormEvent| emit_settings_change(&legend_actions, legend_target.clone(), legend_baseline.clone(), KeycapEditChange::BoardLegendColor(event.value()))
                 }
-                label { "Minimum clearance (mm)",
-                    input { r#type: "number", aria_label: "Keycap clearance", min: "0", max: "5", step: "0.1", value: "{settings.clearance}",
-                        oninput: move |event| if let Ok(value) = event.value().parse::<f64>() { emit_settings_change(&clearance_actions, clearance_target.clone(), clearance_baseline.clone(), KeycapEditChange::BoardClearance(value)); } }
+                SettingsInput { label: "Minimum clearance (mm)", aria_label: "Keycap clearance", r#type: InputType::Number,
+                    min: Some("0".into()), max: Some("5".into()), step: Some("0.1".into()), value: settings.clearance.to_string(),
+                    oninput: move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() { emit_settings_change(&clearance_actions, clearance_target.clone(), clearance_baseline.clone(), KeycapEditChange::BoardClearance(value)); }
                 }
                 {settings_feedback(feedback, retries, &actions)}
             }
@@ -1460,28 +1556,22 @@ pub fn KeycapsMatrixSettingsEditor(props: KeycapsMatrixSettingsEditorProps) -> E
     rsx! {
         fieldset { class: "m1-keycaps-matrix-settings",
             legend { "{props.matrix_name}" }
-            BoardSelectField { label: "Profile", aria_label: format!("Keycap profile for {}", props.matrix_name), value: profile.to_owned(),
-                onchange: move |event: FormEvent| emit_settings_change(&profile_actions, profile_target.clone(), profile_baseline.clone(), KeycapEditChange::MatrixProfile(parse_profile(&event.value()))),
-                option { value: "", "No generated keycap" }
-                option { value: "cherry", "Cherry" } option { value: "oem", "OEM" }
-                option { value: "dcs", "DCS" } option { value: "dsa", "DSA" }
-                option { value: "sa", "SA" } option { value: "hi-pro", "Hi-Pro" }
-                option { value: "g20", "G20" } option { value: "choc", "Choc" }
+            SettingsChoice { label: "Profile", aria_label: format!("Keycap profile for {}", props.matrix_name), value: profile.to_owned(),
+                options: settings_options("No generated keycap", PROFILES),
+                on_change: move |value: String| emit_settings_change(&profile_actions, profile_target.clone(), profile_baseline.clone(), KeycapEditChange::MatrixProfile(parse_profile(&value))),
             }
-            BoardDisclosure {
-                heading: rsx! { summary { "Profile dimensions & socket" } },
-                label { "First profile row",
-                    input { r#type: "number", aria_label: "First profile row for {props.matrix_name}", min: "1", max: "5", step: "1", value: "{settings.first_row}",
-                        oninput: move |event| if let Ok(value) = event.value().parse::<u8>() { emit_settings_change(&row_actions, row_target.clone(), row_baseline.clone(), KeycapEditChange::MatrixFirstRow(value)); } }
+            SettingsSection { label: "Profile dimensions & socket", default_open: false,
+                SettingsInput { label: "First profile row", aria_label: format!("First profile row for {}", props.matrix_name), r#type: InputType::Number,
+                    min: Some("1".into()), max: Some("5".into()), step: Some("1".into()), value: settings.first_row.to_string(),
+                    oninput: move |event: FormEvent| if let Ok(value) = event.value().parse::<u8>() { emit_settings_change(&row_actions, row_target.clone(), row_baseline.clone(), KeycapEditChange::MatrixFirstRow(value)); }
                 }
-                label { "Wall thickness (mm)",
-                    input { r#type: "number", aria_label: "Wall thickness for {props.matrix_name}", min: "0.8", max: "2", step: "0.1", value: "{settings.wall_thickness}",
-                        oninput: move |event| if let Ok(value) = event.value().parse::<f64>() { emit_settings_change(&wall_actions, wall_target.clone(), wall_baseline.clone(), KeycapEditChange::MatrixWallThickness(value)); } }
+                SettingsInput { label: "Wall thickness (mm)", aria_label: format!("Wall thickness for {}", props.matrix_name), r#type: InputType::Number,
+                    min: Some("0.8".into()), max: Some("2".into()), step: Some("0.1".into()), value: settings.wall_thickness.to_string(),
+                    oninput: move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() { emit_settings_change(&wall_actions, wall_target.clone(), wall_baseline.clone(), KeycapEditChange::MatrixWallThickness(value)); }
                 }
-                BoardSelectField { label: "Socket", aria_label: format!("Keycap socket for {}", props.matrix_name), value: mount.to_owned(),
-                    onchange: move |event: FormEvent| emit_settings_change(&mount_actions, mount_target.clone(), mount_baseline.clone(), KeycapEditChange::MatrixMount(parse_mount(&event.value()))),
-                    option { value: "", "From switch profile" } option { value: "mx", "MX cross" }
-                    option { value: "choc-v1", "Choc v1" } option { value: "choc-v2", "Choc v2 cross" } option { value: "alps", "Alps" }
+                SettingsChoice { label: "Socket", aria_label: format!("Keycap socket for {}", props.matrix_name), value: mount.to_owned(),
+                    options: settings_options("From switch profile", MOUNTS),
+                    on_change: move |value: String| emit_settings_change(&mount_actions, mount_target.clone(), mount_baseline.clone(), KeycapEditChange::MatrixMount(parse_mount(&value))),
                 }
             }
             {settings_feedback(feedback, retries, &actions)}
@@ -1498,13 +1588,13 @@ fn settings_feedback(
     let on_discard = actions.on_discard;
     rsx! {
         if feedback.is_some() {
-            p { role: "status", "Saving keycap settings…" }
+            p { role: "status", Spinner {} "Saving keycap settings…" }
         }
         for draft in retries {
-            div { class: "m1-keycaps-retry-draft",
-                p { role: "status", "Unaccepted {field_label(&draft.field)} change: {change_label(&draft.change)}. {draft.message}" }
-                BoardButton { onclick: { let id = retry_identity(&draft); move |_| on_retry.call(id.clone()) }, "Retry" }
-                BoardButton { onclick: { let id = retry_identity(&draft); move |_| on_discard.call(id.clone()) }, "Discard" }
+            Alert { variant: AlertVariant::Destructive,
+                p { "Unaccepted {field_label(&draft.field)} change: {change_label(&draft.change)}. {draft.message}" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: { let id = retry_identity(&draft); move |_| on_retry.call(id.clone()) }, "Retry" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: { let id = retry_identity(&draft); move |_| on_discard.call(id.clone()) }, "Discard" }
             }
         }
     }
@@ -1649,16 +1739,22 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
     let row_change = actions.on_change;
     let width_change = actions.on_change;
     let depth_change = actions.on_change;
+    let legend_id = format!("keycaps-legend-{}", dioxus::core::current_scope_id().0);
+    let legend_error_id = format!("{legend_id}-error");
+    let legend_error = legend_failure();
     rsx! {
         section { class: "m1-keycaps-settings", aria_label: "Keycap overrides for {key.reference}",
-            label { "Legend",
-                input {
+            Field { class: "gap-1.5", invalid: legend_error.is_some(),
+                FieldLabel { html_for: legend_id.clone(), "Legend" }
+                InputGroup { InputGroupInput {
+                    id: legend_id,
                     aria_label: "Legend for {key.reference}",
-                    maxlength: "12",
                     value: "{legend_draft()}",
                     placeholder: if key.binding_label.is_empty() { "From binding" } else { key.binding_label.as_ref() },
-                    oninput: move |event| { legend_dirty.set(true); legend_failure.set(None); legend_draft.set(event.value()); },
-                    onblur: move |_| {
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    aria_invalid: legend_error.is_some(), aria_describedby: legend_error.as_ref().map(|_| legend_error_id.clone()),
+                    oninput: move |event: FormEvent| { legend_dirty.set(true); legend_failure.set(None); legend_draft.set(event.value()); },
+                    attributes: vec![Attribute::new("maxlength", "12", None, false), dioxus::events::onblur(move |_| {
                         let value = legend_draft();
                         if legend_dirty() || legend_blur_requires_reconciliation(&value, accepted_legend.as_deref(), legend_retry_pending) {
                             legend_dirty.set(false);
@@ -1669,57 +1765,38 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
                             };
                             request(change, &mut legend_sequence, legend_change, &legend_actions);
                         }
-                    },
+                    })],
+                } }
+                if let Some(message) = legend_error.as_deref() {
+                    div { id: legend_error_id, FieldError { "{message}" } }
                 }
             }
             div { class: "m1-keycaps-settings-actions",
-                BoardButton { onclick: move |_| { legend_draft.set(String::new()); request(KeycapEditChange::Legend(None), &mut inherit_sequence, inherit_change, &inherit_actions) }, "Use binding legend" }
-                BoardButton { onclick: move |_| { legend_draft.set(String::new()); request(KeycapEditChange::Legend(Some(String::new())), &mut blank_sequence, blank_change, &blank_actions) }, "Blank keycap" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| { legend_draft.set(String::new()); request(KeycapEditChange::Legend(None), &mut inherit_sequence, inherit_change, &inherit_actions) }, "Use binding legend" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| { legend_draft.set(String::new()); request(KeycapEditChange::Legend(Some(String::new())), &mut blank_sequence, blank_change, &blank_actions) }, "Blank keycap" }
             }
-            label { "Keycap color",
-                input {
-                    aria_label: "Keycap color for {key.reference}",
-                    r#type: "color",
-                    value: "{accepted_color.as_deref().unwrap_or(&selected.board_color)}",
-                    oninput: move |event| request(KeycapEditChange::Color(Some(event.value())), &mut color_sequence, color_change, &color_actions),
-                }
+            SettingsInput { label: "Keycap color", aria_label: format!("Keycap color for {}", key.reference), r#type: InputType::Color,
+                value: accepted_color.as_deref().unwrap_or(&selected.board_color).to_owned(),
+                oninput: move |event: FormEvent| request(KeycapEditChange::Color(Some(event.value())), &mut color_sequence, color_change, &color_actions),
             }
             if accepted_color.is_some() {
-                BoardButton { onclick: move |_| request(KeycapEditChange::Color(None), &mut reset_color_sequence, reset_color_change, &reset_color_actions), "Use board color" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| request(KeycapEditChange::Color(None), &mut reset_color_sequence, reset_color_change, &reset_color_actions), "Use board color" }
             }
-            BoardDisclosure {
-                heading: rsx! { summary { "Keycap overrides" } },
-                BoardSelectField {
+            SettingsSection { label: "Keycap overrides", default_open: false,
+                SettingsChoice {
                     label: "Profile", aria_label: format!("Profile override for {}", key.reference), value: profile.to_owned(),
-                    onchange: move |event: FormEvent| request(KeycapEditChange::Profile(parse_profile(&event.value())), &mut profile_sequence, profile_change, &profile_actions),
-                    option { value: "", "From matrix" }
-                    option { value: "cherry", "Cherry" }
-                    option { value: "oem", "OEM" }
-                    option { value: "dcs", "DCS" }
-                    option { value: "dsa", "DSA" }
-                    option { value: "sa", "SA" }
-                    option { value: "hi-pro", "Hi-Pro" }
-                    option { value: "g20", "G20" }
-                    option { value: "choc", "Choc" }
+                    options: settings_options("From matrix", PROFILES),
+                    on_change: move |value: String| request(KeycapEditChange::Profile(parse_profile(&value)), &mut profile_sequence, profile_change, &profile_actions),
                 }
-                BoardSelectField {
+                SettingsChoice {
                     label: "Socket", aria_label: format!("Socket override for {}", key.reference), value: mount.to_owned(),
-                    onchange: move |event: FormEvent| request(KeycapEditChange::Mount(parse_mount(&event.value())), &mut mount_sequence, mount_change, &mount_actions),
-                    option { value: "", "From matrix / switch" }
-                    option { value: "mx", "MX cross" }
-                    option { value: "choc-v1", "Choc v1" }
-                    option { value: "choc-v2", "Choc v2 cross" }
-                    option { value: "alps", "Alps" }
+                    options: settings_options("From matrix / switch", MOUNTS),
+                    on_change: move |value: String| request(KeycapEditChange::Mount(parse_mount(&value)), &mut mount_sequence, mount_change, &mount_actions),
                 }
-                label { "Profile row",
-                    input {
-                        aria_label: "Profile row for {key.reference}",
-                        r#type: "number",
-                        min: "1",
-                        max: "5",
-                        value: "{accepted_row.map_or_else(String::new, |row| row.to_string())}",
-                        placeholder: "From matrix",
-                        oninput: move |event| {
+                SettingsInput { label: "Profile row", aria_label: format!("Profile row for {}", key.reference), r#type: InputType::Number,
+                    min: Some("1".into()), max: Some("5".into()),
+                    value: accepted_row.map_or_else(String::new, |row| row.to_string()), placeholder: Some("From matrix".into()),
+                        oninput: move |event: FormEvent| {
                             let value = event.value();
                             if value.is_empty() {
                                 request(KeycapEditChange::Row(None), &mut row_sequence, row_change, &row_actions);
@@ -1727,18 +1804,11 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
                                 request(KeycapEditChange::Row(Some(row)), &mut row_sequence, row_change, &row_actions);
                             }
                         },
-                    }
                 }
-                label { "Width (u)",
-                    input {
-                        aria_label: "Keycap width for {key.reference}",
-                        r#type: "number",
-                        min: "0.75",
-                        max: "7",
-                        step: "0.25",
-                        value: "{width}",
-                        placeholder: "From envelope",
-                        oninput: move |event| {
+                SettingsInput { label: "Width (u)", aria_label: format!("Keycap width for {}", key.reference), r#type: InputType::Number,
+                    min: Some("0.75".into()), max: Some("7".into()), step: Some("0.25".into()),
+                    value: width, placeholder: Some("From envelope".into()),
+                        oninput: move |event: FormEvent| {
                             let value = event.value();
                             if value.is_empty() {
                             request(KeycapEditChange::ClearUnits(KeycapEditField::UnitsWidth), &mut width_sequence, width_change, &width_actions);
@@ -1746,18 +1816,11 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
                                 request(KeycapEditChange::UnitsWidth(width), &mut width_sequence, width_change, &width_actions);
                             }
                         },
-                    }
                 }
-                label { "Depth (u)",
-                    input {
-                        aria_label: "Keycap depth for {key.reference}",
-                        r#type: "number",
-                        min: "0.75",
-                        max: "7",
-                        step: "0.25",
-                        value: "{depth}",
-                        placeholder: "From envelope",
-                        oninput: move |event| {
+                SettingsInput { label: "Depth (u)", aria_label: format!("Keycap depth for {}", key.reference), r#type: InputType::Number,
+                    min: Some("0.75".into()), max: Some("7".into()), step: Some("0.25".into()),
+                    value: depth, placeholder: Some("From envelope".into()),
+                        oninput: move |event: FormEvent| {
                             let value = event.value();
                             if value.is_empty() {
                             request(KeycapEditChange::ClearUnits(KeycapEditField::UnitsDepth), &mut depth_sequence, depth_change, &depth_actions);
@@ -1765,20 +1828,16 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
                                 request(KeycapEditChange::UnitsDepth(depth), &mut depth_sequence, depth_change, &depth_actions);
                             }
                         },
-                    }
                 }
             }
             if feedback.is_some() {
-                p { role: "status", "Saving keycap override…" }
-            }
-            if let Some(message) = legend_failure() {
-                p { role: "alert", "{message}" }
+                p { role: "status", Spinner {} "Saving keycap override…" }
             }
             for draft in retry_drafts.iter() {
-                div { class: "m1-keycaps-retry-draft",
-                    p { role: "status", "Unaccepted {field_label(&draft.field)} change: {change_label(&draft.change)}. {draft.message}" }
-                    BoardButton { onclick: { let identity = retry_identity(draft); move |_| on_retry.call(identity.clone()) }, "Retry" }
-                    BoardButton { onclick: { let identity = retry_identity(draft); move |_| on_discard.call(identity.clone()) }, "Discard" }
+                Alert { variant: AlertVariant::Destructive,
+                    p { "Unaccepted {field_label(&draft.field)} change: {change_label(&draft.change)}. {draft.message}" }
+                    Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: { let identity = retry_identity(draft); move |_| on_retry.call(identity.clone()) }, "Retry" }
+                    Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: { let identity = retry_identity(draft); move |_| on_discard.call(identity.clone()) }, "Discard" }
                 }
             }
         }
@@ -2158,6 +2217,7 @@ mod queued_settings_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::{Event, TerminalOutcome};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use wasm_bindgen_test::*;
 
@@ -2339,10 +2399,7 @@ mod queued_settings_tests {
             "the keycap editor actions and width input are mounted",
             || {
                 probe.actions.borrow().is_some()
-                    && root
-                        .query_selector("input[aria-label='Keycap width for SW1']")
-                        .unwrap()
-                        .is_some()
+                    && by_role_name(&root, "spinbutton", "Keycap width for SW1").is_some()
             },
         )
         .await;
@@ -2367,9 +2424,7 @@ mod queued_settings_tests {
         };
         let (entered, release) = support::gate_next_core_reply(&runtime);
         use wasm_bindgen::JsCast;
-        let width = root
-            .query_selector("input[aria-label='Keycap width for SW1']")
-            .unwrap()
+        let width = by_role_name(&root, "spinbutton", "Keycap width for SW1")
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
@@ -2443,14 +2498,10 @@ mod queued_settings_tests {
         );
         // A return to the old accepted legend is still a newer committed intent.
         wait_until("the legend input is mounted after dimension undos", || {
-            root.query_selector("input[aria-label='Legend for SW1']")
-                .unwrap()
-                .is_some()
+            by_role_name(&root, "textbox", "Legend for SW1").is_some()
         })
         .await;
-        let input = root
-            .query_selector("input[aria-label='Legend for SW1']")
-            .unwrap()
+        let input = by_role_name(&root, "textbox", "Legend for SW1")
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
@@ -2591,10 +2642,7 @@ mod queued_settings_tests {
             || {
                 let accepted = runtime.model().accepted.unwrap();
                 accepted_legend_text(&accepted.document, "key") == "B"
-                    && root
-                        .query_selector("input[aria-label='Keycap width for SW1']")
-                        .unwrap()
-                        .is_some()
+                    && by_role_name(&root, "spinbutton", "Keycap width for SW1").is_some()
                     && probe.actions.borrow().as_ref().is_some_and(|actions| {
                         actions.revision == accepted.document.revision
                             && actions.token == accepted.token
@@ -2602,9 +2650,7 @@ mod queued_settings_tests {
             },
         )
         .await;
-        let width = root
-            .query_selector("input[aria-label='Keycap width for SW1']")
-            .unwrap()
+        let width = by_role_name(&root, "spinbutton", "Keycap width for SW1")
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
@@ -2683,19 +2729,63 @@ mod queued_settings_tests {
         );
         wait_until("the legend editor actions and input are mounted", || {
             probe.actions.borrow().is_some()
-                && root
-                    .query_selector("input[aria-label='Legend for SW1']")
-                    .unwrap()
-                    .is_some()
+                && by_role_name(&root, "textbox", "Legend for SW1").is_some()
         })
         .await;
-        let input = root
-            .query_selector("input[aria-label='Legend for SW1']")
-            .unwrap()
+        let input = by_role_name(&root, "textbox", "Legend for SW1")
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
         (runtime, probe, root, input)
+    }
+
+    #[wasm_bindgen_test]
+    async fn keycap_overrides_are_named_and_profile_picker_selects_by_keyboard() {
+        let (_runtime, _probe, root, _) = mounted_legend("keycaps-choice-floor").await;
+        let disclosure =
+            by_role_name(&root, "button", "Keycap overrides").expect("override disclosure");
+        assert_eq!(
+            disclosure.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        disclosure.click();
+        wait_until("override controls appear", || {
+            by_role_name(&root, "button", "Profile override for SW1").is_some()
+        })
+        .await;
+        let trigger = by_role_name(&root, "button", "Profile override for SW1").unwrap();
+        trigger.focus().unwrap();
+        let key = |target: &web_sys::HtmlElement, value: &str| {
+            let event = web_sys::KeyboardEventInit::new();
+            event.set_key(value);
+            event.set_bubbles(true);
+            event.set_cancelable(true);
+            target
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
+                        .unwrap(),
+                )
+                .unwrap();
+        };
+        key(&trigger, "Enter");
+        wait_until("profile list opens", || {
+            by_role_name(&root, "listbox", "Profile override for SW1").is_some()
+        })
+        .await;
+        let list = by_role_name(&root, "listbox", "Profile override for SW1").unwrap();
+        key(&list, "o");
+        wait_until("OEM is focused", || {
+            by_role_name(&root, "option", "OEM")
+                .is_some_and(|option| option.matches(":focus").unwrap())
+        })
+        .await;
+        key(&by_role_name(&root, "option", "OEM").unwrap(), "Enter");
+        wait_until("profile select returns focus", || {
+            trigger.matches(":focus").unwrap()
+                && trigger.get_attribute("aria-expanded").as_deref() == Some("false")
+        })
+        .await;
+        root.remove();
     }
 
     fn type_legend(input: &web_sys::HtmlInputElement, value: &str) {
@@ -3002,9 +3092,7 @@ mod queued_settings_tests {
             "the remounted Keycaps owner and legend input are ready",
             || {
                 let accepted = runtime.model().accepted.unwrap();
-                root.query_selector("input[aria-label='Legend for SW1']")
-                    .unwrap()
-                    .is_some()
+                by_role_name(&root, "textbox", "Legend for SW1").is_some()
                     && probe.actions.borrow().as_ref().is_some_and(|actions| {
                         probe
                             .workspace

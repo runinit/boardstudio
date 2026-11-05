@@ -7,6 +7,10 @@ use boardstudio_core::model::{
     Contour, KeyBinding, KeycapBoardSettings, KeycapKeySettings, KeycapMatrixSettings, Part,
     PartDefinition, PartKind, Pose2, ProjectDoc, Vec2,
 };
+use boardstudio_web_ui_shared::ui::combobox::{Combobox, ComboboxOption};
+use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
+use boardstudio_web_ui_shared::ui::input::InputType;
+use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -383,38 +387,43 @@ pub fn KeycapsKeyList(
         .filter(|key| key.search_text.contains(normalized_query.as_str()))
         .collect::<Vec<_>>();
     let no_visible_keys = visible_keys.is_empty();
+    let search_id = format!("keycaps-key-search-{}", dioxus::core::current_scope_id().0);
+    let selection_id = format!(
+        "keycaps-key-selection-{}",
+        dioxus::core::current_scope_id().0
+    );
+    let current = use_memo(use_reactive((&selected_value,), |(value,)| Some(value)));
     rsx! {
         section { class: "m1-keycaps-key-list", "aria-label": "Keycaps key selection",
-            label {
-                "Find a key",
-                input {
-                    r#type: "search",
-                    "aria-label": "Find a key",
+            Field { class: "gap-1.5",
+                FieldLabel { html_for: search_id.clone(), "Find a key" }
+                InputGroup { InputGroupInput {
+                    id: search_id, r#type: InputType::Search,
+                    aria_label: "Find a key", class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     value: "{query}",
-                    oninput: move |event| query.set(event.value()),
-                }
+                    oninput: move |event: FormEvent| query.set(event.value()),
+                } }
             }
-            label {
-                "Selected key",
-                select {
-                    "aria-label": "Selected key",
-                    value: "{selected_value}",
-                    onchange: move |event| on_select_key.call(event.value()),
-                    option { value: "", selected: selected_value.is_empty(), "Choose on the layout…" }
-                    for key in &visible_keys {
+            Field { class: "gap-1.5",
+                FieldLabel { html_for: selection_id.clone(), "Selected key" }
+                Combobox::<String> {
+                    id: selection_id, aria_label: "Selected key", list_aria_label: "Selected key",
+                    class: "max-[960px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch",
+                    value: Some(current.into()), placeholder: "Choose on the layout…",
+                    on_value_change: move |value: Option<String>| if let Some(value) = value { on_select_key.call(value); },
+                    ComboboxOption::<String> { index: 0usize, value: "", text_value: "Choose on the layout…", "Choose on the layout…" }
+                    for (index, key) in visible_keys.iter().enumerate() {
                         {
                             let binding_label = if key.binding_label.is_empty() {
                                 "Unassigned"
                             } else {
                                 key.binding_label.as_ref()
                             };
-                            let selected = selected_value.as_str() == key.id.as_ref();
+                            let label = format!("{} · {binding_label}", key.reference);
                             rsx! {
-                                option {
-                                    key: "{key.id}",
-                                    value: "{key.id}",
-                                    selected,
-                                    "{key.reference} · {binding_label}"
+                                ComboboxOption::<String> {
+                                    key: "{key.id}", index: index + 1, value: key.id.to_string(), text_value: label.clone(),
+                                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{label}"
                                 }
                             }
                         }
@@ -442,6 +451,107 @@ fn foreground_color(color: &str) -> &'static str {
         "#182331"
     } else {
         "#ffffff"
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod key_list_mounted_tests {
+    use super::*;
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+    use std::cell::RefCell;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[derive(Clone)]
+    struct Selection(Rc<RefCell<Option<String>>>);
+
+    #[component]
+    fn fixture() -> Element {
+        let selected = use_context::<Selection>();
+        let key = |id: &'static str, reference: &'static str| KeycapsKey {
+            id: Rc::from(id),
+            reference: Rc::from(reference),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            size: Vec2 { x: 18.2, y: 18.2 },
+            color: Rc::from("#ffffff"),
+            legend: Rc::from(""),
+            legend_source: LegendSource::Binding,
+            binding_label: Rc::from(""),
+            search_text: reference.to_lowercase(),
+        };
+        rsx! { KeycapsKeyList {
+            view: Rc::new(KeycapsView { board_id: Rc::from("board"), board_settings: KeycapBoardSettings::default(), keys: vec![key("a", "A1"), key("b", "B2")], matrices: Vec::new(), assigned_count: 0 }),
+            selected_key_id: None,
+            on_select_key: move |id| *selected.0.borrow_mut() = Some(id),
+        } }
+    }
+
+    #[wasm_bindgen_test]
+    async fn key_picker_filters_by_name_and_selects_a_key() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let selected = Rc::new(RefCell::new(None));
+        let dom = VirtualDom::new(fixture);
+        dom.provide_root_context(Selection(selected.clone()));
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("key picker renders", || {
+            by_role_name(&root, "combobox", "Selected key").is_some()
+        })
+        .await;
+        let picker = by_role_name(&root, "combobox", "Selected key").unwrap();
+        picker.focus().unwrap();
+        let key = |value: &str| {
+            let event = web_sys::KeyboardEventInit::new();
+            event.set_key(value);
+            event.set_bubbles(true);
+            event.set_cancelable(true);
+            picker
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
+                        .unwrap(),
+                )
+                .unwrap();
+        };
+        key("ArrowDown");
+        wait_until("named list opens", || {
+            by_role_name(&root, "listbox", "Selected key").is_some()
+        })
+        .await;
+        let input: web_sys::HtmlInputElement = picker.clone().dyn_into().unwrap();
+        input.set_value("B2");
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+        wait_until("list filters", || {
+            by_role_name(&root, "option", "B2 · Unassigned").is_some()
+                && by_role_name(&root, "option", "A1 · Unassigned").is_none()
+        })
+        .await;
+        key("ArrowDown");
+        wait_until("matching key is active", || {
+            by_role_name(&root, "option", "B2 · Unassigned").is_some_and(|option| {
+                picker.get_attribute("aria-activedescendant").as_deref()
+                    == Some(option.id().as_str())
+            })
+        })
+        .await;
+        key("Enter");
+        wait_until("selection emitted", || {
+            selected.borrow().as_deref() == Some("b")
+        })
+        .await;
+        root.remove();
     }
 }
 
