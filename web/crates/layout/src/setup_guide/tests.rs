@@ -36,7 +36,7 @@ fn panel_composition() -> Element {
                         on_open_matrix_setup: None, on_choose_controller: None, on_dismiss: |_| {}, on_finish: |_| {}, project_controls: None,
                     }
                 }
-                section { class: "m1-workspace-content", "{workspace()}" }
+                section { class: "m1-workspace-content", role: "region", aria_label: "Fixture workspace", "{workspace()}" }
                 InspectorPanel { compact_open: inspector_open, settings: inspector_settings,
                     button { "Case settings control" }
                 }
@@ -114,7 +114,9 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
     rendered().await;
     assert_panels(true, true);
     assert_eq!(
-        element(".m1-workspace-content").text_content().as_deref(),
+        element("[role=region][aria-label='Fixture workspace']")
+            .text_content()
+            .as_deref(),
         Some("Case")
     );
     assert_eq!(
@@ -124,7 +126,9 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
         Some("collapsed"),
         "choosing the guide stage must not open the settings panel"
     );
-    let copy = element(".m1-setup-guide").text_content().unwrap();
+    let copy = element("[aria-label='Project setup guide']")
+        .text_content()
+        .unwrap();
     assert_eq!(
         copy.matches("Optional. Set the basics here, then refine your case in the full editor.")
             .count(),

@@ -885,9 +885,10 @@ pub fn LayoutCommandPill(
                         .get_element_by_id("m1-layout-command-pill")
                         .is_some_and(|pill| pill.contains(Some(target)))
                         || listener_document
-                            .query_selector(".m1-layout-snap-dock")
-                            .ok()
-                            .flatten()
+                            .get_element_by_id("m1-layout-snap-trigger")
+                            .and_then(|trigger| {
+                                trigger.closest("[data-slot='collapsible']").ok().flatten()
+                            })
                             .is_some_and(|dock| dock.contains(Some(target)))
                 });
                 if !inside {

@@ -422,7 +422,7 @@ pub fn Objects(
                         }
                     }
                     if let Some(error) = placement_error {
-                        Alert { class: "m1-parts-placement-error",
+                        Alert {
         variant: AlertVariant::Destructive,AlertDescription {  "{error}"  } }
                     }
                     if !add_menu_open() && !existing_half_active {
@@ -478,7 +478,7 @@ pub fn Objects(
                         div { class: "m1-object-navigation",
                             if !pcb_workspace && !instances.is_empty() && case_workspace {
                                 div {
-                                    class: "m1-instance-selection",
+                                    class: "grid gap-1 text-muted-foreground text-xs",
                                     role: "group",
                                     "aria-label": "Physical instance",
                                     span { "Physical instance" }
@@ -774,7 +774,7 @@ fn AddObjectEntry(
                             button_type: "button",
                             id: "m1-add-object-trigger",
                             aria_label: "Add object",
-                            class: "m1-layout-add-trigger max-[760px]:min-h-control-touch!",
+                            class: "max-[760px]:min-h-control-touch!",
                             aria_expanded: open_menu,
                             onclick: move |_| menu_open.set(!menu_open()),
 
@@ -804,7 +804,6 @@ fn AddObjectEntry(
 
                             Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    class: "m1-add-back",
     onclick: move |_| { menu_open.set(false); focus_add_object(); },
                                 "← Back to objects"
                              }
@@ -815,7 +814,7 @@ fn AddObjectEntry(
                                     .iter()
                                     .find(|board| board.id == scope.board_id)
                                 {
-                                    strong { class: "m1-add-to-board-heading", "Add to {board.name}" }
+                                    strong { class: "text-muted-foreground text-sm font-medium", "Add to {board.name}" }
                                 }
                             }
                             Collapsible {

@@ -390,7 +390,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
     // Each field needs its own template root: nested component keys do not
     // create an identity boundary in Dioxus static templates.
     rsx! {
-        section { class: "m1-matrix-inspector", aria_label: "Matrix inspector",
+        section { class: "grid gap-3 min-w-0 px-4 pt-3 pb-4 text-foreground", aria_label: "Matrix inspector",
         onkeydown: move |event: KeyboardEvent| {
             if event.key().to_string() == " " {
                 event.stop_propagation();
@@ -790,7 +790,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                             }
                         }
                     }
-                    p { class: "m1-matrix-edit-status",
+                    p { class: "m-0 text-muted-foreground text-sm",
                         "Keycap preview {(projection.pitch_x - projection.edge_gap_x).max(0.0):.1} × {(projection.pitch_y - projection.edge_gap_y).max(0.0):.1} mm"
                     }
                 }
@@ -806,7 +806,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     inert: (!actions_open()).then_some(""),
                     Button {
                         variant: ButtonVariant::Secondary,
-                        class: "m1-matrix-edit-status",
+                        class: "m-0 text-muted-foreground text-sm",
                         disabled: !props.editable || props.busy,
                         onclick: move |_| props.on_delete.call(delete_request.clone()),
 
@@ -816,7 +816,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                 }
             }
             if props.busy {
-                div { role: "status",  Callout { class: "m1-matrix-edit-status", variant: CalloutVariant::Info,  "Saving matrix change…"  } }
+                div { role: "status",  Callout { class: "m-0 text-muted-foreground text-sm", variant: CalloutVariant::Info,  "Saving matrix change…"  } }
             }
         }
     }

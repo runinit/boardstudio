@@ -3297,8 +3297,10 @@ mod tests {
 
             assert_eq!(rows.value(), "3", "failure does not replace a newer draft");
             let rows_label = rows
-                .closest(".m1-matrix-field")
+                .closest("[data-slot='field']")
                 .unwrap()
+                .and_then(|field| field.parent_element())
+                .and_then(|input_group| input_group.parent_element())
                 .expect("the actual Rows field owner exists");
             assert!(
                 rows_label
@@ -3540,8 +3542,7 @@ mod tests {
             version.set(version() + 1);
             gloo_timers::future::TimeoutFuture::new(5).await;
             assert!(
-                root.query_selector("label.m1-matrix-field")
-                    .unwrap()
+                boardstudio_web_ui_shared::test_role::by_role_name(&root, "spinbutton", "Rows")
                     .is_none()
             );
 

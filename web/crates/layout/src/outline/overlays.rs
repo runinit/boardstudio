@@ -189,9 +189,9 @@ pub fn OutlinePointCanvasOverlay(
         .collect::<Vec<_>>()
         .join(" ");
     rsx! {
-        g { class: "m1-outline-point-controls", "aria-label": "Outline perimeter points",
+        g { "aria-label": "Outline perimeter points",
             if let Some(snap) = guides().as_ref().filter(|snap| !snap.guides.is_empty()) {
-                g { class: "m1-outline-snap-guides", "aria-label": "Outline alignment guides",
+                g { "aria-label": "Outline alignment guides",
                     for (index, guide) in snap.guides.iter().enumerate() {
                         line {
                             key: "guide-{index}-{guide.id}",
@@ -283,7 +283,7 @@ pub fn OutlinePointCanvasOverlay(
                                 let Some(pointer) = event.data().try_as_web_event() else { return; };
                                 pointer.stop_propagation();
                                 if !enabled || pointer.button() != 0 || !down_arbiter.try_acquire(CanvasInteractionOwner::OutlinePerimeter) { return; }
-                                let Some(capture) = pointer.target().and_then(|target| target.dyn_into::<SvgElement>().ok()).filter(|target| target.get_attribute("class").is_some_and(|classes| classes.split_whitespace().any(|class| class == "m1-outline-point-handle"))) else { down_arbiter.release(CanvasInteractionOwner::OutlinePerimeter); return; };
+                                let Some(capture) = pointer.target().and_then(|target| target.dyn_into::<SvgElement>().ok()).filter(|target| target.get_attribute("role").as_deref() == Some("button")) else { down_arbiter.release(CanvasInteractionOwner::OutlinePerimeter); return; };
                                 if capture.set_pointer_capture(pointer.pointer_id()).is_err() || !capture.has_pointer_capture(pointer.pointer_id()) {
                                     down_arbiter.release(CanvasInteractionOwner::OutlinePerimeter);
                                     return;

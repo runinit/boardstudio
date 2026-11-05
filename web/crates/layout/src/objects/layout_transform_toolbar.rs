@@ -514,7 +514,12 @@ pub fn LayoutTransformToolOverlay(
         let Some(capture) = pointer
             .target()
             .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
-            .and_then(|target| target.closest(".m1-transform-handle").ok().flatten())
+            .and_then(|target| {
+                target
+                    .closest("[role='button'][tabindex='0']")
+                    .ok()
+                    .flatten()
+            })
             .and_then(|target| target.dyn_into::<SvgElement>().ok())
         else {
             arbiter_for_start.release(CanvasInteractionOwner::MatrixTransform);
@@ -808,7 +813,12 @@ pub fn LayoutTransformToolOverlay(
         let Some(target) = key
             .target()
             .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
-            .and_then(|target| target.closest(".m1-transform-handle").ok().flatten())
+            .and_then(|target| {
+                target
+                    .closest("[role='button'][tabindex='0']")
+                    .ok()
+                    .flatten()
+            })
         else {
             return;
         };
@@ -957,7 +967,7 @@ pub fn LayoutTransformToolOverlay(
         }
         if matches!(tool, LayoutTransformTool::Stagger | LayoutTransformTool::Offset) {
             g {
-                class: "m1-transform-handle m1-stagger-handle",
+                class: "m1-transform-handle",
                 transform: "translate({handle_point.x} {handle_point.y}) scale({handle_scale})",
                 // The value is a description, not `aria-valuenow`: that belongs to range
                 // roles, and a handle that also edits a 2-D offset is a button.
@@ -981,14 +991,14 @@ pub fn LayoutTransformToolOverlay(
                 }
             }
         } else {
-            g { class: "m1-transform-splay-handles",
+            g {
                 if tool == LayoutTransformTool::Splay {
                     path { class: "m1-transform-splay-guide", d: "M{handle_point.x} {handle_point.y} L{angle_point.x} {angle_point.y}" }
                     path { class: "m1-transform-splay-guide", d: "{arc}" }
 
                 }
                 g {
-                    class: "m1-transform-handle m1-splay-origin-handle",
+                    class: "m1-transform-handle",
                     transform: "translate({handle_point.x} {handle_point.y}) scale({handle_scale})",
                     role: "button", tabindex: "0", "aria-label": "Move splay origin",
                     onpointerdown: { let start = start_drag.clone(); move |event| start(event, TransformGesture::Origin { column: selected_column }) },
@@ -997,7 +1007,7 @@ pub fn LayoutTransformToolOverlay(
                     onpointercancel: { let handler = cancel_drag.clone(); move |event| handler(event) },
                     onlostpointercapture: { let handler = cancel_drag.clone(); move |event| handler(event) },
                     onkeydown: { let handler = on_key_down.clone(); move |event| handler(event) },
-                    circle { class: "m1-transform-handle-target", r: "4" }
+                    circle { class: "fill-transparent stroke-none", r: "4" }
                     circle { r: "2" }
                     path { d: "M-3.5 0h7M0 -3.5v7" }
                     title { "Move splay origin" }
@@ -1012,7 +1022,7 @@ pub fn LayoutTransformToolOverlay(
                         };
                         rsx! {
                             g {
-                                class: "m1-transform-handle m1-splay-angle-handle",
+                                class: "m1-transform-handle",
                                 transform: "translate({angle_point.x} {angle_point.y}) scale({handle_scale})",
                                 role: "button", tabindex: "0", "aria-label": "Drag to splay",
                                 onpointerdown: { let start = start_drag.clone(); move |event| start(event, gesture) },
@@ -1021,7 +1031,7 @@ pub fn LayoutTransformToolOverlay(
                                 onpointercancel: { let handler = cancel_drag.clone(); move |event| handler(event) },
                                 onlostpointercapture: { let handler = cancel_drag.clone(); move |event| handler(event) },
                                 onkeydown: { let handler = on_key_down.clone(); move |event| handler(event) },
-                                rect { class: "m1-transform-handle-target", x: "-11", y: "-5", width: "22", height: "10" }
+                                rect { class: "fill-transparent stroke-none", x: "-11", y: "-5", width: "22", height: "10" }
                                 path { d: "M-9 0Q0 6 9 0M-9 0l1 3M-9 0l3-.5M9 0l-1 3M9 0l-3-.5" }
                                 title { "Drag to splay · {angle_degrees:.0}°" }
                             }
@@ -3552,7 +3562,7 @@ mod tool_tests {
             .unwrap()
             .and_then(|element| element.dyn_into::<SvgElement>().ok());
         let handle = root
-            .query_selector(".m1-transform-handle")
+            .query_selector("#overlay-host-svg [role='button'][tabindex='0']")
             .unwrap()
             .expect("the tool draws a handle");
         // A synthetic pointer id is not an active pointer, so the browser refuses real capture.

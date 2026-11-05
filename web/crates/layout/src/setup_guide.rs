@@ -85,10 +85,7 @@ fn sync_stage_trigger(stage: SetupGuideStage) {
             .and_then(|window| window.document())
             .and_then(|document| {
                 document
-                    .query_selector(&format!(
-                        ".m1-setup-stage-accordion > div:nth-child({}) > button",
-                        index + 1
-                    ))
+                    .query_selector(&format!("[aria-controls='m1-setup-panel-{index}']"))
                     .ok()
                     .flatten()
             })
@@ -450,7 +447,6 @@ pub fn ProjectSetupGuide(
                                         } else if let Some(on_open) = on_open_matrix_setup {
                                             Button {
                                                 variant: ButtonVariant::Default,
-                                                class: "m1-setup-guide__primary m1-setup-guide__add-matrix",
                                                 onclick: move |_| on_open.call(()),
                                                 if has_matrix {
                                                     "Add Thumb cluster"
@@ -468,7 +464,6 @@ pub fn ProjectSetupGuide(
                                         } else if let Some(on_choose) = on_choose_controller {
                                             Button {
                                                 variant: ButtonVariant::Secondary,
-                                                class: "m1-setup-guide__secondary",
                                                 onclick: move |_| on_choose.call(()),
                                                 "Choose controller"
                                             }
@@ -482,7 +477,6 @@ pub fn ProjectSetupGuide(
                                         }
                                         Button {
                                             variant: ButtonVariant::Secondary,
-                                            class: "m1-setup-guide__secondary",
                                             onclick: move |_| on_open_workspace.call("Case"),
                                             "Open full case settings"
                                         }
@@ -519,14 +513,12 @@ pub fn ProjectSetupGuide(
                     if let Some(next) = next_stage {
                         Button {
                             variant: ButtonVariant::Default,
-                            class: "m1-setup-guide__primary",
                             onclick: move |_| on_stage_change.call(next),
                             "{footer}"
                         }
                     } else {
                         Button {
                             variant: ButtonVariant::Default,
-                            class: "m1-setup-guide__primary",
                             onclick: move |_| on_finish.call(()),
                             "{footer}"
                         }
@@ -680,7 +672,7 @@ pub fn reveal_panels(
 
 pub fn focus_settings(workspace: &str) {
     let selector = if workspace == "Export" {
-        ".m1-workspace-content :is(input, select, button):not(:disabled)"
+        "#m1-workspace-panel :is(input, select, button):not(:disabled)"
     } else {
         "#m1-inspector-panel-content :is(input, select, button):not(:disabled)"
     };
@@ -701,7 +693,7 @@ mod tests;
 pub fn SetupHardwarePreview(split: bool, wired: bool) -> Element {
     rsx! {
         section {
-            class: "m1-setup-hardware-preview m1-setup-preview",
+            class: "m1-setup-hardware-preview",
             aria_label: "Assembly preview",
             h2 { "Assembly preview" }
             p {

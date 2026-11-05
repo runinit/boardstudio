@@ -862,7 +862,7 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                                 }
                             }
                             if let Some(message) = error {
-                                Alert { class: "m1-mirrored-pair-error",
+                                Alert {
         variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
                             }
                             footer { class: "m1-mirrored-pair-actions flex flex-wrap justify-end gap-2",

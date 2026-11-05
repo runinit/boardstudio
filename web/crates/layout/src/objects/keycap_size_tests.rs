@@ -720,15 +720,13 @@ async fn overlap_status_matches_react_selection_deduplication_and_truncation() {
     let (_probe, root) = mounted(initial, None);
     rendered(20).await;
     assert!(
-        element(&root, ".m1-key-size-warning[role='status']")
+        element(&root, "[role='status']")
             .query_selector("[data-slot=callout]")
             .unwrap()
             .is_some()
     );
     assert_eq!(
-        element(&root, ".m1-key-size-warning[role='status']")
-            .text_content()
-            .as_deref(),
+        element(&root, "[role='status']").text_content().as_deref(),
         Some(
             "Keycaps overlap: Selected, Duplicate, Ref 3, Ref 4, Ref 5, Ref 6, Ref 7, Ref 8 and 2 more. Adjust their rows or columns to clear the overlap."
         )

@@ -115,7 +115,7 @@ pub fn LayoutFindingsInspector(
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
-                    class: "m1-layout-findings-back max-[760px]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch",
                     onclick: move |_| on_close.call(()),
 
                     "Back to selection"

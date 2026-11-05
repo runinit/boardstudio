@@ -412,8 +412,8 @@ pub fn BoardInspector(mount: BoardInspectorMount) -> Element {
         _ => {}
     };
     rsx! {
-            section { class: "m1-board-inspector", aria_label: "Board Inspector",
-                p { class: "m1-board-inspector-guidance",
+            section { class: "grid content-start gap-2.5 min-w-0 px-4 pt-3 pb-5 text-foreground", aria_label: "Board Inspector",
+                p { class: "m-0 mb-[5px] text-muted-foreground text-[11px] leading-[1.6]",
                     "Select a key, component, or matrix to edit it."
                 }
                 {

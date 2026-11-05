@@ -504,7 +504,6 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                                 Button {
                                     variant: ButtonVariant::Secondary,
                                     button_type: "button",
-                                    class: "m1-secondary",
                                     disabled: !props.mount.editable,
                                     onclick: move |_| props.on_pick_splay_origin.call(()),
 
@@ -677,7 +676,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
     rsx! {
         section {
             key: "{owner_key}",
-            class: "m1-matrix-inspector m1-matrix-transform-inspector",
+            class: "grid gap-3 min-w-0 px-4 pt-3 pb-4 text-foreground m1-matrix-transform-inspector",
             aria_label: "Matrix transform properties",
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == " " {
@@ -1291,7 +1290,7 @@ fn EnabledTransformField(props: EnabledTransformFieldProps) -> Element {
                 ("Key enabled").replace(' ', "-"),
             );
             rsx! {
-                Label { html_for: check_id.clone(), class: "m1-matrix-key-enabled",
+                Label { html_for: check_id.clone(),
                     Checkbox {
                         id: check_id.clone(),
                         aria_label: "Key enabled",
@@ -1331,7 +1330,7 @@ fn EnabledTransformField(props: EnabledTransformFieldProps) -> Element {
             }
         }
         if let Some(message) = error.as_deref() {
-            FieldError { class: "m1-matrix-transform-error", "{message}"  }
+            FieldError { "{message}"  }
         }
     }
 }
@@ -1414,7 +1413,7 @@ fn KeyAssemblyField(props: KeyAssemblyFieldProps) -> Element {
     });
     rsx! {
 
-                Field { class: "m1-matrix-key-assembly",
+                Field {
                     FieldLabel { html_for: control_id.clone(), "{control_label}" }
                     Combobox::<String> {
                         id: control_id,
@@ -1437,7 +1436,7 @@ fn KeyAssemblyField(props: KeyAssemblyFieldProps) -> Element {
             }
         }
         if let Some(message) = error.as_deref() {
-            FieldError { class: "m1-matrix-transform-error", "{message}"  }
+            FieldError { "{message}"  }
         }
     }
 }
@@ -1512,7 +1511,7 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
         });
     };
     rsx! {
-            h3 { class: "m1-matrix-subtitle", "Attached components" }
+            h3 { "Attached components" }
             if props.mirror_target {
                 if props.assemblies_local {
                     ResetTransformButton {
@@ -1546,7 +1545,7 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
                         &definition_id,
                     );
                     rsx! {
-                        div { key: "{assembly_id}", class: "m1-matrix-attached-row",
+                        div { key: "{assembly_id}",
                             {
                                 let control_label = format!("Replace {}", assembly_id);
                                 let control_aria_label = format!("Replace {}", assembly_id);
@@ -1609,7 +1608,6 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
                             }
                             Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    class: "m1-inspector-secondary",
     disabled: remove_disabled,
     aria_label: "Remove {assembly_id}",
     onclick: {
@@ -1627,7 +1625,7 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
                 }
             }
             if let Some(message) = error.as_deref() {
-                FieldError { class: "m1-matrix-transform-error", "{message}"  }
+                FieldError { "{message}"  }
             }
         }
 }
@@ -1689,7 +1687,6 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
     rsx! {
             Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    class: "m1-inspector-secondary",
     disabled: disabled,
     onclick: move |_| {
                         let Some(id) = sequence().checked_add(1) else { return; };
@@ -1705,10 +1702,10 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
 
              }
             if let Some(reason) = props.blocked.as_deref() {
-                small { class: "m1-empty-note m1-matrix-transform-unavailable", "{reason}" }
+                small { "{reason}" }
             }
             if let Some(message) = error.as_deref() {
-                FieldError { class: "m1-matrix-transform-error", "{message}"  }
+                FieldError { "{message}"  }
             }
         }
 }

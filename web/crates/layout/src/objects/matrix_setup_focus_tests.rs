@@ -90,7 +90,11 @@ async fn matrix_cancel_restores_guide_focus_and_new_form_focuses_rows() {
     add_matrix.click();
     rendered().await;
     let rows_focused = focused().get_attribute("aria-label").as_deref() == Some("Rows");
-    let guide_stays_mounted = root.query_selector_all(".m1-setup-guide").unwrap().length() == 1;
+    let guide_stays_mounted = root
+        .query_selector_all("[aria-label='Project setup guide']")
+        .unwrap()
+        .length()
+        == 1;
     let cancel = by_role_name(&root, "button", "Cancel").unwrap();
     cancel.focus().unwrap();
     cancel.click();

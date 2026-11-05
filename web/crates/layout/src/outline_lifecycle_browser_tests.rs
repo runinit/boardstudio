@@ -805,7 +805,7 @@ async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
                 selection.read().as_ref().map(|selected| &selected.context),
                 Some(super::super::objects::TreeContext::Board { board_id }) if board_id == &probe.scope.board_id
             ) && document
-                .query_selector("#outline-points-inspector-mount .m1-outline-point-editor")
+                .query_selector("#outline-points-inspector-mount [aria-label='Perimeter']")
                 .unwrap()
                 .is_none()
                 && document
@@ -825,7 +825,7 @@ async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
     );
     assert!(
         document
-            .query_selector("#outline-points-inspector-mount .m1-outline-point-editor")
+            .query_selector("#outline-points-inspector-mount [aria-label='Perimeter']")
             .unwrap()
             .is_none(),
         "the nested Perimeter inspector is no longer mounted after returning to Board"
@@ -921,7 +921,7 @@ async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_edit
         .unwrap();
     wait_until("Escape closes the canvas point editor", || {
         document
-            .query_selector("#outline-points-inspector-mount .m1-outline-point-editor")
+            .query_selector("#outline-points-inspector-mount [aria-label='Perimeter']")
             .unwrap()
             .is_none()
             && document
@@ -944,7 +944,7 @@ async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_edit
     );
     assert!(
         document
-            .query_selector("#outline-points-inspector-mount .m1-outline-point-editor")
+            .query_selector("#outline-points-inspector-mount [aria-label='Perimeter']")
             .unwrap()
             .is_none(),
         "Escape from the canvas point exits perimeter editing"
@@ -2232,7 +2232,7 @@ mod ownership_presentation {
             "the linked refinement stays visibly available after the freeze copy: {labels:?}"
         );
         assert!(
-            root.query_selector(".m1-outline-problem")
+            root.query_selector("[data-finding-id] [role=alert]")
                 .unwrap()
                 .is_none(),
             "a resolvable linked refinement reports no problem"
@@ -2280,7 +2280,7 @@ mod ownership_presentation {
 
         let finding_id = format!("board:{BOARD}:outline:linked:linked-v1");
         let problem = root
-            .query_selector(&format!(".m1-outline-problem[data-finding-id='{finding_id}']"))
+            .query_selector(&format!("[data-finding-id='{finding_id}']"))
             .unwrap()
             .unwrap_or_else(|| {
                 panic!(
@@ -2288,6 +2288,10 @@ mod ownership_presentation {
                     root.inner_html()
                 )
             });
+        assert!(
+            problem.get_attribute("class").is_none(),
+            "the located finding does not depend on a legacy styling class"
+        );
         let announcement = problem
             .query_selector("[role=alert]")
             .unwrap()

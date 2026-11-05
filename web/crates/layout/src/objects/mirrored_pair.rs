@@ -219,7 +219,7 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                         "Linked key assemblies, diode settings and components. Substitute a component on either half when needed."
                     }
                     form { onsubmit: submit,
-                        div { class: "m1-mirrored-pair-fields",
+                        div { class: "m1-mirrored-pair-fields", role: "group", aria_label: "Mirrored pair dimensions",
                             {
                                 let control_input_id = format!(
                                     "layout-input-{}-5",
@@ -383,11 +383,11 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                             "Edit either half to update both. Unlink in the inspector for independent geometry."
                         }
                         if let Some(error) = error {
-                            Alert { class: "m1-mirrored-pair-error",
+                            Alert {
         variant: AlertVariant::Destructive,AlertDescription {  "{error}"  } }
                         }
                         if let Some(status) = status {
-                            div { role: "status",  Callout { class: "m1-mirrored-pair-status", variant: CalloutVariant::Info,  "{status}"  } }
+                            div { role: "status",  Callout { variant: CalloutVariant::Info,  "{status}"  } }
                         }
                         footer { class: "m1-mirrored-pair-actions",
                             Button {
