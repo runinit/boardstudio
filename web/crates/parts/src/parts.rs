@@ -24,6 +24,7 @@ use boardstudio_web_ui_shared::ui::{
 };
 mod component_model_editor;
 mod details;
+pub(crate) mod editor_fields;
 mod generator_settings;
 #[cfg(any(target_arch = "wasm32", test))]
 mod mechanical_profile_editor;

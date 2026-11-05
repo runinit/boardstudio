@@ -788,41 +788,36 @@ mod mounted_tests {
     }
 
     fn pad_id_input(root: &web_sys::Element) -> HtmlInputElement {
-        root.query_selector("input[aria-label='Pad 1 ID']")
-            .unwrap()
-            .unwrap()
+        by_role_name(root, "textbox", "Pad 1 ID")
+            .expect("pad ID field")
             .dyn_into()
             .unwrap()
     }
 
     fn pad_number_input(root: &web_sys::Element) -> HtmlInputElement {
-        root.query_selector("input[aria-label='Pad 1 number']")
-            .unwrap()
-            .unwrap()
+        by_role_name(root, "textbox", "Pad 1 number")
+            .expect("pad number field")
             .dyn_into()
             .unwrap()
     }
 
     fn courtyard_width_input(root: &web_sys::Element) -> HtmlInputElement {
-        root.query_selector("input[aria-label='Courtyard width']")
-            .unwrap()
-            .unwrap()
+        by_role_name(root, "spinbutton", "Courtyard width")
+            .expect("courtyard width field")
             .dyn_into()
             .unwrap()
     }
 
     fn courtyard_height_input(root: &web_sys::Element) -> HtmlInputElement {
-        root.query_selector("input[aria-label='Courtyard height']")
-            .unwrap()
-            .unwrap()
+        by_role_name(root, "spinbutton", "Courtyard height")
+            .expect("courtyard height field")
             .dyn_into()
             .unwrap()
     }
 
     fn pad_y_input(root: &web_sys::Element) -> HtmlInputElement {
-        root.query_selector("input[aria-label='Pad 1 Y']")
-            .unwrap()
-            .unwrap()
+        by_role_name(root, "spinbutton", "Pad 1 Y")
+            .expect("pad Y field")
             .dyn_into()
             .unwrap()
     }
@@ -976,11 +971,8 @@ mod mounted_tests {
         assert!(crate::parts_custom_definition::set_pad_number_draft_for_test("9"));
         settle().await;
         assert_eq!(pad_number_input(&root).value(), "9");
-        root.query_selector(".m1-definition-remove-pad")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
+        by_role_name(&root, "button", "Remove pad")
+            .expect("remove pad action")
             .click();
         settle().await;
         support::run_pending(&runtime).await;
@@ -1438,12 +1430,7 @@ mod mounted_tests {
         let (runtime, snapshot, _scope, state, root) =
             mount_panel(courtyard_document("Pad actions"), false).await;
         let controls = state.borrow().as_ref().unwrap().clone();
-        let add = root
-            .query_selector(".m1-definition-pad-heading button")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        let add = by_role_name(&root, "button", "+ Add pad").expect("add pad action");
         let (entered, release) = support::gate_next_core_reply(&runtime);
 
         // Both events reach the same retained handler before a disabled render.
@@ -1467,12 +1454,7 @@ mod mounted_tests {
             section_trigger(&root).click();
             settle().await;
         }
-        let remove = root
-            .query_selector(".m1-definition-remove-pad")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        let remove = by_role_name(&root, "button", "Remove pad").expect("remove pad action");
         let (entered, release) = support::gate_next_core_reply(&runtime);
         remove.click();
         remove.click();
