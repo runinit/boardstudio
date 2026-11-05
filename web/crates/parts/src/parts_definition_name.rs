@@ -679,7 +679,7 @@ mod mounted_tests {
     use crate::runtime::{Runtime, project_name_test_support as support};
     use boardstudio_application::{Event as AppEvent, Scope};
     use boardstudio_core::model::{PartDefinition, ProjectDoc};
-    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use boardstudio_web_ui_shared::test_role::{all_by_role_name, by_role_name};
     use dioxus::prelude::*;
     use std::{cell::RefCell, rc::Rc};
     use wasm_bindgen::JsCast;
@@ -971,7 +971,9 @@ mod mounted_tests {
         assert!(crate::parts_custom_definition::set_pad_number_draft_for_test("9"));
         settle().await;
         assert_eq!(pad_number_input(&root).value(), "9");
-        by_role_name(&root, "button", "Remove pad")
+        all_by_role_name(&root, "button", "Remove pad")
+            .into_iter()
+            .next()
             .expect("remove pad action")
             .click();
         settle().await;
