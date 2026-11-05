@@ -60,6 +60,19 @@ def main():
                 try {
                     if (getComputedStyle(canvas).backgroundColor !== getComputedStyle(probe).backgroundColor) throw Error('Mounted canvas background');
                 } finally { probe.remove(); }
+                // Exercise the firmware panel's actual stylesheet in each Theme and Appearance.
+                const panel = document.createElement('section');
+                panel.className = 'firmware-keymap-panel';
+                panel.innerHTML = '<span class="firmware-keymap-summary">Assigned</span>';
+                const reference = document.createElement('span');
+                reference.style.cssText = 'color:var(--muted-foreground);border-top:1px solid var(--border)';
+                document.body.append(panel, reference);
+                try {
+                    const summary = getComputedStyle(panel.firstElementChild);
+                    const expected = getComputedStyle(reference);
+                    if (summary.color !== expected.color) throw Error('Firmware summary does not follow the Theme');
+                    if (getComputedStyle(panel).borderTopColor !== expected.borderTopColor) throw Error('Firmware panel border does not follow the Theme');
+                } finally { panel.remove(); reference.remove(); }
                 if (value('background') === value('card')) throw Error('Desk equals card');
                 if (root.dataset.theme === 'original') {
                     const dark = root.dataset.appearance === 'dark';
