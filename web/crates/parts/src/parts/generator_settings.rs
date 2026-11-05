@@ -2062,7 +2062,14 @@ mod tests {
         let request = take_request(&fixture.requests, 21.0).await;
         let prepared = candidate(&request);
         finish_request(request, Ok(prepared)).await;
-        let input = root
+        let filename_field = by_role_name(&root, "textbox", "switch_3dmodel_filename")
+            .expect("mounted generator model filename");
+        let container = filename_field
+            .parent_element()
+            .and_then(|input_group| input_group.parent_element())
+            .and_then(|field| field.parent_element())
+            .expect("model field container");
+        let input = container
             .query_selector("input[type=file]")
             .unwrap()
             .expect("mounted generator model file input")
