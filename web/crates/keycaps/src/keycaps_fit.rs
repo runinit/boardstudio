@@ -268,7 +268,7 @@ pub fn KeycapsFitInspector(
     }));
 
     rsx! {
-        Collapsible { class: "m1-keycaps-disclosure m1-keycaps-fit-disclosure", open: findings_open(), keep_mounted: true,
+        Collapsible { class: "min-w-0", open: findings_open(), keep_mounted: true,
             on_open_change: move |open| {
                     findings_open_chosen.set(true);
                     findings_open.set(open);
@@ -278,10 +278,10 @@ pub fn KeycapsFitInspector(
                 small { "{title_detail}" }
             }
             CollapsibleContent { hidden: !findings_open(), inert: (!findings_open()).then_some(""),
-            section { class: "m1-keycaps-fit", "aria-label": "Clearance findings details",
+            section { class: "mt-3 grid min-w-0 gap-2 px-4 pb-4 pt-3 text-foreground [&_p]:m-0 [&_p]:leading-[1.55]", "aria-label": "Clearance findings details",
             if let Some(state) = state.as_ref() {
                 if state.refreshing {
-                    p { class: "m1-keycaps-fit-status", role: "status",
+                    p { class: "text-sm text-muted-foreground", role: "status",
                         Spinner {}
                         if accepted.is_some() { "Refreshing; the shown assessment is from an earlier revision." }
                         else { "Checking keycap fit…" }
@@ -299,7 +299,7 @@ pub fn KeycapsFitInspector(
                     }
                 }
             } else {
-                p { class: "m1-keycaps-fit-status", role: "status", "Waiting for an accepted board snapshot." }
+                p { class: "text-sm text-muted-foreground", role: "status", "Waiting for an accepted board snapshot." }
             }
             if !current && accepted.is_some() {
                 Callout { variant: CalloutVariant::Info, "Earlier accepted findings · revision {accepted.unwrap().source.revision}" }
@@ -311,14 +311,14 @@ pub fn KeycapsFitInspector(
             }
             if findings.is_empty() {
                 if accepted.is_some() && accepted.unwrap().result.specs.is_empty() {
-                    p { class: "m1-keycaps-fit-empty", "No generated keycaps are configured for this board." }
+                    p { "No generated keycaps are configured for this board." }
                 } else if accepted.is_some() {
-                    p { class: "m1-keycaps-fit-clean",
+                    p { class: "text-sm text-success-dark",
                         if current { "No active findings for the conservative full switch-travel envelope check." }
                         else { "The earlier assessment had no active findings for the conservative full switch-travel envelope check." }
                     }
                 } else if !state.as_ref().is_some_and(|state| state.refreshing) {
-                    p { class: "m1-keycaps-fit-empty", "No fit assessment is available yet." }
+                    p { "No fit assessment is available yet." }
                 }
             } else {
                 div { class: "wb-finding-groups",

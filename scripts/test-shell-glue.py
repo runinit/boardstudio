@@ -165,6 +165,25 @@ def main():
             }
             [html.dataset.theme, html.dataset.appearance] = prior;
         """)
+        dismiss_notices()
+        action("button", "Clearance findings 0")
+        browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Clearance findings details\"]') && !document.querySelector('[aria-label=\"Clearance findings details\"]').closest('[hidden], [inert]')")
+        check("""
+            const details = document.querySelector('[aria-label="Clearance findings details"]');
+            const disclosure = details.closest('[data-slot=collapsible]');
+            const html = document.documentElement;
+            const prior = [html.dataset.theme, html.dataset.appearance];
+            for (const theme of ['original', 'shadcn']) for (const appearance of ['light', 'dark']) {
+                html.dataset.theme = theme; html.dataset.appearance = appearance;
+                if (getComputedStyle(disclosure).borderTopWidth !== '0px' || getComputedStyle(details).borderTopWidth !== '0px')
+                    throw Error('Findings must use the card layout without old dividers');
+                if (getComputedStyle(details).color !== getComputedStyle(document.body).color)
+                    throw Error('Findings must follow the current Theme');
+                if (getComputedStyle(details).display !== 'grid') throw Error('Findings must remain grouped');
+            }
+            [html.dataset.theme, html.dataset.appearance] = prior;
+        """)
+        action("button", "Clearance findings 0")
         # Both the selected-key and override disclosures can be closed by the user.
         action("button", "SW1 · key")
         camera("Profile", toolbar="Keycaps tools")

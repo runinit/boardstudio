@@ -360,7 +360,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                     p { class: "m1-keycaps-empty-note", role: "status", "Add switches in Layout to configure keycaps." }
                 }
                 if let Some(actions) = settings_actions.clone() {
-                    WorkspaceDisclosure { class: "m1-keycaps-disclosure", label: "Matrix profiles", default_open: false,
+                    WorkspaceDisclosure { class: "min-w-0", label: "Matrix profiles", default_open: false,
                         section { class: "m1-keycaps-settings", "aria-label": "Matrix profiles",
                             for matrix in view.matrices.iter() {
                                 KeycapsMatrixSettingsEditor { key: "{matrix.id}", matrix_id: matrix.id.to_string(), matrix_name: matrix.name.to_string(), settings: matrix.settings.clone(), actions: actions.clone() }
@@ -369,7 +369,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                         }
                     }
                 }
-                WorkspaceDisclosure { class: "m1-keycaps-disclosure m1-keycaps-selected-key", label: selected_title, default_open: true,
+                WorkspaceDisclosure { class: "min-w-0", label: selected_title, default_open: true,
                     div { class: "m1-keycaps-selected-key-body",
                         KeycapsKeyList {
                             view: view.clone(),

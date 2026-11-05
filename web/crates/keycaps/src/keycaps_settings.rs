@@ -1491,7 +1491,7 @@ pub fn KeycapsBoardSettingsEditor(props: KeycapsBoardSettingsEditorProps) -> Ele
     let clearance_target = target.clone();
     let clearance_baseline = baseline.clone();
     rsx! {
-        SettingsSection { class: "m1-keycaps-disclosure", label: "Board colors", default_open: true,
+        SettingsSection { class: "min-w-0", label: "Board colors", default_open: true,
             section { class: "m1-keycaps-settings", aria_label: "Board colors",
                 SettingsInput { label: "Keycap color", aria_label: "Board keycap color", r#type: InputType::Color, value: settings.color.clone(),
                     oninput: move |event: FormEvent| emit_settings_change(&color_actions, color_target.clone(), color_baseline.clone(), KeycapEditChange::BoardColor(event.value()))
