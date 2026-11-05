@@ -60,3 +60,7 @@ now wasm-gated because the shared Combobox is wasm-only; the reviewer should
 assess that compatibility risk. Coordinator adjudication of the browser failures
 and review is needed before resolution or any integration fast-forward; the
 ticket remains claimed and no merge has been performed.
+
+## Comments (continued)
+
+2026-11-05 (coordinator adjudication, full-browser gate): the two full-gate failures in `.evidence/022/browser-final-recheck.log` are ruled PRE-EXISTING / OUT OF SCOPE, not caused by 022: (1) `test-drag-interactions.cjs` `waitForFunction` timeout queries save-state/drag code — the lane diff touches only keycaps/keymap/pcb crates, their hosts, and CSS (27 files, no drag/save-state/Layout sources), and `.m1-save-state` CSS is byte-identical on lane and feat; (2) `ToastCtx` in the Layout selected-key fixture matches the exact signature 023 documents as pre-existing on unchanged sources. 022-owned gates are green (repo/lint/native/build; browser 56/46/32 in the full run; isolated 6/6 on final source; 2 mutation kills; 36-view matrix). The full browser gate stays open for 026 (its criterion owns it). 022 may resolve and fast-forward to feat. The combined Spec+Standards review is deferred to the Phase 1 close-out review per the run brief (single review over base 6fc3956f5); flagged must-check item for it: the wasm-gated native `KeycapsKeyList` API compat risk noted in `## Current`.
