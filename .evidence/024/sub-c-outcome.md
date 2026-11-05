@@ -41,7 +41,7 @@ Numbers count individual regex matches for quoted-start or dotted `m1-`/`board-`
 - `python3 scripts/run-wasm-tests.py --files web/src/presentation/keymap_workspace.rs` — 1 passed (`continuation-page-final.log`).
 - Tailwind CLI compiled to stdout and emitted required utilities (`continuation-tailwind-final.log`). `scripts/mutation-check.py` navigation-grid mutation was killed and restored (`continuation-mutation.log`). Rustfmt and `git diff --check` passed.
 - Packaged build NOT run: `scripts/build-web.py` stages into unowned `web/assets/ergogen-models`, `renderer/pkg`, `cad/wasm/pkg` and generated asset paths; this conflicts with this sub-lane's hard file ownership/no CSS edits. Coordinator must run the build and resolve this gate. No full gate was run as instructed; no visual/theme comparison performed.
-- Parent merge/reverification status is recorded below.
+- Merged parent `lane/024-delete-the-old-layer` at `64763a3`: already an ancestor, no merge commit. Post-merge repeats passed: 8 native, 47 browser, typecheck, 1 page (`continuation-post-merge-{native,browser,typecheck,page}.log`).
 
 ## Run-1 incident
 
