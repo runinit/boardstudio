@@ -1065,7 +1065,7 @@ mod mounted_step_tests {
         workspace.set("Parts");
         rendered().await;
         assert!(
-            root.query_selector(".m1-keymap-macros").unwrap().is_none(),
+            by_role_name(&root, "button", "Add macro").is_none(),
             "the panel actually unmounts while the Editor controller remains mounted"
         );
         workspace.set("Keymap");

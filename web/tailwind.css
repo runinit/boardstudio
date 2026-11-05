@@ -1075,8 +1075,8 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-design-canvas-toolbar .board-toolbar .board-button { background: transparent; border-color: transparent; }
 .m1-design-canvas-toolbar .board-toolbar .board-button:hover { background: var(--wb-surface-soft); border-color: transparent; }
 /* Keep section controls in document flow and preview geometry legible. */
-.m1-keymap-navigation :is(.m1-keymap-layer-name-label, .m1-keymap-search-label) { display: grid; gap: var(--wb-space-2); }
-.m1-keymap-navigation :is(.m1-keymap-layer-name, .m1-keymap-search) { width: 100%; min-width: 0; }
+.m1-keymap-navigation .m1-keymap-layer-name-label { display: grid; gap: var(--wb-space-2); }
+.m1-keymap-navigation .m1-keymap-layer-name { width: 100%; min-width: 0; }
 .m1-library-landing .m1-keyboard-preview rect { stroke: var(--wb-geometry-key); }
 @media (max-width: 760px) {
   .m1-export-workspace .m1-export-row { grid-template-columns: 8px minmax(0, 1fr); }

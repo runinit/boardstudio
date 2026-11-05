@@ -860,7 +860,6 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
 .m1-keymap-encoder-editor > header span { color: var(--wb-muted); }
 .m1-keymap-encoder-row { display: grid; gap: 8px; }
 .m1-keymap-layer-index { flex: none; min-width: 1.25rem; color: var(--wb-muted); font-variant-numeric: tabular-nums; }
-.m1-keymap-search-label, .m1-keymap-select-label { color: var(--wb-muted); }
 .m1-keymap-selected-label { margin: 0; color: var(--wb-ink); font-size: var(--wb-type-body); }
 .m1-keymap-empty, .m1-keymap-unavailable { margin: 8px 0; color: var(--wb-muted); font-size: var(--wb-type-body); line-height: 1.5; }
 .m1-keymap-layout > .m1-keymap-key { cursor: pointer; outline: none; }
@@ -980,8 +979,6 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
 
 .m1-keymap-binding-editor { display: grid; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--wb-rule); }
 .m1-keymap-binding-editor .m1-keymap-binding-field { margin-block: 0; }
-.m1-keymap-binding-pending { margin: 0; color: var(--wb-muted); font-size: var(--wb-type-label); }
-.m1-keymap-binding-error { margin: 0; color: var(--wb-status-error); font-size: var(--wb-type-label); }
 
 .m1-mechanical-settings { display: grid; gap: 12px; }
 .m1-mechanical-settings h3, .m1-mechanical-settings p { margin: 0; }

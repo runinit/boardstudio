@@ -271,21 +271,15 @@ async fn two_binding_fields_queue_and_undo_in_commit_order() {
         .await
         .unwrap();
     wait_until("the behaviour select shows the key-press value", || {
-        root.query_selector("select[aria-label='a behavior']")
-            .ok()
-            .flatten()
-            .and_then(|element| element.dyn_into::<web_sys::HtmlSelectElement>().ok())
-            .is_some_and(|select| select.value() == "key-press")
+        by_role_name(&root, "button", "a behavior").is_some_and(|select| {
+            select
+                .text_content()
+                .is_some_and(|text| text.trim() == "Key press")
+        })
     })
     .await;
-    use wasm_bindgen::JsCast;
-    let behavior = root
-        .query_selector("select[aria-label='a behavior']")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlSelectElement>()
-        .unwrap();
-    assert_eq!(behavior.value(), "key-press");
+    let behavior = by_role_name(&root, "button", "a behavior").unwrap();
+    assert_eq!(behavior.text_content().unwrap().trim(), "Key press");
     binding(&probe, "b", "B").await;
     support::drive_pending(runtime);
     release.send(()).unwrap();
@@ -494,13 +488,7 @@ async fn macro_fields_queue_and_undo_separately() {
     assert_eq!(item.name, "Renamed");
     assert_eq!(item.tap_ms, 30);
     // Only the submitted one-shot control is disabled, with no pending message.
-    use wasm_bindgen::JsCast;
-    let add = root
-        .query_selector("section.m1-keymap-macros > button")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
+    let add = by_role_name(&root, "button", "Add macro").unwrap();
     rendered_accepted(&probe, &runtime).await;
     let (entered, release) = support::gate_next_core_reply(&runtime);
     add.click();
@@ -513,12 +501,7 @@ async fn macro_fields_queue_and_undo_separately() {
     })
     .await;
     assert!(add.has_attribute("disabled"));
-    let tap = root
-        .query_selector("input[aria-label='Renamed tapMs']")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlInputElement>()
-        .unwrap();
+    let tap = macro_input(&root, "Renamed tapMs");
     assert!(!tap.disabled());
     assert!(!root.text_content().unwrap().contains("Saving macro"));
     release.send(()).unwrap();
@@ -660,18 +643,12 @@ async fn rename_of_layer_removed_before_execution_retires_with_reason() {
 
 #[wasm_bindgen_test]
 async fn macro_field_can_queue_a_return_to_the_preceding_accepted_value() {
-    use wasm_bindgen::JsCast;
     let runtime = support::new_runtime();
     let mut doc = document();
     doc.keymap = Some(serde_json::from_value(serde_json::json!({"layers":[{"id":"base","name":"Base","bindings":{},"sensors":{}}],"macros":[{"id":"macro","name":"Original","tapMs":30,"waitMs":0,"steps":[{"kind":"tap","binding":{"kind":"key-press","keycode":"A"}}]}]})).unwrap());
     support::open_document(&runtime, doc).await;
     let (probe, root) = mount_runtime(runtime.clone()).await;
-    let input = root
-        .query_selector("input[aria-label='Original tapMs']")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlInputElement>()
-        .unwrap();
+    let input = macro_input(&root, "Original tapMs");
     let commit = |value: &str| {
         input.focus().unwrap();
         input.set_value(value);
@@ -765,17 +742,10 @@ async fn failed_binding_restores_accepted_field_and_explains_failure() {
     settle_until(
         runtime,
         "the binding editor renders its keycode field",
-        || {
-            root.query_selector("input[aria-label='a keycode']")
-                .ok()
-                .flatten()
-                .is_some()
-        },
+        || by_role_name(&root, "combobox", "a keycode").is_some(),
     )
     .await;
-    let input = root
-        .query_selector("input[aria-label='a keycode']")
-        .unwrap()
+    let input = by_role_name(&root, "combobox", "a keycode")
         .unwrap()
         .dyn_into::<web_sys::HtmlInputElement>()
         .unwrap();
@@ -815,6 +785,96 @@ async fn failed_binding_restores_accepted_field_and_explains_failure() {
             .unwrap()
             .contains("binding executor failed")
     );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn keycode_combobox_commits_arbitrary_code_on_blur_and_keeps_it_displayed() {
+    use wasm_bindgen::JsCast;
+    let (probe, root) = mounted().await;
+    let runtime = &probe.runtime;
+    binding(&probe, "a", "A").await;
+    settle_until(runtime, "the accepted binding is visible", || {
+        key_binding(runtime, "a").is_some()
+    })
+    .await;
+    let input: web_sys::HtmlInputElement = by_role_name(&root, "combobox", "a keycode")
+        .expect("keycode combobox")
+        .dyn_into()
+        .unwrap();
+    input.focus().unwrap();
+    input.set_value("CUSTOM_CODE");
+    let event = web_sys::EventInit::new();
+    event.set_bubbles(true);
+    input
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+        .unwrap();
+    input.blur().unwrap();
+    settle_until(runtime, "arbitrary keycode is accepted", || {
+        key_binding(runtime, "a")
+            == Some(KeyBinding::KeyPress {
+                keycode: "CUSTOM_CODE".into(),
+            })
+    })
+    .await;
+    assert_eq!(input.value(), "CUSTOM_CODE");
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn keycode_combobox_filters_and_commits_a_suggestion_on_blur() {
+    use wasm_bindgen::JsCast;
+    let (probe, root) = mounted().await;
+    let runtime = &probe.runtime;
+    binding(&probe, "a", "A").await;
+    settle_until(runtime, "the accepted binding is visible", || {
+        key_binding(runtime, "a").is_some()
+    })
+    .await;
+    let input: web_sys::HtmlInputElement = by_role_name(&root, "combobox", "a keycode")
+        .unwrap()
+        .dyn_into()
+        .unwrap();
+    input.focus().unwrap();
+    input.set_value("Backspace");
+    let event = web_sys::EventInit::new();
+    event.set_bubbles(true);
+    input
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+        .unwrap();
+    wait_until("the list is filtered", || {
+        by_role_name(&root, "option", "BSPC · Backspace").is_some()
+    })
+    .await;
+    let key = |value: &str| {
+        let event = web_sys::KeyboardEventInit::new();
+        event.set_key(value);
+        event.set_bubbles(true);
+        event.set_cancelable(true);
+        input
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
+                    .unwrap(),
+            )
+            .unwrap();
+    };
+    key("ArrowDown");
+    wait_until("the suggestion is active", || {
+        by_role_name(&root, "option", "BSPC · Backspace").is_some_and(|option| {
+            input.get_attribute("aria-activedescendant").as_deref() == Some(option.id().as_str())
+        })
+    })
+    .await;
+    key("Enter");
+    input.blur().unwrap();
+    settle_until(runtime, "the suggested code is accepted", || {
+        key_binding(runtime, "a")
+            == Some(KeyBinding::KeyPress {
+                keycode: "BSPC".into(),
+            })
+    })
+    .await;
+    assert_eq!(input.value(), "BSPC");
     root.remove();
 }
 
@@ -1143,13 +1203,7 @@ async fn an_unmounted_macro_field_does_not_break_its_held_edit_and_remounts_clea
     })).unwrap());
     support::open_document(&runtime, doc).await;
     let (probe, root) = mount_runtime(runtime.clone()).await;
-    let tap = || {
-        root.query_selector("input[aria-label='Original tapMs']")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap()
-    };
+    let tap = || macro_input(&root, "Original tapMs");
     let (entered, release) = support::gate_next_core_reply(&runtime);
     let input = tap();
     input.focus().unwrap();
@@ -1168,18 +1222,11 @@ async fn an_unmounted_macro_field_does_not_break_its_held_edit_and_remounts_clea
     hide.set(true);
     wait_until(
         "the macro field is unmounted while its edit is held",
-        || {
-            root.query_selector("input[aria-label='Original tapMs']")
-                .ok()
-                .flatten()
-                .is_none()
-        },
+        || by_role_name(&root, "spinbutton", "Original tapMs").is_none(),
     )
     .await;
     assert!(
-        root.query_selector("input[aria-label='Original tapMs']")
-            .unwrap()
-            .is_none(),
+        by_role_name(&root, "spinbutton", "Original tapMs").is_none(),
         "the macro field is unmounted while its edit is held"
     );
     release.send(()).unwrap();
@@ -1213,9 +1260,7 @@ async fn an_unmounted_macro_field_does_not_break_its_held_edit_and_remounts_clea
     );
     hide.set(false);
     wait_until("the remounted field shows the accepted value", || {
-        root.query_selector("input[aria-label='Original tapMs']")
-            .ok()
-            .flatten()
+        by_role_name(&root, "spinbutton", "Original tapMs")
             .and_then(|element| element.dyn_into::<web_sys::HtmlInputElement>().ok())
             .is_some_and(|input| input.value() == "55")
     })
