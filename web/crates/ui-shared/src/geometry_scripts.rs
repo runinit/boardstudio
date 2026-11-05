@@ -4,6 +4,7 @@ use crate::runtime::Runtime;
 use crate::ui::{
     button::{Button, ButtonSize, ButtonVariant},
     checkbox::{Checkbox, CheckboxState},
+    input_group::{InputGroup, InputGroupInput, InputGroupTextarea},
     select::{Select, SelectOption},
 };
 use boardstudio_application::{
@@ -227,7 +228,7 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
     let on_back_key = on_back;
     rsx! {
         section {
-            class: "m1-geometry-scripts",
+            class: "grid content-start gap-3 min-w-0 px-4 pt-3 pb-5 text-foreground [&_h2]:m-0 [&_h3]:m-0 [&_p]:m-0",
             aria_label: "Geometry scripts",
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == "Escape" {
@@ -236,20 +237,20 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                     on_back_key.call(());
                 }
             },
-            header { class: "m1-geometry-scripts-heading",
+            header { class: "flex items-center justify-between gap-2",
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
-                    class: "m1-geometry-scripts-back",
                     onclick: move |_| on_back.call(()),
                     "Back to selection"
                 }
-                h2 { "Geometry scripts" }
+                h2 { class: "text-base font-semibold", "Geometry scripts" }
             }
-            div { class: "m1-geometry-scripts-list-heading",
+            div { class: "flex items-center justify-between gap-2",
                 h3 { "Scripts" }
-                button {
-                    r#type: "button",
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    size: ButtonSize::Sm,
                     disabled: !can_edit || new_pending,
                     onclick: {
                         let runtime = runtime.clone();
@@ -295,7 +296,7 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                 }
             }
             if !scripts.is_empty() {
-                div { class: "m1-geometry-script-field",
+                div { class: "grid gap-1 min-w-0 text-sm text-muted-foreground",
                     span { "Active script" }
                     Select::<String> {
                         aria_label: "Active script",
@@ -337,27 +338,32 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                 }
             }
             if let Some(script) = active_script {
-                label { class: "m1-geometry-script-field",
+                label { class: "grid gap-1 min-w-0 text-sm text-muted-foreground",
                     "Name"
-                    input {
-                        aria_label: "Name",
-                        value: "{name()}",
-                        disabled: !can_edit,
-                        oninput: move |event| { let value = event.value(); name.set(value.clone()); draft.set(encode_script_draft(&value, &source(), enabled())); },
+                    InputGroup {
+                        InputGroupInput {
+                            aria_label: "Name",
+                            value: "{name()}",
+                            disabled: !can_edit,
+                            oninput: move |event: FormEvent| { let value = event.value(); name.set(value.clone()); draft.set(encode_script_draft(&value, &source(), enabled())); },
+                        }
                     }
                 }
-                label { class: "m1-geometry-script-field",
+                label { class: "grid gap-1 min-w-0 text-sm text-muted-foreground",
                     "Rhai source"
-                    textarea {
-                        aria_label: "Rhai source",
-                        spellcheck: "false",
-                        value: "{source()}",
-                        placeholder: "// Describe generated geometry and component groups",
-                        disabled: !can_edit,
-                        oninput: move |event| { let value = event.value(); source.set(value.clone()); draft.set(encode_script_draft(&name(), &value, enabled())); },
+                    InputGroup {
+                        InputGroupTextarea {
+                            class: "min-h-[180px] resize-y font-mono",
+                            aria_label: "Rhai source",
+                            spellcheck: "false",
+                            value: "{source()}",
+                            placeholder: "// Describe generated geometry and component groups",
+                            disabled: !can_edit,
+                            oninput: move |event: FormEvent| { let value = event.value(); source.set(value.clone()); draft.set(encode_script_draft(&name(), &value, enabled())); },
+                        }
                     }
                 }
-                label { class: "m1-geometry-script-enabled",
+                label { class: "flex items-center gap-2 text-sm text-foreground",
                     Checkbox {
                         aria_label: "Enable on Apply",
                         checked: Some(if enabled() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
@@ -367,7 +373,7 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                     "Enable on Apply"
                 }
                 Button {
-                    class: "m1-geometry-script-apply",
+                    class: "justify-self-start",
                     disabled: !can_edit || apply_disabled() || source().trim().is_empty(),
                     onclick: {
                         let runtime = runtime.clone();
@@ -405,13 +411,13 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                     "Apply script"
                 }
                 if let Some(error) = failure.read().as_ref() {
-                    p { role: "alert", class: "m1-geometry-script-error", "data-error-source": "script", "{error}" }
+                    p { role: "alert", class: "text-sm text-destructive", "data-error-source": "script", "{error}" }
                 } else if let Some(error) = current_error.as_ref() {
-                    p { role: "alert", class: "m1-geometry-script-error", "data-error-source": "runtime", "{error}" }
+                    p { role: "alert", class: "text-sm text-destructive", "data-error-source": "runtime", "{error}" }
                 }
                 ScriptFindings { findings: current_findings }
             } else {
-                p { class: "m1-geometry-scripts-empty", "Scripts generate named geometry groups. Apply a script to run it in the core." }
+                p { class: "text-sm text-muted-foreground", "Scripts generate named geometry groups. Apply a script to run it in the core." }
             }
         }
     }
@@ -420,16 +426,16 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
 #[component]
 fn ScriptFindings(findings: Vec<Finding>) -> Element {
     rsx! {
-        section { class: "m1-geometry-script-findings", aria_label: "Core findings",
-            h3 { "Core findings" }
+        section { class: "grid gap-2 pt-2", aria_label: "Core findings",
+            h3 { class: "text-sm font-semibold", "Core findings" }
             if findings.is_empty() {
-                p { "No active findings" }
+                p { class: "text-sm text-muted-foreground", "No active findings" }
             } else {
-                ul {
+                ul { class: "grid list-none gap-2 p-0",
                     for finding in findings {
-                        li { class: severity_class(&finding.severity),
-                            strong { "{severity_label(&finding.severity)}" }
-                            p { "{finding.message}" }
+                        li { class: format!("grid gap-1 rounded-md p-2 {}", severity_class(&finding.severity)),
+                            strong { class: "text-sm", "{severity_label(&finding.severity)}" }
+                            p { class: "text-sm text-muted-foreground", "{finding.message}" }
                         }
                     }
                 }
@@ -453,9 +459,9 @@ fn current_session_can_accept_edits(runtime: &Runtime, snapshot: &AcceptedSnapsh
 
 fn severity_class(severity: &Severity) -> &'static str {
     match severity {
-        Severity::Error => "is-error",
-        Severity::Warning => "is-warning",
-        Severity::Info => "is-info",
+        Severity::Error => "bg-destructive-light text-destructive",
+        Severity::Warning => "bg-warning-light text-warning-dark",
+        Severity::Info => "bg-muted text-foreground",
     }
 }
 
@@ -607,8 +613,8 @@ mod queued_script_tests {
             .unwrap()
             .document()
             .unwrap()
-            .query_selector("#geometry-script-owner-test textarea[aria-label='Rhai source']")
-            .unwrap()
+            .get_element_by_id("geometry-script-owner-test")
+            .and_then(|root| crate::test_role::by_role_name(&root, "textbox", "Rhai source"))
             .expect("source field")
             .dyn_into::<HtmlTextAreaElement>()
             .unwrap()
@@ -620,8 +626,8 @@ mod queued_script_tests {
             .unwrap()
             .document()
             .unwrap()
-            .query_selector("#geometry-script-owner-test textarea[aria-label='Rhai source']")
-            .unwrap()
+            .get_element_by_id("geometry-script-owner-test")
+            .and_then(|root| crate::test_role::by_role_name(&root, "textbox", "Rhai source"))
             .expect("source field")
             .dyn_into::<HtmlTextAreaElement>()
             .unwrap();
@@ -679,6 +685,19 @@ mod queued_script_tests {
         });
         support::open_document(&runtime, document).await;
         let probe = mount_editor(runtime.clone()).await;
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("geometry-script-owner-test")
+            .unwrap();
+        assert_eq!(
+            crate::test_role::by_role_name(&root, "button", "+ New script")
+                .unwrap()
+                .get_attribute("data-slot")
+                .as_deref(),
+            Some("button"),
+        );
         select_script("Script 1").await;
         flush(&probe).await;
         type_source("// script 1 edited");
