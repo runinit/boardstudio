@@ -586,8 +586,6 @@
 .m1-export-tab:hover:not(:disabled) { background: var(--wb-accent-dark); }
 .m1-export-tab[aria-pressed='true'] { color: var(--wb-on-accent); background: var(--wb-accent); }
 
-/* Dock dimensions are defaults only; persisted widths and resize controls retain authority. */
-.m1-editor-body { --m1-left-panel-width: var(--wb-dock-left); --m1-right-panel-width: var(--wb-dock-right); }
 .m1-layout-objects-content { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .m1-layout-objects-content > .m1-objects { flex: 1; min-height: 0; overflow: auto; }
 .m1-tree-row { min-height: var(--wb-control-height); }
@@ -653,8 +651,6 @@
   .m1-project-menu > summary { gap: 4px; padding: 6px; font-size: 12px; }
   .m1-project-chevron { width: 10px; }
   .m1-save-state > summary { min-height: var(--wb-control-touch); padding: 4px; }
-  .m1-topbar .m1-panel-toggle { width: 32px; min-width: 32px; min-height: var(--wb-control-touch); padding: 6px; font-size: 0; }
-  .m1-topbar .m1-panel-toggle svg { width: 18px; height: 18px; }
   .m1-export-tab { width: 32px; min-width: 32px; min-height: var(--wb-control-touch); padding: 6px; }
   .m1-export-tab span { display: none; }
   .m1-layout-toolbar-region > div.m1-canvas-toolbar { top: 12px; max-width: calc(100% - 16px); }
@@ -1350,7 +1346,6 @@
   .m1-header-identity .m1-project-name, .m1-header-identity .m1-project-chevron { display: none; }
   .m1-workflow-navigation .m1-workspace-tree-link { min-height: var(--wb-control-touch); padding-inline: 7px; }
   .m1-header-actions { gap: 2px; }
-  .m1-header-actions .m1-panel-toggle { width: 40px; min-width: 40px; min-height: var(--wb-control-touch); }
   .m1-header-actions .m1-export-tab { width: 40px; min-width: 40px; padding: 6px; }
   .m1-header-actions .m1-export-tab span { display: none; }
   .m1-layout-toolbar-region .m1-layout-command-pill { justify-content: flex-start; }
