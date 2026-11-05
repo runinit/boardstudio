@@ -933,7 +933,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-case-panel { padding: var(--wb-space-3); }
 .m1-case-header { padding: var(--wb-space-2) var(--wb-space-3); background: var(--wb-toolbar); border-radius: var(--wb-radius-toolbar); }
 .m1-case-header h2 { font-size: var(--wb-type-panel); }
-.m1-case-header .board-button { min-height: var(--wb-control-compact); }
 .m1-case-view-toolbar { gap: var(--wb-space-2); padding: var(--wb-space-2) 0; }
 .m1-case-view-toolbar > [role="group"], .m1-case-camera-controls { background: transparent; border: 0; border-radius: var(--wb-radius-toolbar); padding: 0; }
 .m1-case-view-toolbar button { min-height: var(--wb-control-compact); }
@@ -1365,7 +1364,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-case-panel { position: relative; padding: 0; gap: 0; }
 .m1-case-panel > .m1-case-header { order: 10; flex: none; margin: 0; border: 0; border-top: 1px solid var(--wb-rule); border-radius: 0; padding: 6px 12px; background: var(--wb-panel); }
 .m1-case-header h2 { display: none; }
-.m1-case-header .board-button { min-height: 30px; padding: 4px 8px; font-size: 12px; background: transparent; border-color: transparent; }
 .m1-case-header .m1-case-live-toggle { font-size: 12px; }
 .m1-case-panel > .m1-case-live-status { order: 9; flex: none; font-size: 12px; padding: 4px 12px; margin: 0; }
 .m1-workspace-content .m1-case-view { position: relative; display: flex; flex-direction: column; min-height: 0; }
