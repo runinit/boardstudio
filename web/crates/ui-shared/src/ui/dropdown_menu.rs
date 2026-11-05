@@ -194,7 +194,7 @@ pub fn DropdownMenu(props: DropdownMenuProps) -> Element {
             let inside = (ctx.content)().is_some_and(|content| {
                 content.contains(active.as_ref().map(|element| element.as_ref()))
             });
-            // Outside dismissal keeps the newly focused control, as BoardPopover does.
+            // Outside dismissal keeps the newly focused control.
             if (inside || active == document.body().map(Into::into) || active.is_none())
                 && let Some(trigger) = (ctx.trigger)()
             {

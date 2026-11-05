@@ -96,7 +96,12 @@ pub fn use_commands(commands: Vec<Command>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ui::{
+        accordion::{Accordion, AccordionContent, AccordionItem, AccordionTrigger},
+        collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    };
     use crate::{test_role::by_role_name, test_wait::wait_until};
+    use dioxus_web::WebEventExt;
     use std::cell::RefCell;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -242,12 +247,15 @@ mod tests {
         let mut callbacks = use_signal(|| 0u32);
         rsx! {
             button { onclick: move |_| open.set(!open()), "External toggle" }
-            crate::controls::BoardAccordionSection { class: "", label: "Controlled section", id: "controlled-section",
+            Collapsible {
                 open: Some(open()), on_open_change: move |next| { callbacks += 1; open.set(next); },
-                heading: rsx! { "Controlled section" }, "Controlled content"
+                CollapsibleTrigger { id: "controlled-section", aria_label: "Controlled section", "Controlled section" }
+                CollapsibleContent { "Controlled content" }
             }
-            crate::controls::BoardAccordionSection { class: "", label: "Uncontrolled section", id: "uncontrolled-section",
-                heading: rsx! { "Uncontrolled section" }, "Uncontrolled content"
+            Accordion { AccordionItem { index: 0usize,
+                AccordionTrigger { id: "uncontrolled-section", aria_label: "Uncontrolled section", "Uncontrolled section" }
+                AccordionContent { "Uncontrolled content" }
+            }
             }
             output { role: "status", aria_label: "Callbacks", "{callbacks}" }
         }
@@ -257,19 +265,31 @@ mod tests {
     fn DisclosureKeyboardFixture(calls: Rc<RefCell<Vec<String>>>) -> Element {
         let mut open = use_signal(|| false);
         let controlled_calls = calls.clone();
+        let controlled_trigger_calls = calls.clone();
         let uncontrolled_calls = calls.clone();
         rsx! {
             div { onkeydown: move |event| calls.borrow_mut().push(format!("ancestor:{}", event.key())),
-                crate::controls::BoardAccordionSection {
-                    class: "", label: "Controlled keyboard section", id: "controlled-keyboard-section",
+                Collapsible {
                     open: Some(open()), on_open_change: move |next| open.set(next),
-                    onkeydown: move |event: KeyboardEvent| controlled_calls.borrow_mut().push(format!("controlled:{}", event.key())),
-                    heading: rsx! { "Controlled keyboard section" }, "Controlled content"
+                    attributes: vec![dioxus::events::onkeydown(move |event: KeyboardEvent| controlled_calls.borrow_mut().push(format!("controlled:{}", event.key())))],
+                    CollapsibleTrigger { id: "controlled-keyboard-section", aria_label: "Controlled keyboard section",
+                        attributes: vec![dioxus::events::onkeydown(move |event: KeyboardEvent| {
+                            if event.key().to_string() == " " {
+                                controlled_trigger_calls.borrow_mut().push(format!("controlled:{}", event.key()));
+                                event.stop_propagation();
+                                if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
+                            }
+                        })],
+                        "Controlled keyboard section"
+                    }
+                    CollapsibleContent { "Controlled content" }
                 }
-                crate::controls::BoardAccordionSection {
-                    class: "", label: "Uncontrolled keyboard section", id: "uncontrolled-keyboard-section",
-                    onkeydown: move |event: KeyboardEvent| uncontrolled_calls.borrow_mut().push(format!("uncontrolled:{}", event.key())),
-                    heading: rsx! { "Uncontrolled keyboard section" }, "Uncontrolled content"
+                Accordion {
+                    attributes: vec![dioxus::events::onkeydown(move |event: KeyboardEvent| uncontrolled_calls.borrow_mut().push(format!("uncontrolled:{}", event.key())))],
+                    AccordionItem { index: 0usize,
+                        AccordionTrigger { id: "uncontrolled-keyboard-section", aria_label: "Uncontrolled keyboard section", "Uncontrolled keyboard section" }
+                        AccordionContent { "Uncontrolled content" }
+                    }
                 }
             }
         }
