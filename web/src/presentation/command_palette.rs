@@ -27,9 +27,7 @@ pub(super) fn use_palette_state() -> PaletteState {
 }
 
 fn popover_opener(active: &web_sys::HtmlElement) -> Option<web_sys::HtmlElement> {
-    let popup = active
-        .closest("[data-slot=popover-content]")
-        .ok()??;
+    let popup = active.closest("[data-slot=popover-content]").ok()??;
     let id = popup.id();
     if id.is_empty() {
         return None;

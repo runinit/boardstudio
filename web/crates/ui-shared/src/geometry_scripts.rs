@@ -333,7 +333,7 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
             if !scripts.is_empty() {
                 div { class: "grid gap-1 min-w-0 text-sm text-muted-foreground",
                     span { "Active script" }
-                    if scripts.len() + 1 > 12 {
+                    if scripts.len() >= 12 {
                         Combobox::<String> {
                             aria_label: "Active script", list_aria_label: "Active script",
                             value: Some(selected_script.into()), disabled: !can_edit,
