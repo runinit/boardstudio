@@ -17,3 +17,7 @@ The three smaller Workspaces together, with Tabs for the keymap layers. Applies 
 - [ ] Keymap layer navigation is Tabs and passes the floor; existing tests pass after the rewrite rule
 - [ ] Each Workspace works in both Themes and both Appearances at the three widths
 - [ ] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
+
+## Comments
+
+2026-11-05 (coordinator adjudication, terra-vs-spark experiment): terra preflight ran `python3 scripts/check.py quick` successfully as a process (harness executed, evidence written, no sandbox/target errors) but the run is RED on the `tooling` step: `scripts/test-check.py` fails with 21 unregistered `scripts/test-*.py` files. Adjudicated NOT a genuine backend failure: the lane branch's `scripts/` is byte-identical to the feat tip (`git diff feat/rust-ui-migration lane/022-pcb-keymap-keycaps --stat` shows the ticket claim only), and the 018 and 021 ticket outcomes document this exact tooling failure as pre-existing on feat. Verdict: terra backend CAN do build lanes → terra continues 022 (and the remaining lanes unless a genuine build failure appears). Evidence: lane `.evidence/022/preflight.log`.
