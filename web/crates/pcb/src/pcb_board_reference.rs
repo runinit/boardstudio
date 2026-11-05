@@ -1261,6 +1261,34 @@ mod mounted_async_tests {
             disclosure.get_attribute("aria-expanded").as_deref(),
             Some("true")
         );
+        let picker_clicked = Rc::new(std::cell::Cell::new(false));
+        let observed = picker_clicked.clone();
+        let listener = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::Event)>::new(
+            move |event: web_sys::Event| {
+                if let Some(input) = event
+                    .target()
+                    .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                    && input.type_() == "file"
+                    && input.accept() == ".kicad_pcb"
+                {
+                    observed.set(true);
+                }
+            },
+        );
+        root.add_event_listener_with_callback("click", listener.as_ref().unchecked_ref())
+            .unwrap();
+        let file_button = by_role_name(&root, "button", "Replace KiCad board").unwrap();
+        wait_until("reference discovery settles before replacing", || {
+            !file_button.has_attribute("disabled")
+        })
+        .await;
+        file_button.click();
+        assert!(
+            picker_clicked.get(),
+            "the named action opens its KiCad file input"
+        );
+        root.remove_event_listener_with_callback("click", listener.as_ref().unchecked_ref())
+            .unwrap();
         fixture.runtime.unsubscribe();
         root.remove();
     }
