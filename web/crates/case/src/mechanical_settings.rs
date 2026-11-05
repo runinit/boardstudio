@@ -972,8 +972,9 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     on_show_finding: props.on_show_finding,
                 }
                 }
-                BoardDisclosure { class: "m1-inspector-section",
-                    heading: rsx! { summary { "Battery" } },
+                Collapsible { keep_mounted: true, default_open: false,
+                    CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Battery" }
+                    CollapsibleContent { class: "data-[open=false]:hidden",
                 BatteryControls {
                     identity: props.identity.clone(),
                     request_sequence,
@@ -983,6 +984,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     on_request: props.on_request,
                     owner_key: owner_key.clone(),
                 }
+                 }
                 }
                 for opening_owner in [format!("{owner_key}:case-openings")] {
                     OpeningControls {
@@ -2740,22 +2742,23 @@ fn BatteryControls(props: BatteryControlsProps) -> Element {
                 if props.values.transport == HardwareTransport::Wireless {
                     p { class: "m1-mechanical-help", "Included for wireless. Set your cell dimensions; the battery shares the space below the PCB with bottom foam." }
                 } else {
-                    label { class: "m1-mechanical-check m1-mechanical-battery-toggle",
-                        BoardCheckbox {
+                    FieldLabel { class: "min-h-control-touch", html_for: format!("case-battery-{}-include", dioxus::core::current_scope_id().0),
+                        Checkbox {
+                            id: format!("case-battery-{}-include", dioxus::core::current_scope_id().0),
                             aria_label: "Include a battery envelope",
-                            checked: battery.is_some(),
                             disabled: !props.editable,
-                            onchange: {
+                            checked: Some(if battery.is_some() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                            on_checked_change: {
                                 let identity = props.identity.clone();
                                 let on_request = props.on_request;
                                 let mut sequence = request_sequence;
-                                move |event: FormEvent| send_request(
+                                move |state: CheckboxState| send_request(
                                     &mut sequence,
                                     &identity,
                                     on_request,
-                                    MechanicalSettingsPatch::SetBatteryEnabled(event.checked()),
+                                    MechanicalSettingsPatch::SetBatteryEnabled(bool::from(state)),
                                 )
-                            }
+                            },
                         }
                         span { "Include a battery envelope" }
                     }
@@ -6664,27 +6667,41 @@ mod contextual_layer_tests {
         mount_battery_test_page("case-battery-settings-test-root", BatteryTestPage);
         rendered().await;
 
-        let panel = element("#case-battery-wired-test-root .m1-mechanical-settings");
+        let document = web_sys::window().unwrap().document().unwrap();
+        let wired = document
+            .query_selector("#case-battery-wired-test-root")
+            .unwrap()
+            .unwrap();
         assert!(
-            panel
+            wired
                 .text_content()
                 .unwrap_or_default()
                 .contains("Include a battery envelope"),
             "wired mechanical settings should expose the optional battery envelope toggle"
         );
-        let toggle =
-            element("#case-battery-wired-test-root input[aria-label='Include a battery envelope']")
-                .dyn_into::<web_sys::HtmlInputElement>()
-                .unwrap();
-        assert!(!toggle.checked());
-        assert!(!panel.text_content().unwrap_or_default().contains("Width"));
+        let toggle = by_role_name(&wired, "checkbox", "Include a battery envelope").unwrap();
+        assert_eq!(
+            toggle.get_attribute("aria-checked").as_deref(),
+            Some("false")
+        );
+        assert!(
+            !wired.text_content().unwrap_or_default().contains("Width"),
+            "wired settings without a battery show no battery fields"
+        );
+        assert!(!toggle.id().is_empty(), "the toggle keeps its label target");
+        let label = document
+            .query_selector(&format!("label[for='{}']", toggle.id()))
+            .unwrap()
+            .expect("the toggle has an associated visible label");
+        assert!(
+            label
+                .text_content()
+                .unwrap_or_default()
+                .contains("Include a battery envelope"),
+            "the associated label names the toggle"
+        );
 
-        toggle.set_checked(true);
-        let change = web_sys::EventInit::new();
-        change.set_bubbles(true);
-        toggle
-            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
-            .unwrap();
+        toggle.click();
         rendered().await;
         assert_eq!(
             element("#case-battery-last-request")
@@ -6693,50 +6710,35 @@ mod contextual_layer_tests {
             Some("SetBatteryEnabled(true)")
         );
 
-        let panel = element("#case-battery-wireless-test-root .m1-mechanical-settings");
-        let text = panel.text_content().unwrap_or_default();
+        let wireless = document
+            .query_selector("#case-battery-wireless-test-root")
+            .unwrap()
+            .unwrap();
+        let text = wireless.text_content().unwrap_or_default();
         assert!(text.contains("Included for wireless."));
         assert!(!text.contains("Include a battery envelope"));
-        for label in [
-            "Width",
-            "Depth",
-            "Height",
-            "Cable width",
-            "Position X",
-            "Position Y",
-            "Cable exit X",
-            "Cable exit Y",
+        for (label, minimum) in [
+            ("Width", "0.1"),
+            ("Depth", "0.1"),
+            ("Height", "0.1"),
+            ("Cable width", "0.1"),
+            ("Position X", "-1000000"),
+            ("Position Y", "-1000000"),
+            ("Cable exit X", "-1000000"),
+            ("Cable exit Y", "-1000000"),
         ] {
-            assert!(
-                text.contains(label),
-                "wireless battery field {label} should be visible"
-            );
-        }
-
-        let document = web_sys::window().unwrap().document().unwrap();
-        let inputs = document
-            .query_selector_all(
-                "#case-battery-wireless-test-root .m1-mechanical-battery-fields input[type='number']",
-            )
-            .unwrap();
-        assert_eq!(inputs.length(), 8);
-        let expected_minimums = [
-            "0.1", "0.1", "0.1", "0.1", "-1000000", "-1000000", "-1000000", "-1000000",
-        ];
-        for (index, minimum) in expected_minimums.into_iter().enumerate() {
-            let input = inputs
-                .item(index as u32)
-                .unwrap()
-                .dyn_into::<web_sys::HtmlInputElement>()
+            let input: web_sys::HtmlInputElement = by_role_name(&wireless, "spinbutton", label)
+                .unwrap_or_else(|| panic!("wireless battery field {label} should be visible"))
+                .dyn_into()
                 .unwrap();
             assert_eq!(input.step(), "0.1");
             assert_eq!(input.min(), minimum);
         }
-        let cable_width = inputs
-            .item(3)
-            .unwrap()
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap();
+        let cable_width: web_sys::HtmlInputElement =
+            by_role_name(&wireless, "spinbutton", "Cable width")
+                .unwrap()
+                .dyn_into()
+                .unwrap();
         assert_eq!(cable_width.value().parse::<f64>().unwrap(), 2.0);
     }
 
