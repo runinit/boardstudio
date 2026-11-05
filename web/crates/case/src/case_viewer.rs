@@ -14,7 +14,12 @@ use boardstudio_core::model::{
     MechanicalGasketTrack, MechanicalMount, Mount, MountKind, ProjectDoc, Vec2,
 };
 use boardstudio_web_host::cad_jobs::captured_case_document;
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertDescription, AlertVariant},
+    button::{Button, ButtonVariant},
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    item::{Item, ItemSize},
+};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -293,15 +298,19 @@ fn use_case_keycaps(
     let feedback = rsx! {
         if shown.pending { p { role: "status", "Generating keycap CAD…" } }
         if let Some(error) = &shown.error {
-            div { role: "alert",
-                "Keycap preview failed: {error}"
-                BoardButton { r#type: "button", onclick: move |_| retry += 1, "Retry keycaps" }
+            Alert { variant: AlertVariant::Destructive,
+                AlertDescription { "Keycap preview failed: {error}" }
+                Button { variant: ButtonVariant::Secondary, button_type: "button",
+                    class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11",
+                    onclick: move |_| retry += 1, "Retry keycaps" }
             }
         }
         if !shown.findings.is_empty() {
-            BoardDisclosure { class: "m1-case-keycap-findings", open: true,
-                heading: rsx! { summary { "Keycap clearance · {shown.findings.len()} findings" } },
-                for finding in &shown.findings { p { key: "{finding.id}", "{finding.message}" } }
+            Collapsible { class: "m1-case-keycap-findings", keep_mounted: true, default_open: true,
+                CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", aria_label: "Keycap clearance · {shown.findings.len()} findings", "Keycap clearance · {shown.findings.len()} findings" }
+                CollapsibleContent { class: "data-[open=false]:hidden",
+                    for finding in &shown.findings { Item { size: ItemSize::Sm, key: "{finding.id}", p { "{finding.message}" } } }
+                }
             }
         }
     };

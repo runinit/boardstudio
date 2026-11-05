@@ -14,9 +14,6 @@ use crate::renderer_host_page::RendererPageHost;
 use crate::runtime::CadScene;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_web_host::cad_jobs::captured_case_document;
-use boardstudio_web_ui_shared::controls::{
-    BoardButton, BoardButtonDensity, BoardButtonVariant, BoardCheckbox, BoardSelectField,
-};
 use boardstudio_web_ui_shared::ui::{
     button::{Button as UiButton, ButtonSize as UiButtonSize, ButtonVariant as UiButtonVariant},
     checkbox::{Checkbox as UiCheckbox, CheckboxState},
@@ -121,28 +118,30 @@ pub fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
             }
             }
         }
-        div { class: "m1-design-view-group", role: "group", aria_label: "Design view",
-            BoardButton {
-                variant: BoardButtonVariant::Quiet,
-                density: BoardButtonDensity::Compact,
-                pressed: Some(!assembly_3d),
-                onclick: move |_| props.on_view_mode.call(false),
-                "2D"
-            }
-            BoardButton {
-                variant: BoardButtonVariant::Quiet,
-                density: BoardButtonDensity::Compact,
-                pressed: Some(assembly_3d),
-                onclick: move |_| props.on_view_mode.call(true),
-                "3D assembly"
+        div { class: "m1-design-view-group",
+            ToggleGroup {
+                aria_label: "View mode",
+                pressed: Some(if assembly_3d { [1].into_iter().collect() } else { [0].into_iter().collect() }),
+                on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                    if next.contains(&1) {
+                        props.on_view_mode.call(true);
+                    } else if next.contains(&0) {
+                        props.on_view_mode.call(false);
+                    }
+                },
+                ToggleItem { index: 0usize, class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11", "2D" }
+                ToggleItem { index: 1usize, class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11", "3D assembly" }
             }
             if !assembly_3d {
-                BoardButton {
-                    variant: BoardButtonVariant::Quiet,
-                    density: BoardButtonDensity::Compact,
-                    pressed: Some(footprints_visible),
-                    onclick: move |_| props.on_toggle_footprints.call(()),
-                    "Footprints"
+                ToggleGroup {
+                    aria_label: "Footprints",
+                    pressed: Some(if footprints_visible { [0].into_iter().collect() } else { Default::default() }),
+                    on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                        if next.contains(&0) != footprints_visible {
+                            props.on_toggle_footprints.call(());
+                        }
+                    },
+                    ToggleItem { index: 0usize, class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11", "Footprints" }
                 }
             }
         }
@@ -2719,6 +2718,8 @@ fn SharedViewer(
     let unlink_projection = projection.clone();
     let unlink_runtime = runtime.clone();
     let show_assembly_controls = projection.layers.iter().any(|(id, _)| id != "pcb");
+    let gaskets_edit_disabled =
+        mechanical_settings.as_ref().is_none_or(|settings| !settings.editable);
     let select_assembly_layer = select_layer.clone();
 
     let section_plane = use_memo(move || Some(transient().section_plane.to_owned()));
@@ -2822,96 +2823,193 @@ fn SharedViewer(
                 {toolbar_leading}
                 if inline_case_controls {
                     div { class: "m1-case-camera-controls", role: "group", "aria-label": "Assembly camera",
-                        button { aria_label: "Fit", title: "Fit model", onclick: move |_| run_host(&case_fit, |host| host.fit(), &mut status), {viewer_control_icon("Fit")} }
-                        button { aria_label: "Top", title: "Top view", onclick: move |_| run_host(&case_top, |host| host.view("top"), &mut status), {viewer_control_icon("Top")} }
-                        button { aria_label: "Bottom", title: "Bottom view", onclick: move |_| run_host(&case_bottom, |host| host.view("bottom"), &mut status), {viewer_control_icon("Bottom")} }
-                        button { aria_label: "Isometric", title: "Isometric view", onclick: move |_| run_host(&case_iso, |host| host.view("isometric"), &mut status), {viewer_control_icon("Isometric")} }
+                        Tooltip {
+                            TooltipTrigger { as: move |attributes| { let fit = case_fit.clone(); rsx! {
+                                UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
+                                    class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                    aria_label: "Fit",
+                                    onclick: move |_| run_host(&fit, |host| host.fit(), &mut status),
+                                    {viewer_control_icon("Fit")}
+                                }
+                            } } }
+                            TooltipContent { "Fit model" }
+                        }
+                        Tooltip {
+                            TooltipTrigger { as: move |attributes| { let top = case_top.clone(); rsx! {
+                                UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
+                                    class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                    aria_label: "Top",
+                                    onclick: move |_| run_host(&top, |host| host.view("top"), &mut status),
+                                    {viewer_control_icon("Top")}
+                                }
+                            } } }
+                            TooltipContent { "Top view" }
+                        }
+                        Tooltip {
+                            TooltipTrigger { as: move |attributes| { let bottom = case_bottom.clone(); rsx! {
+                                UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
+                                    class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                    aria_label: "Bottom",
+                                    onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status),
+                                    {viewer_control_icon("Bottom")}
+                                }
+                            } } }
+                            TooltipContent { "Bottom view" }
+                        }
+                        Tooltip {
+                            TooltipTrigger { as: move |attributes| { let iso = case_iso.clone(); rsx! {
+                                UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
+                                    class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                    aria_label: "Isometric",
+                                    onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status),
+                                    {viewer_control_icon("Isometric")}
+                                }
+                            } } }
+                            TooltipContent { "Isometric view" }
+                        }
                     }
                 }
 
                 if inline_case_controls {
-                    div { role: "group", "aria-label": "Display mode",
-                        for mode in [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid] {
+                    ToggleGroup {
+                        aria_label: "Display mode",
+                        pressed: Some([match transient().mode { RenderMode::Shaded => 0, RenderMode::Wireframe => 1, RenderMode::Hybrid => 2 }].into_iter().collect()),
+                        on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                            if let Some(index) = next.iter().next() {
+                                transient.with_mut(|view| view.mode = [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid][*index]);
+                            }
+                        },
+                        for (index, mode) in [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid].into_iter().enumerate() {
                             {
-                                let mut transient = transient;
                                 let label = match mode {
                                     RenderMode::Shaded => "Shaded",
                                     RenderMode::Wireframe => "Wireframe",
                                     RenderMode::Hybrid => "Hybrid",
                                 };
-                                rsx! { button {
-                                    aria_label: label, title: label,
-                                    "aria-pressed": transient().mode == mode,
-                                    onclick: move |_| transient.with_mut(|view| view.mode = mode),
-                                    {viewer_control_icon(label)}
-                                } }
-                            }
-                        }
-                        button {
-                            "aria-label": "Show hidden lines",
-                            title: "Show hidden lines",
-                            "aria-pressed": transient().show_hidden,
-                            onclick: move |_| transient.with_mut(|view| view.show_hidden = !view.show_hidden),
-                            svg { view_box: "0 0 24 24", "aria-hidden": "true",
-                                path { d: "m12 2 9 5v10l-9 5-9-5V7ZM3 7l9 5 9-5M12 12v10" }
-                                path { stroke_dasharray: "2 2", d: "M12 2v10M3 17l9-5 9 5" }
-                            }
-                        }
-                    }
-                if show_assembly_controls {
-                    div { role: "group", "aria-label": "Mechanical assembly view",
-                            for view in [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section] {
-                                {
-                                    let mut transient = transient;
-                                    let label = match view {
-                                        AssemblyView::Assembled => "Assembled",
-                                        AssemblyView::Exploded => "Exploded",
-                                        AssemblyView::Section => "Section",
-                                    };
-                                    rsx! { button {
-                                        aria_label: label, title: label,
-                                        "aria-pressed": transient().assembly == view,
-                                        onclick: move |_| transient.with_mut(|state| state.assembly = view),
-                                        {viewer_control_icon(label)}
-                                    } }
+                                rsx! {
+                                    Tooltip {
+                                        TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
+                                            ToggleItem { index, aria_label: label,
+                                                class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                                attributes,
+                                                {viewer_control_icon(label)}
+                                            }
+                                        } }
+                                        TooltipContent { "{label}" }
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                if can_edit_gaskets {
-                    button {
-                        r#type: "button",
-                        aria_label: "Edit gaskets", title: "Edit gaskets",
-                        aria_pressed: editing_gaskets(),
-                        disabled: mechanical_settings.as_ref().is_none_or(|settings| !settings.editable),
-                        onclick: move |_| {
-                            let enable = !editing_gaskets();
-                            editing_gaskets.set(enable);
-                            editing_mounts.set(false);
-                            if enable { run_host(&top_for_gaskets, |host| host.view("top"), &mut status); }
+                    ToggleGroup {
+                        aria_label: "Hidden lines",
+                        pressed: Some(if transient().show_hidden { [0].into_iter().collect() } else { Default::default() }),
+                        on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                            if next.contains(&0) != transient().show_hidden {
+                                transient.with_mut(|view| view.show_hidden = !view.show_hidden);
+                            }
                         },
-                        {viewer_control_icon("Edit gaskets")}
+                        Tooltip {
+                            TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
+                                ToggleItem { index: 0usize, aria_label: "Show hidden lines",
+                                    class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                    attributes,
+                                    svg { view_box: "0 0 24 24", "aria-hidden": "true",
+                                        path { d: "m12 2 9 5v10l-9 5-9-5V7ZM3 7l9 5 9-5M12 12v10" }
+                                        path { stroke_dasharray: "2 2", d: "M12 2v10M3 17l9-5 9 5" }
+                                    }
+                                }
+                            } }
+                            TooltipContent { "Show hidden lines" }
+                        }
+                    }
+                if show_assembly_controls {
+                    ToggleGroup {
+                        aria_label: "Mechanical assembly view",
+                        pressed: Some([match transient().assembly { AssemblyView::Assembled => 0, AssemblyView::Exploded => 1, AssemblyView::Section => 2 }].into_iter().collect()),
+                        on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                            if let Some(index) = next.iter().next() {
+                                transient.with_mut(|view| view.assembly = [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section][*index]);
+                            }
+                        },
+                        for (index, view) in [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section].into_iter().enumerate() {
+                            {
+                                let label = match view {
+                                    AssemblyView::Assembled => "Assembled",
+                                    AssemblyView::Exploded => "Exploded",
+                                    AssemblyView::Section => "Section",
+                                };
+                                rsx! {
+                                    Tooltip {
+                                        TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
+                                            ToggleItem { index, aria_label: label,
+                                                class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                                attributes,
+                                                {viewer_control_icon(label)}
+                                            }
+                                        } }
+                                        TooltipContent { "{label}" }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     }
                 }
-                if can_edit_mounts {
-                    button {
-                        r#type: "button",
-                        aria_label: "Edit mounts", title: "Edit mounts",
-                        aria_pressed: editing_mounts(),
-                        onclick: move |_| {
-                            let enable = !editing_mounts();
-                            editing_mounts.set(enable);
-                            editing_gaskets.set(false);
-                            if enable { run_host(&top_for_mounts, |host| host.view("top"), &mut status); }
+                if can_edit_gaskets || can_edit_mounts {
+                    ToggleGroup {
+                        aria_label: "Edit mode",
+                        pressed: Some({
+                            let mut pressed: std::collections::HashSet<usize> = Default::default();
+                            if editing_gaskets() { pressed.insert(0); }
+                            if editing_mounts() { pressed.insert(1); }
+                            pressed
+                        }),
+                        on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                            let enable_gaskets = next.contains(&0);
+                            let enable_mounts = !enable_gaskets && next.contains(&1);
+                            if enable_gaskets != editing_gaskets() || enable_mounts != editing_mounts() {
+                                editing_gaskets.set(enable_gaskets);
+                                editing_mounts.set(enable_mounts);
+                                if enable_gaskets {
+                                    run_host(&top_for_gaskets, |host| host.view("top"), &mut status);
+                                }
+                                if enable_mounts {
+                                    run_host(&top_for_mounts, |host| host.view("top"), &mut status);
+                                }
+                            }
                         },
-                        {viewer_control_icon("Edit mounts")}
+                        if can_edit_gaskets {
+                            Tooltip {
+                                TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
+                                    ToggleItem { index: 0usize, aria_label: "Edit gaskets",
+                                        disabled: gaskets_edit_disabled,
+                                        class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                        attributes,
+                                        {viewer_control_icon("Edit gaskets")}
+                                    }
+                                } }
+                                TooltipContent { "Edit gaskets" }
+                            }
+                        }
+                        if can_edit_mounts {
+                            Tooltip {
+                                TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
+                                    ToggleItem { index: 1usize, aria_label: "Edit mounts",
+                                        class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                        attributes,
+                                        {viewer_control_icon("Edit mounts")}
+                                    }
+                                } }
+                                TooltipContent { "Edit mounts" }
+                            }
+                        }
                     }
                 }
                 if editing_gaskets() {
                     if let Some((support_id, pair_id, anchors, identity, mut sequence, on_request, editable)) = unlink_request.clone() {
-                        BoardButton {
-                            r#type: "button",
+                        UiButton { variant: UiButtonVariant::Secondary, button_type: "button",
+                            class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11",
                             disabled: !editable || selected_support.is_some_and(|support| support.unlinked),
                             onclick: move |_| {
                                 if !(unlink_source.0)()
@@ -3046,45 +3144,41 @@ fn SharedViewer(
                 }
             }
             if inline_case_controls && show_assembly_controls && transient().assembly == AssemblyView::Exploded {
-                label { class: "m1-case-view-adjustment", "Explode amount"
-                    input {
-                        r#type: "range", min: "0", max: "10", step: "0.1",
-                        value: "{transient().explode_amount}",
-                        oninput: move |event: FormEvent| {
-                            if let Ok(value) = event.value().parse::<f32>() {
-                                transient.with_mut(|state| state.explode_amount = value.clamp(0.0, 10.0));
-                            }
-                        }
-                    }
+                Slider {
+                    label: "Explode amount", min: 0.0, max: 10.0, step: 0.1, class: "min-h-control max-[960px]:min-h-11 [&_[data-slot=slider-track]]:overflow-visible [&_[data-slot=slider-thumb]]:absolute [&_[data-slot=slider-thumb]]:top-1/2 [&_[data-slot=slider-thumb]]:-translate-x-1/2 [&_[data-slot=slider-thumb]]:-translate-y-1/2 [&_[data-slot=slider-thumb]]:scroll-m-1",
+                    value: Some(f64::from(transient().explode_amount)),
+                    on_value_change: move |value: f64| transient.with_mut(|state| state.explode_amount = (value as f32).clamp(0.0, 10.0)),
                 }
             }
             if inline_case_controls && show_assembly_controls && transient().assembly == AssemblyView::Section {
                 div { class: "m1-case-view-adjustments",
-                    BoardSelectField {
-                        label: "Section plane",
-                        value: "{transient().section_plane}",
-                        onchange: move |event: FormEvent| {
-                                transient.with_mut(|state| state.section_plane = match event.value().as_str() { "XY" => "XY", "XZ" => "XZ", _ => "YZ" });
-                            },
-                        option { value: "XY", "XY" }
-                            option { value: "XZ", "XZ" }
-                            option { value: "YZ", "YZ" }
-                    }
-                    label { "Section position"
-                        input {
-                            r#type: "range", min: "-100", max: "100", step: "1",
-                            value: "{transient().section_position}",
-                            oninput: move |event: FormEvent| {
-                                if let Ok(value) = event.value().parse::<f32>() {
-                                    transient.with_mut(|state| state.section_position = value.clamp(-100.0, 100.0));
+                    Field {
+                        Label { html_for: format!("viewer-section-plane-{}", dioxus::core::current_scope_id().0), "Section plane" }
+                        Select::<String> {
+                            id: format!("viewer-section-plane-{}", dioxus::core::current_scope_id().0), aria_label: "Section plane",
+                            value: Some(section_plane.into()),
+                            on_value_change: move |value: Option<String>| {
+                                if let Some(value) = value {
+                                    transient.with_mut(|state| state.section_plane = match value.as_str() { "XY" => "XY", "XZ" => "XZ", _ => "YZ" });
                                 }
+                            },
+                            for (index, plane) in ["XY", "XZ", "YZ"].into_iter().enumerate() {
+                                SelectOption::<String> { index, value: plane.to_owned(), text_value: plane, "{plane}" }
                             }
                         }
                     }
-                    label { BoardCheckbox {
-                        checked: transient().show_section_plane,
-                        onchange: move |_| transient.with_mut(|state| state.show_section_plane = !state.show_section_plane),
-                    } "Show plane" }
+                    Slider {
+                        label: "Section position", min: -100.0, max: 100.0, step: 1.0, class: "min-h-control max-[960px]:min-h-11 [&_[data-slot=slider-track]]:overflow-visible [&_[data-slot=slider-thumb]]:absolute [&_[data-slot=slider-thumb]]:top-1/2 [&_[data-slot=slider-thumb]]:-translate-x-1/2 [&_[data-slot=slider-thumb]]:-translate-y-1/2 [&_[data-slot=slider-thumb]]:scroll-m-1",
+                        value: Some(f64::from(transient().section_position)),
+                        on_value_change: move |value: f64| transient.with_mut(|state| state.section_position = (value as f32).clamp(-100.0, 100.0)),
+                    }
+                    Label { html_for: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), class: "max-[960px]:min-h-11",
+                        UiCheckbox { id: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), aria_label: "Show plane",
+                            checked: Some(if transient().show_section_plane { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                            on_checked_change: move |value| transient.with_mut(|state| state.show_section_plane = bool::from(value)),
+                        }
+                        "Show plane"
+                    }
                 }
             }
             div { class: "m1-case-view-canvas-shell",
