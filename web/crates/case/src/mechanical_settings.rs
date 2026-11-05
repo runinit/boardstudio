@@ -31,7 +31,7 @@ use boardstudio_web_ui_shared::ui::{
     combobox::{Combobox, ComboboxOption},
     field::{Field, FieldError, FieldLabel},
     input::InputType,
-    input_group::{InputGroup, InputGroupInput, InputGroupText},
+    input_group::{InputGroup, InputGroupInput, InputGroupText, InputGroupTextarea},
     select::{Select, SelectOption},
     toggle_group::{ToggleGroup, ToggleItem},
 };
@@ -4964,84 +4964,92 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
     });
     let error_text = error().or_else(&*failure);
     let status_text = pending.then_some("Saving…");
+    let id = format!("case-text-{}", dioxus::core::current_scope_id().0);
+    let message_id = format!("{id}-message");
     rsx! {
-        label { class: "m1-mechanical-field",
-            span { "{props.label}" }
-            if props.multiline {
-                textarea {
-                    class: "m1-mechanical-text",
-                    value: "{draft}",
-                    disabled: !props.editable,
-                    "aria-invalid": error_text.is_some(),
-                    rows: 2,
-                    oninput: move |event: FormEvent| {
-                        draft.set(event.value());
-                        dirty.set(true);
-                        error.set(None);
-                        failure.set(None);
-                    },
-                    onblur: {
-                        let commit = commit.clone();
-                        move |_| commit()
-                    },
-                    onkeydown: {
-                        let accepted = props.value.clone();
-                        move |event: KeyboardEvent| {
-                            let key = event.data().key().to_string();
-                            if key == "Escape" {
-                                event.prevent_default();
-                                draft.set(accepted.clone());
-                                dirty.set(false);
-                                error.set(None);
-                                failure.set(None);
-                            }
-                        }
-                    }
-                }
-            } else {
-                input {
-                    r#type: "text",
-                    class: "m1-mechanical-text",
-                    value: "{draft}",
-                    disabled: !props.editable,
-                    "aria-invalid": error_text.is_some(),
-                    oninput: move |event: FormEvent| {
-                        draft.set(event.value());
-                        dirty.set(true);
-                        error.set(None);
-                        failure.set(None);
-                    },
-                    onblur: {
-                        let commit = commit.clone();
-                        move |_| commit()
-                    },
-                    onkeydown: {
-                        let accepted = props.value.clone();
-                        move |event: KeyboardEvent| {
-                            let key = event.data().key().to_string();
-                            if key == "Enter" {
-                                event.prevent_default();
-                                if let Some(input) = event
-                                    .data()
-                                    .try_as_web_event()
-                                    .and_then(|event| event.target())
-                                    .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
-                                {
-                                    let _ = input.blur();
+        Field { invalid: error_text.is_some(), disabled: !props.editable, class: "gap-1.5",
+            FieldLabel { html_for: id.clone(), "{props.label}" }
+            InputGroup { class: if !props.multiline { "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch" },
+                if props.multiline {
+                    InputGroupTextarea {
+                        id: id.clone(),
+                        value: "{draft}",
+                        rows: "2",
+                        disabled: !props.editable,
+                        aria_label: props.label,
+                        aria_invalid: error_text.is_some(),
+                        aria_describedby: if error_text.is_some() || pending { Some(message_id.clone()) } else { None },
+                        oninput: move |event: FormEvent| {
+                            draft.set(event.value());
+                            dirty.set(true);
+                            error.set(None);
+                            failure.set(None);
+                        },
+                        attributes: vec![dioxus::events::onblur({
+                            let commit = commit.clone();
+                            move |_| commit()
+                        }), dioxus::events::onkeydown({
+                            let accepted = props.value.clone();
+                            move |event: KeyboardEvent| {
+                                let key = event.data().key().to_string();
+                                if key == "Escape" {
+                                    event.prevent_default();
+                                    draft.set(accepted.clone());
+                                    dirty.set(false);
+                                    error.set(None);
+                                    failure.set(None);
                                 }
-                            } else if key == "Escape" {
-                                event.prevent_default();
-                                draft.set(accepted.clone());
-                                dirty.set(false);
-                                error.set(None);
-                                failure.set(None);
                             }
-                        }
+                        })],
+                    }
+                } else {
+                    InputGroupInput {
+                        id: id.clone(),
+                        r#type: InputType::Text,
+                        value: "{draft}",
+                        disabled: !props.editable,
+                        aria_label: props.label,
+                        aria_invalid: error_text.is_some(),
+                        aria_describedby: if error_text.is_some() || pending { Some(message_id.clone()) } else { None },
+                        oninput: move |event: FormEvent| {
+                            draft.set(event.value());
+                            dirty.set(true);
+                            error.set(None);
+                            failure.set(None);
+                        },
+                        attributes: vec![dioxus::events::onblur({
+                            let commit = commit.clone();
+                            move |_| commit()
+                        }), dioxus::events::onkeydown({
+                            let accepted = props.value.clone();
+                            move |event: KeyboardEvent| {
+                                let key = event.data().key().to_string();
+                                if key == "Enter" {
+                                    event.prevent_default();
+                                    if let Some(input) = event
+                                        .data()
+                                        .try_as_web_event()
+                                        .and_then(|event| event.target())
+                                        .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                                    {
+                                        let _ = input.blur();
+                                    }
+                                } else if key == "Escape" {
+                                    event.prevent_default();
+                                    draft.set(accepted.clone());
+                                    dirty.set(false);
+                                    error.set(None);
+                                    failure.set(None);
+                                }
+                            }
+                        })],
                     }
                 }
             }
-            if let Some(error) = error_text.as_deref() { small { role: "alert", "{error}" } }
-            if let Some(status) = status_text { small { role: "status", "{status}" } }
+            div { id: message_id,
+                if let Some(error) = error_text.as_deref() { FieldError { "{error}" } }
+                if let Some(status) = status_text { small { role: "status", "{status}" } }
+            }
         }
     }
 }
@@ -6049,9 +6057,84 @@ mod contextual_layer_tests {
                 label: "Thread", value: accepted(), intent: MechanicalTextIntent::ClosureThread,
                 editable: true, on_request: move |_| count += 1,
             }
-            output { "{count}" }
+            output { role: "status", aria_label: "Submitted drafts", "{count}" }
             button { onclick: move |_| accepted.set("M4".into()), "Land previous edit" }
         }
+    }
+
+    fn text_multiline_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut count = use_signal(|| 0_u32);
+        rsx! {
+            TextDraftField {
+                identity: test_identity(), request_sequence, feedback: Rc::from([]),
+                label: "Screw lengths", value: "3, 4".to_owned(),
+                intent: MechanicalTextIntent::ClosureScrewLengths,
+                editable: true, multiline: true, on_request: move |_| count += 1,
+            }
+            output { role: "status", aria_label: "Submitted drafts", "{count}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn multiline_text_draft_is_named_and_describes_its_error() {
+        mount_battery_test_page("case-text-multiline-root", text_multiline_test_page);
+        rendered().await;
+        let root = element("#case-text-multiline-root");
+        let area = by_role_name(&root, "textbox", "Screw lengths")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlTextAreaElement>()
+            .unwrap();
+        assert_eq!(
+            area.get_attribute("data-slot").as_deref(),
+            Some("input-group-control"),
+            "the adopted multiline field keeps the shared input root"
+        );
+        assert_eq!(area.get_attribute("rows").as_deref(), Some("2"));
+        let area_value = |value: &str| {
+            area.focus().unwrap();
+            area.set_value(value);
+            let event = web_sys::EventInit::new();
+            event.set_bubbles(true);
+            area.dispatch_event(
+                &web_sys::Event::new_with_event_init_dict("input", &event).unwrap(),
+            )
+            .unwrap();
+        };
+        area_value("abc");
+        area.blur().unwrap();
+        wait_until("invalid lengths are rejected locally", || {
+            area.get_attribute("aria-invalid").as_deref() == Some("true")
+        })
+        .await;
+        assert_eq!(area.value(), "abc", "the field owns the rejected draft");
+        let described = area
+            .get_attribute("aria-describedby")
+            .expect("validation must describe the multiline input");
+        let error = root
+            .query_selector(&format!("[id='{described}'] [data-slot='field-error']"))
+            .unwrap()
+            .expect("description resolves to this production field error");
+        assert!(!error.text_content().unwrap().is_empty());
+        assert_eq!(
+            by_role_name(&root, "status", "Submitted drafts")
+                .unwrap()
+                .text_content()
+                .unwrap(),
+            "0",
+            "an invalid draft must not submit"
+        );
+        area_value("3, 5");
+        area.blur().unwrap();
+        wait_until("valid lengths submit", || {
+            by_role_name(&root, "status", "Submitted drafts")
+                .unwrap()
+                .text_content()
+                .as_deref()
+                == Some("1")
+        })
+        .await;
+        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -6059,12 +6142,16 @@ mod contextual_layer_tests {
         mount_battery_test_page("case-text-commit-root", text_commit_test_page);
         rendered().await;
         let root = element("#case-text-commit-root");
-        let input = root
-            .query_selector("input")
-            .unwrap()
+        let input = by_role_name(&root, "textbox", "Thread")
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
+        assert_eq!(
+            input.get_attribute("data-slot").as_deref(),
+            Some("input-group-control"),
+            "the adopted text field keeps the shared input root"
+        );
+        assert!(!input.id().is_empty(), "the field label targets this input");
         let input_value = |value: &str| {
             input.focus().unwrap();
             input.set_value(value);
@@ -6087,8 +6174,7 @@ mod contextual_layer_tests {
         input.blur().unwrap();
         rendered().await;
         assert_eq!(
-            root.query_selector("output")
-                .unwrap()
+            by_role_name(&root, "status", "Submitted drafts")
                 .unwrap()
                 .text_content()
                 .unwrap(),
@@ -6101,8 +6187,7 @@ mod contextual_layer_tests {
             rendered().await;
         }
         assert_eq!(
-            root.query_selector("output")
-                .unwrap()
+            by_role_name(&root, "status", "Submitted drafts")
                 .unwrap()
                 .text_content()
                 .unwrap(),
@@ -6110,10 +6195,7 @@ mod contextual_layer_tests {
         );
         assert_eq!(input.value(), "M4");
         input_value("M5");
-        root.query_selector("button")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
+        by_role_name(&root, "button", "Land previous edit")
             .unwrap()
             .click();
         rendered().await;
