@@ -7,7 +7,10 @@ use crate::presentation::{
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::*;
-use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
+use boardstudio_web_ui_shared::{
+    test_role::by_role_name,
+    test_wait::{wait_until, wait_until_step},
+};
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -530,7 +533,7 @@ fn editor_host() -> Element {
     });
     boardstudio_web_ui_model::state::use_test_case_generation_state();
     rsx! {
-        Editor {}
+        notifications::NotificationProvider { Editor {} }
         output { class: "editor-selected-context-test-render", "{selected:?}" }
         output { class: "selected-keys-test-render", "{version()}" }
     }
@@ -545,34 +548,33 @@ async fn apply_and_undo_editor_companion_mode(
 ) {
     use boardstudio_core::model::MirroredCompanionMode;
 
-    let details = root
-        .query_selector("details.m1-layout-companion-placement")
-        .unwrap()
+    let trigger = by_role_name(root, "button", "Companion placement")
         .expect("Editor renders companion placement for this selection");
-    details.set_attribute("open", "").unwrap();
-    let mode = root
-        .query_selector("details.m1-layout-companion-placement select")
+    let placement = trigger
+        .closest("[data-slot='collapsible']")
         .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlSelectElement>()
-        .unwrap();
-    mode.set_value("duplicate-position");
-    let change = web_sys::EventInit::new();
-    change.set_bubbles(true);
-    mode.dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
-        .unwrap();
+        .expect("the placement trigger belongs to its disclosure");
+    if trigger.get_attribute("aria-expanded").as_deref() != Some("true") {
+        trigger.click();
+    }
+    let mode = by_role_name(root, "button", "Mode").expect("named mode control");
+    mode.click();
+    wait_until("the placement choices open", || {
+        by_role_name(root, "option", "Duplicate position").is_some()
+    })
+    .await;
+    let choice = by_role_name(root, "option", "Duplicate position").unwrap();
+    for phase in ["pointerdown", "pointerup"] {
+        let pointer = web_sys::PointerEvent::new(phase).unwrap();
+        pointer.init_event_with_bubbles_and_cancelable(phase, true, true);
+        choice.dispatch_event(&pointer).unwrap();
+    }
     wait_until("Editor accepts the selected companion mode", || {
-        root.query_selector("details.m1-layout-companion-placement button")
-            .unwrap()
+        by_role_name(root, "button", "Apply placement")
             .is_some_and(|button| !button.has_attribute("disabled"))
     })
     .await;
-    let apply = root
-        .query_selector("details.m1-layout-companion-placement button")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
+    let apply = by_role_name(root, "button", "Apply placement").unwrap();
     let accepted = runtime.model().accepted.unwrap();
     let before = accepted.document.revision;
     let original_modes = accepted.document.hardware.as_ref().unwrap().pairs[0]
@@ -596,8 +598,8 @@ async fn apply_and_undo_editor_companion_mode(
                 .unwrap()
                 .correspondences;
             let landed = accepted.document.revision > before;
-            let error = root
-                .query_selector("details.m1-layout-companion-placement [role=alert]")
+            let error = placement
+                .query_selector("[role=alert]")
                 .unwrap()
                 .and_then(|alert| alert.text_content());
             let unchanged = links
@@ -622,7 +624,8 @@ async fn apply_and_undo_editor_companion_mode(
     assert!(
         runtime.model().accepted.unwrap().document.revision > before,
         "companion placement refused: {:?}",
-        root.query_selector("details.m1-layout-companion-placement [role=alert]")
+        placement
+            .query_selector("[role=alert]")
             .unwrap()
             .and_then(|alert| alert.text_content())
     );
@@ -733,9 +736,7 @@ async fn editor_owned_selection_kinds_apply_only_eligible_companions_and_undo() 
     })
     .await;
     wait_until("the real Editor renders companion placement", || {
-        root.query_selector("details.m1-layout-companion-placement")
-            .unwrap()
-            .is_some()
+        by_role_name(&root, "button", "Companion placement").is_some()
     })
     .await;
     let projection = companion_placement_projection(&runtime.model(), Some(&selection), 0, 0)
@@ -771,9 +772,11 @@ async fn editor_owned_selection_kinds_apply_only_eligible_companions_and_undo() 
         .selected_context
         .set(Some(multi_context.clone()));
     wait_until("the full Editor shows mixed companion modes", || {
-        root.query_selector("details.m1-layout-companion-placement summary small")
-            .unwrap()
-            .is_some_and(|label| label.text_content().as_deref() == Some("Mixed"))
+        by_role_name(&root, "button", "Companion placement").is_some_and(|button| {
+            button
+                .text_content()
+                .is_some_and(|text| text.contains("Mixed"))
+        })
     })
     .await;
     let multi_projection =

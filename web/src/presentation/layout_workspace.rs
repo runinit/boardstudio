@@ -398,7 +398,7 @@ pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
                 button_type: "button",
                 id: "m1-add-object-trigger",
                 aria_label: "Add object",
-                class: "m1-layout-add-trigger max-[760px]:min-h-control-touch!",
+                class: "max-[760px]:min-h-control-touch!",
                 onkeydown: move |event: KeyboardEvent| {
                     if event.key().to_string() == " " {
                         // Preserve native Add activation before the window pan shortcut.
@@ -989,7 +989,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                 },
                     Button {
                         variant: ButtonVariant::Secondary,
-                        class: "m1-layout-findings-back max-[760px]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch",
                         id: "m1-layout-findings-back-to-selection",
                         button_type: "button",
                         onclick: move |_| input.on_findings_return.call(()),

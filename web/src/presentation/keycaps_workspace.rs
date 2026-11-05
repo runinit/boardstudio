@@ -331,7 +331,7 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
         }
     } else {
         rsx! {
-            p { class: "m1-keycaps-empty-note", role: "status", "Keycaps are unavailable for the current board." }
+            p { role: "status", "Keycaps are unavailable for the current board." }
         }
     }
 }
@@ -357,7 +357,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                     span { class: "whitespace-nowrap text-sm text-muted-foreground", "{assigned_count}/{key_count} assigned" }
                 }
                 if view.keys.is_empty() {
-                    p { class: "m1-keycaps-empty-note", role: "status", "Add switches in Layout to configure keycaps." }
+                    p { role: "status", "Add switches in Layout to configure keycaps." }
                 }
                 if let Some(actions) = settings_actions.clone() {
                     WorkspaceDisclosure { class: "min-w-0", label: "Matrix profiles", default_open: false,
@@ -365,7 +365,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                             for matrix in view.matrices.iter() {
                                 KeycapsMatrixSettingsEditor { key: "{matrix.id}", matrix_id: matrix.id.to_string(), matrix_name: matrix.name.to_string(), settings: matrix.settings.clone(), actions: actions.clone() }
                             }
-                            if view.matrices.is_empty() { p { class: "m1-keycaps-empty-note", "Standalone switches use their individual profile override." } }
+                            if view.matrices.is_empty() { p { "Standalone switches use their individual profile override." } }
                         }
                     }
                 }

@@ -393,7 +393,7 @@ pub(super) fn SelectedKeysActions() -> Element {
                 }
             },
             h3 { "{count} keys across {matrix_count} matrices" }
-            div { class: "m1-layout-transform-actions",
+            div {
                 Button {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",

@@ -59,7 +59,6 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
             aria_labelledby: "m1-relations-heading",
             h2 { id: "m1-relations-heading", "Relationships" }
             section {
-                class: "m1-relations-structure",
                 aria_labelledby: "m1-relations-structure-heading",
                 h3 { id: "m1-relations-structure-heading", "Structure" }
                 ul {
@@ -70,7 +69,6 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
             }
             if !relations.departures.is_empty() {
                 section {
-                    class: "m1-relations-departures",
                     aria_labelledby: "m1-relations-departures-heading",
                     h3 { id: "m1-relations-departures-heading", "Local adjustments" }
                     ul {
@@ -86,7 +84,6 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
             }
             if !relations.constraints.is_empty() {
                 section {
-                    class: "m1-relations-constraints",
                     aria_labelledby: "m1-relations-constraints-heading",
                     h3 { id: "m1-relations-constraints-heading", "Authored constraints" }
                     ul {
@@ -106,7 +103,7 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
 #[component]
 fn StructureRow(item: RelationItem, on_navigate: EventHandler<objects::TreeContext>) -> Element {
     rsx! {
-        li { class: "m1-relations-row", "data-relation-label": "{item.label}",
+        li { "data-relation-label": "{item.label}",
             Item { class: "p-0",
                 span { class: "m1-layout-component-matrix-note", "{item.label}" }
                 " "
@@ -133,7 +130,6 @@ fn DepartureRow(
 ) -> Element {
     rsx! {
         li {
-            class: "m1-relations-row",
             "data-relation-departure": "{departure.parameter}",
             Item { class: "p-0",
                 span { class: "m1-layout-component-matrix-note", "{departure.parameter}" }
@@ -186,7 +182,6 @@ fn DepartureActionButton(
                 Button {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",
-                    class: "m1-inspector-secondary",
                     disabled: control.disabled,
                     aria_label: "{label}: {parameter}",
                     aria_describedby: described_by,
@@ -203,12 +198,11 @@ fn DepartureActionButton(
             if let Some(reason) = control.reason.as_deref() {
                 small {
                     id: "{reason_id}",
-                    class: "m1-empty-note m1-matrix-transform-unavailable",
                     "{reason}"
                 }
             }
             if let Some(message) = error.as_deref() {
-                Alert { class: "m1-matrix-transform-error",
+                Alert {
     variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
             }
         }
@@ -227,7 +221,6 @@ fn ConstraintRow(
     };
     rsx! {
         li {
-            class: "m1-relations-row",
             "data-relation-constraint": "{constraint.id}",
             Item { class: "p-0",
                 span { class: "m1-layout-component-matrix-note", "{kind}" }
@@ -244,7 +237,7 @@ fn ConstraintRow(
                     on_navigate,
                 }
                 if constraint.takes_precedence {
-                    small { class: "m1-empty-note", " Takes priority over the attachment to its key." }
+                    small { " Takes priority over the attachment to its key." }
                 }
             }
         }
@@ -326,7 +319,6 @@ fn RelationReference(props: RelationReferenceProps) -> Element {
             Button {
                 variant: ButtonVariant::Secondary,
                 button_type: "button",
-                class: "m1-inspector-secondary m1-relations-reference",
                 aria_describedby: described_by,
                 onpointerenter: move |_| highlight.show(&enter),
                 onpointerleave: move |_| highlight.release(&leave),

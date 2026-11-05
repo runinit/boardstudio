@@ -181,7 +181,7 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
         let handlers = input.handlers;
         rsx! {
             svg {
-                class: "m1-canvas m1-keymap-canvas",
+                class: "m1-canvas",
                 view_box: "{input.view_box}",
                 preserve_aspect_ratio: "xMidYMid meet",
                 tabindex: "0",

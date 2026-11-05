@@ -134,7 +134,7 @@ pub(super) fn canvas(mut input: PlaceholderInput) -> Element {
 pub(super) fn preview(input: CanvasInput) -> Element {
     rsx! {
         if let Some(on_back) = input.controller_back {
-            Button { class: "m1-parts-controller-back", variant: ButtonVariant::Secondary, onclick: move |_| on_back.call(()), "Back to PCB" }
+            Button { variant: ButtonVariant::Secondary, onclick: move |_| on_back.call(()), "Back to PCB" }
         }
         PartsPreviewWorkspace {
             snapshot: input.snapshot,

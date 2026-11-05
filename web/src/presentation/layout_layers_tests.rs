@@ -181,7 +181,10 @@ async fn switch_visibility_keeps_keycaps_independent() {
 }
 
 fn finding_row_containing(root: &web_sys::Element, phrase: &str) -> Option<web_sys::Element> {
-    let rows = root.query_selector_all("li.m1-layout-finding").unwrap();
+    let panel = root
+        .query_selector("[aria-label='Layout findings']")
+        .unwrap()?;
+    let rows = panel.query_selector_all("li").unwrap();
     (0..rows.length())
         .filter_map(|index| rows.item(index))
         .filter_map(|row| row.dyn_into::<web_sys::Element>().ok())
@@ -321,7 +324,7 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
         &format!("Layout findings: {}", accepted_findings_count + 3),
     );
     wait_until("the footer opens the Info-only findings panel", || {
-        root.query_selector(".m1-layout-findings")
+        root.query_selector("[aria-label='Layout findings']")
             .unwrap()
             .is_some()
             && root
@@ -331,6 +334,12 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
             && finding_row_containing(&root, &pin_notice).is_some()
     })
     .await;
+    let finding = finding_row_containing(&root, &pin_notice).unwrap();
+    finding.remove_attribute("class").unwrap();
+    assert!(
+        finding_row_containing(&root, &pin_notice).is_some(),
+        "finding lookup does not depend on styling classes"
+    );
     let text = root.text_content().unwrap_or_default();
     assert!(text.contains(&pin_notice));
     assert!(text.contains(&net_notice));

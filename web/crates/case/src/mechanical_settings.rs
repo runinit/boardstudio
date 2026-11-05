@@ -772,13 +772,13 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 if support.is_previous {
                     div { role: "status", Callout { "Showing previous generated geometry. Gasket measurements cannot be edited until the current assembly resolves." } }
                 } else {
-                    p { class: "m1-mechanical-help",
+                    p { class: "text-muted-foreground text-sm leading-normal",
                         if support.unlinked { "This gasket is unlinked from its pair." } else { "This support is linked to its mirrored pair. Matching upper and lower pads resize together." }
                     }
                     if let Some(error) = support.fit_error.as_deref() {
                         Alert { variant: AlertVariant::Destructive, "{error} Preview and export stay blocked until it fits." }
                     } else {
-                        p { class: "m1-mechanical-help", "Fits at this position." }
+                        p { class: "text-muted-foreground text-sm leading-normal", "Fits at this position." }
                     }
                     for gasket_owner in [format!("{owner_key}:gasket:{}", support.id)] {
                     fieldset { key: "{gasket_owner}", class: "m1-mechanical-group", disabled: !props.editable,
@@ -815,7 +815,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         }
                     }
                     }
-                    p { class: "m1-mechanical-help", "Prefer 10 mm cuts; use 5 mm increments for a tighter fit. Foam thickness and compression are shared by the floating stack." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Prefer 10 mm cuts; use 5 mm increments for a tighter fit. Foam thickness and compression are shared by the floating stack." }
                     Button {
                         variant: ButtonVariant::Ghost,
                         size: ButtonSize::Sm,
@@ -896,7 +896,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         div { role: "status", Callout { "{reason}" } }
                     }
                 }
-                p { class: "m1-mechanical-help", "Authored Case bodies remain saved while the generated stack is active. Disable the stack to return to authored bodies." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Authored Case bodies remain saved while the generated stack is active. Disable the stack to return to authored bodies." }
                 ConstructionControls {
                     identity: props.identity.clone(),
                     values: values.clone(),
@@ -1028,7 +1028,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                             },
                             "Reset gasket placement"
                         }
-                        p { class: "m1-mechanical-help",
+                        p { class: "text-muted-foreground text-sm leading-normal",
                             "Reset releases manually positioned supports. Closure positions stay fixed."
                         }
                     }
@@ -1076,7 +1076,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     if props.pair_counterpart.is_some() { "Unlink and disable this half" } else { "Disable mechanical stack" }
                 }
                 if let Some(counterpart) = props.pair_counterpart.clone() {
-                    p { class: "m1-mechanical-help",
+                    p { class: "text-muted-foreground text-sm leading-normal",
                         "This half is linked with {counterpart}. Disabling removes that link and disables only this half's mechanical stack: the other half keeps its geometry and settings, and neither PCB is removed. One Undo restores the link and this stack."
                     }
                     MechanicalPairMemberRemoval {
@@ -1099,9 +1099,9 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 }
                 if let Some(values) = props.preview_values.as_ref() {
                     ConstructionControls { identity: props.identity.clone(), values: values.clone(), editable: false, request_sequence, on_request: props.on_request }
-                    p { class: "m1-mechanical-help", "Suggested stack from this board and its switch profiles. Configure to save these settings; viewing this preview does not change the project." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Suggested stack from this board and its switch profiles. Configure to save these settings; viewing this preview does not change the project." }
                 }
-                p { class: "m1-mechanical-help", "Configure a mechanical stack from the current board and represented switch fit profiles." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Configure a mechanical stack from the current board and represented switch fit profiles." }
                 if !props.editable {
                     if let Some(reason) = props.disabled_reason.as_deref() { div { role: "status", Callout { "{reason}" } } }
                 }
@@ -1151,7 +1151,7 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
         fieldset { class: "grid gap-3 m-0 min-w-0 border-0 p-3 rounded-md bg-card", disabled: !props.editable,
             legend { "Shared construction" }
             if confirming() {
-                p { class: "m1-mechanical-help",
+                p { class: "text-muted-foreground text-sm leading-normal",
                     "Makes {instance_id}'s construction its own: the values it shows today (including the overlaid hardware, critical fits and profiles) become this half's local values and its construction becomes local. Other legacy halves keep their previous baseline. One Undo restores the ownership and the overlay."
                 }
                 Button {
@@ -1181,7 +1181,7 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
                     "Keep it shared"
                 }
             } else {
-                p { class: "m1-mechanical-help",
+                p { class: "text-muted-foreground text-sm leading-normal",
                     "This half still uses the shared construction baseline."
                 }
                 Button {
@@ -1223,7 +1223,7 @@ fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Eleme
     rsx! {
         section { aria_label: "Remove this physical assembly",
             if confirming() {
-                p { class: "m1-mechanical-help",
+                p { class: "text-muted-foreground text-sm leading-normal",
                     "Removes {instance_id} from the project and clears the link. {counterpart} keeps the geometry and settings it shows today as its own local assembly. Your boards, PCBs and parts stay. One Undo restores the assembly and the link."
                 }
                 Button {
@@ -1259,7 +1259,7 @@ fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Eleme
                     "Keep it"
                 }
             } else {
-                p { class: "m1-mechanical-help",
+                p { class: "text-muted-foreground text-sm leading-normal",
                     "Removing this assembly clears the link and removes only it; the other half stays as its own local assembly."
                 }
                 Button {
@@ -1406,7 +1406,7 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
     rsx! {
         section { aria_label: "Link a mechanical mirror pair",
             h3 { "Mirror another half" }
-            p { class: "m1-mechanical-help",
+            p { class: "text-muted-foreground text-sm leading-normal",
                 "Linking keeps shared mounts, closure mounts, openings and gasket supports reflected and linked. Features without a match stay local to their half."
             }
             SettingsChoiceField {
@@ -1463,11 +1463,11 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                     }
                 }
             }
-            p { class: "m1-mechanical-help", "{mapping_note}" }
+            p { class: "text-muted-foreground text-sm leading-normal", "{mapping_note}" }
             if option.matched.is_empty() {
-                p { class: "m1-mechanical-help", "Matched features: {option.matched_features}" }
+                p { class: "text-muted-foreground text-sm leading-normal", "Matched features: {option.matched_features}" }
             } else {
-                p { class: "m1-mechanical-help",
+                p { class: "text-muted-foreground text-sm leading-normal",
                     "Matched features stay linked. Features without a match stay local to their half."
                 }
             }
@@ -1525,7 +1525,7 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                         div { "data-instance": "{member.instance_id}",
                             h4 { "{member.instance_id}" }
                             if member.features.is_empty() {
-                                p { class: "m1-mechanical-help", "No mechanical features after linking." }
+                                p { class: "text-muted-foreground text-sm leading-normal", "No mechanical features after linking." }
                             } else {
                                 ul {
                                     for feature in member.features.iter() {
@@ -1540,7 +1540,7 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                     }
                 }
             } else if let Some(note) = preview_note.clone() {
-                p { class: "m1-mechanical-help",
+                p { class: "text-muted-foreground text-sm leading-normal",
                     "The complete proposed result is unavailable until you confirm: {note}"
                 }
             }
@@ -1605,7 +1605,7 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
     rsx! {
         section { aria_label: "Mirrored pair features",
             h3 { "Mirrored pair" }
-            p { class: "m1-mechanical-help",
+            p { class: "text-muted-foreground text-sm leading-normal",
                 "Shared mechanical features stay linked to the other half. Make one local, remove it on this half, or rejoin it from the other half."
             }
             for row in features.iter() {
@@ -1744,11 +1744,11 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                     }
                                 }
                                 if let Some(geometry) = source_geometry.clone() {
-                                    p { class: "m1-mechanical-help",
+                                    p { class: "text-muted-foreground text-sm leading-normal",
                                         "Rejoin takes {geometry} from {chosen_source}."
                                     }
                                 } else {
-                                    p { class: "m1-mechanical-help",
+                                    p { class: "text-muted-foreground text-sm leading-normal",
                                         "The reviewed source half has no geometry for this feature, so it cannot be rejoined yet."
                                     }
                                 }
@@ -1830,7 +1830,7 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
         Collapsible { keep_mounted: true, default_open: true,
             CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Closure hardware · {hardware.thread}" }
             CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
-            p { class: "m1-mechanical-help", "Custom screw and insert dimensions. Review these against your hardware; the starting M2 dimensions are not a supplier preset." }
+            p { class: "text-muted-foreground text-sm leading-normal", "Custom screw and insert dimensions. Review these against your hardware; the starting M2 dimensions are not a supplier preset." }
             SettingsSelect {
                 label: "Insert size",
                 aria_label: "Insert size",
@@ -1978,7 +1978,7 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                         editable: props.editable,
                     } } }
                 }
-                p { class: "m1-mechanical-help", "Thread changes do not resize the insert. Countersunk lengths include the head. Incompatible dimensions appear in Mechanical diagnostics." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Thread changes do not resize the insert. Countersunk lengths include the head. Incompatible dimensions appear in Mechanical diagnostics." }
                  }
                 }
              }
@@ -2142,7 +2142,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                     }
                 }
                 if mount_choices.is_empty() {
-                    p { class: "m1-mechanical-help", "Add a suspension or closure mount to link a fastener specification to its generated feature." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Add a suspension or closure mount to link a fastener specification to its generated feature." }
                 }
                 for item in hardware.iter() {
                     article { class: "m1-mechanical-spec-card", key: "{props.owner_key}:hardware:{item.id}",
@@ -2247,7 +2247,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                         "Add fit dimension"
                     }
                 }
-                p { class: "m1-mechanical-help", "Endpoints are document XY coordinates. Length is calculated from the saved endpoints." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Endpoints are document XY coordinates. Length is calculated from the saved endpoints." }
                 for (fit, measured_length) in fit_rows.iter() {
                     article { class: "m1-mechanical-spec-card", key: "{props.owner_key}:fit:{fit.id}",
                         header {
@@ -2361,7 +2361,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
                             } } }
                         }
-                        output { class: "m1-mechanical-fit-result",
+                        output { class: "text-muted-foreground text-[11px] font-mono font-normal not-italic leading-[normal]",
                             "Measured {measured_length:.2} mm · {fit.tolerance}"
                         }
                     }
@@ -2510,9 +2510,9 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                 CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Suggested mount locations · {suggestions.len()} candidates" }
                 CollapsibleContent { class: "data-[open=false]:hidden",
                 if suggestions.is_empty() {
-                    p { class: "m1-mechanical-help", "Resolve the current geometry to see clearance-tested mounting locations." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Resolve the current geometry to see clearance-tested mounting locations." }
                 } else if values.internal_gasket {
-                    p { class: "m1-mechanical-help", "Candidates clear the current openings and battery envelope. Adopting them is explicit; later edits keep the chosen coordinates fixed." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Candidates clear the current openings and battery envelope. Adopting them is explicit; later edits keep the chosen coordinates fixed." }
                     Button {
                         variant: ButtonVariant::Ghost,
                         size: ButtonSize::Sm,
@@ -2529,7 +2529,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                         "Adopt closure positions"
                     }
                 } else {
-                    p { class: "m1-mechanical-help", "Clearance-tested positions on this board. Adopt them as suspension mounts or closure screws." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Clearance-tested positions on this board. Adopt them as suspension mounts or closure screws." }
                     div {
                         for (index, mount) in suggestions.iter().enumerate() {
                             span { key: "{mount.id}", "{index + 1}: X {mount.at.x:.1}, Y {mount.at.y:.1} mm" }
@@ -2739,7 +2739,7 @@ fn BatteryControls(props: BatteryControlsProps) -> Element {
             section { class: "m1-mechanical-group", aria_label: "Battery",
                 h4 { "Battery" }
                 if props.values.transport == HardwareTransport::Wireless {
-                    p { class: "m1-mechanical-help", "Included for wireless. Set your cell dimensions; the battery shares the space below the PCB with bottom foam." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Included for wireless. Set your cell dimensions; the battery shares the space below the PCB with bottom foam." }
                 } else {
                     FieldLabel { class: "min-h-control-touch", html_for: format!("case-battery-{}-include", dioxus::core::current_scope_id().0),
                         Checkbox {
@@ -2901,7 +2901,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                     }
                 }
                 if openings.is_empty() {
-                    p { class: "m1-mechanical-help", "No volumes configured." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "No volumes configured." }
                 }
                 for (opening_index, opening) in openings.iter().enumerate() {
                     {
@@ -3129,7 +3129,7 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
                 }
             }
             if let Some(thickness) = props.layer.resolved_body_thickness {
-                p { class: "m1-mechanical-help", "Resolved thickness {thickness:.2} mm." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Resolved thickness {thickness:.2} mm." }
             }
             if props.values.internal_gasket && matches!(props.layer.id.as_str(), "retainer" | "bottom") {
                 Button {
@@ -3366,7 +3366,7 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                                 editable: props.editable,
                                 process_target: Some(target.part_id.clone()),
                             }
-                            p { class: "m1-mechanical-help", "Constraint set " code { "{process_constraint_version(process)}" } }
+                            p { class: "text-muted-foreground text-sm leading-normal", "Constraint set " code { "{process_constraint_version(process)}" } }
                             if !process.constraints_version.is_empty() && process.constraints_version != version {
                                 Alert { variant: AlertVariant::Destructive, "Unsupported constraint set. Diagnostics will block export." }
                             }
@@ -3389,7 +3389,7 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                         }
                     }
                 }
-                p { class: "m1-mechanical-help", "Supported constraint set: {version}." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Supported constraint set: {version}." }
             }
             section { class: "m1-mechanical-profile", aria_label: "Stabilizer fit",
                 h4 { "Stabilizer fit {props.stabilizers.len()} wide keys" }
@@ -3417,11 +3417,11 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                                     SelectOption::<String> { index: 2usize, value: "plate-mount".to_owned(), text_value: "Custom plate mount".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Custom plate mount" }
                                 }
                         }
-                        p { class: "m1-mechanical-help", "Size and orientation follow the key layout." }
+                        p { class: "text-muted-foreground text-sm leading-normal", "Size and orientation follow the key layout." }
                     }
                 }
                 if props.stabilizers.is_empty() {
-                    p { class: "m1-mechanical-help", "No keys in this layout need stabilizers." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "No keys in this layout need stabilizers." }
                 }
             }
         }
@@ -4013,7 +4013,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                         }
                     }
                     if let Some(loaded_geometry) = geometry_state() {
-                        p { class: "m1-mechanical-help", "Select exact primitives for plate cutouts, PCB holes, clearances or drawing guides, then apply the selected geometry." }
+                        p { class: "text-muted-foreground text-sm leading-normal", "Select exact primitives for plate cutouts, PCB holes, clearances or drawing guides, then apply the selected geometry." }
                         for primitive in loaded_geometry.primitives.iter() {
                             div { role: "group", aria_label: "Geometry {primitive.id}", key: "{primitive.id}",
                                 FieldLabel { class: "min-h-control-touch", html_for: format!("case-geometry-{}-{}", dioxus::core::current_scope_id().0, primitive.id),
@@ -7595,6 +7595,40 @@ mod contextual_layer_tests {
             .is_some(),
             "the fits disclosure names its counts"
         );
+        let outputs = root.query_selector_all("output").unwrap();
+        let measurement = (0..outputs.length())
+            .filter_map(|index| outputs.item(index))
+            .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
+            .find(|output| {
+                output
+                    .text_content()
+                    .is_some_and(|text| text.contains("Measured 10.00 mm"))
+            })
+            .expect("the measured fit is displayed");
+        let classes = measurement.get_attribute("class").unwrap_or_default();
+        for class in ["text-muted-foreground", "text-[11px]", "font-mono"] {
+            assert!(
+                classes.split_whitespace().any(|name| name == class),
+                "measurement uses {class}"
+            );
+        }
+        let paragraphs = root.query_selector_all("p").unwrap();
+        let help = (0..paragraphs.length())
+            .filter_map(|index| paragraphs.item(index))
+            .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
+            .find(|paragraph| {
+                paragraph
+                    .text_content()
+                    .is_some_and(|text| text.contains("Endpoints are document XY coordinates"))
+            })
+            .expect("the fit coordinate guidance is displayed");
+        let classes = help.get_attribute("class").unwrap_or_default();
+        for class in ["text-muted-foreground", "text-sm", "leading-normal"] {
+            assert!(
+                classes.split_whitespace().any(|name| name == class),
+                "guidance uses {class}"
+            );
+        }
         by_role_name(&root, "button", "Mount link for hardware hw-1")
             .unwrap()
             .click();

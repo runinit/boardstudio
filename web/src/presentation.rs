@@ -8042,7 +8042,7 @@ fn Editor() -> Element {
         })
         .map(|_| {
             rsx! {
-                div { class: "m1-setup-controller-picker",
+                div {
                     parts::ControllerSetupPicker {
                         snapshot: snapshot.clone(),
                         scope: current_scope.clone(),
@@ -8940,7 +8940,7 @@ fn Editor() -> Element {
                                   let arbiter = canvas_interaction.clone(); let scope = render_scope.clone();
                                   rsx! {
                                     g {
-                                        class: "m1-transform-handle m1-selection-move-handle",
+                                        class: "m1-transform-handle",
                                         transform: "translate({x} {y - 18.0 * scale}) scale({scale * 3.0})",
                                         role: "button", tabindex: "0", "aria-label": "Move selection",
                                         "aria-description": "Drag to move. Press Enter to edit the exact position.",

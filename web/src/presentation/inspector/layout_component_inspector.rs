@@ -1222,7 +1222,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                         }
                         TabsContent { index: 0usize, value: "properties",
                             if group_selection {
-                                p { class: "m1-layout-component-selection-note",
+                                p {
                                     "{projection.selection_count} parts selected. Position edits apply to the selection."
                                 }
                             } else {
@@ -1236,7 +1236,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                             }
                             if let Some(mirrored_half) = projection.mirrored_half.as_ref() {
                                 Collapsible {
-                                    class: "m1-layout-component-mirror-state",
                                     keep_mounted: true,
                                     open: Some(mirror_section_open()),
                                     on_open_change: move |next| mirror_section_open.set(next),
@@ -1254,7 +1253,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                         hidden: !mirror_section_open(),
                                         inert: (!mirror_section_open()).then_some(""),
 
-                                        div { class: "m1-layout-component-fields",
+                                        div {
                                             p { "This part's state on the mirrored half." }
                                             Button {
                                                 variant: ButtonVariant::Secondary,
@@ -1322,7 +1321,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             });
             rsx! {
 
-                                        Field { class: "m1-layout-component-layout",
+                                        Field {
                                             FieldLabel { html_for: control_id.clone(), "{control_label}" }
                                             if control_choices.len() > 12 {
                                                 Combobox::<String> {
