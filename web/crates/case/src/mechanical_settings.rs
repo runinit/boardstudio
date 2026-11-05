@@ -2701,6 +2701,7 @@ fn MountRow(props: MountRowProps) -> Element {
                 variant: ButtonVariant::Secondary,
                 button_type: "button",
                 class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                aria_label: "Remove {label} {props.index}",
                 disabled: mechanical_action_pending(&format!("mount:{}:{}:remove", mount_collection_id(props.collection), mount.id)) || !props.editable,
                 onclick: {
                     let mut sequence = props.request_sequence;
@@ -2876,14 +2877,16 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
     let on_request = props.on_request;
     let owner_key = props.owner_key.clone();
     rsx! {
-        BoardDisclosure { class: "m1-mechanical-group", aria_label: "Case openings",
-            heading: rsx! { summary { "Case openings · {openings.len()}" } },
+        Collapsible { keep_mounted: true, default_open: false,
+            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Case openings · {openings.len()}" }
+            CollapsibleContent { class: "data-[open=false]:hidden",
             div { class: "m1-mechanical-openings",
                 div { class: "m1-mechanical-opening-title",
                     strong { "Document-coordinate access openings" }
-                    BoardButton {
-                        r#type: "button",
-                        class: "m1-mechanical-quiet",
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        button_type: "button",
+                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("case-openings") || !props.editable,
                         onclick: {
                             let mut sequence = request_sequence;
@@ -2909,9 +2912,11 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                             fieldset { class: "m1-mechanical-opening", key: "{owner}:opening:{opening_id}", disabled: !props.editable,
                                 div { class: "m1-mechanical-opening-title",
                                     strong { "Volume {opening_index + 1}" }
-                                    BoardButton {
-                                        r#type: "button",
-                                        class: "m1-mechanical-quiet",
+                                    Button {
+                                        variant: ButtonVariant::Secondary,
+                                        button_type: "button",
+                                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        aria_label: "Remove volume {opening_index + 1}",
                                         disabled: mechanical_action_pending("case-openings") || !props.editable,
                                         onclick: {
                                             let opening_id = opening.id.clone();
@@ -2954,11 +2959,12 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                             accessible_label: Some(format!("Document-coordinate access opening {} vertex {} Y", opening_index + 1, point_index + 1)),
                                             opening_target: Some(OpeningDimensionTarget { opening_id: opening_id.clone(), vertex_id: Some(vertex.id.clone()) }),
                                         } } }
-                                        BoardButton {
-                                            variant: BoardButtonVariant::Quiet,
-                                            density: BoardButtonDensity::Compact,
-                                            class: "m1-mechanical-quiet",
-                                            aria_label: "Remove access opening vertex {point_index + 1}",
+                                        Button {
+                                            variant: ButtonVariant::Ghost,
+                                            size: ButtonSize::Sm,
+                                            button_type: "button",
+                                            class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                            aria_label: "Remove access opening {opening_index + 1} vertex {point_index + 1}",
                                             disabled: mechanical_action_pending("case-openings") || !props.editable || opening.vertices.len() <= 3,
                                             onclick: {
                                                 let mut sequence = request_sequence;
@@ -2971,9 +2977,11 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                         }
                                     }
                                 }
-                                BoardButton {
-                                    r#type: "button",
-                                    class: "m1-mechanical-quiet",
+                                Button {
+                                    variant: ButtonVariant::Secondary,
+                                    button_type: "button",
+                                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    aria_label: "Add vertex to volume {opening_index + 1}",
                                     disabled: mechanical_action_pending("case-openings") || !props.editable,
                                     onclick: {
                                         let mut sequence = request_sequence;
@@ -2984,14 +2992,15 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                     "Add vertex"
                                 }
                                 if opening.vertices.len() < 3 {
-                                    p { role: "alert", "An opening footprint needs at least three vertices." }
+                                    Alert { variant: AlertVariant::Destructive, "An opening footprint needs at least three vertices." }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
+             }
+            }
     }
 }
 
@@ -5349,7 +5358,7 @@ mod migration_tests;
 mod contextual_layer_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{MechanicalFeatureKind, Vec2, Vec3};
+    use boardstudio_core::model::{MechanicalFeatureKind, MechanicalOpeningVertex, Vec2, Vec3};
     use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -7290,12 +7299,119 @@ mod contextual_layer_tests {
             kind.contains("SetMountKind") && kind.contains("Boss"),
             "the mount type submits its typed change, got {kind}"
         );
-        by_role_name(&root, "button", "Remove").unwrap().click();
+        by_role_name(&root, "button", "Remove Hole 1")
+            .unwrap()
+            .click();
         rendered().await;
         let removed = element("#case-mount-last-request").text_content().unwrap();
         assert!(
             removed.contains("RemoveMount") && removed.contains("mount-1"),
             "the row removes its own mount, got {removed}"
+        );
+        root.remove();
+    }
+
+    fn opening_controls_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let mut values = test_values(HardwareTransport::Wired, None);
+        values.openings = vec![
+            MechanicalOpening {
+                id: "opening-1".into(),
+                z: 0.0,
+                height: 10.0,
+                next_vertex_identity: 0,
+                vertices: (1..=4)
+                    .map(|vertex| MechanicalOpeningVertex {
+                        id: format!("vertex-{vertex}"),
+                        point: Vec2 {
+                            x: f64::from(vertex),
+                            y: 0.0,
+                        },
+                    })
+                    .collect(),
+            },
+            MechanicalOpening {
+                id: "opening-2".into(),
+                z: 0.0,
+                height: 10.0,
+                next_vertex_identity: 0,
+                vertices: (1..=2)
+                    .map(|vertex| MechanicalOpeningVertex {
+                        id: format!("short-{vertex}"),
+                        point: Vec2 {
+                            x: f64::from(vertex),
+                            y: 0.0,
+                        },
+                    })
+                    .collect(),
+            },
+        ];
+        rsx! {
+            OpeningControls {
+                identity: test_identity(),
+                request_sequence,
+                values,
+                editable: true,
+                feedback: Rc::from([]),
+                on_request: move |request: MechanicalSettingsRequest| {
+                    last_request.set(format!("{:?}", request.patch))
+                },
+                owner_key: "opening-test".to_owned(),
+            }
+            p { id: "case-opening-last-request", "{last_request}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn opening_controls_name_their_disclosure_and_submit_typed_opening_changes() {
+        mount_battery_test_page("case-opening-test-root", opening_controls_test_page);
+        rendered().await;
+        let root = element("#case-opening-test-root");
+        by_role_name(&root, "button", "Case openings · 2")
+            .unwrap()
+            .click();
+        rendered().await;
+        by_role_name(&root, "button", "Remove access opening 1 vertex 1")
+            .unwrap()
+            .click();
+        rendered().await;
+        let removed = element("#case-opening-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            removed.contains("RemoveOpeningVertex")
+                && removed.contains("opening-1")
+                && removed.contains("vertex-1"),
+            "the vertex removal names its opening and vertex, got {removed}"
+        );
+        by_role_name(&root, "button", "Add vertex to volume 1")
+            .unwrap()
+            .click();
+        rendered().await;
+        let added = element("#case-opening-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            added.contains("AddOpeningVertex") && added.contains("opening-1"),
+            "the vertex addition names its opening, got {added}"
+        );
+        by_role_name(&root, "button", "Remove volume 2")
+            .unwrap()
+            .click();
+        rendered().await;
+        let volume = element("#case-opening-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            volume.contains("RemoveOpening") && volume.contains("opening-2"),
+            "the volume removal names its opening, got {volume}"
+        );
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("An opening footprint needs at least three vertices."),
+            "a short footprint keeps its blocking validation message"
         );
         root.remove();
     }
