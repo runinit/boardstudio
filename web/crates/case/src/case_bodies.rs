@@ -1,11 +1,19 @@
 //! Private authored Case body list and editor. Root owns the scoped edit adapter.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{CaseBody, CaseKind, Gasket, MountKind, Vec2};
-use boardstudio_web_ui_shared::controls::{
-    BoardButton, BoardDisclosure, BoardNumberField, BoardSelectField,
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertDescription, AlertVariant},
+    button::{Button, ButtonVariant},
+    callout::Callout,
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    field::{Field, FieldError, FieldLabel},
+    input::InputType,
+    input_group::{InputGroup, InputGroupInput, InputGroupText},
+    select::{Select, SelectOption},
+    toggle_group::{ToggleGroup, ToggleItem},
 };
 use dioxus::prelude::*;
-use std::{cell::Cell, rc::Rc};
+use std::{cell::Cell, collections::HashSet, rc::Rc};
 
 #[derive(Props, Clone, PartialEq)]
 pub struct CaseBodiesProps {
@@ -288,9 +296,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
     if props.generated_stack {
         return rsx! {
             section { class: "m1-case-bodies-generated", "aria-label": "Authored case bodies",
-                p { class: "m1-case-bodies-note", role: "status",
-                    "Generated assembly preview · {bodies.len()} authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
-                }
+                Callout { "Generated assembly preview · {bodies.len()} authored case bodies remain saved. Disable the mechanical stack to preview and edit them." }
             }
         };
     }
@@ -350,9 +356,10 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
             if let Some(mismatch) = props.mismatch.as_ref() {
                 section { class: "m1-case-mismatch", "aria-label": "Mechanical stack board mismatch",
                     h3 { "Mechanical stack belongs to {mismatch.board_name}" }
-                    p { "This board shows its authored case bodies. Select the configured board to inspect that mechanical stack." }
-                    button {
-                        r#type: "button",
+                    Callout { "This board shows its authored case bodies. Select the configured board to inspect that mechanical stack." }
+                    Button {
+                        variant: ButtonVariant::Secondary, button_type: "button",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mismatch.board_id.is_empty(),
                         onclick: {
                             let on_show = props.on_show_configured_board;
@@ -365,38 +372,55 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
             }
             header { class: "m1-case-bodies-heading",
                 h2 { "Case stack" }
-                button {
-                    class: "m1-case-new-body",
-                    r#type: "button",
+                Button {
+                    variant: ButtonVariant::Secondary, button_type: "button",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: !can_add,
-                    onclick: move |_| emit_edit(CaseBodyEdit::AddBody),
+                    onclick: { let submit = emit_edit.clone(); move |_| submit(CaseBodyEdit::AddBody) },
                     "+ New case body"
                 }
             }
             if !bodies.is_empty() {
-                div { class: "m1-case-body-list", role: "group", "aria-label": "Case bodies",
-                    for (index, body) in bodies.iter().enumerate() {
-                        {
-                            let id = body.id.clone();
-                            let is_active = active_body.is_some_and(|active| active.id == body.id);
-                            let kind = case_kind_label(&body.kind);
-                            let order = format!("{:02}", index + 1);
-                            let mut selected_body = selected_body;
-                            let scope = props.scope.clone();
-                            rsx! {
-                                button {
-                                    key: "{id}",
-                                    class: if is_active { "m1-case-body-tab is-active" } else { "m1-case-body-tab" },
-                                    r#type: "button",
-                                    disabled: !can_edit,
-                                    "aria-pressed": is_active,
-                                    onclick: move |_| selected_body.set(Some(BodySelection {
-                                        scope: scope.clone(),
+                {
+                    let tab_ids: Vec<String> = bodies.iter().map(|body| body.id.clone()).collect();
+                    let active_index = active_body
+                        .and_then(|active| tab_ids.iter().position(|id| id == &active.id));
+                    let tabs_scope = props.scope.clone();
+                    let tabs_selection = selected_body;
+                    rsx! {
+                        ToggleGroup {
+                            aria_label: "Case bodies",
+                            class: "m1-case-body-list",
+                            disabled: !can_edit,
+                            pressed: Some(active_index.map(|index| HashSet::from([index])).unwrap_or_default()),
+                            on_pressed_change: move |next: HashSet<usize>| {
+                                if let Some(index) = next.iter().next()
+                                    && let Some(id) = tab_ids.get(*index)
+                                {
+                                    let mut selected_body = tabs_selection;
+                                    selected_body.set(Some(BodySelection {
+                                        scope: tabs_scope.clone(),
                                         body_id: id.clone(),
-                                    })),
-                                    span { "{order}" }
-                                    strong { "{body.name}" }
-                                    small { "{kind}" }
+                                    }));
+                                }
+                            },
+                            for (index, body) in bodies.iter().enumerate() {
+                                {
+                                    let id = body.id.clone();
+                                    let kind = case_kind_label(&body.kind);
+                                    let order = format!("{:02}", index + 1);
+                                    let name = body.name.clone();
+                                    rsx! {
+                                        ToggleItem {
+                                            key: "{id}",
+                                            index,
+                                            class: "m1-case-body-tab max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                            disabled: !can_edit,
+                                            span { "{order}" }
+                                            strong { "{name}" }
+                                            small { "{kind}" }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -406,23 +430,22 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
             if let Some(body) = active_body {
                 if let Some(body_id) = body_id {
                     div { key: "{editor_key}", class: "m1-case-body-editor",
-                        BoardSelectField {
+                        CaseStaticSelect {
                             label: "Body type",
-                            class: "m1-case-select",
                             value: (case_kind_value(&body.kind)).to_string(),
                             disabled: !can_edit,
-                            onchange: {
+                            on_change: {
                                     let submit = emit_edit.clone();
                                     let body_id = body_id.clone();
-                                    move |event: FormEvent| {
-                                        if let Some(kind) = parse_case_kind(&event.value()) {
+                                    move |value: Option<String>| {
+                                        if let Some(kind) = value.as_deref().and_then(parse_case_kind) {
                                             submit(CaseBodyEdit::SetKind { body_id: body_id.clone(), kind });
                                         }
                                     }
                                 },
-                            option { value: "plate", "Plate" }
-                                option { value: "tray", "Tray" }
-                                option { value: "lid", "Lid" }
+                            SelectOption::<String> { index: 0usize, value: "plate".to_owned(), text_value: "Plate".to_owned(), "Plate" }
+                                SelectOption::<String> { index: 1usize, value: "tray".to_owned(), text_value: "Tray".to_owned(), "Tray" }
+                                SelectOption::<String> { index: 2usize, value: "lid".to_owned(), text_value: "Lid".to_owned(), "Lid" }
                         }
                         div { class: "m1-case-measures",
                             CaseNumberField {
@@ -453,29 +476,31 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                 }
                             }
                         }
-                        BoardDisclosure { class: "m1-case-subsection", "aria-label": "Mounting", open: mounts_open,
-                            heading: rsx! { summary { class: "m1-case-subsection-heading", onclick: {
+                        Collapsible { class: "m1-case-subsection", keep_mounted: true, open: Some(mounts_open),
+                            on_open_change: {
                                 let mut disclosures = disclosures;
                                 let owner = editor_key.clone();
-                                move |event: MouseEvent| {
-                                    event.prevent_default();
+                                move |next: bool| {
                                     let current = disclosures();
-                                    let current_open = if current.owner == owner && current.mounts_chosen { current.mounts_open } else { mounts_default_open };
                                     disclosures.set(CaseBodyDisclosureState {
                                         owner: owner.clone(),
-                                        mounts_open: !current_open,
+                                        mounts_open: next,
                                         mounts_chosen: true,
                                         gasket_open: if current.owner == owner && current.gasket_chosen { current.gasket_open } else { gasket_default_open },
                                         gasket_chosen: current.owner == owner && current.gasket_chosen,
                                     });
                                 }
                             },
-                                h3 { "Mounting" }
-                                small { "{body.mounts.as_ref().map_or(0, Vec::len)} mounts" }
-                            } },
+                            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground justify-between", aria_label: "Mounting",
+                                span { class: "font-semibold", "Mounting" }
+                                small { class: "text-xs text-muted-foreground", "{body.mounts.as_ref().map_or(0, Vec::len)} mounts" }
+                            }
+                            CollapsibleContent { class: "data-[open=false]:hidden",
                             div { class: "m1-case-subsection-content",
-                                button {
-                                    r#type: "button", disabled: !can_edit || action_pending(&format!("action:body:{body_id}:add-mount")),
+                                Button {
+                                    variant: ButtonVariant::Secondary, button_type: "button",
+                                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    disabled: !can_edit || action_pending(&format!("action:body:{body_id}:add-mount")),
                                     onclick: { let submit = emit_edit.clone(); let body_id = body_id.clone(); move |_| submit(CaseBodyEdit::AddMount { body_id: body_id.clone() }) },
                                     "+ Add mount"
                                 }
@@ -489,22 +514,24 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                     rsx! {
                                         fieldset { key: "{mount_id}", class: "m1-case-mount-editor",
                                             legend { "{mount_label}" }
-                                            BoardButton {
-                                                r#type: "button", disabled: !can_edit || action_pending(&format!("action:body:{body_id}:mount:{mount_id}:remove")),
-                                                "aria-label": "Remove {mount_label}",
+                                            Button {
+                                                variant: ButtonVariant::Secondary, button_type: "button",
+                                                class: "justify-self-end max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                                disabled: !can_edit || action_pending(&format!("action:body:{body_id}:mount:{mount_id}:remove")),
+                                                aria_label: "Remove {mount_label}",
                                                 onclick: { let submit = submit_remove.clone(); let body_id = body_id.clone(); let mount_id = mount_id.clone(); move |_| submit(CaseBodyEdit::RemoveMount { body_id: body_id.clone(), mount_id: mount_id.clone() }) },
                                                 "Remove"
                                             }
-                                            BoardSelectField {
+                                            CaseStaticSelect {
                                                 label: "Type",
-                                                class: "m1-case-select",
                                                 value: (mount_kind_value(&mount.kind)).to_string(),
                                                 disabled: !can_edit,
-                                                onchange: { let submit = submit_kind.clone(); let body_id = body_id.clone(); let mount_id = mount_id.clone(); move |event: FormEvent| {
-                                                        if let Some(kind) = parse_mount_kind(&event.value()) { submit(CaseBodyEdit::SetMountKind { body_id: body_id.clone(), mount_id: mount_id.clone(), kind }); }
+                                                class: "col-span-full",
+                                                on_change: { let submit = submit_kind.clone(); let body_id = body_id.clone(); let mount_id = mount_id.clone(); move |value: Option<String>| {
+                                                        if let Some(kind) = value.as_deref().and_then(parse_mount_kind) { submit(CaseBodyEdit::SetMountKind { body_id: body_id.clone(), mount_id: mount_id.clone(), kind }); }
                                                     } },
-                                                option { value: "hole", "Hole" }
-                                                    option { value: "boss", "Boss" }
+                                                SelectOption::<String> { index: 0usize, value: "hole".to_owned(), text_value: "Hole".to_owned(), "Hole" }
+                                                    SelectOption::<String> { index: 1usize, value: "boss".to_owned(), text_value: "Boss".to_owned(), "Boss" }
                                             }
                                             div { class: "m1-case-measures",
                                                 CaseNumberField {
@@ -540,41 +567,46 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                 }
                             }
                             }
+                            }
                         }
-                        BoardDisclosure { class: "m1-case-subsection", "aria-label": "Gasket channel", open: gasket_open,
-                            heading: rsx! { summary { class: "m1-case-subsection-heading", onclick: {
+                        Collapsible { class: "m1-case-subsection", keep_mounted: true, open: Some(gasket_open),
+                            on_open_change: {
                                 let mut disclosures = disclosures;
                                 let owner = editor_key.clone();
-                                move |event: MouseEvent| {
-                                    event.prevent_default();
+                                move |next: bool| {
                                     let current = disclosures();
-                                    let current_open = if current.owner == owner && current.gasket_chosen { current.gasket_open } else { gasket_default_open };
                                     disclosures.set(CaseBodyDisclosureState {
                                         owner: owner.clone(),
                                         mounts_open: if current.owner == owner && current.mounts_chosen { current.mounts_open } else { mounts_default_open },
                                         mounts_chosen: current.owner == owner && current.mounts_chosen,
-                                        gasket_open: !current_open,
+                                        gasket_open: next,
                                         gasket_chosen: true,
                                     });
                                 }
                             },
-                                h3 { "Gasket channel" }
-                                small { if body.gasket.is_some() { "Configured" } else { "Optional" } }
-                            } },
+                            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground justify-between", aria_label: "Gasket channel",
+                                span { class: "font-semibold", "Gasket channel" }
+                                small { class: "text-xs text-muted-foreground", if body.gasket.is_some() { "Configured" } else { "Optional" } }
+                            }
+                            CollapsibleContent { class: "data-[open=false]:hidden",
                             div { class: "m1-case-subsection-content",
                                 if body.gasket.is_some() {
-                                    BoardButton { r#type: "button", disabled: !can_edit || action_pending(&format!("action:body:{body_id}:gasket")),
+                                    Button { variant: ButtonVariant::Secondary, button_type: "button",
+                                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        disabled: !can_edit || action_pending(&format!("action:body:{body_id}:gasket")),
                                         onclick: { let submit = emit_edit.clone(); let body_id = body_id.clone(); move |_| submit(CaseBodyEdit::SetGasket { body_id: body_id.clone(), gasket: None }) },
                                         "Remove"
                                     }
                                 } else {
-                                    button { r#type: "button", disabled: !can_edit || action_pending(&format!("action:body:{body_id}:gasket")),
+                                    Button { variant: ButtonVariant::Secondary, button_type: "button",
+                                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        disabled: !can_edit || action_pending(&format!("action:body:{body_id}:gasket")),
                                         onclick: { let submit = emit_edit.clone(); let body_id = body_id.clone(); move |_| submit(CaseBodyEdit::SetGasket { body_id: body_id.clone(), gasket: Some(Gasket { inset: 2.0, width: 2.0, depth: 1.5 }) }) },
                                         "+ Add gasket"
                                     }
                                 }
                             if let Some(gasket) = body.gasket.as_ref() {
-                                div { class: "m1-case-measures m1-case-gasket-measures",
+                                div { class: "m1-case-measures",
                                     CaseNumberField {
                                         label: "Inset", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, None, "gasket-inset"), value: gasket.inset, unit: "mm", rule: NumberRule::Nonnegative,
                                         editable: can_edit,
@@ -593,17 +625,38 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                 }
                             }
                             }
+                            }
                         }
                     }
                 }
             } else if board.is_some() {
-                p { class: "m1-case-bodies-empty", role: "status", "Add a plate, tray, or lid to begin the case stack." }
+                Callout { "Add a plate, tray, or lid to begin the case stack." }
             } else {
-                p { class: "m1-case-bodies-empty", role: "status", "Add a board before creating a case body." }
+                Callout { "Add a board before creating a case body." }
             }
             if let Some(error) = global_feedback_error {
-                p { class: "m1-case-edit-error", role: "alert", "{error}" }
+                Alert { variant: AlertVariant::Destructive, AlertDescription { "{error}" } }
             }
+        }
+    }
+}
+
+/// Presentation-only composition; the caller owns the accepted value and domain request.
+#[component]
+fn CaseStaticSelect(
+    label: String,
+    value: String,
+    #[props(default)] class: String,
+    #[props(default)] disabled: bool,
+    on_change: EventHandler<Option<String>>,
+    children: Element,
+) -> Element {
+    let id = format!("case-body-select-{}", dioxus::core::current_scope_id().0);
+    let selected = use_memo(move || Some(value.clone()));
+    rsx! {
+        Field { class: "gap-1.5 {class}", disabled,
+            FieldLabel { html_for: id.clone(), "{label}" }
+            Select::<String> { class: "max-[760px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch", id, aria_label: label, value: Some(selected.into()), disabled, on_value_change: on_change, {children} }
         }
     }
 }
@@ -693,64 +746,71 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
     };
     // A rejected save is as invalid as a rejected draft: both mark the input and describe it.
     let field_error = error().or_else(&*field_failure);
+    let id = format!("case-body-number-{}", dioxus::core::current_scope_id().0);
+    let message_id = format!("{id}-message");
 
     rsx! {
-        div { class: "m1-case-number-group",
-            BoardNumberField {
-                class: "m1-case-number",
-                label: props.label,
-                unit: props.unit,
-                step: "0.1",
-                min,
-                value: draft(),
-                disabled: !props.editable,
-                error: field_error.clone(),
-                oninput: {
-                    let skip_enter_blur = skip_enter_blur.clone();
-                    move |event: FormEvent| {
-                        let mut draft = draft;
-                        let mut dirty = dirty;
-                        let mut error = error;
-                        skip_enter_blur.set(false);
-                        field_failure.set(None);
-                        draft.set(event.value());
-                        dirty.set(true);
-                        error.set(None);
-                    }
-                },
-                onblur: {
-                    let commit = commit.clone();
-                    let skip_enter_blur = skip_enter_blur.clone();
-                    move |_| {
-                        if !skip_enter_blur.replace(false) {
-                            commit();
-                        }
-                    }
-                },
-                onkeydown: {
-                    let commit = commit.clone();
-                    let mut dirty = dirty;
-                    let mut draft = draft;
-                    let mut error = error;
-                    let accepted = props.value;
-                    move |event: KeyboardEvent| {
-                        let key = event.data().key().to_string();
-                        if key == "Enter" {
-                            event.prevent_default();
-                            skip_enter_blur.set(true);
-                            commit();
-                        } else if key == "Escape" {
-                            event.prevent_default();
+        Field { invalid: field_error.is_some(), disabled: !props.editable, class: "gap-1.5",
+            FieldLabel { html_for: id.clone(), "{props.label}" }
+            InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+                InputGroupInput {
+                    id: id.clone(), class: "font-mono",
+                    r#type: InputType::Number,
+                    step: "0.1",
+                    min,
+                    aria_label: props.label,
+                    value: "{draft}",
+                    disabled: !props.editable,
+                    aria_invalid: field_error.is_some(),
+                    aria_describedby: if field_error.is_some() || pending { Some(message_id.clone()) } else { None },
+                    oninput: {
+                        let skip_enter_blur = skip_enter_blur.clone();
+                        move |event: FormEvent| {
+                            let mut draft = draft;
+                            let mut dirty = dirty;
+                            let mut error = error;
                             skip_enter_blur.set(false);
-                            draft.set(accepted.to_string());
-                            dirty.set(false);
+                            field_failure.set(None);
+                            draft.set(event.value());
+                            dirty.set(true);
                             error.set(None);
                         }
-                    }
-                },
+                    },
+                    attributes: vec![dioxus::events::onblur({
+                        let commit = commit.clone();
+                        let skip_enter_blur = skip_enter_blur.clone();
+                        move |_| {
+                            if !skip_enter_blur.replace(false) {
+                                commit();
+                            }
+                        }
+                    }), dioxus::events::onkeydown({
+                        let commit = commit.clone();
+                        let mut dirty = dirty;
+                        let mut draft = draft;
+                        let mut error = error;
+                        let accepted = props.value;
+                        move |event: KeyboardEvent| {
+                            let key = event.data().key().to_string();
+                            if key == "Enter" {
+                                event.prevent_default();
+                                skip_enter_blur.set(true);
+                                commit();
+                            } else if key == "Escape" {
+                                event.prevent_default();
+                                skip_enter_blur.set(false);
+                                draft.set(accepted.to_string());
+                                dirty.set(false);
+                                error.set(None);
+                            }
+                        }
+                    })],
+                }
+                InputGroupText { class: "pr-3", "{props.unit}" }
             }
-            if field_error.is_none() && pending {
-                small { role: "status", "Saving…" }
+            div { id: message_id,
+                if let Some(error) = field_error.as_deref() { FieldError { "{error}" } }
+                if field_error.is_none() && pending { small { role: "status", "Saving…" } }
             }
         }
     }
@@ -810,5 +870,274 @@ fn parse_mount_kind(value: &str) -> Option<MountKind> {
         "hole" => Some(MountKind::Hole),
         "boss" => Some(MountKind::Boss),
         _ => None,
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod mounted_tests {
+    use super::*;
+    use crate::test_contexts::use_case_viewer_test_contexts;
+    use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+    use boardstudio_core::model::Mount;
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    fn scope() -> Scope {
+        Scope {
+            session_epoch: SessionEpoch(1),
+            document_id: "document".into(),
+            board_id: "board".into(),
+            instance_id: None,
+        }
+    }
+
+    fn plate_body() -> CaseBody {
+        CaseBody {
+            features: None,
+            openings: None,
+            id: "body-plate".into(),
+            name: "Plate body".into(),
+            board_id: "board".into(),
+            kind: CaseKind::Plate,
+            thickness: 1.5,
+            clearance: 0.2,
+            material_id: None,
+            z: None,
+            wall_height: None,
+            wall_thickness: None,
+            mounts: Some(vec![Mount {
+                id: "mount-1".into(),
+                at: Vec2 { x: 5.0, y: 6.0 },
+                kind: MountKind::Hole,
+                hole_diameter: 3.0,
+                boss_diameter: None,
+                height: None,
+            }]),
+            pcb_source: None,
+            gasket: None,
+        }
+    }
+
+    fn tray_body() -> CaseBody {
+        CaseBody {
+            id: "body-tray".into(),
+            name: "Tray body".into(),
+            kind: CaseKind::Tray,
+            mounts: None,
+            ..plate_body()
+        }
+    }
+
+    fn describe(edit: &CaseBodyEdit) -> String {
+        match edit {
+            CaseBodyEdit::AddBody => "AddBody".into(),
+            CaseBodyEdit::SetKind { kind, .. } => format!("SetKind:{kind:?}"),
+            CaseBodyEdit::AddMount { .. } => "AddMount".into(),
+            other => format!("other:{}", other.action_id().unwrap_or_default()),
+        }
+    }
+
+    fn host(bodies: Vec<CaseBody>) -> Element {
+        use_case_viewer_test_contexts();
+        let sequence = use_signal(|| 0u64);
+        let mut last_request = use_signal(String::new);
+        rsx! {
+            CaseBodies {
+                board: Some(CaseBoardSummary { id: "board".into(), name: "Board".into() }),
+                bodies,
+                scope: scope(),
+                editor_instance_id: 1,
+                request_sequence: sequence,
+                snapshot_token: SnapshotToken(1),
+                revision: 1,
+                generated_stack: false,
+                mismatch: None,
+                editable: true,
+                feedback: vec![],
+                on_edit: move |request: CaseBodyRequest| last_request.set(describe(&request.edit)),
+                on_show_configured_board: move |_| {},
+            }
+            p { id: "bodies-last-request", "{last_request}" }
+        }
+    }
+
+    fn single_host() -> Element {
+        host(vec![plate_body()])
+    }
+
+    fn pair_host() -> Element {
+        host(vec![plate_body(), tray_body()])
+    }
+
+    fn mounted(host: fn() -> Element) -> web_sys::Element {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(host),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        root
+    }
+
+    fn last_request(root: &web_sys::Element) -> String {
+        root.query_selector("#bodies-last-request")
+            .unwrap()
+            .unwrap()
+            .text_content()
+            .unwrap_or_default()
+    }
+
+    #[wasm_bindgen_test]
+    async fn body_type_select_uses_custom_trigger_and_commits_kind() {
+        let root = mounted(single_host);
+        wait_until("case bodies mount", || {
+            by_role_name(&root, "button", "+ New case body").is_some()
+        })
+        .await;
+        let trigger = by_role_name(&root, "button", "Body type").expect("body type trigger");
+        trigger.click();
+        wait_until("body type options open", || {
+            by_role_name(&root, "option", "Tray").is_some()
+        })
+        .await;
+        let listbox = by_role_name(&root, "listbox", "Body type").expect("body type list");
+        let press = |key: &str| {
+            let init = web_sys::KeyboardEventInit::new();
+            init.set_key(key);
+            init.set_bubbles(true);
+            listbox
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                        .unwrap(),
+                )
+                .unwrap();
+        };
+        let tray_focused = || {
+            by_role_name(&root, "option", "Tray")
+                .is_some_and(|option| option.get_attribute("tabindex").as_deref() == Some("0"))
+        };
+        for _ in 0..4 {
+            press("ArrowDown");
+            gloo_timers::future::TimeoutFuture::new(10).await;
+            if tray_focused() {
+                break;
+            }
+        }
+        assert!(tray_focused(), "ArrowDown reaches the Tray option");
+        press("Enter");
+        wait_until("kind change is requested", || {
+            last_request(&root) == "SetKind:Tray"
+        })
+        .await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounting_section_uses_disclosure_trigger() {
+        let root = mounted(single_host);
+        wait_until("case bodies mount", || {
+            by_role_name(&root, "button", "+ New case body").is_some()
+        })
+        .await;
+        let trigger =
+            by_role_name(&root, "button", "Mounting").expect("mounting trigger");
+        assert_eq!(
+            trigger.get_attribute("aria-expanded").as_deref(),
+            Some("true"),
+            "a body with mounts opens its mounting section"
+        );
+        trigger.click();
+        wait_until("mounting section collapses", || {
+            by_role_name(&root, "button", "Mounting").is_some_and(|trigger| {
+                trigger.get_attribute("aria-expanded").as_deref() == Some("false")
+            })
+        })
+        .await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn new_body_button_emits_add_request() {
+        let root = mounted(single_host);
+        wait_until("case bodies mount", || {
+            by_role_name(&root, "button", "+ New case body").is_some()
+        })
+        .await;
+        by_role_name(&root, "button", "+ New case body")
+            .unwrap()
+            .click();
+        wait_until("add-body is requested", || last_request(&root) == "AddBody").await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn thickness_rejects_invalid_draft_with_described_error() {
+        use wasm_bindgen::JsCast;
+        let root = mounted(single_host);
+        wait_until("thickness field mounts", || {
+            by_role_name(&root, "spinbutton", "Thickness").is_some()
+        })
+        .await;
+        let input: web_sys::HtmlInputElement = by_role_name(&root, "spinbutton", "Thickness")
+            .unwrap()
+            .dyn_into()
+            .unwrap();
+        input.focus().unwrap();
+        input.set_value("0");
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+            .unwrap();
+        input.blur().unwrap();
+        wait_until("invalid thickness is rejected locally", || {
+            input.get_attribute("aria-invalid").as_deref() == Some("true")
+        })
+        .await;
+        assert_eq!(input.value(), "0", "the field owns the rejected draft");
+        let described = input
+            .get_attribute("aria-describedby")
+            .expect("validation must describe the precise input");
+        let mut description = String::new();
+        for id in described.split_whitespace() {
+            let node = root
+                .query_selector(&format!("[id='{id}']"))
+                .unwrap()
+                .expect("description resolves in this production field");
+            description.push_str(&node.text_content().unwrap_or_default());
+        }
+        assert!(description.contains("above 0"), "missing error: {description}");
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn body_tabs_switch_the_active_editor() {
+        let root = mounted(pair_host);
+        wait_until("case bodies mount", || {
+            by_role_name(&root, "button", "+ New case body").is_some()
+        })
+        .await;
+        assert!(by_role_name(&root, "spinbutton", "Wall height").is_none());
+        // Tab content concatenates without spaces, as in production markup.
+        let tray_tab = by_role_name(&root, "button", "02Tray bodytray")
+            .expect("tray body tab");
+        assert_eq!(
+            tray_tab.get_attribute("aria-pressed").as_deref(),
+            Some("false")
+        );
+        tray_tab.click();
+        wait_until("tray editor shows wall fields", || {
+            by_role_name(&root, "spinbutton", "Wall height").is_some()
+        })
+        .await;
+        assert_eq!(
+            by_role_name(&root, "button", "02Tray bodytray")
+                .unwrap()
+                .get_attribute("aria-pressed")
+                .as_deref(),
+            Some("true")
+        );
+        root.remove();
     }
 }

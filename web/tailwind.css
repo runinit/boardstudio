@@ -1578,8 +1578,8 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 }
 
 /* Grouped measurements stack labels above fields instead of nesting two-column inspector rows. */
-:is(.m1-model-axes, .m1-case-measures) .board-field { grid-template-columns: minmax(0, 1fr); gap: var(--wb-space-1); }
-:is(.m1-model-axes, .m1-case-measures) .board-field > span:first-child { font-size: var(--wb-type-label); }
+:is(.m1-model-axes) .board-field { grid-template-columns: minmax(0, 1fr); gap: var(--wb-space-1); }
+:is(.m1-model-axes) .board-field > span:first-child { font-size: var(--wb-type-label); }
 
 /* Ticket 023 composes copied controls; these rules own page layout only. */
 .m1-keyboard-card[data-slot=card] { padding: 0; gap: 0; }

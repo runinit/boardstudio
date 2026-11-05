@@ -850,6 +850,7 @@ impl CaseBodyEdit {
 mod queued_body_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -893,11 +894,8 @@ mod queued_body_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         gloo_timers::future::TimeoutFuture::new(50).await;
-        let commit = |index, value: &str| {
-            let input = root
-                .query_selector_all(".m1-case-measures input")
-                .unwrap()
-                .item(index)
+        let commit = |name: &str, value: &str| {
+            let input = by_role_name(&root, "spinbutton", name)
                 .unwrap()
                 .dyn_into::<web_sys::HtmlInputElement>()
                 .unwrap();
@@ -918,10 +916,10 @@ mod queued_body_tests {
                 .unwrap();
         };
         let (entered, release) = support::gate_next_core_reply(&runtime);
-        commit(0, "4");
+        commit("Thickness", "4");
         support::drive_pending(&runtime);
         entered.await.unwrap();
-        commit(1, "0.8");
+        commit("Clearance", "0.8");
         support::drive_pending(&runtime);
         release.send(()).unwrap();
         for _ in 0..20 {
@@ -985,11 +983,8 @@ mod queued_body_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         gloo_timers::future::TimeoutFuture::new(50).await;
-        let commit = |index, value: &str| {
-            let input = root
-                .query_selector_all(".m1-case-gasket-measures input")
-                .unwrap()
-                .item(index)
+        let commit = |name: &str, value: &str| {
+            let input = by_role_name(&root, "spinbutton", name)
                 .unwrap()
                 .dyn_into::<web_sys::HtmlInputElement>()
                 .unwrap();
@@ -1010,12 +1005,10 @@ mod queued_body_tests {
                 .unwrap();
         };
         let (entered, release) = support::gate_next_core_reply(&runtime);
-        commit(0, "3");
+        commit("Inset", "3");
         support::drive_pending(&runtime);
         entered.await.unwrap();
-        let inset = root
-            .query_selector(".m1-case-gasket-measures input")
-            .unwrap()
+        let inset = by_role_name(&root, "spinbutton", "Inset")
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
@@ -1025,7 +1018,7 @@ mod queued_body_tests {
         inset
             .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
             .unwrap();
-        commit(1, "4");
+        commit("Width", "4");
         support::drive_pending(&runtime);
         release.send(()).unwrap();
         for _ in 0..20 {
@@ -1121,7 +1114,9 @@ mod queued_body_tests {
     }
 
     fn select_body(root: &web_sys::Element, index: u32) {
-        root.query_selector_all(".m1-case-body-tab")
+        let group = by_role_name(root, "group", "Case bodies").expect("body tabs");
+        group
+            .query_selector_all("button")
             .unwrap()
             .item(index)
             .unwrap()
@@ -1131,10 +1126,8 @@ mod queued_body_tests {
     }
 
     fn thickness_input(root: &web_sys::Element) -> web_sys::HtmlInputElement {
-        root.query_selector_all(".m1-case-measures input")
-            .unwrap()
-            .item(0)
-            .unwrap()
+        by_role_name(root, "spinbutton", "Thickness")
+            .expect("thickness field")
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap()
     }
@@ -1168,9 +1161,18 @@ mod queued_body_tests {
     }
 
     fn inline_failure(root: &web_sys::Element) -> Option<String> {
-        root.query_selector(".m1-case-measures .m1-case-number small[role='alert']")
-            .unwrap()
-            .and_then(|alert| alert.text_content())
+        let input = by_role_name(root, "spinbutton", "Thickness")?;
+        let described = input.get_attribute("aria-describedby").unwrap_or_default();
+        for id in described.split_whitespace() {
+            let node = root.query_selector(&format!("[id='{id}']")).unwrap()?;
+            if node.get_attribute("role").as_deref() == Some("alert") {
+                return node.text_content();
+            }
+            if let Some(alert) = node.query_selector("[role='alert']").unwrap() {
+                return alert.text_content();
+            }
+        }
+        None
     }
 
     fn thickness(runtime: &Rc<Runtime>) -> f64 {
