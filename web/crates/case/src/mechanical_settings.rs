@@ -2505,16 +2505,18 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                 reserved_mount_ids: reserved_mount_ids.clone(),
                 allow_add: !values.internal_gasket,
             }
-            BoardDisclosure { class: "m1-mechanical-group", aria_label: "Suggested mount locations",
-                heading: rsx! { summary { "Suggested mount locations · {suggestions.len()} candidates" } },
+            Collapsible { keep_mounted: true, default_open: false,
+                CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Suggested mount locations · {suggestions.len()} candidates" }
+                CollapsibleContent { class: "data-[open=false]:hidden",
                 if suggestions.is_empty() {
                     p { class: "m1-mechanical-help", "Resolve the current geometry to see clearance-tested mounting locations." }
                 } else if values.internal_gasket {
                     p { class: "m1-mechanical-help", "Candidates clear the current openings and battery envelope. Adopting them is explicit; later edits keep the chosen coordinates fixed." }
-                    BoardButton {
-                        variant: BoardButtonVariant::Quiet,
-                        density: BoardButtonDensity::Compact,
-                        class: "m1-mechanical-quiet",
+                    Button {
+                        variant: ButtonVariant::Ghost,
+                        size: ButtonSize::Sm,
+                        button_type: "button",
+                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("adopt-closure-positions") || !props.editable,
                         onclick: {
                             let mut sequence = props.request_sequence;
@@ -2532,10 +2534,11 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                             span { key: "{mount.id}", "{index + 1}: X {mount.at.x:.1}, Y {mount.at.y:.1} mm" }
                         }
                     }
-                    BoardButton {
-                        variant: BoardButtonVariant::Quiet,
-                        density: BoardButtonDensity::Compact,
-                        class: "m1-mechanical-quiet",
+                    Button {
+                        variant: ButtonVariant::Ghost,
+                        size: ButtonSize::Sm,
+                        button_type: "button",
+                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("suspension-mounts") || !props.editable,
                         onclick: {
                             let mut sequence = props.request_sequence;
@@ -2546,9 +2549,10 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                         },
                         "Adopt suggested mounts"
                     }
-                    BoardButton {
-                        r#type: "button",
-                        class: "m1-mechanical-quiet",
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        button_type: "button",
+                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("closure-mounts") || !props.editable,
                         onclick: {
                             let mut sequence = props.request_sequence;
@@ -2560,7 +2564,8 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                         "Add suggested closure screws"
                     }
                 }
-            }
+                 }
+                }
         }
     }
 }
@@ -2583,8 +2588,9 @@ struct MountCollectionControlsProps {
 fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
     let mounts = props.mounts.clone();
     rsx! {
-        BoardDisclosure { class: "m1-mechanical-group", aria_label: "{props.label}",
-            heading: rsx! { summary { "{props.label} · {mounts.len()}" } },
+        Collapsible { keep_mounted: true, default_open: false,
+            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "{props.label} · {mounts.len()}" }
+            CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
             for (index, mount) in mounts.iter().enumerate() {
                 { rsx! { MountRow {
                     key: "{mount.id}",
@@ -2598,11 +2604,12 @@ fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
                     mount: mount.clone(),
                 } } }
             }
-            if mounts.is_empty() { p { class: "m1-mechanical-help", "No {props.label.to_lowercase()} configured." } }
+            if mounts.is_empty() { Callout { "No {props.label.to_lowercase()} configured." } }
             if props.allow_add {
-                BoardButton {
-                    r#type: "button",
-                    class: "m1-mechanical-quiet",
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    button_type: "button",
+                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: mechanical_action_pending(&format!("{}-mounts", mount_collection_id(props.collection))) || !props.editable,
                     onclick: {
                         let mut sequence = props.request_sequence;
@@ -2614,7 +2621,8 @@ fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
                     "Add {props.label.trim_end_matches('s').to_lowercase()}"
                 }
             }
-        }
+             }
+            }
     }
 }
 
@@ -2646,22 +2654,21 @@ fn MountRow(props: MountRowProps) -> Element {
     rsx! {
         fieldset { class: "m1-mechanical-mount-row", disabled: !props.editable,
             legend { "{label} {props.index}" }
-            BoardSelectField {
+            SettingsSelect {
                 label: "Mount type",
-                class: "m1-mechanical-field",
                 value: (if mount.kind == MountKind::Boss { "boss" } else { "hole" }).to_string(),
-                onchange: {
+                on_change: {
                         let mut sequence = props.request_sequence;
                         let identity = props.identity.clone();
                         let callback = props.on_request;
                         let collection = props.collection;
                         let mount_id = mount.id.clone();
-                        move |event: FormEvent| if let Some(kind) = parse_mount_kind(&event.value()) {
+                        move |next: Option<String>| if let Some(kind) = parse_mount_kind(&next.unwrap_or_default()) {
                             send_request(&mut sequence, &identity, callback, MechanicalSettingsPatch::SetMountKind { collection, mount_id: mount_id.clone(), kind });
                         }
                     },
-                option { value: "hole", "Hole" }
-                    option { value: "boss", "Boss" }
+                SelectOption::<String> { index: 0usize, value: "hole".to_owned(), text_value: "Hole".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Hole" }
+                    SelectOption::<String> { index: 1usize, value: "boss".to_owned(), text_value: "Boss".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Boss" }
             }
             DimensionField { key: "{field_prefix}:x",
                 identity: props.identity.clone(), request_sequence: props.request_sequence,
@@ -2690,9 +2697,10 @@ fn MountRow(props: MountRowProps) -> Element {
                     label: "Boss height", value: mount.height.unwrap_or(5.0), editable: props.editable, mount_target: Some(make_target(&mount.id)),
                 }
             }
-            BoardButton {
-                r#type: "button",
-                class: "m1-mechanical-quiet",
+            Button {
+                variant: ButtonVariant::Secondary,
+                button_type: "button",
+                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 disabled: mechanical_action_pending(&format!("mount:{}:{}:remove", mount_collection_id(props.collection), mount.id)) || !props.editable,
                 onclick: {
                     let mut sequence = props.request_sequence;
@@ -5341,7 +5349,7 @@ mod migration_tests;
 mod contextual_layer_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{MechanicalFeatureKind, Vec3};
+    use boardstudio_core::model::{MechanicalFeatureKind, Vec2, Vec3};
     use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -7228,6 +7236,66 @@ mod contextual_layer_tests {
                 .unwrap(),
             "1",
             "one typed removal is submitted"
+        );
+        root.remove();
+    }
+
+    fn mount_collection_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        rsx! {
+            MountCollectionControls {
+                identity: test_identity(),
+                request_sequence,
+                on_request: move |request: MechanicalSettingsRequest| {
+                    last_request.set(format!("{:?}", request.patch))
+                },
+                editable: true,
+                feedback: Rc::from([]),
+                collection: MechanicalMountCollection::Suspension,
+                label: "Suspension mounts",
+                mounts: vec![Mount {
+                    id: "mount-1".into(),
+                    at: Vec2 { x: 2.0, y: 3.0 },
+                    kind: MountKind::Hole,
+                    hole_diameter: 3.2,
+                    boss_diameter: None,
+                    height: None,
+                }],
+                reserved_mount_ids: vec!["mount-1".into()],
+                allow_add: true,
+            }
+            p { id: "case-mount-last-request", "{last_request}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mount_collection_names_its_disclosure_and_submits_typed_mount_changes() {
+        mount_battery_test_page("case-mount-test-root", mount_collection_test_page);
+        rendered().await;
+        let root = element("#case-mount-test-root");
+        by_role_name(&root, "button", "Suspension mounts · 1")
+            .unwrap()
+            .click();
+        rendered().await;
+        by_role_name(&root, "button", "Mount type").unwrap().click();
+        wait_until("the mount types open", || {
+            by_role_name(&root, "listbox", "Mount type").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "Boss").unwrap());
+        rendered().await;
+        let kind = element("#case-mount-last-request").text_content().unwrap();
+        assert!(
+            kind.contains("SetMountKind") && kind.contains("Boss"),
+            "the mount type submits its typed change, got {kind}"
+        );
+        by_role_name(&root, "button", "Remove").unwrap().click();
+        rendered().await;
+        let removed = element("#case-mount-last-request").text_content().unwrap();
+        assert!(
+            removed.contains("RemoveMount") && removed.contains("mount-1"),
+            "the row removes its own mount, got {removed}"
         );
         root.remove();
     }
