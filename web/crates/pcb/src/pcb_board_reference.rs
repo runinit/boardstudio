@@ -1,9 +1,12 @@
 //! Scoped controls and file-backed editing for routed-board references.
+use crate::pcb_controls::{PcbCheck, PcbChoice, PcbFile, PcbInput, PcbSection};
 use boardstudio_core::hash::sha256_hex;
 use boardstudio_core::model::{Asset, BoardReference};
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardDisclosure};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::input::InputType;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use gloo_timers::future::TimeoutFuture;
@@ -895,16 +898,12 @@ pub fn Editor(
     let mut error_signal = error;
 
     rsx! {
-        BoardDisclosure { class: "m1-case-physical-setup m1-board-reference",
-            heading: rsx! { summary { "Routed PCB reference" } },
+        PcbSection { class: "m1-case-physical-setup m1-board-reference", label: "Routed PCB reference",
             p { "Preview a routed KiCad board with the case. Replace this reference after editing routing in KiCad." }
-            label {
-                if reference.is_some() { "Replace KiCad board" } else { "Import KiCad board" }
-                input {
-                    r#type: "file",
-                    accept: ".kicad_pcb",
+            PcbFile {
+                    label: if reference.is_some() { "Replace KiCad board" } else { "Import KiCad board" },
+                    accept: Some(".kicad_pcb".into()),
                     disabled: disabled || busy,
-                    aria_label: if reference.is_some() { "Replace KiCad board" } else { "Import KiCad board" },
                     onchange: move |event: FormEvent| {
                         let Some(input) = event.data().try_as_web_event()
                             .and_then(|event| event.target())
@@ -914,73 +913,52 @@ pub fn Editor(
                         input.set_value("");
                         on_import.call(file);
                     }
-                }
             }
             if let Some(reference) = reference.as_ref() {
-                label { class: "m1-board-reference-enabled",
-                    BoardCheckbox {
-                        checked: reference.enabled,
-                        disabled,
-                        aria_label: "Use routed PCB in assembly",
-                        onchange: move |event: FormEvent| on_action.call(Action::SetEnabled(event.checked())),
-                    }
-                    "Use routed PCB in assembly"
+                PcbCheck { label: "Use routed PCB in assembly", checked: reference.enabled, disabled,
+                    on_change: move |enabled| on_action.call(Action::SetEnabled(enabled)),
                 }
                 div { class: "m1-board-reference-transform",
-                    label { "X (mm)"
-                        input {
-                            r#type: "number", step: "0.1", value: "{reference.pose.at.x}",
+                    PcbInput { label: "X (mm)", aria_label: "X (mm)",
+                            r#type: InputType::Number, step: Some("0.1".into()), value: reference.pose.at.x.to_string(),
                             disabled,
                             oninput: move |event: FormEvent| {
                                 if let Ok(value) = event.value().parse::<f64>()
                                     && value.is_finite()
                                 { on_action.call(Action::SetPositionX(value)); }
                             }
-                        }
                     }
-                    label { "Y (mm)"
-                        input {
-                            r#type: "number", step: "0.1", value: "{reference.pose.at.y}",
+                    PcbInput { label: "Y (mm)", aria_label: "Y (mm)",
+                            r#type: InputType::Number, step: Some("0.1".into()), value: reference.pose.at.y.to_string(),
                             disabled,
                             oninput: move |event: FormEvent| {
                                 if let Ok(value) = event.value().parse::<f64>()
                                     && value.is_finite()
                                 { on_action.call(Action::SetPositionY(value)); }
                             }
-                        }
                     }
-                    label { "Z (mm)"
-                        input {
-                            r#type: "number", step: "0.1", value: "{reference.elevation}",
+                    PcbInput { label: "Z (mm)", aria_label: "Z (mm)",
+                            r#type: InputType::Number, step: Some("0.1".into()), value: reference.elevation.to_string(),
                             disabled,
                             oninput: move |event: FormEvent| {
                                 if let Ok(value) = event.value().parse::<f64>()
                                     && value.is_finite()
                                 { on_action.call(Action::SetElevation(value)); }
                             }
-                        }
                     }
                 }
-                label { "Rotation (°)"
-                    input {
-                        r#type: "number", value: "{reference.pose.rotation}",
+                PcbInput { label: "Rotation (°)", aria_label: "Rotation (°)",
+                        r#type: InputType::Number, value: reference.pose.rotation.to_string(),
                         disabled,
                         oninput: move |event: FormEvent| {
                             if let Ok(value) = event.value().parse::<f64>()
                                 && value.is_finite()
                             { on_action.call(Action::SetRotation(value)); }
                         }
-                    }
                 }
                 if !current_paths.is_empty() {
-                    label {
-                        "Attach model directory"
-                        input {
-                            r#type: "file",
-                            multiple: true,
-                            "webkitdirectory": true,
+                    PcbFile { label: "Attach model directory", directory: true,
                             disabled: disabled || busy,
-                            aria_label: "Attach model directory",
                             onchange: move |event: FormEvent| {
                                 let Some(input) = event.data().try_as_web_event()
                                     .and_then(|event| event.target())
@@ -992,7 +970,6 @@ pub fn Editor(
                                 input.set_value("");
                                 on_attach_directory.call(files);
                             }
-                        }
                     }
                 }
                 for path in current_paths.iter().cloned() {
@@ -1007,30 +984,22 @@ pub fn Editor(
                         let path_for_select = path.clone();
                         let path_for_file = path.clone();
                         rsx! {
-                            label { key: "{path}", "Model asset for {path}"
-                                select {
-                                    aria_label: "Model asset for {path}",
+                            div { key: "{path}", class: "grid gap-2",
+                                PcbChoice {
+                                    label: format!("Model asset for {path}"), aria_label: format!("Model asset for {path}"), value: selected_asset_id.clone(), searchable: true,
                                     disabled,
-                                    onchange: move |event: FormEvent| {
-                                        let selected = event.value();
+                                    on_change: move |selected: String| {
                                         on_action.call(Action::SetModelAsset {
                                             path: path_for_select.clone(),
                                             asset_id: if selected.is_empty() { None } else { Some(selected) },
                                         });
                                     },
-                                    option { value: "", selected: selected_asset_id.is_empty(), "Resolve bundled model" }
-                                    if saved_asset_unavailable {
-                                        option { value: "{selected_asset_id}", selected: true, "Saved model asset is unavailable" }
-                                    }
-                                    for asset in &options {
-                                        option { key: "{asset.id}", value: "{asset.id}", selected: available_selection == Some(asset.id.as_str()), "{asset.name}" }
-                                    }
+                                    options: std::iter::once((String::new(), "Resolve bundled model".into(), false))
+                                        .chain(saved_asset_unavailable.then(|| (selected_asset_id.clone(), "Saved model asset is unavailable".into(), false)))
+                                        .chain(options.iter().map(|asset| (asset.id.clone(), asset.name.clone(), false))).collect(),
                                 }
-                                input {
-                                    r#type: "file",
-                                    accept: ".step,.stp,.stl,.wrl",
+                                PcbFile { label: format!("Attach model for {path}"), accept: Some(".step,.stp,.stl,.wrl".into()),
                                     disabled: disabled || busy,
-                                    aria_label: "Attach model for {path}",
                                     onchange: move |event: FormEvent| {
                                         let Some(input) = event.data().try_as_web_event()
                                             .and_then(|event| event.target())
@@ -1045,18 +1014,16 @@ pub fn Editor(
                         }
                     }
                 }
-                BoardButton {
-                    r#type: "button",
+                Button { variant: ButtonVariant::Destructive, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: disabled || busy || removal_disabled(),
                     onclick: move |_| on_action.call(Action::Remove),
                     "Remove PCB reference"
                 }
             }
 
-            if let Some(message) = error() { p { role: "alert", "{message}" } }
+            if let Some(message) = error() { Alert { variant: AlertVariant::Destructive, "{message}" } }
             if reference.is_some() && error().is_some() && current_paths.is_empty() {
-                BoardButton {
-                    r#type: "button",
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: disabled || busy,
                     onclick: move |_| {
                         attempted_discovery_signal.set(None);
@@ -1111,11 +1078,12 @@ mod mounted_async_tests {
     use crate::runtime::{in_process_support, project_name_test_support as support};
     use boardstudio_application::{AcceptedSnapshot, Event, Scope};
     use boardstudio_core::model::{Asset, Board, BoardReference, Pose2, Vec2};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use js_sys::{Array, Uint8Array};
     use std::{cell::RefCell, rc::Rc};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
-    use web_sys::{File, HtmlElement};
+    use web_sys::File;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
@@ -1257,6 +1225,47 @@ mod mounted_async_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn routed_reference_has_named_file_action_and_editable_fields() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+        let fixture = fixture().await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new_with_props(
+            field_edit_host,
+            field_edit_hostProps {
+                fixture: fixture.clone(),
+            },
+        );
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("routed reference disclosure mounts", || {
+            by_role_name(&root, "button", "Routed PCB reference").is_some()
+        })
+        .await;
+        let disclosure = by_role_name(&root, "button", "Routed PCB reference").unwrap();
+        disclosure.click();
+        wait_until("routed reference opens", || {
+            disclosure.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+        .await;
+        wait_until("routed reference controls mount", || {
+            by_role_name(&root, "button", "Replace KiCad board").is_some()
+                && by_role_name(&root, "spinbutton", "X (mm)").is_some()
+                && by_role_name(&root, "checkbox", "Use routed PCB in assembly").is_some()
+        })
+        .await;
+        assert_eq!(
+            disclosure.get_attribute("aria-expanded").as_deref(),
+            Some("true")
+        );
+        fixture.runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn reference_fields_queue_two_commits_keep_the_draft_and_undo_in_order() {
         let fixture = fixture().await;
         let runtime = &fixture.runtime;
@@ -1274,9 +1283,7 @@ mod mounted_async_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         TimeoutFuture::new(10).await;
-        let x = root
-            .query_selector("input[type='number']")
-            .unwrap()
+        let x = by_role_name(&root, "spinbutton", "X (mm)")
             .unwrap()
             .dyn_into::<HtmlInputElement>()
             .unwrap();
@@ -1367,49 +1374,67 @@ mod mounted_async_tests {
         );
 
         for _ in 0..100 {
-            if root.query_selector("[role=alert]").unwrap().is_some() {
+            if by_role_name(
+                &root,
+                "alert",
+                "Saved routed-board file is missing from browser storage.",
+            )
+            .is_some()
+            {
                 break;
             }
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
-        let alert = root
-            .query_selector("[role=alert]")
-            .unwrap()
-            .expect("missing stored blob produces a mounted alert");
+        let alert = by_role_name(
+            &root,
+            "alert",
+            "Saved routed-board file is missing from browser storage.",
+        )
+        .expect("missing stored blob produces a mounted alert");
         assert!(
             alert
                 .text_content()
                 .unwrap()
                 .contains("Saved routed-board file is missing from browser storage")
         );
-        let buttons = root.query_selector_all("button").unwrap();
-        let retry = (0..buttons.length())
-            .filter_map(|index| buttons.item(index))
-            .find(|button| button.text_content().as_deref() == Some("Retry model-path discovery"))
-            .expect("failed discovery offers retry")
-            .dyn_into::<HtmlElement>()
-            .unwrap();
+        let retry = by_role_name(&root, "button", "Retry model-path discovery")
+            .expect("failed discovery offers retry");
         assert!(retry.get_attribute("disabled").is_none());
         retry.click();
         for _ in 0..100 {
-            if root.query_selector("[role=alert]").unwrap().is_none() {
+            if by_role_name(
+                &root,
+                "alert",
+                "Saved routed-board file is missing from browser storage.",
+            )
+            .is_none()
+            {
                 break;
             }
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
         for _ in 0..100 {
-            if root.query_selector("[role=alert]").unwrap().is_some() {
+            if by_role_name(
+                &root,
+                "alert",
+                "Saved routed-board file is missing from browser storage.",
+            )
+            .is_some()
+            {
                 break;
             }
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
         assert!(
-            root.query_selector("[role=alert]")
-                .unwrap()
-                .expect("retry runs the real missing-asset lookup again")
-                .text_content()
-                .unwrap()
-                .contains("Saved routed-board file is missing from browser storage")
+            by_role_name(
+                &root,
+                "alert",
+                "Saved routed-board file is missing from browser storage."
+            )
+            .expect("retry runs the real missing-asset lookup again")
+            .text_content()
+            .unwrap()
+            .contains("Saved routed-board file is missing from browser storage")
         );
         assert!(support::take_held_effects(&fixture.runtime).is_empty());
         assert!(
@@ -1574,19 +1599,12 @@ mod mounted_async_tests {
             );
             let (entered, release) = test_support::install_import_gate();
             for _ in 0..100 {
-                if root
-                    .query_selector("#pcb-reference-test-begin-replace")
-                    .unwrap()
-                    .is_some()
-                {
+                if by_role_name(&root, "button", "Begin routed-board replacement").is_some() {
                     break;
                 }
                 gloo_timers::future::TimeoutFuture::new(10).await;
             }
-            root.query_selector("#pcb-reference-test-begin-replace")
-                .unwrap()
-                .unwrap()
-                .dyn_into::<HtmlElement>()
+            by_role_name(&root, "button", "Begin routed-board replacement")
                 .unwrap()
                 .click();
             entered
@@ -1622,9 +1640,8 @@ mod mounted_async_tests {
                 }
             }
             assert!(
-                root.query_selector("#pcb-reference-test-begin-replace:not([disabled])")
-                    .unwrap()
-                    .is_some(),
+                by_role_name(&root, "button", "Begin routed-board replacement")
+                    .is_some_and(|button| button.get_attribute("disabled").is_none()),
                 "replacement action remains usable for retry"
             );
             assert!(

@@ -1,4 +1,6 @@
 //! Private compositions of the shared controls for PCB inspectors.
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
 };
@@ -8,6 +10,7 @@ use boardstudio_web_ui_shared::ui::input::InputType;
 use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
 use boardstudio_web_ui_shared::ui::select::{Select, SelectOption};
 use dioxus::prelude::*;
+use wasm_bindgen::JsCast;
 
 #[component]
 pub(crate) fn PcbSection(
@@ -85,5 +88,43 @@ pub(crate) fn PcbInput(
                 oninput: move |event: FormEvent| oninput.call(event),
             } }
         }
+    }
+}
+
+#[component]
+pub(crate) fn PcbCheck(
+    label: String,
+    checked: bool,
+    #[props(default)] disabled: bool,
+    on_change: EventHandler<bool>,
+) -> Element {
+    let id = format!("pcb-check-{}", dioxus::core::current_scope_id().0);
+    rsx! {
+        Field { class: "flex-row items-center gap-2 max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+            Checkbox { id: id.clone(), aria_label: label.clone(), checked: Some(if checked { CheckboxState::Checked } else { CheckboxState::Unchecked }), disabled,
+                on_checked_change: move |value| on_change.call(value == CheckboxState::Checked) }
+            FieldLabel { html_for: id, "{label}" }
+        }
+    }
+}
+
+/// Native file inputs stay hidden; a named shared button opens the browser picker.
+#[component]
+pub(crate) fn PcbFile(
+    label: String,
+    #[props(default)] accept: Option<String>,
+    #[props(default)] directory: bool,
+    #[props(default)] disabled: bool,
+    onchange: EventHandler<FormEvent>,
+) -> Element {
+    let id = format!("pcb-file-{}", dioxus::core::current_scope_id().0);
+    let trigger_id = id.clone();
+    rsx! {
+        Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled,
+            onclick: move |_| {
+                if let Some(input) = web_sys::window().and_then(|window| window.document()).and_then(|document| document.get_element_by_id(&trigger_id)).and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok()) { input.click(); }
+            }, "{label}"
+        }
+        input { id, r#type: "file", hidden: true, accept, multiple: directory, "webkitdirectory": directory.then_some(""), disabled, onchange }
     }
 }
