@@ -1,6 +1,7 @@
 # 021: Parts editors
 
-Status: ready-for-agent
+Status: claimed
+Owner: lane/021-parts-editors (.worktrees/lane-021-parts-editors)
 Type: build
 Blocked by: [006: Accessible Select and Combobox](006-accessible-select-combobox.md), [008: Accessible Toolbar, Toggle Group, Slider and Toast](008-accessible-toolbar-toggle-slider-toast.md), [011: Docks and narrow-screen sheet](011-docks-and-narrow-sheet.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
