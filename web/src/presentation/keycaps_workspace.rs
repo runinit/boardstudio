@@ -142,8 +142,7 @@ impl KeycapsWorkspaceState {
 mod workspace_state_tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
-    use boardstudio_web_ui_shared::test_wait::wait_until;
-    use wasm_bindgen::JsCast;
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen_test::*;
 
     wasm_bindgen_test_configure!(run_in_browser);
@@ -188,15 +187,10 @@ mod workspace_state_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("the keycaps finding control renders", || {
-            root.query_selector("#focus-finding")
-                .is_ok_and(|button| button.is_some())
+            by_role_name(&root, "button", "Focus finding").is_some()
         })
         .await;
-        let button = document
-            .get_element_by_id("focus-finding")
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        let button = by_role_name(&root, "button", "Focus finding").unwrap();
         button.click();
         wait_until("the finding receives its first navigation identity", || {
             root.query_selector("#focused-navigation-id")

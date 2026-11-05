@@ -773,7 +773,7 @@ fn KeycodeField(props: KeycodeFieldProps) -> Element {
                             class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{code} · {title}" }
                     }
                     if custom_option {
-                        ComboboxOption::<String> { index: KEYCODE_CHOICES.len(), value: custom.clone(), text_value: custom.clone(), "{custom}" }
+                        ComboboxOption::<String> { index: KEYCODE_CHOICES.len(), value: custom.clone(), text_value: custom.clone(), class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{custom}" }
                     }
                 }
             }

@@ -100,10 +100,10 @@ pub(crate) fn PcbCheck(
 ) -> Element {
     let id = format!("pcb-check-{}", dioxus::core::current_scope_id().0);
     rsx! {
-        Field { class: "flex-row items-center gap-2 max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+        FieldLabel { html_for: id.clone(), class: "items-center gap-2 max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
             Checkbox { id: id.clone(), aria_label: label.clone(), checked: Some(if checked { CheckboxState::Checked } else { CheckboxState::Unchecked }), disabled,
                 on_checked_change: move |value| on_change.call(value == CheckboxState::Checked) }
-            FieldLabel { html_for: id, "{label}" }
+            span { "{label}" }
         }
     }
 }

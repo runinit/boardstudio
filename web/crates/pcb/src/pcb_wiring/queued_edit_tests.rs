@@ -7,7 +7,7 @@ use boardstudio_core::{
     electrical::{self, ElectricalPlanRequest},
     model::*,
 };
-use boardstudio_web_ui_shared::test_wait::wait_until_step;
+use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until_step};
 use std::{
     cell::{Cell, RefCell},
     collections::BTreeMap,
@@ -156,7 +156,7 @@ fn host() -> Element {
     let mode_value = (actions.draft)();
     let nets = probe.nets.borrow().as_ref().unwrap().clone();
     rsx! { div {
-        select { id: "queued-mode", value: mode_value, disabled: !actions.editable,
+        select { aria_label: "Queued wiring mode", value: mode_value, disabled: !actions.editable,
             option { value: "matrix", "Matrix" } option { value: "direct", "Direct GPIO" }
         }
         button { id: "queued-create-net", disabled: !nets.editable || nets.create_pending,
@@ -292,9 +292,7 @@ async fn wiring_mode_and_peripheral_pin_lock_queue_and_undo_in_order() {
     support::drive_pending(runtime);
     entered.await.unwrap();
     rendered().await;
-    let displayed = root
-        .query_selector("#queued-mode")
-        .unwrap()
+    let displayed = by_role_name(&root, "combobox", "Queued wiring mode")
         .unwrap()
         .dyn_into::<web_sys::HtmlSelectElement>()
         .unwrap();
@@ -388,9 +386,9 @@ async fn create_net_disables_while_held_and_refuses_a_retained_duplicate_but_all
         },
     };
     let (entered, release) = support::gate_next_core_reply(runtime);
-    let button = root.query_selector("#queued-create-net").unwrap().unwrap();
+    let button = by_role_name(&root, "button", "Add net").unwrap();
     assert!(!button.has_attribute("disabled"));
-    button.dyn_ref::<web_sys::HtmlElement>().unwrap().click();
+    button.click();
     rendered().await;
     support::drive_pending(runtime);
     entered.await.unwrap();

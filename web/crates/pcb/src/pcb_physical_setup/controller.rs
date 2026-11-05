@@ -7,7 +7,7 @@ use boardstudio_core::model::{EditOperation, HardwareTopology, HardwareTransport
 use boardstudio_web_catalogue::physical_setup::PreparedSetup;
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
-use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
+use boardstudio_web_ui_shared::ui::field::FieldLabel;
 use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 use dioxus::prelude::*;
 use std::{cell::Cell, future::Future, pin::Pin, rc::Rc};
@@ -332,8 +332,8 @@ pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
                 ToggleGroup { aria_label: "Keyboard configuration", horizontal: true, disabled: projection.busy,
                     pressed: Some([if split { 1usize } else { 0usize }].into_iter().collect()),
                     on_pressed_change: move |next: std::collections::HashSet<usize>| {
-                        if next.contains(&0) && split { topology_single.submit(PhysicalSetupIntent::ProjectTopology(false)); }
-                        else if next.contains(&1) && !split { topology_split.submit(PhysicalSetupIntent::ProjectTopology(true)); }
+                        if next.contains(&0) || (next.is_empty() && !split) { topology_single.submit(PhysicalSetupIntent::ProjectTopology(false)); }
+                        else if next.contains(&1) || (next.is_empty() && split) { topology_split.submit(PhysicalSetupIntent::ProjectTopology(true)); }
                     },
                     ToggleItem { index: 0usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "One keyboard" }
                     ToggleItem { index: 1usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Split keyboard" }
@@ -345,8 +345,8 @@ pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
                     ToggleGroup { aria_label: "Half connection", horizontal: true, disabled: projection.busy,
                         pressed: Some([if projection.transport == HardwareTransport::Wireless { 0usize } else { 1usize }].into_iter().collect()),
                         on_pressed_change: move |next: std::collections::HashSet<usize>| {
-                            if next.contains(&0) && projection.transport != HardwareTransport::Wireless { wireless.submit(PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wireless)); }
-                            else if next.contains(&1) && projection.transport != HardwareTransport::Wired { wired.submit(PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wired)); }
+                            if next.contains(&0) || (next.is_empty() && projection.transport == HardwareTransport::Wireless) { wireless.submit(PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wireless)); }
+                            else if next.contains(&1) || (next.is_empty() && projection.transport == HardwareTransport::Wired) { wired.submit(PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wired)); }
                         },
                         ToggleItem { index: 0usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Wireless" }
                         ToggleItem { index: 1usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Wired" }
@@ -354,11 +354,11 @@ pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
                 }
                 p { class: "m1-project-setup-note", if projection.reversible { "Use the same PCB on both halves, turned over on the right." } else { "Both halves use front-facing assemblies." } }
             }
-            Field { class: "m1-project-reversible-choice max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+            FieldLabel { html_for: reversible_id.clone(), class: "m1-project-reversible-choice w-full min-h-control-touch",
                 Checkbox { id: reversible_id.clone(), aria_label: "Reversible layout", checked: Some(if projection.reversible { CheckboxState::Checked } else { CheckboxState::Unchecked }), disabled: projection.busy,
-                    on_checked_change: move |state| mount.submit(PhysicalSetupIntent::ProjectReversibleLayout(state == CheckboxState::Checked))
+                    style: "min-height: 1rem", on_checked_change: move |state| mount.submit(PhysicalSetupIntent::ProjectReversibleLayout(state == CheckboxState::Checked))
                 }
-                FieldLabel { html_for: reversible_id, "Reversible layout" }
+                span { "Reversible layout" }
             }
             if let Some(feedback) = projection.project_feedback {
                 p { role: "status", "{feedback}" }
@@ -412,6 +412,43 @@ mod mounted_setup_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn selecting_the_current_setup_choice_still_submits_its_intent() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let capture = Rc::new(RefCell::new(Vec::new()));
+        let dom = VirtualDom::new(fixture);
+        dom.provide_root_context(Capture(capture.clone()));
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("setup mounts", || {
+            by_role_name(&root, "button", "Wireless").is_some()
+        })
+        .await;
+        by_role_name(&root, "button", "Wireless").unwrap().click();
+        wait_until("current transport is submitted", || {
+            capture
+                .borrow()
+                .contains(&PhysicalSetupIntent::ProjectTransport(
+                    HardwareTransport::Wireless,
+                ))
+        })
+        .await;
+        by_role_name(&root, "button", "Split keyboard")
+            .unwrap()
+            .click();
+        wait_until("current topology is submitted", || {
+            capture
+                .borrow()
+                .contains(&PhysicalSetupIntent::ProjectTopology(true))
+        })
+        .await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn setup_groups_roving_focus_and_checkbox_submit_existing_intents() {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
@@ -447,9 +484,13 @@ mod mounted_setup_tests {
         })
         .await;
         wired.click();
-        by_role_name(&root, "checkbox", "Reversible layout")
-            .unwrap()
-            .click();
+        let checkbox = by_role_name(&root, "checkbox", "Reversible layout").unwrap();
+        let label = checkbox
+            .parent_element()
+            .expect("checkbox has its clickable label");
+        assert_eq!(label.tag_name(), "LABEL");
+        use wasm_bindgen::JsCast;
+        label.dyn_into::<web_sys::HtmlElement>().unwrap().click();
         wait_until("setup requests emitted", || {
             capture.borrow().as_slice()
                 == [

@@ -3,9 +3,9 @@ use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use boardstudio_core::model::{KeycapBoardSettings, Pose2, Vec2};
 use boardstudio_web_ui_shared::test_role::by_role_name;
 use boardstudio_web_ui_shared::test_wait::wait_until;
-use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen::JsValue;
 use wasm_bindgen_test::*;
-use web_sys::{Element as DomElement, HtmlElement};
+use web_sys::Element as DomElement;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -145,9 +145,7 @@ async fn inspector_header_shows_accepted_assigned_and_total_key_count() {
         Some("0/2 assigned")
     );
 
-    element("#keycaps-test-accept-binding")
-        .unwrap()
-        .dyn_into::<HtmlElement>()
+    by_role_name(&root, "button", "Accept binding projection")
         .unwrap()
         .click();
     wait_until("the accepted binding count updates", || {

@@ -1102,8 +1102,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 
 /* Matrix pin assignment rows follow the approved inspector's native groups. */
 .m1-pcb-board-wiring .m1-pcb-wiring-pin-group { margin: 0; padding: 0; border-top: 1px solid var(--wb-rule); }
-.m1-pcb-board-wiring .m1-pcb-wiring-pin-group-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--wb-space-3); min-height: var(--wb-control-height); padding: var(--wb-space-2) 0; color: var(--wb-ink); font: 650 var(--wb-type-body)/var(--wb-leading-ui) var(--wb-body); cursor: pointer; }
-.m1-pcb-board-wiring .m1-pcb-wiring-pin-count { color: var(--wb-muted); font: var(--wb-type-label) var(--wb-mono); }
 
 /* Layout selection is the dock heading, with its native panel controls retained. */
 .m1-inspector-slot .m1-panel-content:has(.m1-selected-context) { position: relative; }

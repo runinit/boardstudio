@@ -1014,7 +1014,7 @@ pub fn Editor(
                         }
                     }
                 }
-                Button { variant: ButtonVariant::Destructive, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: disabled || busy || removal_disabled(),
                     onclick: move |_| on_action.call(Action::Remove),
                     "Remove PCB reference"

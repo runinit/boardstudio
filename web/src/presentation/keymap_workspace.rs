@@ -32,8 +32,7 @@ impl KeymapWorkspaceState {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod workspace_state_tests {
     use super::*;
-    use boardstudio_web_ui_shared::test_wait::wait_until;
-    use wasm_bindgen::JsCast;
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen_test::*;
 
     wasm_bindgen_test_configure!(run_in_browser);
@@ -60,14 +59,10 @@ mod workspace_state_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("the keymap layer controls render", || {
-            root.query_selector("#select-layer")
-                .is_ok_and(|button| button.is_some())
+            by_role_name(&root, "button", "Select layer").is_some()
         })
         .await;
-        root.query_selector("#select-layer")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
+        by_role_name(&root, "button", "Select layer")
             .unwrap()
             .click();
         wait_until("selecting a layer updates the workspace state", || {

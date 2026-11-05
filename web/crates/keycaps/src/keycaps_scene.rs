@@ -413,7 +413,7 @@ pub fn KeycapsKeyList(
                     class: "max-[960px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch",
                     value: Some(current.into()), placeholder: "Choose on the layout…",
                     on_value_change: move |value: Option<String>| if let Some(value) = value { on_select_key.call(value); },
-                    ComboboxOption::<String> { index: 0usize, value: "", text_value: "Choose on the layout…", "Choose on the layout…" }
+                    ComboboxOption::<String> { index: 0usize, value: "", text_value: "Choose on the layout…", class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Choose on the layout…" }
                     for (index, key) in visible_keys.iter().enumerate() {
                         {
                             let binding_label = if key.binding_label.is_empty() {

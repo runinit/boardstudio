@@ -151,11 +151,11 @@ pub fn KeymapPanel(
                                 placeholder: "Choose on the layout…",
                                 value: Some(selected_key_value.into()),
                                 on_value_change: move |value: Option<String>| if let Some(value) = value { on_select_key.call(value); },
-                                ComboboxOption::<String> { index: 0usize, value: "", text_value: "Choose on the layout…", "Choose on the layout…" }
+                                ComboboxOption::<String> { index: 0usize, value: "", text_value: "Choose on the layout…", class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Choose on the layout…" }
                                 for (index, key) in view.keys.iter().filter(|key| key.search_index.contains(&search)).enumerate() {
                                     {
                                         let label = format!("{} · {}", key.reference, key.binding_title);
-                                        rsx! { ComboboxOption::<String> { key: "{key.id}", index: index + 1, value: key.id.to_string(), text_value: label.clone(), "{label}" } }
+                                        rsx! { ComboboxOption::<String> { key: "{key.id}", index: index + 1, value: key.id.to_string(), text_value: label.clone(), class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{label}" } }
                                     }
                                 }
                             }
@@ -405,7 +405,7 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
                 InputGroup {
                 InputGroupInput {
                     id: name_id,
-                    class: "m1-keymap-layer-name",
+                    class: "m1-keymap-layer-name max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Layer name",
                     aria_invalid: field_error.is_some(),
                     aria_describedby: field_error.as_ref().map(|_| error_id.clone()),
