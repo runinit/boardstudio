@@ -1,9 +1,11 @@
 //! Layout presentation for the existing Core-owned Rhai script workflow.
-use crate::controls::{
-    BoardButton, BoardButtonDensity, BoardButtonVariant, BoardCheckbox, BoardSelectField,
-};
 use crate::pending_edit_helpers::PendingEditSignals;
 use crate::runtime::Runtime;
+use crate::ui::{
+    button::{Button, ButtonSize, ButtonVariant},
+    checkbox::{Checkbox, CheckboxState},
+    select::{Select, SelectOption},
+};
 use boardstudio_application::{
     AcceptedSnapshot, EditResolver, Lifecycle, Resolution, SessionEpoch,
 };
@@ -109,6 +111,7 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
     let scripts = document.scripts.clone();
     let active = use_signal(String::new);
     let mut active = active;
+    let selected_script = use_memo(move || Some(active()));
     let mut name = use_signal(String::new);
     let mut source = use_signal(String::new);
     let mut enabled = use_signal(|| true);
@@ -234,9 +237,9 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                 }
             },
             header { class: "m1-geometry-scripts-heading",
-                BoardButton {
-                    variant: BoardButtonVariant::Quiet,
-                    density: BoardButtonDensity::Compact,
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
                     class: "m1-geometry-scripts-back",
                     onclick: move |_| on_back.call(()),
                     "Back to selection"
@@ -292,20 +295,20 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                 }
             }
             if !scripts.is_empty() {
-                BoardSelectField {
-                    label: "Active script",
-                    class: "m1-geometry-script-field",
-                    aria_label: "Active script",
-                    value: "{active()}",
-                    disabled: !can_edit,
-                    onchange: {
+                div { class: "m1-geometry-script-field",
+                    span { "Active script" }
+                    Select::<String> {
+                        aria_label: "Active script",
+                        value: Some(selected_script.into()),
+                        disabled: !can_edit,
+                        on_value_change: {
                             let scripts = scripts.clone();
                             let pending = pending.clone();
                             let mut pending_owner = pending_owner;
                             let document_id = document.id.clone();
                             let session_epoch = snapshot.session_epoch;
-                            move |event: FormEvent| {
-                                let id = event.value();
+                            move |value: Option<String>| {
+                                let Some(id) = value else { return; };
                                 pending.settle(false, |_| String::new());
                                 pending_owner.set((!id.is_empty()).then(|| ScriptOwner {
                                     document_id: document_id.clone(),
@@ -326,10 +329,11 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                                 }
                             }
                         },
-                    option { value: "", "Select a script" }
-                        for script in scripts.iter() {
-                            option { value: "{script.id}", "{script.name}" }
+                        SelectOption::<String> { index: 0usize, value: "", text_value: "Select a script", "Select a script" }
+                        for (index, script) in scripts.iter().enumerate() {
+                            SelectOption::<String> { index: index + 1, value: script.id.clone(), text_value: script.name.clone(), "{script.name}" }
                         }
+                    }
                 }
             }
             if let Some(script) = active_script {
@@ -354,15 +358,15 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                     }
                 }
                 label { class: "m1-geometry-script-enabled",
-                    BoardCheckbox {
-                        checked: enabled(),
+                    Checkbox {
+                        aria_label: "Enable on Apply",
+                        checked: Some(if enabled() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
                         disabled: !can_edit,
-                        onchange: move |event: FormEvent| { let value = event.checked(); enabled.set(value); draft.set(encode_script_draft(&name(), &source(), value)); },
+                        on_checked_change: move |state: CheckboxState| { let value = bool::from(state); enabled.set(value); draft.set(encode_script_draft(&name(), &source(), value)); },
                     }
                     "Enable on Apply"
                 }
-                BoardButton {
-                    r#type: "button",
+                Button {
                     class: "m1-geometry-script-apply",
                     disabled: !can_edit || apply_disabled() || source().trim().is_empty(),
                     onclick: {
@@ -472,7 +476,7 @@ mod queued_script_tests {
     use std::cell::{Cell, RefCell};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
-    use web_sys::{Event, EventInit, HtmlSelectElement, HtmlTextAreaElement};
+    use web_sys::{Event, EventInit, HtmlTextAreaElement};
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
@@ -572,18 +576,30 @@ mod queued_script_tests {
         render_wait(probe).await;
     }
 
-    fn select_script(id: &str) {
-        let select = web_sys::window()
+    async fn select_script(name: &str) {
+        let root = web_sys::window()
             .unwrap()
             .document()
             .unwrap()
-            .query_selector("#geometry-script-owner-test select[aria-label='Active script']")
-            .unwrap()
-            .expect("active script select")
-            .dyn_into::<HtmlSelectElement>()
+            .get_element_by_id("geometry-script-owner-test")
             .unwrap();
-        select.set_value(id);
-        select.dispatch_event(&bubbling_event("change")).unwrap();
+        crate::test_wait::wait_until("script picker mounts", || {
+            crate::test_role::by_role_name(&root, "button", "Active script").is_some()
+        })
+        .await;
+        crate::test_role::by_role_name(&root, "button", "Active script")
+            .unwrap()
+            .click();
+        crate::test_wait::wait_until("script choices open", || {
+            crate::test_role::by_role_name(&root, "option", name).is_some()
+        })
+        .await;
+        let option = crate::test_role::by_role_name(&root, "option", name).unwrap();
+        for phase in ["pointerdown", "pointerup"] {
+            let event = web_sys::PointerEvent::new(phase).unwrap();
+            event.init_event_with_bubbles_and_cancelable(phase, true, true);
+            option.dispatch_event(&event).unwrap();
+        }
     }
 
     fn source_value() -> String {
@@ -624,11 +640,9 @@ mod queued_script_tests {
             .unwrap()
             .document()
             .unwrap()
-            .query_selector("#geometry-script-owner-test button.m1-geometry-script-apply")
-            .unwrap()
+            .get_element_by_id("geometry-script-owner-test")
+            .and_then(|root| crate::test_role::by_role_name(&root, "button", "Apply script"))
             .expect("apply button")
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
             .click();
     }
 
@@ -665,7 +679,7 @@ mod queued_script_tests {
         });
         support::open_document(&runtime, document).await;
         let probe = mount_editor(runtime.clone()).await;
-        select_script("script-1");
+        select_script("Script 1").await;
         flush(&probe).await;
         type_source("// script 1 edited");
         flush(&probe).await;
@@ -686,7 +700,7 @@ mod queued_script_tests {
             entered_core_task.set(true);
         });
         crate::test_wait::wait_until("script A reaches Core", || entered_core.get()).await;
-        select_script("script-2");
+        select_script("Script 2").await;
         flush(&probe).await;
         assert_eq!(source_value(), "// script 2");
         support::fail_next_persist(&runtime, "disk full");
