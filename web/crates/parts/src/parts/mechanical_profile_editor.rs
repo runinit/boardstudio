@@ -1,4 +1,5 @@
 use super::PartsStandardProfileLifetime;
+use super::editor_fields::{EditorNumberField, EditorSelect};
 use crate::parts_mechanical_profile::{
     ProfileEditOwner, StandardProfileRequestCapture, dispatch_standard_profile_family,
     displayed_mounting_gap, initial_profile, merge_standard_profile, standard_profile_controls,
@@ -9,8 +10,10 @@ use boardstudio_core::model::{
     MechanicalExtraction, MechanicalGeometry, MechanicalPartProfile, MechanicalPurpose,
     MechanicalPurposeMapping, MechanicalSwitchFamily, PartDefinition, Vec2,
 };
-use boardstudio_web_ui_shared::controls::{
-    BoardButton, BoardButtonVariant, BoardNumberField, BoardSelectField,
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertVariant},
+    button::{Button, ButtonVariant},
+    spinner::Spinner,
 };
 use dioxus::prelude::*;
 use std::{
@@ -344,39 +347,34 @@ pub fn ManualProfileEditor(
         (request_apply.borrow_mut())(mappings, true);
     };
     rsx! {
-        section { class: "m1-parts-fit-editor", "aria-label": "Mechanical fit profile editor",
-            header {
+        section { class: "grid gap-3", "aria-label": "Mechanical fit profile editor",
+            header { class: "flex flex-wrap items-start justify-between gap-2",
                 div {
                     h2 { "{definition.name} fit" }
                     p { "Save the fit with this part. Every case using it inherits the profile." }
                 }
-                BoardButton { class: "m1-secondary", r#type: "button", onclick: move |_| on_close.call(()), "Cancel" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| on_close.call(()), "Cancel" }
             }
             if show_family_selector {
-                BoardSelectField {
-                    class: "m1-parts-fit-field",
+                EditorSelect {
                     label: "Switch fit family",
                     aria_label: family_selector_label.clone(),
                     value: profile.switch_family.map(family_key).unwrap_or("").to_owned(),
                     disabled: pending_standard.read().is_some() || extraction_pending.read().is_some(),
-                    onchange: move |event: FormEvent| {
+                    options: vec![("".to_owned(), "Select a standard family".to_owned()), ("mx".to_owned(), "MX".to_owned()), ("choc-v1".to_owned(), "Choc v1".to_owned()), ("choc-v2".to_owned(), "Choc v2".to_owned())],
+                    on_select: move |value: String| {
                         let load_standard = selector_load_standard.clone();
-                        dispatch_standard_profile_family(&event.value(), move |family| {
+                        dispatch_standard_profile_family(&value, move |family| {
                             (load_standard.borrow_mut())(family);
                         });
                     },
-                    option { value: "", "Select a standard family" }
-                    option { value: "mx", "MX" }
-                    option { value: "choc-v1", "Choc v1" }
-                    option { value: "choc-v2", "Choc v2" }
                 }
             }
             if let Some(thickness) = family_details {
                 p { "Mounting gap: {gap_label} mm with a {thickness:.2} mm plate. Case recalculates the gap for its plate thickness." }
             } else {
-                BoardNumberField {
+                EditorNumberField {
                     label: "Plate underside to PCB top (mm)",
-                    class: "m1-parts-fit-field",
                     min: "0",
                     step: "0.01",
                     value: "{profile.plate_to_pcb}",
@@ -389,10 +387,10 @@ pub fn ManualProfileEditor(
                 }
             }
             if show_standard_action {
-                BoardButton {
-                    class: "m1-secondary",
-                    r#type: "button",
-                    "aria-label": "{standard_action_label}",
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    aria_label: "{standard_action_label}",
                     disabled: pending_standard.read().is_some() || extraction_pending.read().is_some(),
                     onclick: move |_| {
                         if let Some(family) = draft().switch_family {
@@ -403,18 +401,18 @@ pub fn ManualProfileEditor(
                 }
             }
             if let Some(request) = pending_standard.read().as_ref() {
-                p { role: "status", "Loading the standard {request.family:?} cutout…" }
+                div { role: "status", class: "flex items-center gap-2", Spinner {} "Loading the standard {request.family:?} cutout…" }
             }
             if !standard_error().is_empty() {
-                p { role: "alert", "Standard fit could not be loaded: {standard_error()}" }
+                Alert { variant: AlertVariant::Destructive, "Standard fit could not be loaded: {standard_error()}" }
             }
             if definition.kicad_source.is_some() {
-                section { class: "m1-parts-fit-section", "aria-label": "Footprint geometry",
-                    header {
+                section { class: "grid gap-2", "aria-label": "Footprint geometry",
+                    header { class: "flex flex-wrap items-center justify-between gap-2",
                         strong { "Footprint geometry" }
-                        BoardButton {
-                            class: "m1-secondary",
-                            r#type: "button",
+                        Button {
+                            variant: ButtonVariant::Secondary,
+                            class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             disabled: extraction_pending.read().is_some(),
                             onclick: read_geometry,
                             if extraction_pending.read().is_some() { "Reading KiCad layers…" } else { "Read KiCad layers" }
@@ -431,49 +429,43 @@ pub fn ManualProfileEditor(
                                 );
                                 let selected_id = primitive_id.clone();
                                 rsx! {
-                                    BoardSelectField {
+                                    EditorSelect {
                                         label: "{purpose_label}",
-                                        class: "m1-parts-fit-field",
                                         aria_label: "Purpose for {primitive_id}",
                                         value: (purposes().get(&primitive_id).map(|purpose| purpose_key(*purpose)).unwrap_or("")).to_string(),
                                         disabled: extraction_pending.read().is_some(),
-                                        onchange: move |event: FormEvent| {
+                                        options: vec![("".to_owned(), "Unused".to_owned()), ("plate-cutout".to_owned(), "Plate cutout".to_owned()), ("electrical-pcb-mounting-hole".to_owned(), "PCB mounting hole".to_owned()), ("clearance-envelope".to_owned(), "Clearance envelope".to_owned()), ("drawing-guide".to_owned(), "Drawing guide".to_owned())],
+                                        on_select: move |value: String| {
                                                 purposes.with_mut(|selected| {
-                                                    if let Some(purpose) = parse_purpose(&event.value()) {
+                                                    if let Some(purpose) = parse_purpose(&value) {
                                                         selected.insert(selected_id.clone(), purpose);
                                                     } else {
                                                         selected.remove(&selected_id);
                                                     }
                                                 });
                                             },
-                                        option { value: "", "Unused" }
-                                            option { value: "plate-cutout", "Plate cutout" }
-                                            option { value: "electrical-pcb-mounting-hole", "PCB mounting hole" }
-                                            option { value: "clearance-envelope", "Clearance envelope" }
-                                            option { value: "drawing-guide", "Drawing guide" }
                                     }
                                 }
                             }
                         }
-                        BoardButton {
-                            class: "m1-secondary",
-                            r#type: "button",
+                        Button {
+                            variant: ButtonVariant::Secondary,
+                            class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             disabled: extraction_pending.read().is_some() || purposes.read().is_empty(),
                             onclick: apply_geometry,
                             if extraction_pending.read().is_some() { "Applying selected geometry…" } else { "Apply selected geometry" }
                         }
                     }
                     if !extraction_error().is_empty() {
-                        p { role: "alert", "KiCad geometry could not be extracted: {extraction_error()}" }
+                        Alert { variant: AlertVariant::Destructive, "KiCad geometry could not be extracted: {extraction_error()}" }
                     }
                 }
             }
             {contour_editor(draft, ContourField::Cutouts, "Plate cutouts")}
             {contour_editor(draft, ContourField::Clearances, "Component clearances")}
-            BoardButton { variant: BoardButtonVariant::Primary,
-                class: "m1-primary",
-                r#type: "button",
-                "aria-label": "{save_profile_label}",
+            Button { variant: ButtonVariant::Default,
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                aria_label: "{save_profile_label}",
                 disabled: pending_standard.read().is_some() || extraction_pending.read().is_some(),
                 onclick: move |_| { on_save.call(draft()); on_close.call(()); },
                 "Save fit profile"
@@ -518,9 +510,9 @@ mod mounted_tests {
         MechanicalGeometryKind, MechanicalPrimitive, MechanicalProfileSource, MechanicalShape,
         ProjectDoc, SceneDelta,
     };
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use futures_channel::oneshot;
     use std::{cell::RefCell, collections::VecDeque};
-    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -707,17 +699,9 @@ mod mounted_tests {
     }
 
     fn click_button(root: &web_sys::Element, label: &str) {
-        let buttons = root.query_selector_all("button").unwrap();
-        for index in 0..buttons.length() {
-            let Some(button) = buttons.item(index) else {
-                continue;
-            };
-            if button.text_content().unwrap_or_default().trim() == label {
-                button.dyn_into::<web_sys::HtmlElement>().unwrap().click();
-                return;
-            }
-        }
-        panic!("missing mounted profile button {label}");
+        by_role_name(root, "button", label)
+            .unwrap_or_else(|| panic!("missing mounted profile button {label}"))
+            .click();
     }
 
     async fn wait_for_text(root: &web_sys::Element, text: &str) {
@@ -732,19 +716,10 @@ mod mounted_tests {
 
     async fn wait_for_button_enabled(root: &web_sys::Element, label: &str) {
         for _ in 0..100 {
-            let buttons = root.query_selector_all("button").unwrap();
-            for index in 0..buttons.length() {
-                let Some(button) = buttons
-                    .item(index)
-                    .and_then(|node| node.dyn_into::<web_sys::Element>().ok())
-                else {
-                    continue;
-                };
-                if button.text_content().unwrap_or_default().trim() == label
-                    && !button.has_attribute("disabled")
-                {
-                    return;
-                }
+            if let Some(button) = by_role_name(root, "button", label)
+                && !button.has_attribute("disabled")
+            {
+                return;
             }
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
@@ -798,16 +773,13 @@ mod mounted_tests {
         request.complete.send(Ok(extraction())).unwrap();
         wait_for_button_enabled(&root, "Read KiCad layers").await;
         assert!(
-            root.query_selector("select[aria-label^='Purpose for']")
+            root.query_selector("[aria-label^='Purpose for']")
                 .unwrap()
                 .is_none()
         );
-        assert!(root.query_selector("p[role='alert']").unwrap().is_none());
-        root.query_selector("button[aria-label='Save fit profile']")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
+        assert!(root.query_selector("[role='alert']").unwrap().is_none());
+        by_role_name(&root, "button", "Save fit profile")
+            .expect("save fit profile action")
             .click();
         let saved = fixture
             .saved
@@ -847,13 +819,13 @@ fn contour_editor(
         ContourField::Clearances => "clearance",
     };
     rsx! {
-        section { class: "m1-parts-fit-section", "aria-label": "{label}",
-            header {
+        section { class: "grid gap-2", "aria-label": "{label}",
+            header { class: "flex flex-wrap items-center justify-between gap-2",
                 strong { "{label}" }
-                BoardButton {
-                    class: "m1-secondary",
-                    r#type: "button",
-                    "aria-label": "Add {add_label}",
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    aria_label: "Add {add_label}",
                     onclick: move |_| draft.with_mut(|profile| {
                         let mut next = empty_square();
                         match field {
@@ -866,12 +838,12 @@ fn contour_editor(
             }
             if contours.is_empty() { p { "No {label.to_lowercase()} defined." } }
             for (shape_index, contour) in contours.iter().enumerate() {
-                div { class: "m1-parts-fit-contour",
-                    header {
+                div { class: "grid gap-2",
+                    header { class: "flex flex-wrap items-center justify-between gap-2",
                         strong { "Contour {shape_index + 1}" }
-                        BoardButton {
-                            class: "m1-secondary",
-                            r#type: "button",
+                        Button {
+                            variant: ButtonVariant::Secondary,
+                            class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             onclick: move |_| draft.with_mut(|profile| match field {
                                 ContourField::Cutouts => { if shape_index < profile.cutouts.len() { profile.cutouts.remove(shape_index); } },
                                 ContourField::Clearances => if let Some(contours) = &mut profile.clearances
@@ -881,38 +853,40 @@ fn contour_editor(
                         }
                     }
                     for (point_index, point) in contour.iter().enumerate() {
-                        div { class: "m1-parts-fit-point",
+                        div { class: "grid gap-1",
                             span { "Vertex {point_index + 1}" }
-                            for axis in ["X", "Y"] {
-                                { let axis_value = if axis == "X" { point.x } else { point.y };
-                                  rsx! {
-                                    input {
-                                        r#type: "number",
-                                        step: "0.1",
-                                        aria_label: "{label} contour {shape_index + 1} vertex {point_index + 1} {axis}",
-                                        value: "{axis_value}",
-                                        oninput: move |event| {
-                                            let Ok(value) = event.value().parse::<f64>() else { return; };
-                                            if !value.is_finite() { return; }
-                                            draft.with_mut(|profile| {
-                                                let contours = match field {
-                                                    ContourField::Cutouts => &mut profile.cutouts,
-                                                    ContourField::Clearances => profile.clearances.get_or_insert_with(Vec::new),
-                                                };
-                                                if let Some(vertex) = contours.get_mut(shape_index).and_then(|contour| contour.get_mut(point_index)) {
-                                                    if axis == "X" { vertex.x = value; } else { vertex.y = value; }
-                                                }
-                                            });
-                                        },
+                            div { class: "grid grid-cols-2 gap-2",
+                                for axis in ["X", "Y"] {
+                                    { let axis_value = if axis == "X" { point.x } else { point.y };
+                                      rsx! {
+                                        EditorNumberField {
+                                            label: "{axis}",
+                                            step: "0.1",
+                                            aria_label: "{label} contour {shape_index + 1} vertex {point_index + 1} {axis}",
+                                            value: "{axis_value}",
+                                            oninput: move |event: FormEvent| {
+                                                let Ok(value) = event.value().parse::<f64>() else { return; };
+                                                if !value.is_finite() { return; }
+                                                draft.with_mut(|profile| {
+                                                    let contours = match field {
+                                                        ContourField::Cutouts => &mut profile.cutouts,
+                                                        ContourField::Clearances => profile.clearances.get_or_insert_with(Vec::new),
+                                                    };
+                                                    if let Some(vertex) = contours.get_mut(shape_index).and_then(|contour| contour.get_mut(point_index)) {
+                                                        if axis == "X" { vertex.x = value; } else { vertex.y = value; }
+                                                    }
+                                                });
+                                            },
+                                        }
+                                      }
                                     }
-                                  }
                                 }
                             }
                         }
                     }
-                    BoardButton {
-                        class: "m1-secondary",
-                        r#type: "button",
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         onclick: move |_| draft.with_mut(|profile| {
                             let contours = match field {
                                 ContourField::Cutouts => &mut profile.cutouts,

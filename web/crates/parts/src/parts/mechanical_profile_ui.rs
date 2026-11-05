@@ -14,8 +14,11 @@ use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::model::{MechanicalPartProfile, PartDefinition};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::controls::BoardButton;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertVariant},
+    button::{Button, ButtonVariant},
+};
 use dioxus::prelude::*;
 use std::rc::Rc;
 use wasm_bindgen_futures::spawn_local;
@@ -245,7 +248,7 @@ pub fn PartsMechanicalProfileWorkspace(
     }
     let profile_defined = definition.mechanical_profile.is_some();
     rsx! {
-            section { class: "m1-parts-mechanical-fit", "aria-label": "Mechanical fit profile",
+            section { class: "grid gap-2", "aria-label": "Mechanical fit profile",
                 div {
                     h3 { "Mechanical fit" }
                     p {
@@ -253,15 +256,15 @@ pub fn PartsMechanicalProfileWorkspace(
                         else { "Define this part’s fit once so every layout and case uses the same profile." }
                     }
                 }
-                BoardButton {
-                    class: "m1-secondary",
-                    r#type: "button",
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: save_disabled(),
                     onclick: start_editing,
                     if profile_defined { "Edit profile" } else { "Define profile" }
                 }
                 if !error().is_empty() {
-                    p { class: "m1-parts-load-error", role: "alert", "{error()}" }
+                    Alert { variant: AlertVariant::Destructive, "{error()}" }
                 }
             }
         PartsPreviewPanel {
@@ -284,9 +287,9 @@ mod mounted_tests {
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::TerminalOutcome;
     use boardstudio_core::model::{Board, ProjectDoc};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use std::cell::RefCell;
-    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
     use web_sys::{Element as DomElement, HtmlElement};
 
@@ -387,8 +390,8 @@ mod mounted_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("mechanical profile entry mounts", || {
-            root.query_selector(".m1-parts-mechanical-fit button")
-                .unwrap()
+            by_role_name(&root, "button", "Define profile")
+                .or_else(|| by_role_name(&root, "button", "Edit profile"))
                 .is_some()
         })
         .await;
@@ -396,26 +399,25 @@ mod mounted_tests {
     }
 
     fn entry(root: &DomElement) -> HtmlElement {
-        root.query_selector(".m1-parts-mechanical-fit button")
-            .unwrap()
-            .unwrap()
-            .dyn_into()
-            .unwrap()
+        by_role_name(root, "button", "Define profile")
+            .or_else(|| by_role_name(root, "button", "Edit profile"))
+            .expect("mechanical profile entry")
+    }
+
+    fn panel_alert(root: &DomElement) -> Option<web_sys::Element> {
+        let section = root
+            .query_selector("section[aria-label='Mechanical fit profile']")
+            .unwrap()?;
+        section.query_selector("[role=alert]").unwrap()
     }
 
     async fn open_editor(root: &DomElement) -> HtmlElement {
         entry(root).click();
         wait_until("mechanical profile editor opens", || {
-            root.query_selector("button[aria-label='Save fit profile']")
-                .unwrap()
-                .is_some()
+            by_role_name(root, "button", "Save fit profile").is_some()
         })
         .await;
-        root.query_selector("button[aria-label='Save fit profile']")
-            .unwrap()
-            .unwrap()
-            .dyn_into()
-            .unwrap()
+        by_role_name(root, "button", "Save fit profile").expect("save fit profile action")
     }
 
     async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
@@ -442,9 +444,7 @@ mod mounted_tests {
             .await
             .unwrap();
         assert!(
-            root.query_selector("button[aria-label='Save fit profile']")
-                .unwrap()
-                .is_none(),
+            by_role_name(&root, "button", "Save fit profile").is_none(),
             "saving closes the manual editor"
         );
         assert!(
@@ -495,17 +495,10 @@ mod mounted_tests {
         assert!(entry(&root).has_attribute("disabled"));
         release.send(()).unwrap();
         settle_until(&runtime, "mechanical profile save error appears", || {
-            !entry(&root).has_attribute("disabled")
-                && root
-                    .query_selector(".m1-parts-mechanical-fit [role=alert]")
-                    .unwrap()
-                    .is_some()
+            !entry(&root).has_attribute("disabled") && panel_alert(&root).is_some()
         })
         .await;
-        let alert = root
-            .query_selector(".m1-parts-mechanical-fit [role=alert]")
-            .unwrap()
-            .unwrap();
+        let alert = panel_alert(&root).expect("mechanical profile save error");
         assert!(
             alert
                 .text_content()
@@ -543,17 +536,10 @@ mod mounted_tests {
             matches!(
                 runtime.model().durability,
                 boardstudio_application::Durability::Failed { .. }
-            ) && root
-                .query_selector(".m1-parts-mechanical-fit [role=alert]")
-                .unwrap()
-                .is_none()
+            ) && panel_alert(&root).is_none()
         })
         .await;
-        assert!(
-            root.query_selector(".m1-parts-mechanical-fit [role=alert]")
-                .unwrap()
-                .is_none()
-        );
+        assert!(panel_alert(&root).is_none());
         let text = root.text_content().unwrap();
         assert!(!text.contains("departed mechanical profile disk failure"));
         assert!(!text.contains("Saving fit profile"));
