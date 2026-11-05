@@ -7,6 +7,7 @@ use boardstudio_core::model::{
     Contour, KeyBinding, KeycapBoardSettings, KeycapKeySettings, KeycapMatrixSettings, Part,
     PartDefinition, PartKind, Pose2, ProjectDoc, Vec2,
 };
+#[cfg(target_arch = "wasm32")]
 use boardstudio_web_ui_shared::ui::combobox::{Combobox, ComboboxOption};
 use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
 use boardstudio_web_ui_shared::ui::input::InputType;
@@ -368,6 +369,7 @@ fn contour_points(points: &[Vec2]) -> String {
         .join(" ")
 }
 
+#[cfg(target_arch = "wasm32")]
 #[component]
 pub fn KeycapsKeyList(
     view: Rc<KeycapsView>,
