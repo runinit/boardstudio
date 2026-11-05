@@ -309,7 +309,7 @@ fn MacroCard(props: MacroCardProps) -> Element {
     let remove_macro_id = macro_id.clone();
     let add_sequence = sequence.clone();
     rsx! {
-        fieldset { class: "m1-keymap-macro",
+        fieldset { class: "grid gap-2 min-w-0 m-0 p-2.5 border border-border rounded-[4px] bg-card [&_legend]:px-1 [&_legend]:text-foreground [&_legend]:[overflow-wrap:anywhere]",
             legend { "{value.name}" }
             TextDraft {
                 label: "Name", aria_label: format!("Macro name {}", value.name),
@@ -429,7 +429,7 @@ fn StepEditor(props: StepEditorProps) -> Element {
     let select_id = format!("macro-step-kind-{}", dioxus::core::current_scope_id().0);
     let current_kind = use_memo(use_reactive((&kind,), |(kind,)| Some(kind.to_owned())));
     rsx! {
-        div { class: "m1-keymap-macro-step",
+        div { class: "grid gap-2 min-w-0 p-2 border border-border rounded-[4px] bg-accent",
             Field { class: "gap-1.5", disabled: !props.enabled,
                 FieldLabel { html_for: select_id.clone(), "Step {index + 1}" }
                 Select::<String> {
@@ -782,7 +782,37 @@ mod mounted_accessible_name_tests {
         let (root, _) = mount();
         settle().await;
 
-        assert!(by_role_name(&root, "button", "Macro 1 step 1").is_some());
+        let step = by_role_name(&root, "button", "Macro 1 step 1").unwrap();
+        let card = step.closest("fieldset").unwrap().unwrap();
+        let classes = card.get_attribute("class").unwrap_or_default();
+        for expected in [
+            "grid",
+            "gap-2",
+            "min-w-0",
+            "m-0",
+            "p-2.5",
+            "border",
+            "border-border",
+            "rounded-[4px]",
+            "bg-card",
+        ] {
+            assert!(classes.split_whitespace().any(|class| class == expected));
+        }
+        let step_field = step.closest("[data-slot=field]").unwrap().unwrap();
+        let step_row = step_field.parent_element().unwrap();
+        let classes = step_row.get_attribute("class").unwrap_or_default();
+        for expected in [
+            "grid",
+            "gap-2",
+            "min-w-0",
+            "p-2",
+            "border",
+            "border-border",
+            "rounded-[4px]",
+            "bg-accent",
+        ] {
+            assert!(classes.split_whitespace().any(|class| class == expected));
+        }
         assert!(by_role_name(&root, "button", "Macro 1 step 2").is_some());
         assert!(by_role_name(&root, "textbox", "Keycode").is_some());
         assert!(by_role_name(&root, "spinbutton", "Delay (ms)").is_some());

@@ -42,7 +42,7 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                 span { "{row_count}" }
             }
             if rows.is_empty() {
-                p { class: "m1-keymap-empty", role: "status",
+                p { class: "my-2 text-muted-foreground text-base leading-normal", role: "status",
                     "Add a rotary encoder in Layout. Configure its GPIOs in PCB, then assign rotation here."
                 }
             } else {
@@ -72,8 +72,8 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                             _ => None,
                         };
                         rsx! {
-                            div { key: "{row_key}", class: "m1-keymap-encoder-row",
-                                h4 { "{label}" }
+                            div { key: "{row_key}", class: "grid gap-2",
+                                h4 { class: "m-0", "{label}" }
                                 EncoderSection { key: "{clockwise_key}", label: clockwise_label.clone(), title: "Clockwise", default_open: true,
                                     for component_key in [clockwise_component_key] {
                                         { rsx! { BindingEditor {
@@ -218,6 +218,57 @@ mod mounted_tests {
         rsx! { EncoderEditor { projection: Rc::new(projection), editor_instance_id: 1, request_sequence: sequence, enabled: true, feedback: None, on_change: |_| {} } }
     }
 
+    #[component]
+    fn empty_fixture() -> Element {
+        let sequence = use_signal(|| 0);
+        let projection = EncoderEditorProjection {
+            input_identity: EncoderInputIdentity {
+                scope: Scope {
+                    session_epoch: SessionEpoch(1),
+                    document_id: "doc".into(),
+                    board_id: "board".into(),
+                    instance_id: None,
+                },
+                token: SnapshotToken(1),
+                revision: 1,
+                projection_generation: 1,
+                electrical_fingerprint: None,
+            },
+            effective_layer_id: "base".into(),
+            rows: Rc::from([]),
+            layers: Rc::from([]),
+            macros: Rc::from([]),
+        };
+        rsx! { EncoderEditor { projection: Rc::new(projection), editor_instance_id: 1, request_sequence: sequence, enabled: true, feedback: None, on_change: |_| {} } }
+    }
+
+    #[wasm_bindgen_test]
+    async fn empty_encoder_guidance_retains_its_presentation() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(empty_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        let guidance = by_role_name(&root, "status", "Add a rotary encoder in Layout. Configure its GPIOs in PCB, then assign rotation here.")
+            .expect("encoder guidance");
+        let classes = guidance.get_attribute("class").unwrap_or_default();
+        for expected in [
+            "my-2",
+            "text-muted-foreground",
+            "text-base",
+            "leading-normal",
+        ] {
+            assert!(
+                classes.split_whitespace().any(|class| class == expected),
+                "encoder guidance retains its presentation: {expected}"
+            );
+        }
+        root.remove();
+    }
+
     #[wasm_bindgen_test]
     async fn encoder_sections_have_distinct_names_and_retain_their_independent_states() {
         let document = web_sys::window().unwrap().document().unwrap();
@@ -228,8 +279,46 @@ mod mounted_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         gloo_timers::future::TimeoutFuture::new(50).await;
+        let behavior = by_role_name(&root, "button", "Encoder 1 clockwise behavior")
+            .expect("clockwise behavior");
+        let binding = behavior
+            .closest("[aria-label='Key binding']")
+            .unwrap()
+            .unwrap();
+        let classes = binding.get_attribute("class").unwrap_or_default();
+        for expected in [
+            "grid",
+            "gap-2.5",
+            "mt-3",
+            "pt-3",
+            "border-t",
+            "border-border",
+        ] {
+            assert!(
+                classes.split_whitespace().any(|class| class == expected),
+                "binding editor layout must not depend on legacy CSS: {expected}"
+            );
+        }
         let clockwise =
             by_role_name(&root, "button", "Encoder 1 clockwise").expect("clockwise section");
+        let row = clockwise
+            .closest("[data-slot=collapsible]")
+            .unwrap()
+            .unwrap()
+            .parent_element()
+            .unwrap();
+        let classes = row.get_attribute("class").unwrap_or_default();
+        for expected in ["grid", "gap-2"] {
+            assert!(classes.split_whitespace().any(|class| class == expected));
+        }
+        let heading = row.query_selector("h4").unwrap().unwrap();
+        assert!(
+            heading
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class == "m-0")
+        );
         let counter = by_role_name(&root, "button", "Encoder 1 counterclockwise")
             .expect("counterclockwise section");
         let push = by_role_name(&root, "button", "Encoder 1 push button").expect("push section");

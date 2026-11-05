@@ -507,7 +507,7 @@ pub fn BindingEditor(props: BindingEditorProps) -> Element {
     let macros = props.macros.clone();
 
     rsx! {
-        section { class: "m1-keymap-binding-editor", "aria-label": "Key binding",
+        section { class: "grid gap-2.5 mt-3 pt-3 border-t border-border", "aria-label": "Key binding",
             BindingChoice {
                 label: "Behavior",
                 aria_label: "{key_label} behavior",
@@ -667,7 +667,7 @@ fn BindingChoice(
     let id = format!("keymap-choice-{}", dioxus::core::current_scope_id().0);
     let selected = use_memo(use_reactive((&value,), |(value,)| Some(value)));
     rsx! {
-        Field { class: "m1-keymap-binding-field gap-1.5", disabled,
+        Field { class: "my-0 gap-1.5", disabled,
             FieldLabel { html_for: id.clone(), "{label}" }
             if options.len() > 12 {
                 Combobox::<String> {
@@ -738,7 +738,7 @@ fn KeycodeField(props: KeycodeFieldProps) -> Element {
         !custom.is_empty() && !KEYCODE_CHOICES.iter().any(|(code, _)| *code == custom);
 
     rsx! {
-        Field { class: "m1-keymap-binding-field gap-1.5", disabled: props.disabled, invalid: show_error,
+        Field { class: "my-0 gap-1.5", disabled: props.disabled, invalid: show_error,
             FieldLabel { html_for: id.clone(), "{props.field_label}" }
             div {
                 oninput: move |event: FormEvent| { dirty.set(true); draft.set(event.value()); },
@@ -835,6 +835,15 @@ mod choice_floor_tests {
         })
         .await;
         let trigger = by_role_name(&root, "button", "Behavior").unwrap();
+        let field = trigger.closest("[data-slot=field]").unwrap().unwrap();
+        assert!(
+            field
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class == "my-0"),
+            "binding fields retain zero vertical margins without legacy CSS"
+        );
         trigger.focus().unwrap();
         key(&trigger, "Enter");
         wait_until("behavior list opens", || {
