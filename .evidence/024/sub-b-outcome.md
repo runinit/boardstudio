@@ -40,6 +40,7 @@ Counts are occurrences of the user-supplied broad inventory pattern (quoted `m1-
 - After the final production query migration: direct `wasm-pack test --headless --chrome web/crates/layout --locked --lib -- --skip setup_guide::` and the corresponding `-- setup_guide::`: pass, 157 + 2 tests (`browser-layout-post-query.log`).
 - `python3 scripts/run-wasm-tests.py --files web/src/presentation/layout_layers_tests.rs`: pass, 2 executed after the final production query change (`page-layout-post-query.log`).
 - Three focused tests re-run after strengthening their DOM assertions: all passed (`final-targeted.log`). Earlier RED/GREEN evidence: `outline-red.log`/`outline-green.log`, `mirror-red.log`/`mirror-green.log`, `focus-red.log`/`focus-green.log`; the Field locator fix is in `field-green.log`.
+- After merging the parent, which was already an ancestor at `64763a3`, repeated the native layout, both direct layout browser, and page-layout subsets: 80 passed/1 ignored, 157 + 2 passed, and 2 passed respectively (`post-merge.log`).
 - Full gate, mutation testing, visual verification and independent two-axis review were not run in this sub-lane. A child may not delegate review; the coordinator owns the combined review and full gate.
 
 ## Remaining work and caveats
@@ -47,6 +48,6 @@ Counts are occurrences of the user-supplied broad inventory pattern (quoted `m1-
 - `sub-b-needs-home.md` inventories 107 distinct residual live classes and 164 class-use lines, with representative CSS rules and locations. This is a **conservative unresolved inventory**, not a verified set of rules that cannot be expressed by existing utilities: several standalone candidates may still be migratable. The requested full sub-lane migration is therefore not complete.
 - `m1-layout-finding` has a simple utility equivalent but remains because the out-of-scope page test at `web/src/presentation/layout_layers_tests.rs:184` still queries it. The sibling owner/integrator must migrate that test before removal.
 - The outline fit query now relies on the two accessible canvas-name prefixes from the page shell; there is no dedicated test measuring its viewport-fit calculation after this selector change. Utility appearance was not visually checked.
-- The sandbox setting allowlists the resolved target path. The requested named implement/TDD files were absent from this worktree, so their identical available skill files were read from the main checkout (read-only). The parent ref was still `64763a3` when this outcome was written; the parent merge follows this commit.
+- The sandbox setting allowlists the resolved target path. The requested named implement/TDD files were absent from this worktree, so the available skill files were read from the main checkout (read-only).
 
 Long logs are ignored under `.evidence/024/`; they are intentionally not committed.
