@@ -671,22 +671,6 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
 .m1-keymap-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
 .m1-keycaps-workspace { display: flex; flex: 1; min-width: 0; min-height: 0; }
 .m1-keycaps-canvas { flex: 1; min-width: 0; }
-.m1-keycaps-selected-key-body { display: grid; gap: 12px; min-width: 0; padding: 0 0 20px; }
-.m1-keycaps-selected-key-body > .m1-keycaps-key-list,
-.m1-keycaps-selected-key-body > .m1-keycaps-settings { border: 0; border-radius: 0; padding: 0; background: transparent; }
-.m1-keycaps-selected-key-body > .m1-keycaps-key-list { gap: 12px; }
-.m1-keycaps-settings { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--wb-rule); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); }
-.m1-keycaps-settings-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.m1-keycaps-settings h3 { margin: 0; font-size: var(--wb-type-body); }
-.m1-keycaps-matrix-settings { min-width: 0; margin: 0 0 8px; padding: 8px; border: 1px solid var(--wb-rule); border-radius: 4px; }
-.m1-keycaps-matrix-settings legend { padding: 0 4px; color: var(--wb-ink); font-size: var(--wb-type-label); }
-.m1-keycaps-key-list, .m1-keycaps-matrix-list, .m1-keycaps-selected-summary { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--wb-rule); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); }
-.m1-keycaps-matrix-list h2, .m1-keycaps-selected-summary h2 { margin: 0; font-size: var(--wb-type-body); }
-.m1-keycaps-matrix-list ul { display: grid; gap: 4px; margin: 0; padding-left: 20px; }
-.m1-keycaps-matrix-list li { overflow-wrap: anywhere; }
-.m1-keycaps-selected-summary dl { display: grid; gap: 4px; margin: 0; }
-.m1-keycaps-selected-summary dt { color: var(--wb-muted); font-size: var(--wb-type-label); }
-.m1-keycaps-selected-summary dd { display: flex; align-items: center; gap: 6px; min-width: 0; margin: 0 0 6px; overflow-wrap: anywhere; }
 .m1-keycaps-layout > .m1-keymap-key { cursor: pointer; outline: none; }
 .m1-keycaps-layout .m1-keymap-key rect { stroke: var(--wb-rule-strong); stroke-width: .2; }
 .m1-keycaps-layout .m1-keymap-key.is-selected rect, .m1-keycaps-layout .m1-keymap-key:focus-visible rect { stroke: var(--wb-accent); stroke-width: .8; }

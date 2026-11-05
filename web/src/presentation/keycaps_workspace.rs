@@ -361,7 +361,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                 }
                 if let Some(actions) = settings_actions.clone() {
                     WorkspaceDisclosure { class: "min-w-0", label: "Matrix profiles", default_open: false,
-                        section { class: "m1-keycaps-settings", "aria-label": "Matrix profiles",
+                        section { class: "grid min-w-0 gap-2 p-3 text-foreground", "aria-label": "Matrix profiles",
                             for matrix in view.matrices.iter() {
                                 KeycapsMatrixSettingsEditor { key: "{matrix.id}", matrix_id: matrix.id.to_string(), matrix_name: matrix.name.to_string(), settings: matrix.settings.clone(), actions: actions.clone() }
                             }
@@ -370,7 +370,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                     }
                 }
                 WorkspaceDisclosure { class: "min-w-0", label: selected_title, default_open: true,
-                    div { class: "m1-keycaps-selected-key-body",
+                    div { class: "grid min-w-0 gap-3 pb-5",
                         KeycapsKeyList {
                             view: view.clone(),
                             selected_key_id: input.selected_key_id.clone(),
@@ -392,8 +392,8 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
         }
     } else {
         rsx! {
-            section { class: "m1-keycaps-selected-summary", "aria-label": "Selected keycap",
-                h2 { "Keycaps unavailable" }
+            section { class: "grid min-w-0 gap-2 p-3 text-foreground", "aria-label": "Selected keycap",
+                h2 { class: "text-base!", "Keycaps unavailable" }
                 p { "The current board has no Keycaps projection." }
             }
         }

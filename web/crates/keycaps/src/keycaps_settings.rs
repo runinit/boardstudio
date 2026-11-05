@@ -1492,7 +1492,7 @@ pub fn KeycapsBoardSettingsEditor(props: KeycapsBoardSettingsEditorProps) -> Ele
     let clearance_baseline = baseline.clone();
     rsx! {
         SettingsSection { class: "min-w-0", label: "Board colors", default_open: true,
-            section { class: "m1-keycaps-settings", aria_label: "Board colors",
+            section { class: "grid min-w-0 gap-2 p-3 text-foreground", aria_label: "Board colors",
                 SettingsInput { label: "Keycap color", aria_label: "Board keycap color", r#type: InputType::Color, value: settings.color.clone(),
                     oninput: move |event: FormEvent| emit_settings_change(&color_actions, color_target.clone(), color_baseline.clone(), KeycapEditChange::BoardColor(event.value()))
                 }
@@ -1554,8 +1554,8 @@ pub fn KeycapsMatrixSettingsEditor(props: KeycapsMatrixSettingsEditorProps) -> E
     let mount_target = target.clone();
     let mount_baseline = baseline.clone();
     rsx! {
-        fieldset { class: "m1-keycaps-matrix-settings",
-            legend { "{props.matrix_name}" }
+        fieldset { class: "m-0 mb-2 min-w-0 border-0 p-2",
+            legend { class: "px-1 text-sm text-foreground", "{props.matrix_name}" }
             SettingsChoice { label: "Profile", aria_label: format!("Keycap profile for {}", props.matrix_name), value: profile.to_owned(),
                 options: settings_options("No generated keycap", PROFILES),
                 on_change: move |value: String| emit_settings_change(&profile_actions, profile_target.clone(), profile_baseline.clone(), KeycapEditChange::MatrixProfile(parse_profile(&value))),
@@ -1743,7 +1743,7 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
     let legend_error_id = format!("{legend_id}-error");
     let legend_error = legend_failure();
     rsx! {
-        section { class: "m1-keycaps-settings", aria_label: "Keycap overrides for {key.reference}",
+        section { class: "grid min-w-0 gap-2 text-foreground", aria_label: "Keycap overrides for {key.reference}",
             Field { class: "gap-1.5", invalid: legend_error.is_some(),
                 FieldLabel { html_for: legend_id.clone(), "Legend" }
                 InputGroup { InputGroupInput {
@@ -1771,7 +1771,7 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
                     div { id: legend_error_id, FieldError { "{message}" } }
                 }
             }
-            div { class: "m1-keycaps-settings-actions",
+            div { class: "flex flex-wrap gap-1.5",
                 Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| { legend_draft.set(String::new()); request(KeycapEditChange::Legend(None), &mut inherit_sequence, inherit_change, &inherit_actions) }, "Use binding legend" }
                 Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| { legend_draft.set(String::new()); request(KeycapEditChange::Legend(Some(String::new())), &mut blank_sequence, blank_change, &blank_actions) }, "Blank keycap" }
             }

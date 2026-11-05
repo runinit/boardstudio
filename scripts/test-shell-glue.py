@@ -165,7 +165,27 @@ def main():
             }
             [html.dataset.theme, html.dataset.appearance] = prior;
         """)
+        check("""
+            const selected = document.querySelector('[aria-label="Keycap overrides for SW1"]');
+            const board = document.querySelector('[aria-label="Board colors"]');
+            const html = document.documentElement;
+            const prior = [html.dataset.theme, html.dataset.appearance];
+            for (const theme of ['original', 'shadcn']) for (const appearance of ['light', 'dark']) {
+                html.dataset.theme = theme; html.dataset.appearance = appearance;
+                for (const settings of [selected, board]) {
+                    const style = getComputedStyle(settings);
+                    if (style.borderTopWidth !== '0px') throw Error('Keycap settings must not use old framed controls');
+                    if (style.color !== getComputedStyle(document.body).color) throw Error('Keycap settings must follow the Theme');
+                    if (style.display !== 'grid') throw Error('Keycap fields must remain grouped');
+                }
+            }
+            [html.dataset.theme, html.dataset.appearance] = prior;
+        """)
         dismiss_notices()
+        action("button", "Matrix profiles")
+        browser("wait", "--fn", "document.querySelector('[aria-label=\"Keycap profile for matrix-1\"]')?.checkVisibility()")
+        check("if (getComputedStyle(document.querySelector('[aria-label=\"Keycap profile for matrix-1\"]').closest('fieldset')).borderTopWidth !== '0px') throw Error('Matrix settings must not use old frames')")
+        action("button", "Matrix profiles")
         action("button", "Clearance findings 0")
         browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Clearance findings details\"]') && !document.querySelector('[aria-label=\"Clearance findings details\"]').closest('[hidden], [inert]')")
         check("""

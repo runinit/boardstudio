@@ -396,7 +396,7 @@ pub fn KeycapsKeyList(
     );
     let current = use_memo(use_reactive((&selected_value,), |(value,)| Some(value)));
     rsx! {
-        section { class: "m1-keycaps-key-list", "aria-label": "Keycaps key selection",
+        section { class: "grid min-w-0 gap-3", "aria-label": "Keycaps key selection",
             Field { class: "gap-1.5",
                 FieldLabel { html_for: search_id.clone(), "Find a key" }
                 InputGroup { InputGroupInput {
