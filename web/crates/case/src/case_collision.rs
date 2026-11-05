@@ -4,7 +4,16 @@ use crate::{
     model_delivery::*,
     runtime::{CadScene, CollisionCheckInput, CollisionCheckReport, Runtime},
 };
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure, BoardNumberField};
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertDescription, AlertVariant},
+    button::{Button, ButtonVariant},
+    callout::Callout,
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    field::{Field, FieldLabel},
+    input::InputType,
+    input_group::{InputGroup, InputGroupInput},
+    item::{Item, ItemSize},
+};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -133,32 +142,45 @@ pub(crate) fn CaseCollisionChecks(
             state.set(CheckState::default());
         }
     };
+    let clearance_id = format!("case-clearance-{}", dioxus::core::current_scope_id().0);
     rsx! {
-        BoardDisclosure { class: "m1-case-collision-checks", open: true,
-            heading: rsx! { summary { "Collision check" } },
-            BoardNumberField {
-                label: "Required clearance (mm)",
-                min: "0",
-                step: "0.01",
-                value: (clearance()).to_string(),
-                oninput: clearance_change,
-            }
-            BoardButton { class: "m1-case-collision-default", disabled: !ready || threshold.is_none() || shown.pending,
-                onclick: move |_| check(None), "Check collisions" }
-            BoardButton { class: "m1-case-collision-tight", disabled: !ready || threshold.is_none() || shown.pending,
-                onclick: move |_| start(Some(TIGHT_COLLISION_ACCURACY_MM)), "Check at 0.01 mm" }
-            if shown.pending {
-                p { role: "status", "Checking current assembly…" }
-                BoardButton { onclick: move |_| {
-                    sequence.set(sequence.get().wrapping_add(1)); runtime.cancel_collision_checks(); state.set(CheckState::default());
-                }, "Cancel check" }
-            }
-            if !ready { p { "Waiting for the current exact assembly and part models." } }
-            if shown.accuracy.is_some() { p { "Requested accuracy: 0.01 mm. Unsupported accuracy remains uncertain." } }
-            for error in &shown.errors { p { role: "alert", "{error}" } }
-            if let Some(message) = &shown.message { p { "{message}" } }
-            for (index, finding) in shown.findings.iter().enumerate() {
-                CollisionFindingView { key: "{index}", finding: finding.clone(), clearance_threshold_mm: shown.clearance_threshold_mm }
+        Collapsible { keep_mounted: true, default_open: true,
+            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", aria_label: "Collision check", "Collision check" }
+            CollapsibleContent { class: "data-[open=false]:hidden",
+                Field { class: "gap-1.5",
+                    FieldLabel { html_for: clearance_id.clone(), "Required clearance (mm)" }
+                    InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+                        InputGroupInput {
+                            id: clearance_id.clone(),
+                            r#type: InputType::Number,
+                            min: "0",
+                            step: "0.01",
+                            value: (clearance()).to_string(),
+                            aria_label: "Required clearance (mm)",
+                            oninput: clearance_change,
+                        }
+                    }
+                }
+                Button { variant: ButtonVariant::Secondary, class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    disabled: !ready || threshold.is_none() || shown.pending,
+                    onclick: move |_| check(None), "Check collisions" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    disabled: !ready || threshold.is_none() || shown.pending,
+                    onclick: move |_| start(Some(TIGHT_COLLISION_ACCURACY_MM)), "Check at 0.01 mm" }
+                if shown.pending {
+                    p { role: "status", "Checking current assembly…" }
+                    Button { variant: ButtonVariant::Secondary, class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        onclick: move |_| {
+                            sequence.set(sequence.get().wrapping_add(1)); runtime.cancel_collision_checks(); state.set(CheckState::default());
+                        }, "Cancel check" }
+                }
+                if !ready { Callout { "Waiting for the current exact assembly and part models." } }
+                if shown.accuracy.is_some() { Callout { "Requested accuracy: 0.01 mm. Unsupported accuracy remains uncertain." } }
+                for error in &shown.errors { Alert { variant: AlertVariant::Destructive, AlertDescription { "{error}" } } }
+                if let Some(message) = &shown.message { Callout { "{message}" } }
+                for (index, finding) in shown.findings.iter().enumerate() {
+                    CollisionFindingView { key: "{index}", finding: finding.clone(), clearance_threshold_mm: shown.clearance_threshold_mm }
+                }
             }
         }
     }
@@ -167,11 +189,15 @@ pub(crate) fn CaseCollisionChecks(
 #[component]
 fn CollisionFindingView(finding: CadCollisionPairFinding, clearance_threshold_mm: f64) -> Element {
     rsx! {
-        p { "{finding.summary(clearance_threshold_mm)}" }
-        BoardDisclosure { class: "m1-case-collision-provenance",
-            heading: rsx! { summary { "Witness identity" } },
-            for identity in finding.provenance_details() { p { "{identity}" } }
-            for detail in finding.qualification_details() { p { "{detail}" } }
+        Item { size: ItemSize::Sm, class: "items-start",
+            p { "{finding.summary(clearance_threshold_mm)}" }
+            Collapsible { keep_mounted: true, default_open: false,
+                CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", aria_label: "Witness identity", "Witness identity" }
+                CollapsibleContent { class: "data-[open=false]:hidden",
+                    for identity in finding.provenance_details() { p { "{identity}" } }
+                    for detail in finding.qualification_details() { p { "{detail}" } }
+                }
+            }
         }
     }
 }
@@ -181,8 +207,8 @@ mod browser_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
     use boardstudio_core::model::{PreparedCaseAssemblyIR, ProjectDoc};
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use gloo_timers::future::TimeoutFuture;
-    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     fn mounted() -> Element {
@@ -358,22 +384,19 @@ mod browser_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_for(&root, "surface separation 0.500 mm").await;
-        let details = root
-            .query_selector(".m1-case-collision-provenance")
-            .unwrap()
-            .unwrap();
-        assert!(!details.has_attribute("open"));
-        details
-            .query_selector("summary")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
-        assert!(
-            details.has_attribute("open"),
-            "witness identity can be expanded"
+        let trigger = by_role_name(&root, "button", "Witness identity")
+            .expect("witness identity disclosure trigger");
+        assert_eq!(
+            trigger.get_attribute("aria-expanded").as_deref(),
+            Some("false")
         );
+        trigger.click();
+        wait_until("witness identity can be expanded", || {
+            by_role_name(&root, "button", "Witness identity").is_some_and(|trigger| {
+                trigger.get_attribute("aria-expanded").as_deref() == Some("true")
+            })
+        })
+        .await;
         let text = root.text_content().unwrap();
         for identity in [
             "module-A/U1",
@@ -433,23 +456,23 @@ mod browser_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_for(&root, "Check collisions").await;
+        let checks_trigger = by_role_name(&root, "button", "Collision check")
+            .expect("collision check disclosure trigger");
+        assert_eq!(
+            checks_trigger.get_attribute("aria-expanded").as_deref(),
+            Some("true")
+        );
         assert!(
             !root.text_content().unwrap().contains("Requested accuracy:"),
             "tight accuracy is not automatic"
         );
-        root.query_selector(".m1-case-collision-default")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
+        by_role_name(&root, "button", "Check collisions")
+            .expect("default check control")
             .click();
         wait_for(&root, "no pair was checked").await;
         assert!(!root.text_content().unwrap().contains("Requested accuracy:"));
-        root.query_selector(".m1-case-collision-tight")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
+        by_role_name(&root, "button", "Check at 0.01 mm")
+            .expect("tight check control")
             .click();
         wait_for(&root, "Requested accuracy: 0.01 mm").await;
         runtime.set_cad_scene_test(None);
@@ -497,11 +520,8 @@ mod browser_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_for(&root, "Check collisions").await;
-        root.query_selector(".m1-case-collision-default")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
+        by_role_name(&root, "button", "Check collisions")
+            .expect("default check control")
             .click();
         // Retire the runtime scene before the spawned check is polled, while the mounted
         // host keeps handing the captured scene in, so the view lifetime stays current and
@@ -519,9 +539,7 @@ mod browser_tests {
             "a retired check must not publish an apparently successful empty report: {text}"
         );
         assert!(
-            root.query_selector(".m1-case-collision-provenance")
-                .unwrap()
-                .is_none(),
+            by_role_name(&root, "button", "Witness identity").is_none(),
             "a retired check must not publish stale findings: {text}"
         );
         root.remove();
