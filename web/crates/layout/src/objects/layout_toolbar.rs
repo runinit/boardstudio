@@ -7,6 +7,7 @@ use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonVariant},
     callout::Callout,
     checkbox::Checkbox,
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     dropdown_menu::{DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger},
     input::InputType,
     input_group::{InputGroup, InputGroupInput},
@@ -160,6 +161,67 @@ mod tests {
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[component]
+    fn snap_dock_fixture() -> Element {
+        let menu = use_signal(|| None);
+        let mut keys = use_signal(|| 0);
+        rsx! {
+            div { onkeydown: move |_| keys += 1,
+                LayoutSnapDock { settings: LayoutSnapSettings::default(), open_menu: menu, on_snap_intent: |_| {} }
+                output { role: "status", aria_label: "Pan keys", "{keys}" }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn snap_dock_uses_the_new_disclosure_and_keeps_options_accessible() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(snap_dock_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("snap trigger", || {
+            by_role_name(&root, "button", "Snap").is_some()
+        })
+        .await;
+        let trigger = by_role_name(&root, "button", "Snap").unwrap();
+        assert_eq!(
+            trigger.get_attribute("data-slot").as_deref(),
+            Some("collapsible-trigger")
+        );
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key(" ");
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        let event =
+            web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap();
+        trigger.dispatch_event(&event).unwrap();
+        assert!(
+            !event.default_prevented(),
+            "native activation remains available"
+        );
+        assert_eq!(
+            by_role_name(&root, "status", "Pan keys")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("0")
+        );
+        trigger.click();
+        wait_until("snap options open", || {
+            by_role_name(&root, "checkbox", "Geometry snap").is_some()
+        })
+        .await;
+        assert_eq!(
+            trigger.get_attribute("aria-expanded").as_deref(),
+            Some("true")
+        );
+        root.remove();
+    }
 
     #[component]
     fn snap_options_instances() -> Element {
@@ -1030,14 +1092,22 @@ pub fn LayoutSnapDock(
 ) -> Element {
     let mut snap_open = use_signal(|| false);
     rsx! {
-        boardstudio_web_ui_shared::controls::BoardAccordionSection {
-            class: "m1-layout-snap-dock", label: "Snap", id: "m1-layout-snap-trigger",
+        Collapsible {
+            class: "m1-layout-snap-dock",
             open: Some(snap_open()), on_open_change: move |open| snap_open.set(open),
-            heading: rsx! {
+            CollapsibleTrigger {
+                id: "m1-layout-snap-trigger", aria_label: "Snap",
+                attributes: vec![dioxus::events::onkeydown(move |event: KeyboardEvent| {
+                    // Space must activate the button, not the Layout window's pan shortcut.
+                    if event.key().to_string() == " " {
+                        event.stop_propagation();
+                        if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
+                    }
+                })],
                 svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M5 3v8a5 5 0 0 0 10 0V3h-4v7a1 1 0 0 1-2 0V3ZM5 6h4M11 6h4" } }
                 span { "Snap" } small { "{snap_label(settings.snap_fraction)}" }
-            },
-            LayoutSnapOptions { settings, on_snap_intent }
+            }
+            CollapsibleContent { LayoutSnapOptions { settings, on_snap_intent } }
         }
     }
 }
