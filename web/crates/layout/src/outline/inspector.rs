@@ -204,8 +204,8 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                         });
                                     }
                                 },
-                                div { class: "m1-outline-inspector-heading",
-                                    h2 { "Perimeter" }
+                                div { class: "flex items-center justify-between gap-2",
+                                    h2 { class: "m-0 text-[16px]! font-semibold!", "Perimeter" }
                                     Button {
                                         variant: ButtonVariant::Secondary,
                                         button_type: "button",
@@ -391,8 +391,8 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                 }
                             }
                         },
-                            div { class: "m1-outline-inspector-heading",
-                                h2 { "Board outline" }
+                            div { class: "flex items-center justify-between gap-2",
+                                h2 { class: "m-0 text-[16px]! font-semibold!", "Board outline" }
                                 span { class: "text-muted-foreground text-xs", "{projection.board_name}" }
                             }
                             p { "{ownership_summary(active_ownership)}" }
@@ -1450,7 +1450,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                         "Click the canvas to add points. Enter finishes; Escape cancels."
                                      } }
                                     p { "{drawing_points.read().len()} points" }
-                                    div { class: "m1-outline-actions",
+                                    div { class: "mt-3 flex flex-wrap gap-2 [&_button]:min-h-9",
                                         Button { variant: ButtonVariant::Secondary,
     button_type: "button",
     disabled: drawing_points.read().is_empty(),
@@ -1504,7 +1504,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                          }
                                     }
                                 } else {
-                                    div { class: "m1-outline-actions",
+                                    div { class: "mt-3 flex flex-wrap gap-2 [&_button]:min-h-9",
                                         Button { variant: ButtonVariant::Secondary,
     button_type: "button",
     disabled: !one_shot_enabled,
@@ -1533,7 +1533,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     }
                                 }
                             }
-                            div { class: "m1-outline-actions",
+                            div { class: "mt-3 flex flex-wrap gap-2 [&_button]:min-h-9",
                                 Button {
                                     variant: ButtonVariant::Secondary,
                                     button_type: "button",

@@ -678,6 +678,73 @@ async fn mounted_outline_inspector() -> (InspectorProbe, web_sys::Element) {
     mounted_outline_inspector_with_version(None).await
 }
 
+#[wasm_bindgen_test]
+async fn outline_actions_keep_their_layout_without_legacy_classes() {
+    let (_probe, root) = mounted_outline_inspector().await;
+    wait_until("outline actions mount", || {
+        by_role_name(&root, "button", "Copy outline").is_some()
+    })
+    .await;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let stylesheet = document.create_element("style").unwrap();
+    stylesheet.set_text_content(Some(include_str!("../../../assets/tailwind.css")));
+    document.head().unwrap().append_child(&stylesheet).unwrap();
+    let action = by_role_name(&root, "button", "Copy outline").unwrap();
+    let row = action.parent_element().unwrap();
+    let classes = row.get_attribute("class").unwrap_or_default();
+    row.set_attribute(
+        "class",
+        &classes
+            .split_whitespace()
+            .filter(|class| !class.starts_with("m1-"))
+            .collect::<Vec<_>>()
+            .join(" "),
+    )
+    .unwrap();
+    let window = web_sys::window().unwrap();
+    let row_style = window.get_computed_style(&row).unwrap().unwrap();
+    let action_style = window.get_computed_style(&action).unwrap().unwrap();
+    assert_eq!(row_style.get_property_value("display").unwrap(), "flex");
+    assert_eq!(row_style.get_property_value("gap").unwrap(), "8px");
+    assert_eq!(row_style.get_property_value("margin-top").unwrap(), "12px");
+    assert_eq!(
+        action_style.get_property_value("min-height").unwrap(),
+        "36px"
+    );
+    let heading = root
+        .query_selector("[aria-label='Board outline'] h2")
+        .unwrap()
+        .unwrap();
+    let heading_row = heading.parent_element().unwrap();
+    let classes = heading_row.get_attribute("class").unwrap_or_default();
+    heading_row
+        .set_attribute(
+            "class",
+            &classes
+                .split_whitespace()
+                .filter(|class| !class.starts_with("m1-"))
+                .collect::<Vec<_>>()
+                .join(" "),
+        )
+        .unwrap();
+    let heading_row_style = window.get_computed_style(&heading_row).unwrap().unwrap();
+    let heading_style = window.get_computed_style(&heading).unwrap().unwrap();
+    assert_eq!(
+        heading_row_style.get_property_value("display").unwrap(),
+        "flex"
+    );
+    assert_eq!(
+        heading_style.get_property_value("margin-top").unwrap(),
+        "0px"
+    );
+    assert_eq!(
+        heading_style.get_property_value("font-size").unwrap(),
+        "16px"
+    );
+    stylesheet.remove();
+    root.remove();
+}
+
 async fn mounted_outline_inspector_with_version(
     version: Option<boardstudio_core::model::OutlineVersion>,
 ) -> (InspectorProbe, web_sys::Element) {

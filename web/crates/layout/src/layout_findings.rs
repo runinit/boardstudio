@@ -44,7 +44,7 @@ pub fn LayoutFindingsFooterButton(count: usize, on_toggle: EventHandler<()>) -> 
     rsx! {
         Button {
             variant: ButtonVariant::Secondary,
-            class: "m1-canvas-footer-findings",
+            class: "ml-auto h-auto min-h-[26px] w-auto gap-1.5 rounded-[3px] border-0 bg-transparent px-1.5 py-0.5 text-warning-dark [font:inherit] hover:bg-accent",
             id: "m1-layout-findings-trigger",
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == " " {
@@ -111,7 +111,7 @@ pub fn LayoutFindingsInspector(
                     on_close.call(());
                 }
             },
-            div { class: "m1-layout-findings-return",
+            div { class: "flex items-center gap-2 text-muted-foreground text-sm",
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
@@ -123,8 +123,8 @@ pub fn LayoutFindingsInspector(
                 }
                 span { "Layout findings" }
             }
-            div { class: "m1-layout-findings-heading",
-                h2 { id: "m1-layout-findings-heading", tabindex: "-1", "Layout findings" }
+            div { class: "flex items-baseline justify-between gap-2",
+                h2 { class: "m-0 text-[16px]! font-[650]", id: "m1-layout-findings-heading", tabindex: "-1", "Layout findings" }
                 Badge { variant: BadgeVariant::Secondary, "{keycaps_fit::presented_findings(&findings, &document).len()}" }
             }
             if groups.is_empty() {
@@ -400,6 +400,110 @@ mod tests {
         })
         .await;
         root
+    }
+
+    #[wasm_bindgen_test]
+    async fn findings_navigation_and_heading_keep_their_layout_without_legacy_classes() {
+        let root = mount(
+            "findings-layout-test-root",
+            Host {
+                document: Rc::new(document()),
+                findings: vec![],
+                requests: Rc::default(),
+            },
+        )
+        .await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let stylesheet = document.create_element("style").unwrap();
+        stylesheet.set_text_content(Some(&format!(
+            "{}\n{}",
+            include_str!("../../../assets/m1.css"),
+            include_str!("../../../assets/tailwind.css")
+        )));
+        document.head().unwrap().append_child(&stylesheet).unwrap();
+        let back = by_role_name(&root, "button", "Back to selection").unwrap();
+        let navigation = back.parent_element().unwrap();
+        let heading = document
+            .get_element_by_id("m1-layout-findings-heading")
+            .unwrap();
+        let heading_row = heading.parent_element().unwrap();
+        // Simulate deleting the old stylesheet's selectors, while retaining all
+        // new utilities on the actual rendered elements.
+        for element in [&navigation, &heading_row] {
+            let classes = element.get_attribute("class").unwrap_or_default();
+            element
+                .set_attribute(
+                    "class",
+                    &classes
+                        .split_whitespace()
+                        .filter(|class| !class.starts_with("m1-"))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                )
+                .unwrap();
+        }
+        let window = web_sys::window().unwrap();
+        let navigation_style = window.get_computed_style(&navigation).unwrap().unwrap();
+        let heading_style = window.get_computed_style(&heading_row).unwrap().unwrap();
+        assert_eq!(
+            navigation_style.get_property_value("display").unwrap(),
+            "flex"
+        );
+        assert_eq!(navigation_style.get_property_value("gap").unwrap(), "8px");
+        assert_eq!(heading_style.get_property_value("display").unwrap(), "flex");
+        assert_eq!(
+            heading_style.get_property_value("justify-content").unwrap(),
+            "space-between"
+        );
+        assert_eq!(
+            window
+                .get_computed_style(&heading)
+                .unwrap()
+                .unwrap()
+                .get_property_value("font-size")
+                .unwrap(),
+            "16px"
+        );
+        stylesheet.remove();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn findings_footer_stays_compact_without_legacy_classes() {
+        let root = mount(
+            "findings-footer-layout-test-root",
+            Host {
+                document: Rc::new(document()),
+                findings: vec![],
+                requests: Rc::default(),
+            },
+        )
+        .await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let stylesheet = document.create_element("style").unwrap();
+        stylesheet.set_text_content(Some(include_str!("../../../assets/tailwind.css")));
+        document.head().unwrap().append_child(&stylesheet).unwrap();
+        let button = by_role_name(&root, "button", "Layout findings: 0").unwrap();
+        let classes = button.get_attribute("class").unwrap_or_default();
+        button
+            .set_attribute(
+                "class",
+                &classes
+                    .split_whitespace()
+                    .filter(|class| !class.starts_with("m1-"))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            )
+            .unwrap();
+        let style = web_sys::window()
+            .unwrap()
+            .get_computed_style(&button)
+            .unwrap()
+            .unwrap();
+        assert_eq!(style.get_property_value("min-height").unwrap(), "26px");
+        assert_eq!(style.get_property_value("padding-left").unwrap(), "6px");
+        stylesheet.remove();
+        root.remove();
     }
 
     #[wasm_bindgen_test]
