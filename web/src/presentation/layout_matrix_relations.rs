@@ -339,7 +339,7 @@ fn RelationReference(props: RelationReferenceProps) -> Element {
             }
         }
         if !parts.is_empty() {
-            span { id: "{description_id}", class: "m1-visually-hidden",
+            span { id: "{description_id}", class: "sr-only",
                 "Highlights the Layout canvas parts for {what}."
             }
         }

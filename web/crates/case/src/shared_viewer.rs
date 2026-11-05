@@ -3232,7 +3232,7 @@ fn viewer_control_icon(label: &str) -> Element {
     };
     rsx! {
         svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: path } }
-        span { class: "m1-visually-hidden", "{label}" }
+        span { class: "sr-only", "{label}" }
     }
 }
 

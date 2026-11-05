@@ -191,12 +191,12 @@ pub(crate) fn ZmkFirmwareExportRow(ready: bool, on_export: EventHandler<()>) -> 
           Item { class: "m1-export-row",
             ItemContent { class: "m1-export-row-copy",
                 strong { "ZMK firmware" }
-                Badge { class: "m1-handoff-state", variant: if ready { BadgeVariant::Success } else { BadgeVariant::Warning },
+                Badge { variant: if ready { BadgeVariant::Success } else { BadgeVariant::Warning },
                     if ready { "Available" } else { "Needs controller wiring" }
                 }
                 ItemDescription { "ZMK v0.3.0 configuration and editable starter keymap" }
                 if !ready {
-                    Callout { class: "m1-export-reason", variant: CalloutVariant::Warning, "Review the layout and resolve controller wiring in PCB." }
+                    Callout { variant: CalloutVariant::Warning, "Review the layout and resolve controller wiring in PCB." }
                 }
             }
             Button { variant: ButtonVariant::Secondary,
@@ -343,7 +343,8 @@ mod tests {
             headings.item(1).unwrap().text_content().as_deref(),
             Some("Portable project")
         );
-        let row = root.query_selector(".m1-export-row").unwrap().unwrap();
+        let button = by_role_name(&root, "button", "Export ZMK firmware").unwrap();
+        let row = button.parent_element().unwrap();
         assert_eq!(
             row.query_selector("strong")
                 .unwrap()
@@ -368,7 +369,6 @@ mod tests {
                 .as_deref()
                 == Some("Available")
         );
-        let button = by_role_name(&row, "button", "Export ZMK firmware").unwrap();
         assert_eq!(button.text_content().as_deref(), Some("Export firmware"));
         button.click();
         let mut effects = None;
@@ -413,7 +413,10 @@ mod tests {
         assert_eq!(runtime_test::session_model(&runtime), before);
         assert!(!runtime_test::has_artifacts(&runtime));
         assert!(runtime_test::take_deliveries(&runtime).is_empty());
-        let row_after_failure = root.query_selector(".m1-export-row").unwrap().unwrap();
+        let row_after_failure = by_role_name(&root, "button", "Export ZMK firmware")
+            .unwrap()
+            .parent_element()
+            .unwrap();
         assert!(
             row.is_same_node(row_after_failure.dyn_ref::<web_sys::Node>()),
             "failure keeps the same row mounted for retry"
@@ -482,13 +485,10 @@ mod tests {
                 .unwrap()
                 .contains("Needs controller wiring")
         );
-        assert_eq!(
-            root.query_selector(".m1-export-reason")
+        assert!(
+            root.text_content()
                 .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Review the layout and resolve controller wiring in PCB.")
+                .contains("Review the layout and resolve controller wiring in PCB.")
         );
         button.click();
         assert!(runtime_test::take_effects(&runtime).is_empty());

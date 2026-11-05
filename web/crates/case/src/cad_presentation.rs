@@ -264,7 +264,7 @@ pub fn CasePanel(
                     mechanical_settings,
                 }
             }
-            footer { class: "m1-case-header m1-case-footer",
+            footer { class: "m1-case-header",
                 h2 { "Case assembly" }
                 FieldLabel { class: "m1-case-live-toggle max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", html_for: live_preview_id.clone(),
                     Checkbox {

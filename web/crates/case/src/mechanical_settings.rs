@@ -764,7 +764,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     onclick: move |_| props.on_select_layer.call(String::new()),
                     "Assembly settings"
                 }
@@ -820,7 +820,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         variant: ButtonVariant::Ghost,
                         size: ButtonSize::Sm,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         onclick: move |_| props.on_select_layer.call("gaskets".to_owned()),
                         "All gasket settings"
                     }
@@ -878,7 +878,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                             Button {
                                 variant: ButtonVariant::Secondary,
                                 button_type: "button",
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 disabled: mechanical_action_pending("initialize-closures") || !props.editable,
                                 onclick: {
                                     let identity = props.identity.clone();
@@ -1013,12 +1013,12 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     }
                 }
                 if values.mount == MechanicalMount::Gasket && values.internal_gasket {
-                    section { class: "m1-mechanical-option-group", aria_label: "Gasket supports",
+                    section { aria_label: "Gasket supports",
                         h3 { "Gasket supports" }
                         Button {
                             variant: ButtonVariant::Secondary,
                             button_type: "button",
-                            class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             disabled: mechanical_action_pending("reset-gasket-placement") || !props.editable,
                             onclick: {
                                 let identity = props.identity.clone();
@@ -1065,7 +1065,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 Button {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: !props.editable,
                     onclick: {
                         let identity = props.identity.clone();
@@ -1108,7 +1108,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 Button {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: !props.editable,
                     onclick: {
                         let identity = props.identity.clone();
@@ -1148,7 +1148,7 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
     let pending = mechanical_action_pending(&patch.field_id()) || !props.editable;
     let mut confirming_state = confirming;
     rsx! {
-        fieldset { class: "m1-mechanical-legacy-construction grid gap-3 m-0 min-w-0 border-0 p-3 rounded-md bg-card", disabled: !props.editable,
+        fieldset { class: "grid gap-3 m-0 min-w-0 border-0 p-3 rounded-md bg-card", disabled: !props.editable,
             legend { "Shared construction" }
             if confirming() {
                 p { class: "m1-mechanical-help",
@@ -1157,7 +1157,7 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Confirm making construction local for {instance_id}",
                     disabled: pending,
                     onclick: {
@@ -1175,7 +1175,7 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Keep shared construction for {instance_id}",
                     onclick: move |_| confirming_state.set(false),
                     "Keep it shared"
@@ -1187,7 +1187,7 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Make construction local for {instance_id}",
                     disabled: pending,
                     onclick: move |_| confirming_state.set(true),
@@ -1221,7 +1221,7 @@ fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Eleme
     let counterpart = props.counterpart.clone();
     let mut confirming_state = confirming;
     rsx! {
-        section { class: "m1-mechanical-remove-member", aria_label: "Remove this physical assembly",
+        section { aria_label: "Remove this physical assembly",
             if confirming() {
                 p { class: "m1-mechanical-help",
                     "Removes {instance_id} from the project and clears the link. {counterpart} keeps the geometry and settings it shows today as its own local assembly. Your boards, PCBs and parts stay. One Undo restores the assembly and the link."
@@ -1230,7 +1230,7 @@ fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Eleme
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Confirm removing assembly {instance_id}",
                     disabled: pending,
                     onclick: {
@@ -1253,7 +1253,7 @@ fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Eleme
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Keep assembly {instance_id}",
                     onclick: move |_| confirming_state.set(false),
                     "Keep it"
@@ -1266,7 +1266,7 @@ fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Eleme
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Remove assembly {instance_id}",
                     disabled: pending,
                     onclick: move |_| confirming_state.set(true),
@@ -1404,7 +1404,7 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
         .to_string()
     });
     rsx! {
-        section { class: "m1-mechanical-pair m1-mechanical-pair-link", aria_label: "Link a mechanical mirror pair",
+        section { aria_label: "Link a mechanical mirror pair",
             h3 { "Mirror another half" }
             p { class: "m1-mechanical-help",
                 "Linking keeps shared mounts, closure mounts, openings and gasket supports reflected and linked. Features without a match stay local to their half."
@@ -1439,7 +1439,7 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                     SelectOption::<String> { index: 1usize, value: "other".to_owned(), text_value: option.other_instance_id.clone(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{option.other_instance_id}" }
             }
             if option.derived_mapping.is_none() {
-                div { class: "m1-mechanical-pair-mapping",
+                div {
                     SettingsNumberField {
                         label: "Map offset X",
                         aria_label: "Pair mapping X",
@@ -1489,7 +1489,7 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                         .unwrap_or_else(|| "no geometry".to_owned());
                     let row_id = format!("pair-source-{key}");
                     rsx! {
-                        fieldset { key: "{row_id}", class: "m1-mechanical-pair-source",
+                        fieldset { key: "{row_id}",
                             "aria-label": "Source for {key}",
                             legend { "{feature_label(matched.kind)} {key} · {matched.second_feature_id}" }
                             SettingsSelect {
@@ -1520,9 +1520,9 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
             // The complete proposed result on both halves, read from Core for exactly
             // the choices reviewed above.
             if let Some(preview) = preview.clone() {
-                div { class: "m1-mechanical-pair-preview", aria_label: "Proposed result on both halves",
+                div { aria_label: "Proposed result on both halves",
                     for member in preview.members.iter() {
-                        div { class: "m1-mechanical-pair-preview-member", "data-instance": "{member.instance_id}",
+                        div { "data-instance": "{member.instance_id}",
                             h4 { "{member.instance_id}" }
                             if member.features.is_empty() {
                                 p { class: "m1-mechanical-help", "No mechanical features after linking." }
@@ -1547,7 +1547,7 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
             Button {
                 variant: ButtonVariant::Secondary,
                 button_type: "button",
-                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 aria_label: "Link {option.instance_id} with {option.other_instance_id}",
                 disabled: blocked,
                 onclick: {
@@ -1603,7 +1603,7 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
     // Per-feature rejoin source choices, keyed by this half's durable feature id.
     let rejoin_sources = use_signal(std::collections::BTreeMap::<String, String>::new);
     rsx! {
-        section { class: "m1-mechanical-pair", aria_label: "Mirrored pair features",
+        section { aria_label: "Mirrored pair features",
             h3 { "Mirrored pair" }
             p { class: "m1-mechanical-help",
                 "Shared mechanical features stay linked to the other half. Make one local, remove it on this half, or rejoin it from the other half."
@@ -1690,7 +1690,7 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                     variant: ButtonVariant::Ghost,
                                     size: ButtonSize::Sm,
                                     button_type: "button",
-                                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                     aria_label: "Make local {row.feature_id}",
                                     disabled: local_blocked,
                                     onclick: {
@@ -1705,7 +1705,7 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                 Button {
                                     variant: ButtonVariant::Secondary,
                                     button_type: "button",
-                                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                     aria_label: "Remove on this half {row.feature_id}",
                                     disabled: omit_blocked,
                                     onclick: {
@@ -1756,7 +1756,7 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                     variant: ButtonVariant::Ghost,
                                     size: ButtonSize::Sm,
                                     button_type: "button",
-                                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                     aria_label: "Rejoin {row.feature_id} from {source_label}",
                                     disabled: rejoin_blocked,
                                     onclick: {
@@ -2126,7 +2126,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("hardware:add") || !props.editable || mount_choices.is_empty(),
                         onclick: {
                             let mut sequence = request_sequence;
@@ -2151,7 +2151,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                             Button {
                                 variant: ButtonVariant::Secondary,
                                 button_type: "button",
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Remove hardware {item.id}",
                                 disabled: mechanical_action_pending(&format!("hardware:{}:remove", item.id)) || !props.editable,
                                 onclick: {
@@ -2236,7 +2236,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("critical-fit:add") || !props.editable,
                         onclick: {
                             let mut sequence = request_sequence;
@@ -2255,7 +2255,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                             Button {
                                 variant: ButtonVariant::Secondary,
                                 button_type: "button",
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Remove fit {fit.id}",
                                 disabled: mechanical_action_pending(&format!("critical-fit:{}:remove", fit.id)) || !props.editable,
                                 onclick: {
@@ -2478,7 +2478,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
         .collect::<Vec<_>>();
     let suggestions = &props.suggested_mounts;
     rsx! {
-        section { class: "m1-mechanical-option-group", aria_label: "Mounting and hardware",
+        section { aria_label: "Mounting and hardware",
             h3 { "Mounting & hardware" }
             if values.mount != MechanicalMount::Gasket {
                 MountCollectionControls {
@@ -2517,7 +2517,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                         variant: ButtonVariant::Ghost,
                         size: ButtonSize::Sm,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("adopt-closure-positions") || !props.editable,
                         onclick: {
                             let mut sequence = props.request_sequence;
@@ -2530,7 +2530,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                     }
                 } else {
                     p { class: "m1-mechanical-help", "Clearance-tested positions on this board. Adopt them as suspension mounts or closure screws." }
-                    div { class: "m1-mechanical-mount-candidates",
+                    div {
                         for (index, mount) in suggestions.iter().enumerate() {
                             span { key: "{mount.id}", "{index + 1}: X {mount.at.x:.1}, Y {mount.at.y:.1} mm" }
                         }
@@ -2539,7 +2539,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                         variant: ButtonVariant::Ghost,
                         size: ButtonSize::Sm,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("suspension-mounts") || !props.editable,
                         onclick: {
                             let mut sequence = props.request_sequence;
@@ -2553,7 +2553,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("closure-mounts") || !props.editable,
                         onclick: {
                             let mut sequence = props.request_sequence;
@@ -2610,7 +2610,7 @@ fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
                 Button {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: mechanical_action_pending(&format!("{}-mounts", mount_collection_id(props.collection))) || !props.editable,
                     onclick: {
                         let mut sequence = props.request_sequence;
@@ -2653,7 +2653,7 @@ fn MountRow(props: MountRowProps) -> Element {
         mount_id: id.to_owned(),
     };
     rsx! {
-        fieldset { class: "m1-mechanical-mount-row", disabled: !props.editable,
+        fieldset { disabled: !props.editable,
             legend { "{label} {props.index}" }
             SettingsSelect {
                 label: "Mount type",
@@ -2701,7 +2701,7 @@ fn MountRow(props: MountRowProps) -> Element {
             Button {
                 variant: ButtonVariant::Secondary,
                 button_type: "button",
-                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 aria_label: "Remove {label} {props.index}",
                 disabled: mechanical_action_pending(&format!("mount:{}:{}:remove", mount_collection_id(props.collection), mount.id)) || !props.editable,
                 onclick: {
@@ -2734,7 +2734,7 @@ fn BatteryControls(props: BatteryControlsProps) -> Element {
     let battery = props.values.battery.as_ref();
     let request_sequence = props.request_sequence;
     rsx! {
-        section { class: "m1-mechanical-option-group", aria_label: "Openings and battery",
+        section { aria_label: "Openings and battery",
             h3 { "Openings & battery" }
             section { class: "m1-mechanical-group", aria_label: "Battery",
                 h4 { "Battery" }
@@ -2763,7 +2763,7 @@ fn BatteryControls(props: BatteryControlsProps) -> Element {
                     }
                 }
                 if let Some(battery) = battery {
-                    fieldset { class: "m1-mechanical-group m1-mechanical-battery-fields", disabled: !props.editable,
+                    fieldset { class: "m1-mechanical-group", disabled: !props.editable,
                         legend { "Battery dimensions and cable · mm" }
                         DimensionField {
                             key: "{props.owner_key}:battery-width",
@@ -2888,7 +2888,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("case-openings") || !props.editable,
                         onclick: {
                             let mut sequence = request_sequence;
@@ -2917,7 +2917,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                     Button {
                                         variant: ButtonVariant::Secondary,
                                         button_type: "button",
-                                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                         aria_label: "Remove volume {opening_index + 1}",
                                         disabled: mechanical_action_pending("case-openings") || !props.editable,
                                         onclick: {
@@ -2965,7 +2965,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                             variant: ButtonVariant::Ghost,
                                             size: ButtonSize::Sm,
                                             button_type: "button",
-                                            class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                             aria_label: "Remove access opening {opening_index + 1} vertex {point_index + 1}",
                                             disabled: mechanical_action_pending("case-openings") || !props.editable || opening.vertices.len() <= 3,
                                             onclick: {
@@ -2982,7 +2982,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                 Button {
                                     variant: ButtonVariant::Secondary,
                                     button_type: "button",
-                                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                     aria_label: "Add vertex to volume {opening_index + 1}",
                                     disabled: mechanical_action_pending("case-openings") || !props.editable,
                                     onclick: {
@@ -3102,7 +3102,7 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
                 variant: ButtonVariant::Ghost,
                 size: ButtonSize::Sm,
                 button_type: "button",
-                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 onclick: move |_| props.on_select_layer.call(String::new()),
                 "Assembly settings"
             }
@@ -3136,7 +3136,7 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     onclick: move |_| props.on_select_layer.call(String::new()),
                     "Edit shared closure hardware"
                 }
@@ -3157,7 +3157,7 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
                                         variant: ButtonVariant::Ghost,
                                         size: ButtonSize::Sm,
                                         button_type: "button",
-                                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                         aria_label: "Show finding {id}",
                                         onclick: move |_| on_show_finding.call(id.clone()),
                                         "Show"
@@ -3201,7 +3201,7 @@ fn gasket_fit_issues(
                                   variant: ButtonVariant::Ghost,
                                   size: ButtonSize::Sm,
                                   button_type: "button",
-                                  class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                  class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                   aria_label: "Show finding {id}",
                                   onclick: move |_| on_show_finding.call(id.clone()),
                                   "Show"
@@ -3307,7 +3307,7 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                             Button {
                                 variant: ButtonVariant::Secondary,
                                 button_type: "button",
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Remove process override for {target.name}",
                                 disabled: mechanical_action_pending(&format!("process:{}:remove", target.part_id)) || !props.editable,
                                 onclick: {
@@ -3374,7 +3374,7 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                             Button {
                                 variant: ButtonVariant::Secondary,
                                 button_type: "button",
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Add process override for {target.name}",
                                 disabled: mechanical_action_pending(&format!("process:{}:add", target.part_id)) || !props.editable,
                                 onclick: {
@@ -3806,7 +3806,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                     Button {
                         variant: ButtonVariant::Secondary, button_type: "button",
                         aria_label: "Remove profile {profile.name}",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending(&format!("profile:{}:remove", profile.definition_id)) || !props.editable,
                         onclick: {
                             let identity = props.identity.clone();
@@ -3832,7 +3832,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                 div { role: "status", Callout { "Choose a supported switch family to resolve the plate gap." } }
             }
             if props.targets.iter().any(|target| target.switch_profile) {
-                div { class: "m1-mechanical-profile-assignment",
+                div {
                     SettingsSelect {
                         label: "Library fit profile",
                         aria_label: "Library fit profile",
@@ -3874,7 +3874,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                         placeholder: "Choose a placed switch type…", options: props.targets.iter().filter(|target| target.switch_profile).cloned().collect(),
                     }
                 }
-                div { class: "m1-mechanical-profile-assignment",
+                div {
                     SettingsSelect {
                         label: "Library stabilizer profile",
                         aria_label: "Library stabilizer profile",
@@ -3973,7 +3973,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
     rsx! {
         section { class: "grid gap-3", aria_label: "Profile geometry",
             if let Some(port) = extraction_port.clone() {
-                section { class: "m1-mechanical-geometry-picker", aria_label: "Custom KiCad geometry",
+                section { aria_label: "Custom KiCad geometry",
                     div { class: "flex flex-wrap items-center justify-between gap-2",
                         strong { "Custom geometry layers" }
                         Button {
@@ -4015,7 +4015,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                     if let Some(loaded_geometry) = geometry_state() {
                         p { class: "m1-mechanical-help", "Select exact primitives for plate cutouts, PCB holes, clearances or drawing guides, then apply the selected geometry." }
                         for primitive in loaded_geometry.primitives.iter() {
-                            div { class: "m1-mechanical-geometry-row", role: "group", aria_label: "Geometry {primitive.id}", key: "{primitive.id}",
+                            div { role: "group", aria_label: "Geometry {primitive.id}", key: "{primitive.id}",
                                 FieldLabel { class: "min-h-control-touch", html_for: format!("case-geometry-{}-{}", dioxus::core::current_scope_id().0, primitive.id),
                                     Checkbox {
                                         id: format!("case-geometry-{}-{}", dioxus::core::current_scope_id().0, primitive.id),
@@ -4173,7 +4173,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                 Button {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Add polygon to {props.title}",
                     disabled: !props.editable,
                     onclick: {
@@ -4209,7 +4209,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                         Button {
                             variant: ButtonVariant::Secondary,
                             button_type: "button",
-                            class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             aria_label: "Remove contour {polygon_index + 1} from {props.title}",
                             disabled: !props.editable,
                             onclick: {
@@ -4303,7 +4303,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                             Button {
                                 variant: ButtonVariant::Ghost,
                                 size: ButtonSize::Sm,
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Remove {props.title} contour {polygon_index + 1} vertex {point_index + 1}",
                                 disabled: !props.editable || polygon.len() <= 3,
                                 onclick: {
@@ -4321,7 +4321,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: !props.editable,
                         aria_label: "Add vertex to {props.title} contour {polygon_index + 1}",
                         onclick: {
@@ -4365,7 +4365,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                 Button {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Add volume to {props.title}",
                     disabled: !props.editable,
                     onclick: {
@@ -4403,7 +4403,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                         Button {
                             variant: ButtonVariant::Secondary,
                             button_type: "button",
-                            class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             aria_label: "Remove {props.title} volume {opening_index + 1}",
                             disabled: !props.editable,
                             onclick: {
@@ -4530,7 +4530,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                             Button {
                                 variant: ButtonVariant::Ghost,
                                 size: ButtonSize::Sm,
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Remove {props.title} volume {opening_index + 1} vertex {point_index + 1}",
                                 disabled: !props.editable || opening.points.len() <= 3,
                                 onclick: {
@@ -4548,7 +4548,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: !props.editable,
                         aria_label: "Add vertex to {props.title} volume {opening_index + 1}",
                         onclick: {
@@ -5226,7 +5226,7 @@ fn Diagnostics(props: DiagnosticsProps) -> Element {
                                 variant: ButtonVariant::Ghost,
                                 size: ButtonSize::Sm,
                                 button_type: "button",
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Show finding {id}",
                                 onclick: move |_| callback.call(id.clone()),
                                 "Show"
@@ -5904,7 +5904,7 @@ mod contextual_layer_tests {
             .click();
         rendered().await;
         let extraction_error = root
-            .query_selector(".m1-mechanical-geometry-picker [role='alert']")
+            .query_selector("[aria-label='Custom KiCad geometry'] [role='alert']")
             .unwrap()
             .and_then(|alert| alert.text_content());
         assert!(
@@ -7096,6 +7096,14 @@ mod contextual_layer_tests {
 
         // Reachable only for a legacy half, and it submits nothing on its own.
         let make_local = by_role_name(&root, "button", "Make construction local for left").unwrap();
+        let construction = make_local.closest("fieldset").unwrap().unwrap();
+        assert!(
+            construction
+                .class_name()
+                .split_whitespace()
+                .any(|class| class == "grid")
+        );
+        assert!(make_local.class_name().contains("min-h-control-touch"));
         assert!(
             element("#case-legacy-construction-last-request")
                 .text_content()
@@ -7107,9 +7115,7 @@ mod contextual_layer_tests {
         // The confirmation states the whole change before anything is submitted.
         make_local.click();
         rendered().await;
-        let confirmation = element(".m1-mechanical-legacy-construction")
-            .text_content()
-            .unwrap();
+        let confirmation = construction.text_content().unwrap();
         assert!(
             confirmation.contains("left")
                 && confirmation.contains("this half's local values")

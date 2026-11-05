@@ -511,7 +511,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                             }
                                             path { d: "M3 8h14M8 3v14" }
                                         }
-                                        span { class: "m1-visually-hidden", "2D" }
+                                        span { class: "sr-only", "2D" }
                                     }
                                 },
                             }
@@ -528,7 +528,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                         svg { view_box: "0 0 20 20", "aria-hidden": "true",
                                             path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" }
                                         }
-                                        span { class: "m1-visually-hidden", "3D assembly" }
+                                        span { class: "sr-only", "3D assembly" }
                                     }
                                 },
                             }
@@ -564,7 +564,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                                 }
                                                 path { d: "M2 7h3M2 13h3M15 7h3M15 13h3" }
                                             }
-                                            span { class: "m1-visually-hidden", "Footprints" }
+                                            span { class: "sr-only", "Footprints" }
                                         }
                                     },
                                 }

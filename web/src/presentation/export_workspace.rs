@@ -128,7 +128,6 @@ pub(super) fn ExportWorkspace(
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
-                    class: "m1-export-back",
                     onclick: move |_| workspace.set(back),
                     "Back to {back}"
                 }
@@ -229,13 +228,13 @@ fn ExportRowView(row: ExportRow, zmk_firmware: Option<ZmkFirmwareExportPanelInpu
           Item { class: "m1-export-row",
             ItemContent { class: "m1-export-row-copy",
                 strong { "{row.label}" }
-                Badge { class: "m1-handoff-state", variant: if row.ready && row.available { BadgeVariant::Success } else { BadgeVariant::Warning },
+                Badge { variant: if row.ready && row.available { BadgeVariant::Success } else { BadgeVariant::Warning },
                     if !row.available { "Provider unavailable" } else { "{row.status}" }
                 }
                 ItemDescription { "{row.detail}" }
-                if let Some(reason) = row.reason { Callout { class: "m1-export-reason", variant: CalloutVariant::Warning, "{reason}" } }
+                if let Some(reason) = row.reason { Callout { variant: CalloutVariant::Warning, "{reason}" } }
                 if row.ready && !row.available {
-                    Callout { class: "m1-export-provider-gap", variant: CalloutVariant::Warning, "This export provider is not connected in this build." }
+                    Callout { variant: CalloutVariant::Warning, "This export provider is not connected in this build." }
                 }
             }
             Button { variant: ButtonVariant::Secondary,
@@ -729,19 +728,14 @@ mod tests {
             .unwrap();
             assert_eq!(button.has_attribute("disabled"), disabled);
             assert_eq!(button.text_content().as_deref(), Some(label));
-            assert_eq!(
-                root.query_selector(".m1-handoff-state")
-                    .unwrap()
-                    .unwrap()
-                    .text_content()
-                    .as_deref(),
-                Some(expected_status)
-            );
-            let reason = root.query_selector(".m1-export-reason").unwrap();
-            assert_eq!(
-                reason.and_then(|element| element.text_content()).as_deref(),
-                expected_reason
-            );
+            let text = root.text_content().unwrap();
+            assert!(text.contains(expected_status));
+            for reason in [
+                "Review the board outline and layout findings.",
+                "Review the layout and resolve controller wiring in PCB.",
+            ] {
+                assert_eq!(text.contains(reason), expected_reason == Some(reason));
+            }
             root.remove();
         }
     }

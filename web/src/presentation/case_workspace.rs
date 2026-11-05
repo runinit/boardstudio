@@ -1102,7 +1102,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
         .unwrap_or("#b4bac2")
         .to_owned();
     rsx! {
-        section { class: "m1-case-inspector", "aria-label": "Case Inspector",
+        section { "aria-label": "Case Inspector",
             if input.instance_scope_pending {
                 p { role: "status", "Selecting physical assembly…" }
             }
@@ -1181,7 +1181,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                 }
                 if generated {
                     if active_display_layer.is_some() {
-                section { class: "m1-case-display", "aria-label": "Part appearance",
+                section { "aria-label": "Part appearance",
                     h3 { "Display" }
                     Field {
                         Label { html_for: format!("case-part-colour-{}", dioxus::core::current_scope_id().0), "Colour" }
@@ -1626,7 +1626,15 @@ mod mounted_live_scene_tests {
             settle().await;
             assert!(
                 document
-                    .query_selector("#case-navigation-content .m1-mechanical-settings")
+                    .query_selector("#case-navigation-content [aria-label='Case Inspector']")
+                    .unwrap()
+                    .is_some()
+            );
+            assert!(
+                document
+                    .query_selector(
+                        "#case-navigation-content [aria-label='Mechanical stack settings']"
+                    )
                     .unwrap()
                     .is_some(),
                 "entering Case mounts its real mechanical Inspector"
@@ -1668,7 +1676,9 @@ mod mounted_live_scene_tests {
         let mut last_text = String::new();
         for _ in 0..50 {
             if let Some(inspector) = document
-                .query_selector("#case11-workspace-evidence-root .m1-mechanical-settings")
+                .query_selector(
+                    "#case11-workspace-evidence-root [aria-label='Mechanical stack settings']",
+                )
                 .unwrap()
             {
                 last_text = inspector.text_content().unwrap_or_default();
@@ -1751,7 +1761,7 @@ mod mounted_live_scene_tests {
             "the same-scope plate row is labelled previous; plate={:?}; root={root_text:?}",
             plate.text_content()
         );
-        let row = plate.closest(".m1-tree-row").unwrap().unwrap();
+        let row = plate.closest("[role='treeitem']").unwrap().unwrap();
         assert_eq!(row.get_attribute("aria-selected").as_deref(), Some("true"));
         assert!(
             !text.contains("previous generated geometry"),
@@ -1803,7 +1813,9 @@ mod mounted_live_scene_tests {
             .click();
         settle().await;
         let inspector = document
-            .query_selector("#case11-workspace-evidence-root .m1-mechanical-settings")
+            .query_selector(
+                "#case11-workspace-evidence-root [aria-label='Mechanical stack settings']",
+            )
             .unwrap()
             .unwrap();
         let text = inspector.text_content().unwrap_or_default();
@@ -1878,7 +1890,9 @@ mod mounted_live_scene_tests {
                 .is_none()
         );
         let inspector = document
-            .query_selector("#case11-workspace-evidence-root .m1-mechanical-settings")
+            .query_selector(
+                "#case11-workspace-evidence-root [aria-label='Mechanical stack settings']",
+            )
             .unwrap()
             .unwrap();
         let text = inspector.text_content().unwrap_or_default();
