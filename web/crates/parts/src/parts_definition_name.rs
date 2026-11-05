@@ -203,7 +203,7 @@ mod ui {
                     section_chosen.set(true);
                     section_open.set(next);
                 },
-                CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", aria_label: "Edit footprint Custom geometry",
                     span { "Edit footprint" }
                     small { "Custom geometry" }
                 }

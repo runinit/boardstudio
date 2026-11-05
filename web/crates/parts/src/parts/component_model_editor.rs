@@ -672,7 +672,7 @@ pub fn ComponentModelEditor(
 
     rsx! {
         Collapsible { keep_mounted: true, default_open: false,
-            CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "3D model" small { if binding.is_some() { "Attached" } else { "Optional" } } }
+            CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", aria_label: if binding.is_some() { "3D model Attached" } else { "3D model Optional" }, "3D model" small { if binding.is_some() { "Attached" } else { "Optional" } } }
             CollapsibleContent { class: "data-[open=false]:hidden grid gap-2",
                 if let Some(model) = binding.as_ref() {
                     if let Some(name) = asset_name.as_ref() {
