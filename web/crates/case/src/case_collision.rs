@@ -161,15 +161,18 @@ pub(crate) fn CaseCollisionChecks(
                         }
                     }
                 }
-                Button { variant: ButtonVariant::Secondary, class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                Button { variant: ButtonVariant::Secondary, button_type: "button",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: !ready || threshold.is_none() || shown.pending,
                     onclick: move |_| check(None), "Check collisions" }
-                Button { variant: ButtonVariant::Secondary, class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                Button { variant: ButtonVariant::Secondary, button_type: "button",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: !ready || threshold.is_none() || shown.pending,
                     onclick: move |_| start(Some(TIGHT_COLLISION_ACCURACY_MM)), "Check at 0.01 mm" }
                 if shown.pending {
                     p { role: "status", "Checking current assembly…" }
-                    Button { variant: ButtonVariant::Secondary, class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    Button { variant: ButtonVariant::Secondary, button_type: "button",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         onclick: move |_| {
                             sequence.set(sequence.get().wrapping_add(1)); runtime.cancel_collision_checks(); state.set(CheckState::default());
                         }, "Cancel check" }

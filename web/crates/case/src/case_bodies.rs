@@ -391,6 +391,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                         ToggleGroup {
                             aria_label: "Case bodies",
                             class: "m1-case-body-list",
+                            style: "width: 100%",
                             disabled: !can_edit,
                             pressed: Some(active_index.map(|index| HashSet::from([index])).unwrap_or_default()),
                             on_pressed_change: move |next: HashSet<usize>| {

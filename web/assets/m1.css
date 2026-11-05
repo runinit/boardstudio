@@ -1013,7 +1013,6 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
 .m1-case-view-adjustments { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 6px 10px; border-bottom: 1px solid var(--wb-rule); }
 
 @media (max-width: 760px) {
-
   .m1-case-model-delivery { top: 56px; right: 8px; max-width: calc(100% - 16px); }
 }
 
