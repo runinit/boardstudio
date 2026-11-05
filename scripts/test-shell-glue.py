@@ -149,6 +149,22 @@ def main():
         browser("wait", '[role=toolbar][aria-label="Keycaps tools"]')
         action("button", "Edit key SW1")
         browser("wait", "--text", "SW1 · key")
+        # The Inspector is a card: its heading follows both Themes without a legacy divider.
+        check("""
+            const panel = document.querySelector('[aria-label="Keycaps inspector"]');
+            const heading = panel.firstElementChild;
+            const html = document.documentElement;
+            const prior = [html.dataset.theme, html.dataset.appearance];
+            for (const theme of ['original', 'shadcn']) for (const appearance of ['light', 'dark']) {
+                html.dataset.theme = theme; html.dataset.appearance = appearance;
+                const p = getComputedStyle(panel), h = getComputedStyle(heading);
+                if (h.borderBottomWidth !== '0px') throw Error('Inspector header must not have an old divider');
+                if (p.color !== getComputedStyle(document.body).color) throw Error('Inspector text must follow the current Theme');
+                if (h.display !== 'flex') throw Error('Inspector heading must keep its layout');
+                if (getComputedStyle(heading.firstElementChild).fontSize !== '24px') throw Error('Inspector title must keep its size');
+            }
+            [html.dataset.theme, html.dataset.appearance] = prior;
+        """)
         # Both the selected-key and override disclosures can be closed by the user.
         action("button", "SW1 · key")
         camera("Profile", toolbar="Keycaps tools")

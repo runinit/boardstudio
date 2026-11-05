@@ -351,10 +351,10 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
         let assigned_count = view.assigned_count;
         let key_count = view.keys.len();
         rsx! {
-            section { class: "m1-keycaps-inspector", "aria-label": "Keycaps inspector",
-                header { class: "m1-keycaps-inspector-header",
-                    h2 { "Keycaps" }
-                    span { class: "m1-keycaps-inspector-assigned-count", "{assigned_count}/{key_count} assigned" }
+            section { class: "flex min-w-0 flex-col gap-3 px-6 py-4 text-foreground", role: "region", "aria-label": "Keycaps inspector",
+                header { class: "flex items-baseline justify-between gap-2 pb-3",
+                    h2 { class: "text-2xl! font-semibold!", role: "heading", "Keycaps" }
+                    span { class: "whitespace-nowrap text-sm text-muted-foreground", "{assigned_count}/{key_count} assigned" }
                 }
                 if view.keys.is_empty() {
                     p { class: "m1-keycaps-empty-note", role: "status", "Add switches in Layout to configure keycaps." }

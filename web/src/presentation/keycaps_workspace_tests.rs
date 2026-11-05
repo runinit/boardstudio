@@ -118,48 +118,43 @@ fn mounted_inspector() -> Element {
 async fn inspector_header_shows_accepted_assigned_and_total_key_count() {
     let root = mount_inspector();
     wait_until("the Keycaps header renders", || {
-        element(".m1-keycaps-inspector-assigned-count")
-            .is_ok_and(|count| count.text_content().as_deref() == Some("0/2 assigned"))
+        by_role_name(&root, "region", "Keycaps inspector").is_some_and(|panel| {
+            panel
+                .text_content()
+                .unwrap_or_default()
+                .contains("0/2 assigned")
+        })
     })
     .await;
 
-    assert_eq!(
-        element(".m1-keycaps-inspector-header h2")
-            .unwrap()
-            .text_content()
-            .as_deref(),
-        Some("Keycaps")
-    );
+    assert!(by_role_name(&root, "heading", "Keycaps").is_some());
     assert!(
-        !element(".m1-keycaps-inspector")
+        !by_role_name(&root, "region", "Keycaps inspector")
             .unwrap()
             .text_content()
             .unwrap_or_default()
             .contains("Export keycap STEP")
-    );
-    assert_eq!(
-        element(".m1-keycaps-inspector-assigned-count")
-            .unwrap()
-            .text_content()
-            .as_deref(),
-        Some("0/2 assigned")
     );
 
     by_role_name(&root, "button", "Accept binding projection")
         .unwrap()
         .click();
     wait_until("the accepted binding count updates", || {
-        element(".m1-keycaps-inspector-assigned-count")
-            .is_ok_and(|count| count.text_content().as_deref() == Some("1/2 assigned"))
+        by_role_name(&root, "region", "Keycaps inspector").is_some_and(|panel| {
+            panel
+                .text_content()
+                .unwrap_or_default()
+                .contains("1/2 assigned")
+        })
     })
     .await;
 
-    assert_eq!(
-        element(".m1-keycaps-inspector-assigned-count")
+    assert!(
+        !by_role_name(&root, "region", "Keycaps inspector")
             .unwrap()
             .text_content()
-            .as_deref(),
-        Some("1/2 assigned"),
+            .unwrap_or_default()
+            .contains("0/2 assigned"),
         "a replaced accepted Keycaps projection refreshes the summary"
     );
     root.remove();
@@ -177,8 +172,8 @@ async fn selected_key_disclosure_tracks_selection_without_resetting_user_state()
         disclosure.get_attribute("aria-expanded").as_deref(),
         Some("true")
     );
-    assert!(element(".m1-keycaps-matrix-list").is_err());
-    assert!(element(".m1-keycaps-selected-summary").is_err());
+    assert!(element("[aria-label='Keycaps matrices']").is_err());
+    assert!(element("[aria-label='Selected keycap']").is_err());
     assert!(by_role_name(&root, "searchbox", "Find a key").is_some());
     assert!(by_role_name(&root, "combobox", "Selected key").is_some());
     assert!(by_role_name(&root, "textbox", "Legend for A1").is_some());
