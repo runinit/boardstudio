@@ -1824,86 +1824,79 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
     let identity = props.identity.clone();
     let on_request = props.on_request;
     rsx! {
-        BoardDisclosure { class: "m1-mechanical-group", open: true, aria_label: "Closure hardware",
-            heading: rsx! { summary { "Closure hardware · {hardware.thread}" } },
+        Collapsible { keep_mounted: true, default_open: true,
+            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Closure hardware · {hardware.thread}" }
+            CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
             p { class: "m1-mechanical-help", "Custom screw and insert dimensions. Review these against your hardware; the starting M2 dimensions are not a supplier preset." }
-            BoardSelectField {
+            SettingsSelect {
                 label: "Insert size",
-                class: "m1-mechanical-field",
                 aria_label: "Insert size",
                 disabled: !props.editable,
                 value: (selected_preset.unwrap_or("custom")).to_string(),
-                onchange: {
+                on_change: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
-                        move |event: FormEvent| {
-                            let id = event.value();
-                            if id != "custom" {
+                        move |next: Option<String>| {
+                            if let Some(id) = next && id != "custom" {
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureInsertPreset(id));
                             }
                         }
                     },
-                option { value: "custom", "Custom dimensions" }
-                    option { value: "m2-3", "M2 × L3 × OD3.2" }
-                    option { value: "m2-4", "M2 × L4 × OD3.2" }
-                    option { value: "m2.5-3", "M2.5 × L3 × OD3.5" }
-                    option { value: "m2.5-4", "M2.5 × L4 × OD3.5" }
-                    option { value: "m2.5-5", "M2.5 × L5 × OD3.5" }
-                    option { value: "m3-3", "M3 × L3 × OD4.2" }
+                SelectOption::<String> { index: 0usize, value: "custom".to_owned(), text_value: "Custom dimensions".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Custom dimensions" }
+                    SelectOption::<String> { index: 1usize, value: "m2-3".to_owned(), text_value: "M2 × L3 × OD3.2".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "M2 × L3 × OD3.2" }
+                    SelectOption::<String> { index: 2usize, value: "m2-4".to_owned(), text_value: "M2 × L4 × OD3.2".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "M2 × L4 × OD3.2" }
+                    SelectOption::<String> { index: 3usize, value: "m2.5-3".to_owned(), text_value: "M2.5 × L3 × OD3.5".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "M2.5 × L3 × OD3.5" }
+                    SelectOption::<String> { index: 4usize, value: "m2.5-4".to_owned(), text_value: "M2.5 × L4 × OD3.5".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "M2.5 × L4 × OD3.5" }
+                    SelectOption::<String> { index: 5usize, value: "m2.5-5".to_owned(), text_value: "M2.5 × L5 × OD3.5".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "M2.5 × L5 × OD3.5" }
+                    SelectOption::<String> { index: 6usize, value: "m3-3".to_owned(), text_value: "M3 × L3 × OD4.2".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "M3 × L3 × OD4.2" }
             }
-            BoardSelectField {
+            SettingsSelect {
                 label: "Screw drive",
-                class: "m1-mechanical-field",
                 disabled: !props.editable,
                 value: (if hardware.drive == ScrewDrive::Hex { "hex" } else { "torx" }).to_string(),
-                onchange: {
+                on_change: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
-                        move |event: FormEvent| {
-                            let drive = if event.value() == "torx" { ScrewDrive::Torx } else { ScrewDrive::Hex };
+                        move |next: Option<String>| {
+                            let drive = if next.as_deref() == Some("torx") { ScrewDrive::Torx } else { ScrewDrive::Hex };
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureDrive(drive));
                         }
                     },
-                option { value: "hex", "Hex socket" }
-                    option { value: "torx", "Torx" }
+                SelectOption::<String> { index: 0usize, value: "hex".to_owned(), text_value: "Hex socket".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Hex socket" }
+                    SelectOption::<String> { index: 1usize, value: "torx".to_owned(), text_value: "Torx".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Torx" }
             }
-            BoardSelectField {
+            SettingsSelect {
                 label: "Insert installation",
-                class: "m1-mechanical-field",
                 disabled: !props.editable,
                 value: (if hardware.installation == InsertInstallation::HeatSet { "heat-set" } else { "tapped" }).to_string(),
-                onchange: {
+                on_change: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
-                        move |event: FormEvent| {
-                            let installation = if event.value() == "tapped" { InsertInstallation::Tapped } else { InsertInstallation::HeatSet };
+                        move |next: Option<String>| {
+                            let installation = if next.as_deref() == Some("tapped") { InsertInstallation::Tapped } else { InsertInstallation::HeatSet };
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureInstallation(installation));
                         }
                     },
-                option { value: "heat-set", "Heat-set · printed top" }
-                    option { value: "tapped", "Tapped · machined top" }
+                SelectOption::<String> { index: 0usize, value: "heat-set".to_owned(), text_value: "Heat-set · printed top".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Heat-set · printed top" }
+                    SelectOption::<String> { index: 1usize, value: "tapped".to_owned(), text_value: "Tapped · machined top".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Tapped · machined top" }
             }
-            BoardSelectField {
+            SettingsChoiceField {
                 label: "Screw length",
-                class: "m1-mechanical-field",
                 aria_label: "Screw length",
                 disabled: !props.editable,
-                value: (selected_length).to_string(),
-                onchange: {
+                value: selected_length.clone(),
+                options: std::iter::once(("auto".to_owned(), "Automatic from available lengths".to_owned())).chain(hardware.screw_lengths.iter().map(|length| (length.to_string(), format!("{length} mm · fixed")))).collect::<Vec<_>>(),
+                on_change: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
                         let lengths = hardware.screw_lengths.clone();
-                        move |event: FormEvent| {
-                            let fixed = event.value().parse::<f64>().ok();
+                        move |next: Option<String>| {
+                            let fixed = next.as_deref().unwrap_or_default().parse::<f64>().ok();
                             if fixed.is_none() || fixed.is_some_and(|length| lengths.contains(&length)) {
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureFixedLength(fixed));
                             }
                         }
                     },
-                option { value: "auto", "Automatic from available lengths" }
-                    for length in hardware.screw_lengths.iter() {
-                        option { value: "{length}", "{length} mm · fixed" }
-                    }
             }
             { rsx! { TextDraftField {
                 key: "{props.owner_key}:closure-screw-lengths",
@@ -1916,8 +1909,9 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                 intent: MechanicalTextIntent::ClosureScrewLengths,
                 editable: props.editable,
             } } }
-            BoardDisclosure { class: "m1-mechanical-group", aria_label: "Advanced closure dimensions",
-                heading: rsx! { summary { "Advanced closure dimensions · Custom · mm" } },
+            Collapsible { keep_mounted: true, default_open: false,
+                CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Advanced closure dimensions · Custom · mm" }
+                CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
                 { rsx! { TextDraftField {
                     key: "{props.owner_key}:closure-thread",
                     identity: props.identity.clone(),
@@ -1929,36 +1923,34 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                     intent: MechanicalTextIntent::ClosureThread,
                     editable: props.editable,
                 } } }
-                BoardSelectField {
+                SettingsSelect {
                     label: "Screw head profile",
-                    class: "m1-mechanical-field",
                     disabled: !props.editable,
                     value: (if hardware.head_profile == ScrewHeadProfile::Countersunk { "countersunk" } else { "flat" }).to_string(),
-                    onchange: {
+                    on_change: {
                             let mut sequence = request_sequence;
                             let identity = identity.clone();
-                            move |event: FormEvent| {
-                                let profile = if event.value() == "countersunk" { ScrewHeadProfile::Countersunk } else { ScrewHeadProfile::Flat };
+                            move |next: Option<String>| {
+                                let profile = if next.as_deref() == Some("countersunk") { ScrewHeadProfile::Countersunk } else { ScrewHeadProfile::Flat };
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureHeadProfile(profile));
                             }
                         },
-                    option { value: "flat", "Flat bearing surface" }
-                        option { value: "countersunk", "Countersunk" }
+                    SelectOption::<String> { index: 0usize, value: "flat".to_owned(), text_value: "Flat bearing surface".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Flat bearing surface" }
+                        SelectOption::<String> { index: 1usize, value: "countersunk".to_owned(), text_value: "Countersunk".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Countersunk" }
                 }
-                BoardSelectField {
+                SettingsSelect {
                     label: "Screw length measured from",
-                    class: "m1-mechanical-field",
                     disabled: !props.editable,
                     value: (match hardware.length_datum {
                             ScrewLengthDatum::UnderHead => "under-head",
                             ScrewLengthDatum::Overall => "overall",
                             ScrewLengthDatum::Unresolved => "unresolved",
                         }).to_string(),
-                    onchange: {
+                    on_change: {
                             let mut sequence = request_sequence;
                             let identity = identity.clone();
-                            move |event: FormEvent| {
-                                let datum = match event.value().as_str() {
+                            move |next: Option<String>| {
+                                let datum = match next.as_deref().unwrap_or_default() {
                                     "overall" => ScrewLengthDatum::Overall,
                                     "unresolved" => ScrewLengthDatum::Unresolved,
                                     _ => ScrewLengthDatum::UnderHead,
@@ -1966,9 +1958,9 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureLengthDatum(datum));
                             }
                         },
-                    option { value: "under-head", "Under the head" }
-                        option { value: "overall", "Top of head · overall" }
-                        option { value: "unresolved", "Unknown" }
+                    SelectOption::<String> { index: 0usize, value: "under-head".to_owned(), text_value: "Under the head".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Under the head" }
+                        SelectOption::<String> { index: 1usize, value: "overall".to_owned(), text_value: "Top of head · overall".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Top of head · overall" }
+                        SelectOption::<String> { index: 2usize, value: "unresolved".to_owned(), text_value: "Unknown".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Unknown" }
                 }
                 for (field, label, value) in closure_dimension_fields(hardware) {
                     { rsx! { DimensionField {
@@ -1984,8 +1976,10 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                     } } }
                 }
                 p { class: "m1-mechanical-help", "Thread changes do not resize the insert. Countersunk lengths include the head. Incompatible dimensions appear in Mechanical diagnostics." }
+                 }
+                }
+             }
             }
-        }
     }
 }
 
@@ -2120,14 +2114,16 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
     let identity = props.identity.clone();
     let on_request = props.on_request;
     rsx! {
-        BoardDisclosure { class: "m1-mechanical-group", open: !hardware.is_empty() || !fits.is_empty(), aria_label: "Hardware and critical fits",
-            heading: rsx! { summary { "Hardware & critical fits · {hardware.len()} hardware · {fits.len()} fits" } },
+        Collapsible { keep_mounted: true, default_open: !hardware.is_empty() || !fits.is_empty(),
+            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Hardware & critical fits · {hardware.len()} hardware · {fits.len()} fits" }
+            CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
             div { class: "m1-mechanical-spec-group",
                 header {
                     strong { "Hardware" }
-                    BoardButton {
-                        r#type: "button",
-                        class: "m1-mechanical-quiet",
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        button_type: "button",
+                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("hardware:add") || !props.editable || mount_choices.is_empty(),
                         onclick: {
                             let mut sequence = request_sequence;
@@ -2149,9 +2145,11 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                     article { class: "m1-mechanical-spec-card", key: "{props.owner_key}:hardware:{item.id}",
                         header {
                             strong { if item.designation.is_empty() { "Hardware item" } else { "{item.designation}" } }
-                            BoardButton {
-                                r#type: "button",
-                                class: "m1-mechanical-quiet",
+                            Button {
+                                variant: ButtonVariant::Secondary,
+                                button_type: "button",
+                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                aria_label: "Remove hardware {item.id}",
                                 disabled: mechanical_action_pending(&format!("hardware:{}:remove", item.id)) || !props.editable,
                                 onclick: {
                                     let mut sequence = request_sequence;
@@ -2162,18 +2160,19 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 "Remove"
                             }
                         }
-                        BoardSelectField {
+                        SettingsChoiceField {
                             label: "Mount link",
-                            class: "m1-mechanical-field",
                             aria_label: "Mount link for hardware {item.id}",
+                            placeholder: "Choose generated mount…",
                             disabled: !props.editable,
-                            value: (mount_choices.iter().position(|choice| choice.part_id == item.part_id && choice.feature_id == item.feature_id).map(|index| index.to_string()).unwrap_or_default()).to_string(),
-                            onchange: {
+                            value: mount_choices.iter().position(|choice| choice.part_id == item.part_id && choice.feature_id == item.feature_id).map(|index| index.to_string()).unwrap_or_default(),
+                            options: mount_choices.iter().enumerate().map(|(index, choice)| (index.to_string(), format!("{} · {} · {:.1}, {:.1} mm", choice.part_name, mount_kind_label(&choice.kind), choice.x, choice.y))).collect::<Vec<_>>(),
+                            on_change: {
                                     let mut sequence = request_sequence;
                                     let identity = identity.clone();
                                     let hardware_id = item.id.clone();
                                     let mount_choices = mount_choices.clone();
-                                    move |event: FormEvent| if let Ok(index) = event.value().parse::<usize>()
+                                    move |next: Option<String>| if let Some(next) = next && let Ok(index) = next.parse::<usize>()
                                         && let Some(choice) = mount_choices.get(index) {
                                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetHardwareMount {
                                                 hardware_id: hardware_id.clone(),
@@ -2182,10 +2181,6 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                             });
                                         }
                                 },
-                            option { value: "", "Choose generated mount…" }
-                                for (index, choice) in mount_choices.iter().enumerate() {
-                                    option { key: "{choice.part_id}:{choice.feature_id}", value: "{index}", "{choice.part_name} · {mount_kind_label(&choice.kind)} · {choice.x:.1}, {choice.y:.1} mm" }
-                                }
                         }
                         { rsx! { TextDraftField {
                             key: "{props.owner_key}:hardware:{item.id}:designation",
@@ -2235,9 +2230,10 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
             div { class: "m1-mechanical-spec-group",
                 header {
                     strong { "Critical fits" }
-                    BoardButton {
-                        r#type: "button",
-                        class: "m1-mechanical-quiet",
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        button_type: "button",
+                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("critical-fit:add") || !props.editable,
                         onclick: {
                             let mut sequence = request_sequence;
@@ -2253,9 +2249,11 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                     article { class: "m1-mechanical-spec-card", key: "{props.owner_key}:fit:{fit.id}",
                         header {
                             strong { if fit.label.is_empty() { "Fit dimension" } else { "{fit.label}" } }
-                            BoardButton {
-                                r#type: "button",
-                                class: "m1-mechanical-quiet",
+                            Button {
+                                variant: ButtonVariant::Secondary,
+                                button_type: "button",
+                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                aria_label: "Remove fit {fit.id}",
                                 disabled: mechanical_action_pending(&format!("critical-fit:{}:remove", fit.id)) || !props.editable,
                                 onclick: {
                                     let mut sequence = request_sequence;
@@ -2266,26 +2264,23 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 "Remove"
                             }
                         }
-                        BoardSelectField {
+                        SettingsChoiceField {
                             label: "Generated part",
-                            class: "m1-mechanical-field",
                             aria_label: "Part for critical fit {fit.id}",
                             disabled: !props.editable,
-                            value: "{fit.part_id}",
-                            onchange: {
+                            value: fit.part_id.clone(),
+                            options: parts.iter().map(|part| (part.id.clone(), part.name.clone())).collect::<Vec<_>>(),
+                            on_change: {
                                     let mut sequence = request_sequence;
                                     let identity = identity.clone();
                                     let fit_id = fit.id.clone();
-                                    move |event: FormEvent| send_request(
+                                    move |next: Option<String>| if let Some(part_id) = next { send_request(
                                         &mut sequence,
                                         &identity,
                                         on_request,
-                                        MechanicalSettingsPatch::SetCriticalFitPart { fit_id: fit_id.clone(), part_id: event.value() },
-                                    )
+                                        MechanicalSettingsPatch::SetCriticalFitPart { fit_id: fit_id.clone(), part_id },
+                                    ) }
                                 },
-                            for part in parts.iter() {
-                                    option { value: "{part.id}", "{part.name}" }
-                                }
                         }
                         { rsx! { TextDraftField {
                             key: "{props.owner_key}:fit:{fit.id}:label",
@@ -2369,7 +2364,8 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                     }
                 }
             }
-        }
+             }
+            }
     }
 }
 
@@ -7414,6 +7410,214 @@ mod contextual_layer_tests {
                 .unwrap()
                 .contains("An opening footprint needs at least three vertices."),
             "a short footprint keeps its blocking validation message"
+        );
+        root.remove();
+    }
+
+    fn closure_test_hardware() -> InternalClosureHardware {
+        InternalClosureHardware {
+            drive: ScrewDrive::Hex,
+            installation: InsertInstallation::HeatSet,
+            thread_diameter: 2.0,
+            pitch: 0.4,
+            insert_length: 3.0,
+            thread_start: 0.5,
+            tip_allowance: 0.5,
+            seat_lead_depth: 1.0,
+            seat_lead_diameter: 2.2,
+            bearing_thickness: 1.0,
+            fixed_length: None,
+            length_datum: ScrewLengthDatum::UnderHead,
+            head_profile: ScrewHeadProfile::Flat,
+            id: "closure-1".into(),
+            thread: "M2".into(),
+            screw_lengths: vec![3.0, 4.0],
+            head_diameter: 3.8,
+            head_height: 2.0,
+            hole_diameter: 2.2,
+            insert_diameter: 3.2,
+            seat_diameter: 4.0,
+            seat_depth: 1.0,
+            engagement: 2.5,
+            bottoming_clearance: 0.5,
+            roof: 1.0,
+            surround: 1.5,
+        }
+    }
+
+    fn closure_controls_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        rsx! {
+            GasketClosureControls {
+                identity: test_identity(),
+                request_sequence,
+                hardware: Some(closure_test_hardware()),
+                editable: true,
+                feedback: Rc::from([]),
+                on_request: move |request: MechanicalSettingsRequest| {
+                    last_request.set(format!("{:?}", request.patch))
+                },
+                owner_key: "closure-test".to_owned(),
+            }
+            p { id: "case-closure-last-request", "{last_request}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn closure_controls_name_their_disclosures_and_submit_typed_closure_changes() {
+        mount_battery_test_page("case-closure-test-root", closure_controls_test_page);
+        rendered().await;
+        let root = element("#case-closure-test-root");
+        assert!(
+            by_role_name(&root, "button", "Closure hardware · M2").is_some(),
+            "the open closure disclosure names its thread"
+        );
+        by_role_name(&root, "button", "Insert size")
+            .unwrap()
+            .click();
+        wait_until("the insert sizes open", || {
+            by_role_name(&root, "listbox", "Insert size").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "M2 × L4 × OD3.2").unwrap());
+        rendered().await;
+        let preset = element("#case-closure-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            preset.contains("SetClosureInsertPreset") && preset.contains("m2-4"),
+            "the insert size submits its typed preset, got {preset}"
+        );
+        by_role_name(&root, "button", "Advanced closure dimensions · Custom · mm")
+            .unwrap()
+            .click();
+        rendered().await;
+        by_role_name(&root, "button", "Screw head profile")
+            .unwrap()
+            .click();
+        wait_until("the head profiles open", || {
+            by_role_name(&root, "listbox", "Screw head profile").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "Countersunk").unwrap());
+        rendered().await;
+        let head = element("#case-closure-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            head.contains("SetClosureHeadProfile") && head.contains("Countersunk"),
+            "the head profile submits its typed change, got {head}"
+        );
+        root.remove();
+    }
+
+    fn critical_fit_controls_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        rsx! {
+            CriticalFitControls {
+                identity: test_identity(),
+                request_sequence,
+                fits: vec![MechanicalCriticalFit {
+                    id: "fit-1".into(),
+                    part_id: "plate".into(),
+                    label: "Plate gap".into(),
+                    from: Vec2 { x: 0.0, y: 0.0 },
+                    to: Vec2 { x: 10.0, y: 0.0 },
+                    tolerance: "±0.1".into(),
+                }],
+                hardware: vec![MechanicalHardwareSpecification {
+                    id: "hw-1".into(),
+                    part_id: "bottom".into(),
+                    feature_id: "mount-1".into(),
+                    designation: "M2x4".into(),
+                    thread: "M2".into(),
+                    length: 4.0,
+                    quantity: 4,
+                    notes: None,
+                    tolerance: None,
+                }],
+                hardware_mounts: Rc::from([
+                    MechanicalHardwareMount {
+                        part_id: "bottom".into(),
+                        part_name: "Bottom".into(),
+                        feature_id: "mount-1".into(),
+                        kind: MountKind::Hole,
+                        x: 2.0,
+                        y: 3.0,
+                    },
+                    MechanicalHardwareMount {
+                        part_id: "bottom".into(),
+                        part_name: "Bottom".into(),
+                        feature_id: "mount-2".into(),
+                        kind: MountKind::Boss,
+                        x: 5.0,
+                        y: 6.0,
+                    },
+                ]),
+                fit_parts: Rc::from([MechanicalFitPart {
+                    id: "plate".into(),
+                    name: "Plate".into(),
+                }]),
+                fit_parts_resolved: true,
+                values: test_values(HardwareTransport::Wired, None),
+                editable: true,
+                feedback: Rc::from([]),
+                on_request: move |request: MechanicalSettingsRequest| {
+                    last_request.set(format!("{:?}", request.patch))
+                },
+                owner_key: "fits-test".to_owned(),
+            }
+            p { id: "case-fits-last-request", "{last_request}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn critical_fit_controls_name_their_disclosure_and_submit_typed_fit_changes() {
+        mount_battery_test_page("case-fits-test-root", critical_fit_controls_test_page);
+        rendered().await;
+        let root = element("#case-fits-test-root");
+        assert!(
+            by_role_name(
+                &root,
+                "button",
+                "Hardware & critical fits · 1 hardware · 1 fits"
+            )
+            .is_some(),
+            "the fits disclosure names its counts"
+        );
+        by_role_name(&root, "button", "Mount link for hardware hw-1")
+            .unwrap()
+            .click();
+        wait_until("the mount links open", || {
+            by_role_name(&root, "listbox", "Mount link for hardware hw-1").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "Bottom · boss · 5.0, 6.0 mm").unwrap());
+        rendered().await;
+        let link = element("#case-fits-last-request").text_content().unwrap();
+        assert!(
+            link.contains("SetHardwareMount") && link.contains("mount-2"),
+            "the mount link submits its typed change, got {link}"
+        );
+        by_role_name(&root, "button", "Remove hardware hw-1")
+            .unwrap()
+            .click();
+        rendered().await;
+        let hardware = element("#case-fits-last-request").text_content().unwrap();
+        assert!(
+            hardware.contains("RemoveHardware") && hardware.contains("hw-1"),
+            "the hardware removal names its item, got {hardware}"
+        );
+        by_role_name(&root, "button", "Remove fit fit-1")
+            .unwrap()
+            .click();
+        rendered().await;
+        let fit = element("#case-fits-last-request").text_content().unwrap();
+        assert!(
+            fit.contains("RemoveCriticalFit") && fit.contains("fit-1"),
+            "the fit removal names its item, got {fit}"
         );
         root.remove();
     }
