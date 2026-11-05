@@ -260,7 +260,11 @@ fn CaseLayerButton(
     } else {
         selection_label.clone()
     };
-    let visibility_label = if visible { format!("Hide {}", layer.label) } else { format!("Show {}", layer.label) };
+    let visibility_label = if visible {
+        format!("Hide {}", layer.label)
+    } else {
+        format!("Show {}", layer.label)
+    };
     let row_disabled = !selectable || unavailable.is_some();
     let visibility_disabled = unavailable.is_some();
     rsx! {
@@ -342,7 +346,11 @@ fn ComponentLayerButton(
     };
     let id = layer.id.clone();
     let label = layer.label();
-    let toggle_label = if visible { format!("Hide {label}") } else { format!("Show {label}") };
+    let toggle_label = if visible {
+        format!("Hide {label}")
+    } else {
+        format!("Show {label}")
+    };
     let row_disabled = unavailable.is_some();
     rsx! {
         ToggleGroup {
@@ -607,8 +615,8 @@ mod tests {
             trigger.get_attribute("aria-expanded").as_deref(),
             Some("false")
         );
-        let battery = by_role_name(&scope, "button", "Show battery")
-            .expect("unavailable battery row");
+        let battery =
+            by_role_name(&scope, "button", "Show battery").expect("unavailable battery row");
         assert!(battery.has_attribute("disabled"));
         assert_eq!(
             battery.get_attribute("aria-pressed").as_deref(),
@@ -638,7 +646,9 @@ mod tests {
                     .get_attribute("aria-describedby")
                     .and_then(|id| document.get_element_by_id(&id))
                     .is_some_and(|tip| {
-                        tip.text_content().unwrap_or_default().contains("Hide Plate")
+                        tip.text_content()
+                            .unwrap_or_default()
+                            .contains("Hide Plate")
                     })
             })
         })
@@ -727,8 +737,8 @@ mod tests {
                 .as_deref(),
             Some("true")
         );
-        let unavailable = by_role_name(&scope, "button", "Show D1 · diode.step")
-            .expect("missing model row");
+        let unavailable =
+            by_role_name(&scope, "button", "Show D1 · diode.step").expect("missing model row");
         assert!(unavailable.has_attribute("disabled"));
         assert_eq!(
             unavailable.get_attribute("aria-pressed").as_deref(),

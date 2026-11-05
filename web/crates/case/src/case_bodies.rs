@@ -1040,8 +1040,7 @@ mod mounted_tests {
             by_role_name(&root, "button", "+ New case body").is_some()
         })
         .await;
-        let trigger =
-            by_role_name(&root, "button", "Mounting").expect("mounting trigger");
+        let trigger = by_role_name(&root, "button", "Mounting").expect("mounting trigger");
         assert_eq!(
             trigger.get_attribute("aria-expanded").as_deref(),
             Some("true"),
@@ -1107,7 +1106,10 @@ mod mounted_tests {
                 .expect("description resolves in this production field");
             description.push_str(&node.text_content().unwrap_or_default());
         }
-        assert!(description.contains("above 0"), "missing error: {description}");
+        assert!(
+            description.contains("above 0"),
+            "missing error: {description}"
+        );
         root.remove();
     }
 
@@ -1120,8 +1122,7 @@ mod mounted_tests {
         .await;
         assert!(by_role_name(&root, "spinbutton", "Wall height").is_none());
         // Tab content concatenates without spaces, as in production markup.
-        let tray_tab = by_role_name(&root, "button", "02Tray bodytray")
-            .expect("tray body tab");
+        let tray_tab = by_role_name(&root, "button", "02Tray bodytray").expect("tray body tab");
         assert_eq!(
             tray_tab.get_attribute("aria-pressed").as_deref(),
             Some("false")

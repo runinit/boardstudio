@@ -97,10 +97,7 @@ async fn viewer_slot_exclusions_preserve_actual_inline_controls_in_four_themes()
     .await;
     let fit = control(&root, "button", "Fit");
     // Copied controls carry data-slot so the legacy element rules skip them.
-    assert_eq!(
-        fit.get_attribute("data-slot").as_deref(),
-        Some("button")
-    );
+    assert_eq!(fit.get_attribute("data-slot").as_deref(), Some("button"));
     let shaded = control(&root, "button", "Shaded");
     assert_eq!(
         shaded.get_attribute("data-slot").as_deref(),
@@ -129,9 +126,7 @@ async fn viewer_slot_exclusions_preserve_actual_inline_controls_in_four_themes()
     wait_until("camera tooltip describes Fit", || {
         fit.get_attribute("aria-describedby")
             .and_then(|id| document.get_element_by_id(&id))
-            .is_some_and(|tip| {
-                tip.text_content().unwrap_or_default().contains("Fit model")
-            })
+            .is_some_and(|tip| tip.text_content().unwrap_or_default().contains("Fit model"))
     })
     .await;
     let section = control(&root, "button", "Section");
@@ -147,8 +142,7 @@ async fn viewer_slot_exclusions_preserve_actual_inline_controls_in_four_themes()
     key(&plane, "ArrowDown");
     wait_until("section plane opens its named list", || {
         by_role_name(&root, "listbox", "Section plane").is_some()
-            && document.active_element()
-                == by_role_name(&root, "option", "XY").map(Into::into)
+            && document.active_element() == by_role_name(&root, "option", "XY").map(Into::into)
     })
     .await;
     key(&control(&root, "option", "XY"), "ArrowDown");
@@ -198,7 +192,9 @@ async fn viewer_slot_exclusions_preserve_actual_inline_controls_in_four_themes()
                 "inline {theme}/{appearance}: Fit height={}, border={}; selected={}",
                 fit.get_bounding_client_rect().height(),
                 fit_style.get_property_value("border-top-width").unwrap(),
-                style(&exploded).get_property_value("background-color").unwrap()
+                style(&exploded)
+                    .get_property_value("background-color")
+                    .unwrap()
             );
         }
     }
@@ -404,6 +400,9 @@ async fn design_view_toolbar_uses_toggle_groups_and_keeps_view_state() {
     control(&root, "button", "2D").click();
     wait_until("2D mode is requested", || probe() == "false:true").await;
     control(&root, "button", "Footprints").click();
-    wait_until("footprints toggle is requested", || probe() == "false:false").await;
+    wait_until("footprints toggle is requested", || {
+        probe() == "false:false"
+    })
+    .await;
     root.remove();
 }

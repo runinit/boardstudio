@@ -1010,7 +1010,10 @@ fn CaseInspectorSelect(
     #[props(default)] disabled: bool,
     on_change: EventHandler<Option<String>>,
 ) -> Element {
-    let id = format!("case-inspector-select-{}", dioxus::core::current_scope_id().0);
+    let id = format!(
+        "case-inspector-select-{}",
+        dioxus::core::current_scope_id().0
+    );
     let selected = use_memo(move || Some(value.clone()));
     if options.len() <= 12 {
         return rsx! {
@@ -1966,8 +1969,8 @@ mod mounted_live_scene_tests {
             by_role_name(&root, "button", &format!("Collapse {label}")).is_some()
         })
         .await;
-        let disclosure = by_role_name(&root, "button", &format!("Collapse {label}"))
-            .expect("tree disclosure");
+        let disclosure =
+            by_role_name(&root, "button", &format!("Collapse {label}")).expect("tree disclosure");
         assert_eq!(
             disclosure.get_attribute("data-slot").as_deref(),
             Some("button")
@@ -1984,8 +1987,8 @@ mod mounted_live_scene_tests {
             by_role_name(&root, "button", &format!("Collapse {label}")).is_some()
         })
         .await;
-        let visibility = by_role_name(&root, "button", &format!("Hide {label}"))
-            .expect("visibility toggle");
+        let visibility =
+            by_role_name(&root, "button", &format!("Hide {label}")).expect("visibility toggle");
         assert_eq!(
             visibility.get_attribute("data-slot").as_deref(),
             Some("tooltip-trigger")
@@ -2002,12 +2005,9 @@ mod mounted_live_scene_tests {
             calls() == "toggle-visibility"
         })
         .await;
-        let select = by_role_name(&root, "button", &format!("\u{25b0}{label}"))
-            .expect("row select");
-        assert_eq!(
-            select.get_attribute("data-slot").as_deref(),
-            Some("button")
-        );
+        let select =
+            by_role_name(&root, "button", &format!("\u{25b0}{label}")).expect("row select");
+        assert_eq!(select.get_attribute("data-slot").as_deref(), Some("button"));
         select.click();
         wait_until("assembly selects through its owner", || {
             root.query_selector("#tree-action-calls")
@@ -2103,7 +2103,9 @@ mod mounted_live_scene_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("assembly setup mounts", || {
-            root.text_content().unwrap_or_default().contains("Assembly setup")
+            root.text_content()
+                .unwrap_or_default()
+                .contains("Assembly setup")
         })
         .await;
         let setup =
@@ -2127,7 +2129,14 @@ mod mounted_live_scene_tests {
             by_role_name(&root, "listbox", "Half connection").is_some()
         })
         .await;
-        assert!(by_role_name(&root, "option", "Wireless \u{b7} local battery on each half").is_some());
+        assert!(
+            by_role_name(
+                &root,
+                "option",
+                "Wireless \u{b7} local battery on each half"
+            )
+            .is_some()
+        );
         key(
             &by_role_name(&root, "listbox", "Half connection").unwrap(),
             "Escape",
@@ -2136,8 +2145,7 @@ mod mounted_live_scene_tests {
             by_role_name(&root, "listbox", "Half connection").is_none()
         })
         .await;
-        let design =
-            by_role_name(&root, "combobox", "PCB design").expect("thirteen-board picker");
+        let design = by_role_name(&root, "combobox", "PCB design").expect("thirteen-board picker");
         assert_eq!(design.tag_name(), "INPUT");
         design.focus().unwrap();
         key(&design, "ArrowDown");

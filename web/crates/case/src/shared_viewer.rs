@@ -2718,8 +2718,9 @@ fn SharedViewer(
     let unlink_projection = projection.clone();
     let unlink_runtime = runtime.clone();
     let show_assembly_controls = projection.layers.iter().any(|(id, _)| id != "pcb");
-    let gaskets_edit_disabled =
-        mechanical_settings.as_ref().is_none_or(|settings| !settings.editable);
+    let gaskets_edit_disabled = mechanical_settings
+        .as_ref()
+        .is_none_or(|settings| !settings.editable);
     let select_assembly_layer = select_layer.clone();
 
     let section_plane = use_memo(move || Some(transient().section_plane.to_owned()));

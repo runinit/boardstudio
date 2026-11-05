@@ -547,8 +547,7 @@ mod mounted_tests {
             .unwrap()
             .get_element_by_id(root_id)
             .unwrap();
-        by_role_name(&root, "button", label)
-            .unwrap_or_else(|| panic!("mounted Case has {label}"))
+        by_role_name(&root, "button", label).unwrap_or_else(|| panic!("mounted Case has {label}"))
     }
 
     fn export_geometry_button_in(root_id: &str) -> web_sys::HtmlElement {
@@ -675,8 +674,7 @@ mod mounted_tests {
             .unwrap()
             .get_element_by_id(root_id)
             .unwrap();
-        let live =
-            by_role_name(&root, "checkbox", "Live preview").expect("live preview toggle");
+        let live = by_role_name(&root, "checkbox", "Live preview").expect("live preview toggle");
         live.click();
         settle().await;
         assert_eq!(
@@ -915,10 +913,7 @@ mod mounted_tests {
             ["cancel-job"],
             "Cancel stops the running generation"
         );
-        assert!(
-            !live_preview_checked(),
-            "Cancel also pauses Live preview"
-        );
+        assert!(!live_preview_checked(), "Cancel also pauses Live preview");
         assert!(matches!(
             runtime.model().generation,
             GenerationStatus::Cancelled { .. }
