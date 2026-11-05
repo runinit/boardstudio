@@ -23,7 +23,6 @@
 .header-mobile-menu .header-workspaces { flex: 1 0 100%; display: grid; grid-template-columns: repeat(3, 1fr); }
 .header-mobile-menu .header-workspaces [data-slot] { width: 100%; }
 .header-mobile-menu .header-settings-menu[data-slot] { position: static; }
-.header-mobile-menu .m1-compact-panel-controls { display: flex; }
 @media (min-width: 1600px) { .header-brand span { display: inline; } }
 @media (max-width: 1250px) { .workbench-header > [data-slot=popover] { margin-left: auto; }
   .workbench-header > [data-slot=popover]:last-child { margin-left: 0; } }

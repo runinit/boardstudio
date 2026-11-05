@@ -7387,7 +7387,7 @@ fn Editor() -> Element {
                 shared_viewer::DesignViewToolbarProps {
                     contextual_tools: Some(rsx! { workspace_navigation::InspectorActions {
                         label: "Keymap tools", workspace, inspect_open, inspector_settings: inspector_panel_settings,
-                        generation: adapter.generation, actions: vec![("Assign", ".m1-keymap-editor-tab:nth-child(1)", true), ("Macros", ".m1-keymap-editor-tab:nth-child(2)", true), ("Encoders", ".m1-keymap-editor-tab:nth-child(3)", true)],
+                        generation: adapter.generation, actions: vec![("Assign", "[aria-label='Keymap editors'] [aria-label='Keys']", true), ("Macros", "[aria-label='Keymap editors'] [aria-label='Macros']", true), ("Encoders", "[aria-label='Keymap editors'] [aria-label='Encoders']", true)],
                         disabled: false,
                     } }),
                     label: "Keymap".into(),
@@ -9107,7 +9107,7 @@ fn Editor() -> Element {
                 }
                 }
             }
-            footer { class: "m1-editor-footer shell-footer",
+            footer { class: "shell-footer", aria_label: "Canvas status",
                 boardstudio_web_ui_shared::ui::toolbar::Toolbar { class: "shell-history", aria_label: "Footer edit history",
                     boardstudio_web_ui_shared::ui::toolbar::ToolbarButton { index: 0usize, aria_label: "Undo", on_click: move |_| undo.submit(Event::Undo { operation_id: undo.operation() }), "Undo" }
                     boardstudio_web_ui_shared::ui::toolbar::ToolbarButton { index: 1usize, aria_label: "Redo", on_click: move |_| redo.submit(Event::Redo { operation_id: redo.operation() }), "Redo" }

@@ -54,6 +54,10 @@ def main():
                 if (value('wb-canvas') !== value('canvas')) throw Error('Legacy canvas alias');
                 const canvas = document.querySelector('[role="group"][aria-label^="Keyboard layout"]');
                 if (!canvas) throw Error('Mounted layout canvas missing');
+                const footer = document.querySelector('footer[aria-label="Canvas status"]');
+                if (!footer || !footer.querySelector('[aria-label="Zoom in"]')) throw Error('Canvas status landmark missing');
+                const footerStyle = getComputedStyle(footer);
+                if (footerStyle.display !== 'flex' || footer.getBoundingClientRect().height < 40) throw Error('Canvas status layout');
                 const probe = document.createElement('span');
                 probe.style.backgroundColor = 'var(--canvas)';
                 document.body.append(probe);

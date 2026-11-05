@@ -121,9 +121,9 @@ pub fn KeymapPanel(
                         selected_editor.set(editor);
                     }
                 },
-                ToggleItem { index: 0usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Keys" }
-                ToggleItem { index: 1usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Macros" }
-                ToggleItem { index: 2usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Encoders" }
+                ToggleItem { index: 0usize, aria_label: "Keys", class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Keys" }
+                ToggleItem { index: 1usize, aria_label: "Macros", class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Macros" }
+                ToggleItem { index: 2usize, aria_label: "Encoders", class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Encoders" }
             }
             if selected_editor() == KeymapEditor::Keys {
                 Collapsible { class: "m1-keymap-editor-section", open: keys_section_open(), keep_mounted: true,

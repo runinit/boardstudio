@@ -579,7 +579,7 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
 .m1-editor-body:has(> .m1-workspace-content > .m1-export-workspace) { grid-template-columns: minmax(0, 1fr); }
 .m1-editor-body:has(> .m1-workspace-content > .m1-export-workspace) > .m1-workspace-content { grid-area: 1 / 1 / 2 / -1; overflow: auto; background: var(--wb-panel); }
 .m1-editor-body:has(> .m1-workspace-content > .m1-export-workspace) #workspace-panel-sheet { display: none; }
-.m1-editor:has(.m1-export-workspace) > .m1-compact-panel-controls, .m1-editor:has(.m1-export-workspace) > .m1-editor-footer { display: none; }
+.m1-editor:has(.m1-export-workspace) > .m1-compact-panel-controls { display: none; }
 .m1-workspace-content:has(> .m1-export-workspace) { container-type: normal; }
 .m1-export-workspace { width: min(100%, 1000px); margin: 0 auto; padding: 36px 40px 48px; background: var(--wb-panel); }
 .m1-export-heading { margin-bottom: 24px; }
@@ -618,9 +618,6 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
   .m1-keyboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 10px; }
   .m1-keyboard-preview { height: 92px; padding: 10px; }
 }
-.m1-editor-footer { flex: 0 0 34px; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: var(--wb-panel); border-top: 1px solid var(--wb-rule); color: var(--wb-muted); font-size: 12px; }
-.m1-editor-footer button { min-height: 27px; padding: 0 6px; border: 0; background: transparent; }
-.m1-editor-footer button svg { display: block; width: 18px; height: 18px; }
 .m1-canvas-footer-findings { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 26px; width: auto; margin-left: auto; padding: 2px 6px; border: 0; border-radius: 3px; background: transparent; color: var(--wb-status-warning); font: inherit; white-space: nowrap; cursor: pointer; }
 .m1-canvas-footer-findings svg { width: 16px; height: 16px; }
 .m1-canvas-footer-findings:hover { background: var(--wb-raised); }
@@ -715,7 +712,6 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
   .m1-inspector-slot { order: 3; width: 100%; }
   .m1-inspector { overflow: visible; border: 0; border-top: 1px solid var(--wb-rule); }
   .m1-inspector-body { overflow: visible; overscroll-behavior: auto; }
-  .m1-editor-footer { position: static; order: 4; }
   .m1-workspace-content:has(> .m1-export-workspace) { min-height: 0; height: 100%; overflow: auto; }
   .m1-export-workspace { width: 100%; padding: 24px 18px 36px; }
   .m1-export-heading h1 { font-size: 24px; }

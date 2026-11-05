@@ -548,79 +548,9 @@
   }
 }
 
-/* Shared inspector fields keep native editing and selection semantics. */
-.board-field {
-  min-width: 0;
-  margin: 0;
-  color: var(--wb-muted);
-  font: 500 var(--wb-type-label)/var(--wb-leading-ui) var(--wb-body);
-}
-.board-field-control {
-  box-sizing: border-box;
-  min-height: var(--wb-control-height);
-  margin: 0;
-  padding: 6px 8px;
-  border: 1px solid var(--wb-rule-control);
-  border-radius: var(--wb-radius-control);
-  color: var(--wb-ink);
-  background: var(--wb-field);
-  font: var(--wb-type-body)/var(--wb-leading-ui) var(--wb-body);
-}
-.board-field-input input { flex: 1; }
-.board-field-control:focus-visible {
-  outline: 2px solid var(--wb-accent);
-  outline-offset: 2px;
-}
-.board-field.has-error .board-field-control { border-color: var(--wb-status-error); }
-.board-field.has-error > small[role="alert"] { color: var(--wb-status-error); }
-.board-field-control:disabled { opacity: 0.58; cursor: default; }
-
 /* Keep open command menus above the sibling view-mode controls. */
 .m1-layout-toolbar-region > div.m1-canvas-toolbar:has(.m1-layout-command-menu[data-state="open"]) {
   z-index: 14;
-}
-
-.board-checkbox[type="checkbox"] {
-  appearance: none;
-  display: inline-grid;
-  place-content: center;
-  flex: none;
-  width: 18px;
-  min-width: 18px;
-  height: 18px;
-  min-height: 18px;
-  margin: 0;
-  padding: 0;
-  border: 1px solid var(--wb-rule-control);
-  border-radius: 5px;
-  background: var(--wb-field);
-  accent-color: var(--wb-accent);
-  cursor: pointer;
-  transition: background-color var(--wb-motion-feedback) linear,
-    border-color var(--wb-motion-feedback) linear,
-    box-shadow var(--wb-motion-feedback) linear;
-}
-.board-checkbox[type="checkbox"]::after { content: ""; width: 9px; height: 5px; border: solid var(--wb-on-accent); border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg) scale(0); transition: transform var(--wb-motion-feedback) var(--wb-ease-out); }
-.board-checkbox[type="checkbox"]:checked { background: var(--wb-accent); border-color: var(--wb-accent); }
-.board-checkbox[type="checkbox"]:checked::after { transform: translateY(-1px) rotate(-45deg) scale(1); }
-.board-checkbox[type="checkbox"]:indeterminate { background: var(--wb-accent); border-color: var(--wb-accent); }
-.board-checkbox[type="checkbox"]:indeterminate::after { height: 0; border-width: 0 0 2px; transform: none; }
-@media (forced-colors: active) { .board-checkbox[type="checkbox"] { appearance: auto; } .board-checkbox[type="checkbox"]::after { display: none; } }
-label:has(> .board-checkbox) { min-height: 32px; cursor: pointer; }
-label:has(> .board-checkbox:disabled) { cursor: default; }
-.board-checkbox:disabled { opacity: 0.58; cursor: default; }
-.board-checkbox:focus-visible,
-.board-disclosure > summary:focus-visible {
-  outline: 2px solid var(--wb-accent);
-  outline-offset: 2px;
-}
-.board-disclosure > summary { min-height: 32px; cursor: pointer; }
-.board-button:not(:disabled):hover { border-color: transparent; background: var(--wb-raised); }
-.board-button--primary:not(:disabled):hover { background: var(--wb-accent-dark); color: var(--wb-on-accent); }
-.board-button--danger:not(:disabled):hover { border-color: transparent; background: var(--wb-status-error-surface); color: var(--wb-status-error); }
-@media (pointer: coarse) {
-  label:has(> .board-checkbox),
-  .board-disclosure > summary { min-height: 44px; }
 }
 
 /* Graphite foundation: shared semantic roles, independent of workspace edit owners. */
@@ -628,15 +558,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 :root { scrollbar-color: var(--wb-rule-strong) var(--wb-panel); }
 :is(input, textarea) { caret-color: var(--wb-accent); }
 :is(input, textarea)::placeholder { color: var(--wb-muted); opacity: 1; }
-.board-button:not(.board-button--primary):not(.board-button--danger):hover:not(:disabled),
-.board-toggle:hover:not(:disabled):not([data-state="on"]) {
-  border-color: transparent;
-  background: var(--wb-raised);
-}
-.board-button--primary:hover:not(:disabled) { color: var(--wb-on-accent); background: var(--wb-accent-dark); }
-.board-button:active:not(:disabled), .board-toggle:active:not(:disabled) { background: var(--wb-surface-strong); transform: scale(.985); }
-.board-button--primary:active:not(:disabled) { background: var(--wb-accent); }
-.board-button[aria-pressed='true'] { color: var(--wb-on-accent); background: var(--wb-accent); }
 .m1-layout-toolbar-region :is(.layout-context-action, .layout-selection-action, .layout-toolbar-density),
 .m1-matrix-assembly-choice, .m1-controller-choices button {
   transition: color var(--wb-motion-feedback) linear,
@@ -646,7 +567,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 }
 .m1-layout-toolbar-region :is(.layout-context-action, .layout-selection-action, .layout-toolbar-density):active:not(:disabled),
 .m1-matrix-assembly-choice:active:not(:disabled), .m1-controller-choices button:active:not(:disabled) { transform: scale(.985); }
-.board-toolbar { display: flex; align-items: center; gap: var(--wb-space-1); }
 .m1-context-tool-icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
 /* One shared header for project identity and persistence; workspace links live in Objects. */
@@ -717,7 +637,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-layout-snap-dock .m1-layout-snap-menu { position: relative; }
 .m1-layout-snap-dock .board-popover-trigger { display: flex; gap: 6px; align-items: center; min-height: var(--wb-control-height); padding: 6px 8px; border: 1px solid transparent; border-radius: var(--wb-radius-control); color: var(--wb-ink); background: var(--wb-surface-soft); }
 .m1-layout-snap-dock .board-popover-content { position: absolute; z-index: 30; right: 0; bottom: calc(100% + 12px); width: 250px; max-width: calc(100vw - 32px); padding: var(--wb-space-3); border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-radius-toolbar); background: var(--wb-panel); color: var(--wb-ink); box-shadow: 0 8px 24px #0005; }
-.m1-editor-footer { flex-basis: var(--wb-footer-height); min-height: var(--wb-footer-height); background: var(--wb-topbar); font-size: var(--wb-type-label); }
 
 @media (max-width: 1240px) {
   .m1-brand span { display: none; }
@@ -753,7 +672,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
   .m1-layout-toolbar-region > .m1-layout-view-group { bottom: 12px; right: 8px; }
   .m1-layout-snap-dock { padding: 10px 12px; }
   .m1-layout-snap-dock .board-popover-trigger { min-height: var(--wb-control-touch); }
-  .m1-editor-footer { gap: 4px; padding-inline: 6px; }
 }
 @media (pointer: coarse) {
   .board-button, .board-toggle, .board-field-input, .board-field-control, .board-select { min-height: var(--wb-control-touch); }

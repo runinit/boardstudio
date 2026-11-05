@@ -136,6 +136,10 @@ def main():
         check("if (document.activeElement.getAttribute('aria-label') !== 'Macros') throw Error('Inspector shortcut arrow')")
         browser("press", "Enter")
         browser("wait", "--fn", "document.activeElement.textContent.trim() === 'Macros' && document.activeElement.getAttribute('aria-pressed') === 'true'")
+        # All shortcuts must activate and focus the corresponding real Inspector editor.
+        for shortcut, editor in (("Assign", "Keys"), ("Encoders", "Encoders"), ("Macros", "Macros")):
+            camera(shortcut, toolbar="Keymap tools")
+            browser("wait", "--fn", f"document.activeElement.getAttribute('aria-label') === '{editor}' && document.activeElement.getAttribute('aria-pressed') === 'true'")
         for width, height in ((1440, 960), (1100, 900), (390, 844)):
             browser("set", "viewport", str(width), str(height))
             path = args.evidence / f"keymap-shortcuts-shadcn-dark-{width}.png"

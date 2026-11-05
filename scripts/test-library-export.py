@@ -165,6 +165,8 @@ def main():
         export_snapshot = browser('snapshot')
         assert not re.search(r'^\s*- heading "(?:Objects|Inspector)"', export_snapshot, re.MULTILINE), 'Export is a separate page; workspace docks must stay hidden'
         check('''
+            const footer = document.querySelector('footer[aria-label="Canvas status"]');
+            if (!footer || getComputedStyle(footer).display !== 'none') throw Error('Export must hide the canvas status footer');
             for (const name of ['Export KiCad board', 'Export ZMK firmware']) {
                 const button = document.querySelector('[aria-label="' + name + '"]');
                 if (!button.disabled) throw Error(name + ' must remain blocked for an empty design');
