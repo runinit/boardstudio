@@ -28,7 +28,7 @@ pub(super) fn use_palette_state() -> PaletteState {
 
 fn popover_opener(active: &web_sys::HtmlElement) -> Option<web_sys::HtmlElement> {
     let popup = active
-        .closest("[data-slot=popover-content], .board-popover-content")
+        .closest("[data-slot=popover-content]")
         .ok()??;
     let id = popup.id();
     if id.is_empty() {
@@ -765,7 +765,7 @@ mod tests {
             <button aria-label="Outer opener" aria-controls="palette-test-outer">Outer</button>
             <div data-slot="popover-content" id="palette-test-outer">
                 <button aria-label="Inner opener" aria-controls="other palette-test-inner" tabindex="-1">Inner</button>
-                <div class="board-popover-content" id="palette-test-inner">
+                <div data-slot="popover-content" id="palette-test-inner">
                     <input aria-label="Popup field">
                 </div>
             </div>
