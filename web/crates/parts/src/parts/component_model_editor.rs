@@ -10,8 +10,15 @@ use crate::{
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SessionEpoch};
 use boardstudio_core::model::{Asset, EditOperation, PartDefinition, PartModel, Vec3};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertVariant},
+    button::{Button, ButtonVariant},
+    callout::{Callout, CalloutVariant},
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    field::FieldError,
+    spinner::Spinner,
+};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{cell::Cell, rc::Rc};
@@ -285,6 +292,7 @@ pub fn ComponentModelEditor(
     let mut error = use_signal(|| None::<ModelEditorMessage>);
     let mut notice = use_signal(|| None::<ModelEditorMessage>);
     let mut uploading = use_signal(|| false);
+    let mut file_input = use_signal(|| None::<HtmlInputElement>);
     let pending_edits = use_hook(PendingEditSignals::<ModelKey>::new);
     let submit_owner = use_signal(|| None::<ModelEditorOwner>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
@@ -663,35 +671,59 @@ pub fn ComponentModelEditor(
         .or_else(|| binding.as_ref().map(|model| model.asset_id.clone()));
 
     rsx! {
-        BoardDisclosure { class: "m1-generator-settings m1-component-model-editor",
-            heading: rsx! { summary { "3D model" small { if binding.is_some() { "Attached" } else { "Optional" } } } },
-            if let Some(model) = binding.as_ref() {
-                if let Some(name) = asset_name.as_ref() {
-                p { class: "m1-parts-empty", "Bound asset: {name}" }
+        Collapsible { keep_mounted: true, default_open: false,
+            CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", aria_label: if binding.is_some() { "3D model Attached" } else { "3D model Optional" }, "3D model" small { if binding.is_some() { "Attached" } else { "Optional" } } }
+            CollapsibleContent { class: "data-[open=false]:hidden grid gap-2",
+                if let Some(model) = binding.as_ref() {
+                    if let Some(name) = asset_name.as_ref() {
+                    p { "Bound asset: {name}" }
+                    }
+                    fieldset { class: "grid gap-2",
+                        legend { "Model alignment" }
+                        { rsx! { ModelVectorEditor { key: "{owner:?}-Offset", field: VectorField::Offset, title: "Offset", value: model.offset, unit: "mm", positive: false,
+                            on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Offset, axis, submitted, value)) } } }
+                        { rsx! { ModelVectorEditor { key: "{owner:?}-Rotation", field: VectorField::Rotation, title: "Rotation", value: model.rotation, unit: "°", positive: false,
+                            on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Rotation, axis, submitted, value)) } } }
+                        { rsx! { ModelVectorEditor { key: "{owner:?}-Scale", field: VectorField::Scale, title: "Scale", value: model.scale, unit: "×", positive: true,
+                            on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Scale, axis, submitted, value)) } } }
+                    }
+                    Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: remove_pending, onclick: remove_model, "Remove attached model" }
+                } else {
+                    p { "No model attached to this component." }
                 }
-                fieldset {
-                    legend { "Model alignment" }
-                    { rsx! { ModelVectorEditor { key: "{owner:?}-Offset", field: VectorField::Offset, title: "Offset", value: model.offset, unit: "mm", positive: false,
-                        on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Offset, axis, submitted, value)) } } }
-                    { rsx! { ModelVectorEditor { key: "{owner:?}-Rotation", field: VectorField::Rotation, title: "Rotation", value: model.rotation, unit: "°", positive: false,
-                        on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Rotation, axis, submitted, value)) } } }
-                    { rsx! { ModelVectorEditor { key: "{owner:?}-Scale", field: VectorField::Scale, title: "Scale", value: model.scale, unit: "×", positive: true,
-                        on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Scale, axis, submitted, value)) } } }
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    disabled: uploading() || upload_pending || current_owner.is_none(),
+                    onclick: move |_| {
+                        if let Some(input) = file_input() {
+                            input.click();
+                        }
+                    },
+                    "Attach STEP / STL / WRL model"
                 }
-                BoardButton { r#type: "button", disabled: remove_pending, onclick: remove_model, "Remove attached model" }
-            } else {
-                p { class: "m1-parts-empty", "No model attached to this component." }
-            }
-            label { class: "m1-generator-field", "Attach STEP / STL / WRL model",
-                input { r#type: "file", accept: ".step,.stp,.stl,.wrl,model/step,model/stl,model/vrml", disabled: uploading() || upload_pending || current_owner.is_none(), onchange: upload_model }
-            }
-            if uploading() {
-                p { class: "m1-parts-loading", role: "status", "Reading and saving model file…" }
-                BoardButton { r#type: "button", onclick: cancel_upload, "Cancel model import" }
-            }
+                input {
+                    r#type: "file",
+                    hidden: true,
+                    accept: ".step,.stp,.stl,.wrl,model/step,model/stl,model/vrml",
+                    aria_label: "Attach STEP / STL / WRL model",
+                    disabled: uploading() || upload_pending || current_owner.is_none(),
+                    onmounted: move |event: MountedEvent| {
+                        file_input.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<HtmlInputElement>()).cloned());
+                    },
+                    onchange: upload_model,
+                }
+                if uploading() {
+                    div { role: "status", class: "flex flex-wrap items-center gap-2",
+                        Spinner {}
+                        "Reading and saving model file…"
+                        Button { variant: ButtonVariant::Secondary, onclick: cancel_upload, "Cancel model import" }
+                    }
+                }
 
-            if let Some(message) = visible_notice { p { class: "m1-parts-preview-status", role: "status", "{message}" } }
-            if let Some(message) = visible_error { p { class: "m1-parts-load-error", role: "alert", "{message}" } }
+                if let Some(message) = visible_notice { div { role: "status", Callout { variant: CalloutVariant::Info, "{message}" } } }
+                if let Some(message) = visible_error { Alert { variant: AlertVariant::Destructive, "{message}" } }
+            }
         }
     }
 }
@@ -781,7 +813,7 @@ fn ModelVectorEditor(
         }
     }
     rsx! {
-        fieldset { class: "m1-model-vector",
+        fieldset { class: "grid gap-2",
             legend { "{title} · {unit}" }
             ModelAxisGrid {
             for (index, axis, label) in [(0, Axis::X, "X"), (1, Axis::Y, "Y"), (2, Axis::Z, "Z")] {
@@ -856,7 +888,7 @@ fn ModelVectorEditor(
                 }
             }
             }
-            if let Some(message) = failure() { small { role: "alert", "{message}" } }
+            if let Some(message) = failure() { FieldError { "{message}" } }
         }
     }
 }
@@ -867,6 +899,7 @@ mod settlement_tests {
     use boardstudio_core::model::ProjectDoc;
     use boardstudio_web_runtime::pending_edits::PendingEdits;
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use wasm_bindgen_test::*;
 
@@ -1080,9 +1113,8 @@ mod settlement_tests {
     }
 
     fn input(root: &web_sys::Element, axis: &str) -> HtmlInputElement {
-        root.query_selector(&format!("input[aria-label='Offset {axis} mm']"))
-            .unwrap()
-            .unwrap()
+        by_role_name(root, "spinbutton", &format!("Offset {axis} mm"))
+            .unwrap_or_else(|| panic!("offset {axis} field"))
             .dyn_into()
             .unwrap()
     }
@@ -1113,9 +1145,7 @@ mod settlement_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("model offset input mounts", || {
-            root.query_selector("input[aria-label='Offset X mm']")
-                .unwrap()
-                .is_some()
+            by_role_name(&root, "spinbutton", "Offset X mm").is_some()
         })
         .await;
         let x = input(&root, "X");
@@ -1184,9 +1214,7 @@ mod settlement_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("model offset input mounts", || {
-            root.query_selector("input[aria-label='Offset X mm']")
-                .unwrap()
-                .is_some()
+            by_role_name(&root, "spinbutton", "Offset X mm").is_some()
         })
         .await;
         let x = input(&root, "X");
@@ -1282,13 +1310,8 @@ mod settlement_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("model offset inputs mount", || {
-            root.query_selector("input[aria-label='Offset X mm']")
-                .unwrap()
-                .is_some()
-                && root
-                    .query_selector("input[aria-label='Offset Y mm']")
-                    .unwrap()
-                    .is_some()
+            by_role_name(&root, "spinbutton", "Offset X mm").is_some()
+                && by_role_name(&root, "spinbutton", "Offset Y mm").is_some()
         })
         .await;
         let x = input(&root, "X");

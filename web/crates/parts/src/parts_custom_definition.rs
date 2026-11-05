@@ -93,12 +93,19 @@ pub(crate) mod ui {
         Axis, DefinitionEdit, DefinitionPanelCapture, PadRowKeys, courtyard_bounds,
         definition_field_resolver, validate_definition_edit,
     };
+    use crate::parts::editor_fields::{EditorNumberField, EditorTextField};
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_core::model::{Pad, PadShape, PartDefinition, PartKind};
     use boardstudio_web_runtime::pending_edits::PendingEditResult;
-    use boardstudio_web_ui_shared::controls::{BoardButton, BoardSelectField};
     use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+    use boardstudio_web_ui_shared::ui::{
+        alert::{Alert, AlertVariant},
+        button::{Button, ButtonVariant},
+        callout::{Callout, CalloutVariant},
+        field::{Field, FieldLabel},
+        select::{Select, SelectOption},
+    };
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
     use std::cell::RefCell;
@@ -516,10 +523,17 @@ pub(crate) mod ui {
         row_drafts.borrow_mut().retain_rows(&row_keys, &pending);
 
         let kind = kind_name(&definition.kind);
+        let kind_id = format!(
+            "parts-definition-kind-{}",
+            dioxus::core::current_scope_id().0
+        );
+        let kind_value = use_memo(use_reactive((&kind,), |(kind,)| Some(kind.to_owned())));
         let on_kind = {
             let begin_kind = submit;
-            move |event: FormEvent| {
-                if let Some(kind) = parse_kind(&event.value()) {
+            move |next: Option<String>| {
+                if let Some(value) = next
+                    && let Some(kind) = parse_kind(&value)
+                {
                     begin_kind.call(DefinitionFieldEdit {
                         row: None,
                         edit: DefinitionEdit::Kind(kind),
@@ -565,42 +579,45 @@ pub(crate) mod ui {
         let add_pad_pending = pending.is_pending(&DefinitionFieldKey::AddPad);
 
         rsx! {
-            div { class: "m1-definition-fields",
-                BoardSelectField {
-                    label: "Kind",
-                    aria_label: "Definition kind",
-                    value: "{kind}",
-                    onchange: on_kind,
-                    option { value: "switch", "Switch" }
-                        option { value: "controller", "Controller" }
-                        option { value: "connector", "Connector" }
-                        option { value: "encoder", "Encoder" }
-                        option { value: "passive", "Passive" }
-                        option { value: "custom", "Custom" }
+            div { class: "grid gap-3",
+                Field { class: "gap-1.5",
+                    FieldLabel { html_for: kind_id.clone(), "Kind" }
+                    Select::<String> {
+                        class: "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch",
+                        id: kind_id.clone(),
+                        aria_label: "Definition kind",
+                        value: Some(kind_value.into()),
+                        on_value_change: on_kind,
+                        for (index, (value, text)) in [("switch", "Switch"), ("controller", "Controller"), ("connector", "Connector"), ("encoder", "Encoder"), ("passive", "Passive"), ("custom", "Custom")].into_iter().enumerate() {
+                            SelectOption::<String> { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index, value: value.to_owned(), text_value: text.to_owned(), "{text}" }
+                        }
+                    }
                 }
-                fieldset { class: "m1-definition-courtyard",
+                fieldset { class: "grid gap-2",
                     legend { "Rectangular courtyard (mm)" }
-                    label { "Width", input {
+                    EditorNumberField {
+                        label: "Width", value: "{width()}",
                         aria_label: "Courtyard width",
-                        r#type: "number", min: "0.01", step: "0.1", value: "{width()}",
-                        oninput: move |event| { width.set(event.value()); width_dirty.set(true); },
+                        min: "0.01", step: "0.1",
+                        oninput: move |event: FormEvent| { width.set(event.value()); width_dirty.set(true); },
                         onblur: on_width_blur,
                         onkeydown: width_keydown,
-                    } }
-                    label { "Height", input {
+                    }
+                    EditorNumberField {
+                        label: "Height", value: "{height()}",
                         aria_label: "Courtyard height",
-                        r#type: "number", min: "0.01", step: "0.1", value: "{height()}",
-                        oninput: move |event| { height.set(event.value()); height_dirty.set(true); },
+                        min: "0.01", step: "0.1",
+                        oninput: move |event: FormEvent| { height.set(event.value()); height_dirty.set(true); },
                         onblur: on_height_blur,
                         onkeydown: height_keydown,
-                    } }
+                    }
                 }
-                div { class: "m1-definition-pad-heading",
+                div { class: "flex flex-wrap items-center justify-between gap-2",
                     strong { "Pads " small { "{definition.pads.len()}" } }
-                    button { r#type: "button", disabled: kicad_locked || add_pad_pending, onclick: on_add, "+ Add pad" }
+                    Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: kicad_locked || add_pad_pending, onclick: on_add, "+ Add pad" }
                 }
                 if kicad_locked {
-                    p { class: "m1-definition-note", "Imported pad geometry stays linked to its original KiCad source." }
+                    Callout { variant: CalloutVariant::Info, "Imported pad geometry stays linked to its original KiCad source." }
                 }
                 for (index, (pad, row_key)) in definition.pads.iter().zip(row_keys.iter().copied()).enumerate() {
                     PadFields {
@@ -615,11 +632,11 @@ pub(crate) mod ui {
                         submit,
                     }
                 }
-                ul { class: "m1-definition-validation", "aria-live": "polite",
+                ul { class: "grid gap-1 text-sm", "aria-live": "polite",
                     for issue in definition_issues(&definition) { li { "{issue}" } }
                 }
                 if let Some(message) = failure() {
-                    p { class: "m1-definition-error", role: "alert", "{message}" }
+                    Alert { variant: AlertVariant::Destructive, "{message}" }
                 }
             }
         }
@@ -904,8 +921,16 @@ pub(crate) mod ui {
             move |event| draft_keydown(event, drill, drill_dirty, committed_drill.clone());
         let submit_shape = submit;
         let old_id = pad.id.clone();
-        let on_shape = move |event: FormEvent| {
-            if let Some(shape) = parse_shape(&event.value()) {
+        let shape_id = format!(
+            "parts-pad-shape-{row}-{}",
+            dioxus::core::current_scope_id().0
+        );
+        let shape_value = shape_name(&pad.shape).to_owned();
+        let shape_current = use_memo(use_reactive((&shape_value,), |(shape,)| Some(shape)));
+        let on_shape = move |next: Option<String>| {
+            if let Some(value) = next
+                && let Some(shape) = parse_shape(&value)
+            {
                 submit_shape.call(DefinitionFieldEdit {
                     row: Some(row),
                     edit: DefinitionEdit::PadShape {
@@ -927,22 +952,32 @@ pub(crate) mod ui {
         };
 
         rsx! {
-            fieldset { class: "m1-definition-pad", disabled: locked,
+            fieldset { class: "grid gap-2", disabled: locked,
                 legend { "Pad {index + 1}" }
-                div { class: "m1-definition-pad-grid",
-                    label { "ID", input { aria_label: "Pad {index + 1} ID", value: "{id()}", oninput: move |event| { id.set(event.value()); id_dirty.set(true); }, onblur: on_id_blur, onkeydown: id_keydown } }
-                    label { "Number", input { aria_label: "Pad {index + 1} number", value: "{number()}", oninput: move |event| { number.set(event.value()); number_dirty.set(true); }, onblur: on_number_blur, onkeydown: number_keydown } }
-                    label { "X", input { aria_label: "Pad {index + 1} X", r#type: "number", step: "0.1", value: "{x()}", oninput: move |event| { x.set(event.value()); x_dirty.set(true); }, onblur: on_x_blur, onkeydown: x_keydown } }
-                    label { "Y", input { aria_label: "Pad {index + 1} Y", r#type: "number", step: "0.1", value: "{y()}", oninput: move |event| { y.set(event.value()); y_dirty.set(true); }, onblur: on_y_blur, onkeydown: y_keydown } }
-                    label { "Width", input { aria_label: "Pad {index + 1} width", r#type: "number", min: "0.01", step: "0.1", value: "{size_x()}", oninput: move |event| { size_x.set(event.value()); size_x_dirty.set(true); }, onblur: on_width_blur, onkeydown: width_keydown } }
-                    label { "Height", input { aria_label: "Pad {index + 1} height", r#type: "number", min: "0.01", step: "0.1", value: "{size_y()}", oninput: move |event| { size_y.set(event.value()); size_y_dirty.set(true); }, onblur: on_height_blur, onkeydown: height_keydown } }
-                    label { "Shape", select { aria_label: "Pad {index + 1} shape", value: "{shape_name(&pad.shape)}", onchange: on_shape,
-                        option { value: "circle", "Circle" } option { value: "oval", "Oval" }
-                        option { value: "rect", "Rectangle" } option { value: "roundrect", "Rounded rectangle" }
-                    } }
-                    label { "Drill", input { aria_label: "Pad {index + 1} drill", r#type: "number", min: "0.01", step: "0.1", placeholder: "None", value: "{drill()}", oninput: move |event| { drill.set(event.value()); drill_dirty.set(true); }, onblur: on_drill_blur, onkeydown: drill_keydown } }
+                div { class: "grid grid-cols-2 gap-2",
+                    EditorTextField { label: "ID", value: "{id()}", aria_label: "Pad {index + 1} ID", disabled: locked, oninput: move |event: FormEvent| { id.set(event.value()); id_dirty.set(true); }, onblur: on_id_blur, onkeydown: id_keydown }
+                    EditorTextField { label: "Number", value: "{number()}", aria_label: "Pad {index + 1} number", disabled: locked, oninput: move |event: FormEvent| { number.set(event.value()); number_dirty.set(true); }, onblur: on_number_blur, onkeydown: number_keydown }
+                    EditorNumberField { label: "X", value: "{x()}", aria_label: "Pad {index + 1} X", disabled: locked, step: "0.1", oninput: move |event: FormEvent| { x.set(event.value()); x_dirty.set(true); }, onblur: on_x_blur, onkeydown: x_keydown }
+                    EditorNumberField { label: "Y", value: "{y()}", aria_label: "Pad {index + 1} Y", disabled: locked, step: "0.1", oninput: move |event: FormEvent| { y.set(event.value()); y_dirty.set(true); }, onblur: on_y_blur, onkeydown: y_keydown }
+                    EditorNumberField { label: "Width", value: "{size_x()}", aria_label: "Pad {index + 1} width", disabled: locked, min: "0.01", step: "0.1", oninput: move |event: FormEvent| { size_x.set(event.value()); size_x_dirty.set(true); }, onblur: on_width_blur, onkeydown: width_keydown }
+                    EditorNumberField { label: "Height", value: "{size_y()}", aria_label: "Pad {index + 1} height", disabled: locked, min: "0.01", step: "0.1", oninput: move |event: FormEvent| { size_y.set(event.value()); size_y_dirty.set(true); }, onblur: on_height_blur, onkeydown: height_keydown }
+                    Field { class: "gap-1.5", disabled: locked,
+                        FieldLabel { html_for: shape_id.clone(), "Shape" }
+                        Select::<String> {
+                            class: "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch",
+                            id: shape_id.clone(),
+                            aria_label: "Pad {index + 1} shape",
+                            value: Some(shape_current.into()),
+                            disabled: locked,
+                            on_value_change: on_shape,
+                            for (option_index, (option_value, option_text)) in [("circle", "Circle"), ("oval", "Oval"), ("rect", "Rectangle"), ("roundrect", "Rounded rectangle")].into_iter().enumerate() {
+                                SelectOption::<String> { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index: option_index, value: option_value.to_owned(), text_value: option_text.to_owned(), "{option_text}" }
+                            }
+                        }
+                    }
+                    EditorNumberField { label: "Drill", value: "{drill()}", aria_label: "Pad {index + 1} drill", disabled: locked, min: "0.01", step: "0.1", placeholder: "None", oninput: move |event: FormEvent| { drill.set(event.value()); drill_dirty.set(true); }, onblur: on_drill_blur, onkeydown: drill_keydown }
                 }
-                BoardButton { class: "m1-definition-remove-pad", r#type: "button", disabled: remove_pending, onclick: on_remove, "Remove pad" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: remove_pending, onclick: on_remove, "Remove pad" }
             }
         }
     }

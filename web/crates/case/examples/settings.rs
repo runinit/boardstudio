@@ -1,4 +1,4 @@
-//! Ticket 017 mounts the actual Case settings. Only accepted values and callbacks live here.
+//! Tickets 017/018 mount the actual Case settings. Only accepted values and callbacks live here.
 #[cfg(target_arch = "wasm32")]
 use boardstudio_core::model::*;
 #[cfg(target_arch = "wasm32")]
@@ -7,6 +7,20 @@ use boardstudio_web_case::mechanical_settings::*;
 use dioxus::prelude::*;
 #[cfg(target_arch = "wasm32")]
 use std::rc::Rc;
+
+#[cfg(target_arch = "wasm32")]
+fn fixture_battery() -> MechanicalBattery {
+    MechanicalBattery {
+        cable_width: None,
+        size: Vec3 {
+            x: 30.0,
+            y: 20.0,
+            z: 6.0,
+        },
+        at: Vec2 { x: 12.0, y: -4.0 },
+        cable_exit: Vec2 { x: 29.0, y: -4.0 },
+    }
+}
 
 #[cfg(target_arch = "wasm32")]
 fn fixture() -> Element {
@@ -20,9 +34,30 @@ fn fixture() -> Element {
     let mut values = use_signal(|| MechanicalSettingsValues {
         board_id: "board".into(),
         transport: HardwareTransport::Wired,
-        battery: None,
-        suspension_mounts: vec![],
-        closure_mounts: Some(vec![]),
+        battery: Some(fixture_battery()),
+        suspension_mounts: vec![Mount {
+            id: "mount-1".into(),
+            at: Vec2 { x: 2.0, y: 3.0 },
+            kind: MountKind::Hole,
+            hole_diameter: 3.2,
+            boss_diameter: None,
+            height: None,
+        }],
+        closure_mounts: Some(
+            (1..=13)
+                .map(|index| Mount {
+                    id: format!("mount-c{index}"),
+                    at: Vec2 {
+                        x: f64::from(index) * 2.0,
+                        y: 3.0,
+                    },
+                    kind: MountKind::Hole,
+                    hole_diameter: 3.2,
+                    boss_diameter: None,
+                    height: None,
+                })
+                .collect(),
+        ),
         method: PlateMethod::Printed,
         mount: MechanicalMount::Rigid,
         bottom_style: MechanicalBottomStyle::Sheet,
@@ -36,11 +71,78 @@ fn fixture() -> Element {
         wall_thickness: 2.0,
         clearance: 0.2,
         opening_allowance: 0.0,
-        openings: vec![],
-        internal_gasket: false,
-        closure_hardware: None,
-        hardware: vec![],
-        critical_fits: vec![],
+        openings: vec![MechanicalOpening {
+            id: "opening-1".into(),
+            vertices: vec![
+                MechanicalOpeningVertex {
+                    id: "vertex-1".into(),
+                    point: Vec2 { x: 0.0, y: 0.0 },
+                },
+                MechanicalOpeningVertex {
+                    id: "vertex-2".into(),
+                    point: Vec2 { x: 10.0, y: 0.0 },
+                },
+                MechanicalOpeningVertex {
+                    id: "vertex-3".into(),
+                    point: Vec2 { x: 10.0, y: 5.0 },
+                },
+                MechanicalOpeningVertex {
+                    id: "vertex-4".into(),
+                    point: Vec2 { x: 0.0, y: 5.0 },
+                },
+            ],
+            z: 0.0,
+            height: 10.0,
+            next_vertex_identity: 0,
+        }],
+        internal_gasket: true,
+        closure_hardware: Some(InternalClosureHardware {
+            drive: ScrewDrive::Hex,
+            installation: InsertInstallation::HeatSet,
+            thread_diameter: 2.0,
+            pitch: 0.4,
+            insert_length: 3.0,
+            thread_start: 0.5,
+            tip_allowance: 0.5,
+            seat_lead_depth: 1.0,
+            seat_lead_diameter: 2.2,
+            bearing_thickness: 1.0,
+            fixed_length: None,
+            length_datum: ScrewLengthDatum::UnderHead,
+            head_profile: ScrewHeadProfile::Flat,
+            id: "closure-1".into(),
+            thread: "M2".into(),
+            screw_lengths: vec![3.0, 4.0],
+            head_diameter: 3.8,
+            head_height: 2.0,
+            hole_diameter: 2.2,
+            insert_diameter: 3.2,
+            seat_diameter: 4.0,
+            seat_depth: 1.0,
+            engagement: 2.5,
+            bottoming_clearance: 0.5,
+            roof: 1.0,
+            surround: 1.5,
+        }),
+        hardware: vec![MechanicalHardwareSpecification {
+            id: "hw-1".into(),
+            part_id: "bottom".into(),
+            feature_id: "mount-c1".into(),
+            designation: "M2x4".into(),
+            thread: "M2".into(),
+            length: 4.0,
+            quantity: 4,
+            notes: None,
+            tolerance: None,
+        }],
+        critical_fits: vec![MechanicalCriticalFit {
+            id: "fit-1".into(),
+            part_id: "plate".into(),
+            label: "Plate gap".into(),
+            from: Vec2 { x: 0.0, y: 0.0 },
+            to: Vec2 { x: 10.0, y: 0.0 },
+            tolerance: "±0.1".into(),
+        }],
         plate_to_pcb: 3.5,
         battery_height: 0.0,
     });
@@ -107,6 +209,7 @@ fn fixture() -> Element {
     rsx! {
         boardstudio_web_ui_shared::ui::button::Button { onclick: move |_| editable.set(!editable()), "Toggle editing" }
         boardstudio_web_ui_shared::ui::button::Button { onclick: move |_| target_count.set(12), "Twelve profile targets" }
+        boardstudio_web_ui_shared::ui::button::Button { onclick: move |_| values.with_mut(|values| values.battery = if values.battery.is_some() { None } else { Some(fixture_battery()) }), "Toggle battery" }
         output { role: "status", aria_label: "Requests", "{requests}" }
         output { role: "status", aria_label: "Last request", "{last}" }
         output { role: "status", aria_label: "Accepted plate thickness", "{values().plate_thickness}" }
@@ -122,13 +225,57 @@ fn fixture() -> Element {
             profile_targets: Rc::from((1..=target_count()).map(|i|MechanicalProfileTargetChoice {
                 definition_id:format!("part-{i}"),name:format!("Part {i}"),switch_profile:true,imported_geometry:true,
             }).collect::<Vec<_>>()),
-            extract_profile: Some(extraction), process_targets: Rc::from([]), stabilizer_fits: Rc::from([]),
+            extract_profile: Some(extraction),
+            process_targets: Rc::from([
+                MechanicalProcessTarget {
+                    part_id: "plate".into(),
+                    name: "Plate".into(),
+                    default_thickness: 1.5,
+                    process: Some(MechanicalPartProcess {
+                        part_id: "plate".into(),
+                        method: PlateMethod::Printed,
+                        material: "PLA".into(),
+                        thickness: 1.5,
+                        constraints_version: String::new(),
+                    }),
+                },
+                MechanicalProcessTarget {
+                    part_id: "bottom".into(),
+                    name: "Bottom".into(),
+                    default_thickness: 2.0,
+                    process: None,
+                },
+            ]),
+            stabilizer_fits: Rc::from([MechanicalStabilizerFit {
+                part_id: "plate".into(),
+                reference: "Space".into(),
+                key_units: 6.25,
+                default: MechanicalStabilizerOverride {
+                    profile: None,
+                    part_id: "plate".into(),
+                    kind: MechanicalStabilizerKind::PcbMount,
+                    units: 6.25,
+                    rotation: None,
+                },
+                current: MechanicalStabilizerOverride {
+                    profile: None,
+                    part_id: "plate".into(),
+                    kind: MechanicalStabilizerKind::PcbMount,
+                    units: 6.25,
+                    rotation: None,
+                },
+            }]),
             layers: Rc::from([
                 MechanicalLayerRow { id:"fixture-layer".into(),label:"Fixture layer".into(),z:0.0,thickness:1.5,resolved_body_thickness:None,is_previous:false },
                 MechanicalLayerRow { id:"second-layer".into(),label:"Second layer".into(),z:2.0,thickness:1.6,resolved_body_thickness:None,is_previous:false },
             ]),
             gasket_supports: Rc::from([]),fit_parts:Rc::from([]),fit_parts_resolved:false,
-            hardware_mounts:Rc::from([]),suggested_mounts:Rc::from([]),findings:Rc::from([]),
+            hardware_mounts:Rc::from([]),suggested_mounts:Rc::from([]),
+            findings: Rc::from([MechanicalFindingRow {
+                id: "finding-1".into(),
+                severity: Severity::Error,
+                message: "Fixture clearance error".into(),
+            }]),
             selected_layer:selected(),mismatch:None,editable:editable(),disabled_reason:None,
             feedback:Rc::from([]),summary_feedback:None,
             on_select_layer:move |id| selected.set(id), on_show_finding:move |_| {},
@@ -142,6 +289,8 @@ fn fixture() -> Element {
                     MechanicalSettingsPatch::SetMiddleFrame(v)=> values.middle_frame=v,
                     MechanicalSettingsPatch::SetIntegratedPlateFrame(v)=> values.integrated_plate_frame=v,
                     MechanicalSettingsPatch::SetDimension{field:MechanicalDimension::PlateThickness,value} => values.plate_thickness=value,
+                    MechanicalSettingsPatch::SetBatteryEnabled(true)=> values.battery = Some(fixture_battery()),
+                    MechanicalSettingsPatch::SetBatteryEnabled(false)=> values.battery = None,
                     MechanicalSettingsPatch::UpdateProfile(next)=>profile.set(next),
                     _=>{},
                 });

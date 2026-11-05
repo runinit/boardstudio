@@ -1,4 +1,5 @@
 //! Parts-owned retained generator settings drafts and their accepted edit boundary.
+use super::editor_fields::{EditorNumberField, EditorSelect, EditorTextField, EditorTextarea};
 use super::{GeneratorDraftStore, GeneratorPreviewDraft};
 use crate::parts_custom_definition::replacement_commit;
 use crate::{presentation::model_asset_import::read_model_file, runtime::Runtime};
@@ -7,10 +8,15 @@ use boardstudio_core::model::{Asset, EditOperation, Net, PartDefinition, Pin};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 #[cfg(test)]
 use boardstudio_web_runtime::pending_edits::PendingEdits;
-use boardstudio_web_ui_shared::controls::{
-    BoardButton, BoardCheckbox, BoardDisclosure, BoardSelectField,
-};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertVariant},
+    button::{Button, ButtonVariant},
+    checkbox::{Checkbox, CheckboxState},
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    field::{FieldError, FieldLabel},
+    spinner::Spinner,
+};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use serde_json::Value;
@@ -928,10 +934,10 @@ pub fn GeneratorSettingsEditor(
     let schema = match schema_result {
         Some(Ok(schema)) => schema,
         Some(Err(error)) => {
-            return rsx! { p { class: "m1-parts-load-error", role: "alert", "Generator settings could not be loaded: {error}" } };
+            return rsx! { Alert { variant: AlertVariant::Destructive, "Generator settings could not be loaded: {error}" } };
         }
         None => {
-            return rsx! { p { class: "m1-parts-loading", role: "status", "Loading generator settings…" } };
+            return rsx! { div { role: "status", class: "flex items-center gap-2", Spinner {} "Loading generator settings…" } };
         }
     };
     let entries = parameters(&definition, &schema);
@@ -1288,15 +1294,16 @@ pub fn GeneratorSettingsEditor(
         "Advanced footprint options",
     ];
     rsx! {
-        section { class: "m1-generator-settings", "aria-label": "Generator settings",
+        section { class: "grid gap-2", "aria-label": "Generator settings",
             for group in groups {
                 { let group_entries = entries.iter().filter(|entry| entry.group == group).cloned().collect::<Vec<_>>();
                   rsx! {
                     if !group_entries.is_empty() {
-                    BoardDisclosure { open: group == "Footprint options" || group == "Keycap dimensions",
-                        heading: rsx! { summary { "{group}" } },
+                    Collapsible { keep_mounted: true, default_open: group == "Footprint options" || group == "Keycap dimensions",
+                        CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{group}" }
+                        CollapsibleContent { class: "data-[open=false]:hidden",
                         fieldset {
-                            class: "m1-generator-fields",
+                            class: "grid gap-2",
                             "aria-label": "{group}",
                             for entry in group_entries {
                                 GeneratorParameterField {
@@ -1318,6 +1325,7 @@ pub fn GeneratorSettingsEditor(
                                 }
                             }
                         }
+                        }
                     }
                     }
                   }
@@ -1325,12 +1333,12 @@ pub fn GeneratorSettingsEditor(
             }
             if let Some(draft) = active_draft.as_ref() {
                 match &draft.status {
-                    GeneratorPreviewStatus::Pending => rsx! { p { role: "status", "Generating footprint preview…" } },
-                    GeneratorPreviewStatus::Ready => rsx! { p { role: "status", "Current generator preview is ready to apply." } },
-                    GeneratorPreviewStatus::Failed(error) => rsx! { p { class: "m1-parts-load-error", role: "alert", "Generator preview failed: {error}" } },
+                    GeneratorPreviewStatus::Pending => rsx! { div { role: "status", class: "flex items-center gap-2", Spinner {} "Generating footprint preview…" } },
+                    GeneratorPreviewStatus::Ready => rsx! { div { role: "status", "Current generator preview is ready to apply." } },
+                    GeneratorPreviewStatus::Failed(error) => rsx! { Alert { variant: AlertVariant::Destructive, "Generator preview failed: {error}" } },
                 }
             }
-            if model_uploading() { p { role: "status", "Reading and saving generator model…" } }
+            if model_uploading() { div { role: "status", class: "flex items-center gap-2", Spinner {} "Reading and saving generator model…" } }
             if let Some(message) = feedback()
                 .filter(|message| owner_context_is_current(
                     &message.owner,
@@ -1341,11 +1349,11 @@ pub fn GeneratorSettingsEditor(
                     workspace(),
                 ))
             {
-                p { class: "m1-parts-load-error", role: "alert", "{message.message}" }
+                Alert { variant: AlertVariant::Destructive, "{message.message}" }
             }
-            BoardButton {
-                class: "m1-generator-apply",
-                r#type: "button",
+            Button {
+                variant: ButtonVariant::Default,
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 disabled: !preview_ready || pending_edits.is_pending(&GeneratorKey::Apply),
                 onclick: on_apply,
                 "Apply generator settings"
@@ -1365,6 +1373,7 @@ fn GeneratorParameterField(
 ) -> Element {
     let key = entry.key.clone();
     let label = entry.label.clone();
+    let mut file_input = use_signal(|| None::<HtmlInputElement>);
     if key.to_ascii_lowercase().ends_with("3dmodel_filename") {
         let current = input_value(&value, &entry.kind);
         let field_error = feedback.filter(|message| {
@@ -1373,113 +1382,114 @@ fn GeneratorParameterField(
                 .starts_with(&key.replace('_', " ").to_ascii_lowercase())
         });
         return rsx! {
-            div { class: "m1-generator-field m1-generator-model-field",
-                label { "{label}",
-                    input {
-                        r#type: "text",
-                        aria_label: "{key}",
-                        value: "{current}",
-                        readonly: true,
-                    }
-                }
-                label { class: "m1-generator-field", "Attach STEP / STL / WRL",
-                    input {
-                        r#type: "file",
-                        accept: ".step,.stp,.stl,.wrl,model/step,model/stl,model/vrml",
-                        disabled: busy,
-                        onchange: move |event| {
-                            let Some(input) = event
-                                .data()
-                                .try_as_web_event()
-                                .and_then(|event| event.target())
-                                .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
-                            else {
-                                return;
-                            };
-                            let Some(file) = input.files().and_then(|files| files.get(0)) else {
-                                return;
-                            };
-                            input.set_value("");
-                            on_import.call((key.clone(), file));
+            div { class: "grid gap-2",
+                EditorTextField { label: "{label}", aria_label: "{key}", value: "{current}", readonly: true }
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    disabled: busy,
+                    onclick: move |_| {
+                        if let Some(input) = file_input() {
+                            input.click();
                         }
+                    },
+                    "Attach STEP / STL / WRL"
+                }
+                input {
+                    r#type: "file",
+                    hidden: true,
+                    accept: ".step,.stp,.stl,.wrl,model/step,model/stl,model/vrml",
+                    aria_label: "Attach STEP / STL / WRL",
+                    disabled: busy,
+                    onmounted: move |event: MountedEvent| {
+                        file_input.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<HtmlInputElement>()).cloned());
+                    },
+                    onchange: move |event| {
+                        let Some(input) = event
+                            .data()
+                            .try_as_web_event()
+                            .and_then(|event| event.target())
+                            .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                        else {
+                            return;
+                        };
+                        let Some(file) = input.files().and_then(|files| files.get(0)) else {
+                            return;
+                        };
+                        input.set_value("");
+                        on_import.call((key.clone(), file));
                     }
                 }
                 if !current.is_empty() {
-                    BoardButton {
-                        r#type: "button",
-                        class: "m1-generator-apply",
+                    Button {
+                        variant: ButtonVariant::Default,
+                        class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: busy,
                         onclick: move |_| on_change.call(Value::String(String::new())),
                         "Remove model"
                     }
                 }
-                if let Some(message) = field_error { p { class: "m1-parts-load-error", role: "alert", "{message}" } }
+                if let Some(message) = field_error { FieldError { "{message}" } }
             }
         };
     }
     if key == "side" && matches!(value.as_str(), Some("F" | "B")) {
         let selected = value.as_str().unwrap_or("F").to_owned();
         return rsx! {
-            BoardSelectField {
-                class: "m1-generator-field",
+            EditorSelect {
                 label: label.clone(),
                 aria_label: "side",
                 value: selected,
-                onchange: move |event: FormEvent| on_change.call(Value::String(event.value())),
-                option { value: "F", "Front" }
-                option { value: "B", "Back" }
+                options: vec![("F".to_owned(), "Front".to_owned()), ("B".to_owned(), "Back".to_owned())],
+                on_select: move |value: String| on_change.call(Value::String(value)),
             }
         };
     }
     match entry.kind.as_str() {
         "boolean" => rsx! {
-            label { class: "m1-generator-toggle",
-                BoardCheckbox {
+            FieldLabel { html_for: format!("generator-toggle-{key}-{}", dioxus::core::current_scope_id().0), class: "min-h-control-touch",
+                Checkbox {
+                    id: format!("generator-toggle-{key}-{}", dioxus::core::current_scope_id().0),
                     aria_label: "{key}",
-                    checked: value.as_bool().unwrap_or(false),
-                    onchange: move |event: FormEvent| on_change.call(Value::Bool(event.checked())),
+                    checked: Some(if value.as_bool().unwrap_or(false) { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                    on_checked_change: move |state: CheckboxState| on_change.call(Value::Bool(bool::from(state))),
                 }
-                "{label}"
+                span { "{label}" }
             }
         },
         "array" | "object" | "anchor" => {
             let current = input_value(&value, &entry.kind);
             rsx! {
-                label { class: "m1-generator-field", "{label}",
-                    textarea {
-                        aria_label: "{key}",
-                        rows: 3,
-                        spellcheck: "false",
-                        value: "{current}",
-                        oninput: move |event| on_change.call(Value::String(event.value())),
-                    }
+                EditorTextarea {
+                    label: "{label}",
+                    aria_label: "{key}",
+                    rows: 3,
+                    spellcheck: false,
+                    value: "{current}",
+                    oninput: move |event: FormEvent| on_change.call(Value::String(event.value())),
                 }
             }
         }
         "number" => {
             let current = input_value(&value, "number");
             rsx! {
-                label { class: "m1-generator-field", "{label}",
-                    input {
-                        r#type: "number",
-                        step: "any",
-                        aria_label: "{label}",
-                        value: "{current}",
-                        oninput: move |event| on_change.call(Value::String(event.value())),
-                    }
+                EditorNumberField {
+                    label: "{label}",
+                    aria_label: "{label}",
+                    step: "any",
+                    value: "{current}",
+                    oninput: move |event: FormEvent| on_change.call(Value::String(event.value())),
                 }
             }
         }
         _ => {
             let current = input_value(&value, &entry.kind);
             rsx! {
-                label { class: "m1-generator-field", "{label}",
-                    input {
-                        r#type: "text",
-                        aria_label: "{key}",
-                        value: "{current}",
-                        oninput: move |event| on_change.call(Value::String(event.value())),
-                    }
+                EditorTextField {
+                    label: "{label}",
+                    aria_label: "{key}",
+                    value: "{current}",
+                    oninput: move |event: FormEvent| on_change.call(Value::String(event.value())),
                 }
             }
         }
@@ -1492,6 +1502,7 @@ mod tests {
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{Board, MechanicalPartProfile, ProjectDoc, SceneDelta};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use futures_channel::oneshot;
     use std::sync::Arc;
     use std::{cell::RefCell, collections::VecDeque};
@@ -1673,19 +1684,19 @@ mod tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        wait_for_selector(&root, "input[aria-label='Keycap Width']").await;
+        wait_for_control(&root, "spinbutton", "Keycap Width").await;
         (root, fixture, handles)
     }
 
-    async fn wait_for_selector(root: &web_sys::Element, selector: &str) {
+    async fn wait_for_control(root: &web_sys::Element, role: &str, name: &str) {
         for _ in 0..150 {
-            if root.query_selector(selector).unwrap().is_some() {
+            if by_role_name(root, role, name).is_some() {
                 return;
             }
             gloo_timers::future::TimeoutFuture::new(20).await;
         }
         panic!(
-            "timed out waiting for mounted selector {selector}; mounted text was: {}",
+            "timed out waiting for mounted {role} {name}; mounted text was: {}",
             root.text_content().unwrap_or_default()
         );
     }
@@ -1713,10 +1724,8 @@ mod tests {
     }
 
     fn dispatch_width(root: &web_sys::Element, width: &str) {
-        let input = root
-            .query_selector("input[aria-label='Keycap Width']")
-            .unwrap()
-            .unwrap()
+        let input = by_role_name(root, "spinbutton", "Keycap Width")
+            .expect("mounted keycap width field")
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
         input.set_value(width);
@@ -1976,12 +1985,8 @@ mod tests {
         );
         support::drive_pending(&fixture.runtime);
         entered.await.unwrap();
-        let apply = root
-            .query_selector(".m1-generator-settings > button.m1-generator-apply")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        let apply =
+            by_role_name(&root, "button", "Apply generator settings").expect("apply action");
         apply.click();
         gloo_timers::future::TimeoutFuture::new(30).await;
         support::drive_pending(&fixture.runtime);
@@ -2057,18 +2062,17 @@ mod tests {
         let request = take_request(&fixture.requests, 21.0).await;
         let prepared = candidate(&request);
         finish_request(request, Ok(prepared)).await;
-        let field = root
-            .query_selector("input[aria-label='switch_3dmodel_filename']")
-            .unwrap()
-            .unwrap()
+        let filename_field = by_role_name(&root, "textbox", "switch_3dmodel_filename")
+            .expect("mounted generator model filename");
+        let container = filename_field
             .parent_element()
-            .unwrap()
-            .parent_element()
-            .unwrap();
-        let input = field
+            .and_then(|input_group| input_group.parent_element())
+            .and_then(|field| field.parent_element())
+            .expect("model field container");
+        let input = container
             .query_selector("input[type=file]")
             .unwrap()
-            .unwrap()
+            .expect("mounted generator model file input")
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
         let file = web_sys::File::new_with_str_sequence(
@@ -2096,11 +2100,8 @@ mod tests {
             gloo_timers::future::TimeoutFuture::new(20).await;
             effects.extend(support::take_held_effects(&fixture.runtime));
             if fail_queued_apply && !apply_queued && !effects.is_empty() {
-                root.query_selector(".m1-generator-settings > button.m1-generator-apply")
-                    .unwrap()
-                    .unwrap()
-                    .dyn_into::<web_sys::HtmlElement>()
-                    .unwrap()
+                by_role_name(&root, "button", "Apply generator settings")
+                    .expect("apply action")
                     .click();
                 apply_queued = true;
             }
@@ -2140,18 +2141,15 @@ mod tests {
             .as_str()
             .unwrap();
         assert!(filename.starts_with("boardstudio-asset:"));
-        let displayed = field
-            .query_selector("input[type=text]")
-            .unwrap()
-            .unwrap()
+        let displayed = by_role_name(&root, "textbox", "switch_3dmodel_filename")
+            .expect("mounted generator model filename")
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
         assert_eq!(displayed.value(), filename);
-        assert!(field.text_content().unwrap().contains("Remove model"));
+        assert!(root.text_content().unwrap().contains("Remove model"));
         assert_eq!(
-            root.query_selector("input[aria-label='Keycap Width']")
-                .unwrap()
-                .unwrap()
+            by_role_name(&root, "spinbutton", "Keycap Width")
+                .expect("mounted keycap width field")
                 .dyn_into::<web_sys::HtmlInputElement>()
                 .unwrap()
                 .value(),
@@ -2176,9 +2174,8 @@ mod tests {
         if fail_queued_apply {
             wait_for_text(&root, "[role='alert']", "Apply after upload failed").await;
             assert_eq!(
-                root.query_selector("input[aria-label='Keycap Width']")
-                    .unwrap()
-                    .unwrap()
+                by_role_name(&root, "spinbutton", "Keycap Width")
+                    .expect("mounted keycap width field")
                     .dyn_into::<web_sys::HtmlInputElement>()
                     .unwrap()
                     .value(),
@@ -2294,12 +2291,8 @@ mod tests {
             "Current generator preview is ready",
         )
         .await;
-        let button = root
-            .query_selector(".m1-generator-settings > button.m1-generator-apply")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        let button =
+            by_role_name(&root, "button", "Apply generator settings").expect("apply action");
         let (entered, release) = support::gate_next_core_reply(&fixture.runtime);
         button.click();
         gloo_timers::future::TimeoutFuture::new(30).await;
@@ -2374,19 +2367,14 @@ mod tests {
         )
         .await;
         support::fail_next_core_reply(&fixture.runtime, "controlled Apply failure");
-        root.query_selector(".m1-generator-settings > button.m1-generator-apply")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
+        by_role_name(&root, "button", "Apply generator settings")
+            .expect("apply action")
             .click();
         gloo_timers::future::TimeoutFuture::new(30).await;
         support::run_pending(&fixture.runtime).await;
         wait_for_text(&root, "[role='alert']", "controlled Apply failure").await;
-        let input = root
-            .query_selector("input[aria-label='Keycap Width']")
-            .unwrap()
-            .unwrap()
+        let input = by_role_name(&root, "spinbutton", "Keycap Width")
+            .expect("mounted keycap width field")
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
         assert_eq!(input.value(), "18.0");
@@ -2401,9 +2389,8 @@ mod tests {
         wait_for_text(&root, "[role='status']", "Generating footprint preview").await;
         let request = take_request(&fixture.requests, 19.0).await;
         assert!(
-            root.query_selector(".m1-generator-settings > button.m1-generator-apply")
-                .unwrap()
-                .unwrap()
+            by_role_name(&root, "button", "Apply generator settings")
+                .expect("apply action")
                 .has_attribute("disabled")
         );
 
@@ -2415,9 +2402,8 @@ mod tests {
         )
         .await;
         assert!(
-            root.query_selector(".m1-generator-settings > button.m1-generator-apply")
-                .unwrap()
-                .unwrap()
+            by_role_name(&root, "button", "Apply generator settings")
+                .expect("apply action")
                 .has_attribute("disabled")
         );
         let accepted = fixture.runtime.model().accepted.unwrap();
@@ -2437,16 +2423,28 @@ mod tests {
         root.remove();
     }
 
-    fn mounted_field(
-        root: &web_sys::Element,
-        selector: &str,
-        property: &str,
-    ) -> wasm_bindgen::JsValue {
-        let field = root
-            .query_selector(selector)
+    fn mounted_value(root: &web_sys::Element, role: &str, name: &str) -> String {
+        by_role_name(root, role, name)
+            .unwrap_or_else(|| panic!("mounted field {role} {name}"))
+            .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap()
-            .unwrap_or_else(|| panic!("mounted field {selector}"));
-        js_sys::Reflect::get(field.as_ref(), &property.into()).unwrap()
+            .value()
+    }
+
+    fn mounted_textarea_value(root: &web_sys::Element, name: &str) -> String {
+        by_role_name(root, "textbox", name)
+            .unwrap_or_else(|| panic!("mounted textarea {name}"))
+            .dyn_into::<web_sys::HtmlTextAreaElement>()
+            .unwrap()
+            .value()
+    }
+
+    fn mounted_checked(root: &web_sys::Element, name: &str) -> bool {
+        by_role_name(root, "checkbox", name)
+            .unwrap_or_else(|| panic!("mounted checkbox {name}"))
+            .get_attribute("aria-checked")
+            .as_deref()
+            == Some("true")
     }
 
     #[wasm_bindgen_test]
@@ -2462,29 +2460,17 @@ mod tests {
             saved_definition.generator.as_mut().unwrap().parameters =
                 serde_json::from_value(saved).unwrap();
             let (root, fixture, _) = mount_generator_editor_with(saved_definition).await;
-            let width = mounted_field(&root, "input[aria-label='Keycap Width']", "value");
-            assert_eq!(width.as_string().unwrap().parse::<f64>(), Ok(18.0));
-            assert_eq!(
-                mounted_field(&root, "input[aria-label='hotswap']", "checked").as_bool(),
-                Some(true)
-            );
-            assert_eq!(
-                mounted_field(&root, "input[aria-label='designator']", "value").as_string(),
-                Some("S".into())
-            );
-            let scale = mounted_field(
-                &root,
-                "textarea[aria-label='keycap_3dmodel_xyz_scale']",
-                "value",
-            )
-            .as_string()
-            .unwrap();
+            let width = mounted_value(&root, "spinbutton", "Keycap Width");
+            assert_eq!(width.parse::<f64>(), Ok(18.0));
+            assert!(mounted_checked(&root, "hotswap"));
+            assert_eq!(mounted_value(&root, "textbox", "designator"), "S");
+            let scale = mounted_textarea_value(&root, "keycap_3dmodel_xyz_scale");
             assert_eq!(
                 serde_json::from_str::<Value>(&scale).unwrap(),
                 serde_json::json!([1, 1, 1])
             );
             assert_eq!(
-                mounted_field(&root, "input[aria-label='from']", "value").as_string(),
+                Some(mounted_value(&root, "textbox", "from")),
                 Some(String::new())
             );
 
@@ -2561,14 +2547,10 @@ mod tests {
     #[wasm_bindgen_test]
     async fn mounted_generator_initial_schema_default_seeds_unapplied_preview() {
         let (root, fixture, handles) = mount_generator_editor().await;
-        let side = root.query_selector("select[aria-label='side']").unwrap();
-        let side = side.expect("mounted Board side control");
-        assert_eq!(
-            js_sys::Reflect::get(side.as_ref(), &"value".into())
-                .unwrap()
-                .as_string()
-                .as_deref(),
-            Some("F")
+        let side = by_role_name(&root, "button", "side").expect("mounted Board side control");
+        assert!(
+            side.text_content().unwrap_or_default().contains("Front"),
+            "the side picker shows the Front default"
         );
 
         let request = take_initial_default_request(&fixture.requests).await;

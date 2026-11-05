@@ -295,7 +295,138 @@ def tests(url, evidence):
     print("PASS production Case Select/Combobox/Checkbox/Collapsible/Toggle controls; precise native entry, validation, retained local geometry drafts, real Core extraction; both Themes/Appearances and mid/narrow captures", flush=True)
 
 
+def tests_018(url, evidence):
+    """018: the mounts/openings/battery/closure/fits/manufacturing/diagnostics controls."""
+    browser("set", "viewport", 1440, 960)
+    browser("open", url)
+    browser("wait", "--text", "Case construction")
+    # Disclosures: keyboard toggle, expanded state, controls resolve.
+    action("button", "Closure hardware · M2", "focus")
+    assert evaluate("document.activeElement.getAttribute('aria-expanded')") == "true"
+    for name in ("Battery", "Case openings · 1", "Mechanical diagnostics"):
+        action("button", name, "focus")
+        assert evaluate("document.activeElement.getAttribute('aria-expanded')") == "false"
+        browser("press", "Space")
+        assert evaluate("document.activeElement.getAttribute('aria-expanded')") == "true"
+        assert evaluate("document.getElementById(document.activeElement.getAttribute('aria-controls'))!==null")
+    action("spinbutton", "Document-coordinate access opening 1 bottom Z", "focus")
+    assert evaluate("document.activeElement.getAttribute('aria-label')") == "Document-coordinate access opening 1 bottom Z"
+    action("button", "Case openings · 1", "focus")
+    browser("press", "Enter")
+    assert evaluate("document.activeElement.getAttribute('aria-expanded')") == "false"
+    for name in ("Suspension mounts · 1", "Manufacturing overrides"):
+        action("button", name)
+    # Selects: named listbox, arrows/Home/End, typeahead, Enter selects, focus returns.
+    action("button", "Mount type", "focus")
+    browser("press", "Enter")
+    lists = [item for item in browser("snapshot")["refs"].values() if item["role"] == "listbox" and item["name"] == "Mount type"]
+    assert len(lists) == 1, ("Mount type", lists)
+    browser("press", "Home")
+    assert evaluate("document.activeElement.textContent").strip() == "Hole"
+    browser("press", "ArrowDown")
+    assert evaluate("document.activeElement.textContent").strip() == "Boss"
+    browser("press", "Enter")
+    assert "SetMountKind" in status("Last request") and "Boss" in status("Last request")
+    assert evaluate("document.activeElement.getAttribute('aria-label')") == "Mount type"
+    assert evaluate("document.activeElement.getAttribute('aria-expanded')") == "false"
+    browser("press", "Tab")
+    assert evaluate("document.activeElement.getAttribute('role') !== 'option'"), "closed options stay out of Tab order"
+    action("button", "Mount type")
+    browser("press", "b")
+    browser("press", "Enter")
+    assert "Boss" in status("Last request"), "typeahead reaches Boss"
+    assert evaluate("document.activeElement.getAttribute('aria-label')") == "Mount type"
+    action("button", "Insert size", "focus")
+    browser("press", "Enter")
+    browser("press", "End")
+    assert evaluate("document.activeElement.textContent").strip() == "M3 × L3 × OD4.2"
+    browser("press", "Escape")
+    assert evaluate("document.activeElement.getAttribute('aria-label')") == "Insert size"
+    assert evaluate("document.activeElement.getAttribute('aria-expanded')") == "false"
+    # The 14-choice Mount link uses a searchable Combobox; short lists stay Selects.
+    combos = [item for item in browser("snapshot")["refs"].values() if item["role"] == "combobox" and item["name"] == "Mount link for hardware hw-1"]
+    assert len(combos) == 1, ("Mount link", combos)
+    action("combobox", "Mount link for hardware hw-1", "fill", "12")
+    browser("press", "ArrowDown")
+    assert evaluate("document.activeElement.hasAttribute('aria-activedescendant')")
+    browser("press", "Enter")
+    assert "SetHardwareMount" in status("Last request") and "mount-c6" in status("Last request")
+    action("combobox", "Mount link for hardware hw-1", "focus")
+    browser("press", "Escape")
+    assert evaluate("document.activeElement.getAttribute('aria-expanded')") == "false"
+    # Battery checkbox: Space toggles, Enter does nothing, the label activates once.
+    action("button", "Toggle battery")
+    before = int(status("Requests"))
+    action("checkbox", "Include a battery envelope", "focus")
+    browser("press", "Space")
+    assert int(status("Requests")) == before + 1
+    assert evaluate("document.activeElement.getAttribute('aria-checked')") == "true"
+    browser("press", "Enter")
+    assert int(status("Requests")) == before + 1, "checkbox Enter must do nothing"
+    point = evaluate("""(()=>{const box=document.activeElement,label=box.labels[0];
+        if(!box.id || label.htmlFor!==box.id) throw Error('associated unique label required');
+        const r=label.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()""")
+    browser("mouse", "move", round(point["x"]), round(point["y"]))
+    browser("mouse", "down")
+    browser("mouse", "up")
+    assert int(status("Requests")) == before + 2, "label must activate exactly once"
+    # Text drafts: invalid lengths stay local and described; valid ones commit.
+    before = int(status("Requests"))
+    action("textbox", "Available screw lengths (mm)", "fill", "abc")
+    browser("press", "Tab")
+    action("textbox", "Available screw lengths (mm)", "focus")
+    assert evaluate("document.activeElement.value") == "abc"
+    assert evaluate("document.activeElement.getAttribute('aria-invalid')") == "true"
+    assert evaluate("document.getElementById(document.activeElement.getAttribute('aria-describedby')).textContent.length>0")
+    assert int(status("Requests")) == before
+    browser("press", "Escape")
+    action("textbox", "Available screw lengths (mm)", "fill", "3, 5")
+    browser("press", "Enter")
+    assert "SetClosureScrewLengths" in status("Last request") and "5.0" in status("Last request")
+    # Buttons and remaining selects submit their typed changes.
+    action("button", "Add suspension mount")
+    assert "AddMount" in status("Last request")
+    action("button", "Remove Hole 1")
+    assert "RemoveMount" in status("Last request") and "mount-1" in status("Last request")
+    action("button", "Method", "focus")
+    browser("press", "Enter")
+    browser("press", "End")
+    browser("press", "Enter")
+    assert "SetProcessMethod" in status("Last request") and "CutSheet" in status("Last request")
+    action("button", "Stabilizer for Space", "focus")
+    browser("press", "Enter")
+    browser("press", "End")
+    browser("press", "Enter")
+    assert "SetStabilizerKind" in status("Last request") and "None" in status("Last request")
+    action("button", "Show finding finding-1")
+    # Narrow viewport: adopted 018 targets stay 44px.
+    browser("set", "viewport", 390, 844)
+    action("button", "Mount type", "focus")
+    trigger = evaluate("document.activeElement.getBoundingClientRect().height")
+    action("textbox", "Available screw lengths (mm)", "focus")
+    group = evaluate("document.activeElement.parentElement.getBoundingClientRect().height")
+    action("button", "Add suspension mount", "focus")
+    button = evaluate("document.activeElement.getBoundingClientRect().height")
+    narrow = {"viewport": evaluate("window.innerWidth"), "mountType": trigger, "textGroup": group, "addMount": button}
+    assert narrow["viewport"] == 390, narrow
+    assert min(trigger, group, button) >= 44, narrow
+    browser("screenshot", str(evidence/"settings018-narrow.png"))
+    # Four Theme/Appearance captures over the 018 groups.
+    browser("set", "viewport", 1440, 960)
+    for theme in ("original", "shadcn"):
+        for appearance in ("light", "dark"):
+            evaluate(f"document.documentElement.dataset.theme='{theme}';document.documentElement.dataset.appearance='{appearance}'")
+            browser("wait", "--fn", "document.fonts.status==='loaded'")
+            action("button", "Case openings · 1", "focus")
+            evaluate("document.activeElement.scrollIntoView({block:'start'})")
+            browser("screenshot", str(evidence/f"settings018-{theme}-{appearance}.png"))
+    assert browser("errors").get("errors", []) == []
+    (evidence/"observations018.json").write_text(json.dumps({"narrow": narrow}, indent=2)+"\n")
+    print("PASS 018 mounts/openings/battery/closure/fits/manufacturing/diagnostics controls; Select/Combobox boundary, checkbox, text drafts, narrow targets, four Theme/Appearance captures", flush=True)
+
+
 def dismiss_notifications():
+
     for ref, item in browser("snapshot", "-i")["refs"].items():
         if item.get("role") == "button" and item.get("name") == "close":
             browser("click", "@"+ref)
@@ -438,6 +569,7 @@ def main():
                 styles(url, args.evidence)
                 if not args.styles_only:
                     tests(url, args.evidence)
+                    tests_018(url, args.evidence)
                     for theme in ("original", "shadcn"):
                         for appearance in ("light", "dark"):
                             for kind in ("select", "combobox"):

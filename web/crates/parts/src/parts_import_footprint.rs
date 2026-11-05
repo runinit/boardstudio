@@ -181,8 +181,13 @@ mod ui {
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_web_runtime::pending_edits::PendingEditResult;
-    use boardstudio_web_ui_shared::controls::BoardButton;
     use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+    use boardstudio_web_ui_shared::ui::{
+        alert::{Alert, AlertVariant},
+        button::{Button, ButtonVariant},
+        callout::{Callout, CalloutVariant},
+        spinner::Spinner,
+    };
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
     use js_sys::{Date, Function, Reflect};
@@ -257,6 +262,7 @@ mod ui {
         let runtime = use_context::<Rc<Runtime>>();
         let version = use_context::<Signal<u64>>();
         let pending = use_signal(|| None::<ImportPhase>);
+        let mut file_input = use_signal(|| None::<HtmlInputElement>);
         let edits = use_hook(PendingEditSignals::<ImportKey>::new);
         let mut error = use_signal(|| None::<ScopedMessage>);
         let mut notice = use_signal(|| None::<ScopedMessage>);
@@ -665,29 +671,42 @@ mod ui {
             .filter(|feedback| current_owner.as_ref() == Some(&feedback.owner))
             .map(|feedback| feedback.message);
         rsx! {
-            div { class: "m1-parts-import-control",
-                label {
+            div { class: "grid gap-2",
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    disabled: busy || scope.is_none(),
+                    onclick: move |_| {
+                        if let Some(input) = file_input() {
+                            input.click();
+                        }
+                    },
                     "Import KiCad footprint"
-                    input {
-                        r#type: "file",
-                        accept: ".kicad_mod",
-                        aria_label: "Import KiCad footprint",
-                        disabled: busy || scope.is_none(),
-                        onchange,
-                    }
+                }
+                input {
+                    r#type: "file",
+                    hidden: true,
+                    accept: ".kicad_mod",
+                    aria_label: "Import KiCad footprint",
+                    disabled: busy || scope.is_none(),
+                    onmounted: move |event: MountedEvent| {
+                        file_input.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<HtmlInputElement>()).cloned());
+                    },
+                    onchange,
                 }
             }
             if let Some(ImportPhase::Preparing { filename }) = pending.read().as_ref() {
-                p { class: "m1-parts-loading", role: "status",
+                div { role: "status", class: "flex flex-wrap items-center gap-2",
+                    Spinner {}
                     "Reading and importing {filename}…"
-                    BoardButton { r#type: "button", onclick: cancel, "Cancel import" }
+                    Button { variant: ButtonVariant::Secondary, onclick: cancel, "Cancel import" }
                 }
             }
             if let Some(message) = visible_error {
-                p { class: "m1-parts-load-error", role: "alert", "{message}" }
+                Alert { variant: AlertVariant::Destructive, "{message}" }
             }
             if let Some(message) = visible_notice {
-                p { class: "m1-parts-import-notice", role: "status", "{message}" }
+                div { role: "status", Callout { variant: CalloutVariant::Info, "{message}" } }
             }
         }
     }
@@ -747,6 +766,7 @@ mod mounted_tests {
     use boardstudio_web_runtime::{
         runtime::Runtime, runtime::project_name_test_support as support,
     };
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
     use dioxus::prelude::*;
     use std::{cell::RefCell, rc::Rc};
@@ -794,7 +814,7 @@ mod mounted_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("footprint import control mounts", || {
-            root.query_selector("input[type=file]").unwrap().is_some()
+            by_role_name(&root, "button", "Import KiCad footprint").is_some()
         })
         .await;
         let input = root

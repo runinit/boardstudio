@@ -12,6 +12,10 @@ mod ui {
     use boardstudio_application::Scope;
     use boardstudio_web_runtime::pending_edits::PendingEditResult;
     use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+    use boardstudio_web_ui_shared::ui::{
+        alert::{Alert, AlertVariant},
+        button::{Button, ButtonVariant},
+    };
     use dioxus::prelude::*;
     use js_sys::{Date, Function, Reflect};
     use std::{cell::Cell, rc::Rc};
@@ -171,16 +175,15 @@ mod ui {
         };
 
         rsx! {
-            button {
-                class: "m1-parts-create-component",
-                type: "button",
-                "aria-label": "New custom component",
+            Button {
+                variant: ButtonVariant::Secondary,
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 disabled: pending.is_pending(&CreateKey::NewComponent),
                 onclick: create,
                 "New custom component"
             }
             if let Some((_, _, _, message)) = error().filter(|(owner, view, generation, _)| runtime.scope().as_ref() == Some(owner) && workspace() == "Parts" && view_generation() == *view && scope_generation() == *generation) {
-                p { role: "alert", "{message}" }
+                Alert { variant: AlertVariant::Destructive, "{message}" }
             }
         }
     }
@@ -572,10 +575,10 @@ mod mounted_tests {
     use boardstudio_web_runtime::{
         runtime::Runtime, runtime::project_name_test_support as support,
     };
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use dioxus::prelude::*;
     use std::{cell::RefCell, rc::Rc};
-    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
     type SelectionProbe = Rc<RefCell<Option<Signal<Option<(Option<Scope>, String)>>>>>;
@@ -619,15 +622,11 @@ mod mounted_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("new component action mounts", || {
-            root.query_selector("button").unwrap().is_some()
+            by_role_name(&root, "button", "New custom component").is_some()
         })
         .await;
-        let button = root
-            .query_selector("button")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        let button =
+            by_role_name(&root, "button", "New custom component").expect("new component action");
         let (entered, release) = support::gate_next_core_reply(&runtime);
         button.click();
         support::drive_pending(&runtime);

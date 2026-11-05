@@ -1,4 +1,5 @@
 //! Parts-owned saved assembly list and the first authoring slice of F4.6.
+use super::editor_fields::{EditorChoiceField, EditorNumberField, EditorSelect, EditorTextField};
 use super::model_axis::{ModelAxisField, ModelAxisGrid};
 use crate::parts_custom_definition::replacement_commit;
 use boardstudio_application::{
@@ -9,10 +10,16 @@ use boardstudio_core::model::{
     PartModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::controls::{
-    BoardButton, BoardCheckbox, BoardDisclosure, BoardNumberField, BoardSelectField,
-};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertVariant},
+    button::{Button, ButtonVariant},
+    callout::{Callout, CalloutVariant},
+    checkbox::{Checkbox, CheckboxState},
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    field::FieldLabel,
+    item::{Item, ItemGroup, ItemSize},
+};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Date, Function, Reflect};
@@ -704,39 +711,45 @@ pub fn SavedAssembliesEditor(
         .map(|draft| draft.value.id.clone())
         .unwrap_or_default();
     rsx! {
-        section { class: "m1-parts-assemblies", "aria-label": "Saved assemblies",
+        section { class: "grid gap-2", "aria-label": "Saved assemblies",
             h2 { "Assemblies" }
             if action_slot.is_none() {
-                button { class: "m1-parts-create-component", r#type: "button", onclick: move |event| create_action.call(event), "New assembly" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |event| create_action.call(event), "New assembly" }
             }
             if assembly_selection().is_some() {
-                button {
-                    class: "m1-parts-customize-preset",
-                    r#type: "button",
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: !has_preset_definitions,
                     onclick: customize_preset,
                     "Customize 3D assembly"
                 }
             }
             if saved_assemblies.is_empty() {
-                p { class: "m1-parts-empty", "No saved assemblies yet." }
+                div { role: "status", Callout { variant: CalloutVariant::Info, "No saved assemblies yet." } }
             } else {
-                div { class: "m1-parts-assembly-saved-list", role: "list", "aria-label": "Saved assemblies",
-                    for assembly in saved_assemblies {
-                        { let mut open_existing = open_existing.clone(); let mut duplicate = duplicate.clone();
-                          let existing_assembly = assembly.clone(); let duplicate_assembly = assembly.clone();
-                          rsx! {
-                            div { class: "m1-parts-assembly-saved-row", key: "{assembly.id}",
-                                button { r#type: "button", onclick: move |_| open_existing(existing_assembly.clone()), "{assembly.name}" }
-                                button { r#type: "button", aria_label: "Duplicate {assembly.name}", onclick: move |_| duplicate(duplicate_assembly.clone()), "Duplicate" }
+                div { class: "grid gap-px", role: "list", "aria-label": "Saved assemblies",
+                    ItemGroup {
+                        for assembly in saved_assemblies {
+                            { let mut open_existing = open_existing.clone(); let mut duplicate = duplicate.clone();
+                              let existing_assembly = assembly.clone(); let duplicate_assembly = assembly.clone();
+                              rsx! {
+                                Item { size: ItemSize::Xs, key: "{assembly.id}",
+                                    Button { variant: ButtonVariant::Ghost,
+                                        class: "flex-1 justify-start whitespace-normal text-left max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        onclick: move |_| open_existing(existing_assembly.clone()), "{assembly.name}" }
+                                    Button { variant: ButtonVariant::Secondary,
+                                        class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        aria_label: "Duplicate {assembly.name}", onclick: move |_| duplicate(duplicate_assembly.clone()), "Duplicate" }
+                                }
+                              }
                             }
-                          }
                         }
                     }
                 }
             }
             if let Some(message) = feedback.read().as_ref() {
-                p { class: "m1-parts-assembly-feedback", role: "status", "{message}" }
+                div { role: "status", Callout { variant: CalloutVariant::Info, "{message}" } }
             }
             if let Some(draft) = draft {
                 AssemblyDraftFields {
@@ -1107,12 +1120,10 @@ fn AssemblyDraftFields(
         .cloned()
         .collect::<Vec<_>>();
     rsx! {
-        section { class: "m1-parts-assembly-editor", "aria-label": "Assembly editor",
+        section { class: "grid gap-3", "aria-label": "Assembly editor",
             h3 { "Assembly editor" }
-            label { class: "m1-parts-assembly-field", "Name"
-                { let name_draft = draft.clone();
-                rsx! { input { value: "{render_value.name}", disabled: controls_disabled, oninput: move |event| { let mut value = value; value.with_mut(|value| value.name = event.value()); publish_draft(value, assets, &name_draft, on_change); } } }
-                }
+            { let name_draft = draft.clone();
+              rsx! { EditorTextField { label: "Name", value: "{render_value.name}", disabled: controls_disabled, oninput: move |event: FormEvent| { let mut value = value; value.with_mut(|value| value.name = event.value()); publish_draft(value, assets, &name_draft, on_change); } } }
             }
             for member in render_value.members.clone() {
                 AssemblyMemberFields {
@@ -1130,7 +1141,7 @@ fn AssemblyDraftFields(
             }
             { let add_draft = draft.clone();
               let mut add_value = value; let add_assets = assets;
-              rsx! { BoardButton { r#type: "button", disabled: controls_disabled, onclick: move |_| {
+              rsx! { Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: controls_disabled, onclick: move |_| {
                   if let Some(id) = member_id(&add_value()) {
                       add_value.with_mut(|value| value.members.push(AssemblyMember {
                           parameters: None,
@@ -1145,13 +1156,14 @@ fn AssemblyDraftFields(
                   }
               }, "Add component" } }
             }
-            div { class: "m1-parts-assembly-actions",
-                BoardButton { r#type: "button", disabled: controls_disabled || save_pending, onclick: on_save, "Save assembly" }
-                BoardButton { r#type: "button", disabled: controls_disabled, onclick: on_close, "Close editor" }
+            div { class: "flex flex-wrap gap-2",
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: controls_disabled || save_pending, onclick: on_save, "Save assembly" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: controls_disabled, onclick: on_close, "Close editor" }
             }
-            div { class: "m1-parts-assembly-actions",
-                button {
-                    r#type: "button",
+            div { class: "flex flex-wrap gap-2",
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: controls_disabled || unsaved_assets,
                     onclick: move |_| on_place.call(super::super::objects::MatrixPlacementSource::Assembly {
                         assembly: placement_value.clone(),
@@ -1160,25 +1172,26 @@ fn AssemblyDraftFields(
                     "Place assembly in Layout"
                 }
                 if matrix_selected {
-                    BoardButton {
-                        r#type: "button",
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: controls_disabled || matrix_pending || unsaved_assets,
                         onclick: move |_| on_apply.call(apply_value.clone()),
                         "Apply to selected matrix"
                     }
                 }
             }
-            fieldset { class: "m1-parts-assembly-place",
+            fieldset { class: "grid gap-2",
                 legend { "Place assembly" }
-                div { class: "m1-parts-assembly-transform",
-                    BoardNumberField {
+                div { class: "grid grid-cols-2 gap-2",
+                    EditorNumberField {
                         label: "X (mm)",
                         step: "0.1",
                         value: "{origin_x}",
                         disabled: controls_disabled,
                         oninput: move |event: FormEvent| origin_x.set(event.value()),
                     }
-                    BoardNumberField {
+                    EditorNumberField {
                         label: "Y (mm)",
                         step: "0.1",
                         value: "{origin_y}",
@@ -1186,26 +1199,29 @@ fn AssemblyDraftFields(
                         oninput: move |event: FormEvent| origin_y.set(event.value()),
                     }
                 }
-                button {
-                    r#type: "button",
+                { let place_render = render_value.clone();
+                  let place_draft = draft.clone();
+                  rsx! { Button {
+                    variant: ButtonVariant::Secondary,
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: controls_disabled || place_pending || draft.scope.is_none() || render_value.members.is_empty(),
                     onclick: move |_| on_place_board.call((
                         AssemblyDraft {
-                            value: render_value.clone(),
+                            value: place_render.clone(),
                             assets: assets(),
-                            ..draft.clone()
+                            ..place_draft.clone()
                         },
                         origin_x(),
                         origin_y(),
                     )),
                     "Place on selected board"
-                }
+                } } }
             }
             if unsaved_assets {
-                p { class: "m1-parts-empty", role: "status", "Save imported model assets before applying this assembly to a matrix." }
+                div { role: "status", Callout { variant: CalloutVariant::Info, "Save imported model assets before applying this assembly to a matrix." } }
             }
             if !recipe.is_empty() {
-                div { class: "m1-parts-assembly-preview",
+                div { class: "grid gap-2",
                     super::PartsPreviewPanel {
                         definition: preview_definition,
                         recipe,
@@ -1220,7 +1236,7 @@ fn AssemblyDraftFields(
                     }
                 }
             } else {
-                p { class: "m1-parts-empty", role: "status", "Add a component or model to preview this assembly." }
+                div { role: "status", Callout { variant: CalloutVariant::Info, "Add a component or model to preview this assembly." } }
             }
         }
     }
@@ -1241,6 +1257,7 @@ fn AssemblyMemberFields(
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let workspace = use_context::<super::super::WorkspaceState>().0;
     let import_feedback = use_signal(|| None::<String>);
+    let mut import_input = use_signal(|| None::<HtmlInputElement>);
     let definition = member
         .definition_id
         .as_deref()
@@ -1499,60 +1516,63 @@ fn AssemblyMemberFields(
     };
 
     rsx! {
-        fieldset { class: "m1-parts-assembly-member", key: "{component_id}",
+        fieldset { class: "grid gap-2", key: "{component_id}",
             legend { "{member.id}" }
-            BoardSelectField {
+            EditorChoiceField {
                 label: "Component",
-                class: "m1-parts-assembly-field",
                 value: (member.definition_id.as_deref().unwrap_or("")).to_string(),
+                options: component_option_rows(&definition_options, member.definition_id.as_deref()),
                 disabled,
-                    onchange: move |event: FormEvent| update_member(value, assets, definition_draft.clone(), on_change, definition_id.clone(), MemberPatch::Definition(event.value())),
-                    {component_options(&definition_options, member.definition_id.as_deref())}
+                on_select: move |selected: String| update_member(value, assets, definition_draft.clone(), on_change, definition_id.clone(), MemberPatch::Definition(selected)),
             }
             if definition.as_ref().is_some_and(|definition| definition.generator.is_some())
                 && let Some(parameters) = member.parameters.as_ref() {
                 { let checked = parameters.get("hotswap").and_then(serde_json::Value::as_bool).unwrap_or(false);
                   let mut params = parameters.clone();
                   let hotswap_id = member.id.clone(); let hotswap_draft = draft.clone();
-                  rsx! { label { class: "m1-parts-assembly-toggle", "Hotswap socket"
-                    BoardCheckbox { checked, disabled, onchange: move |event: FormEvent| {
-                        params.insert("hotswap".into(), serde_json::Value::Bool(event.checked()));
-                        params.insert("solder".into(), serde_json::Value::Bool(!event.checked()));
-                        update_member(value, assets, hotswap_draft.clone(), on_change, hotswap_id.clone(), MemberPatch::Parameters(Some(params.clone())));
-                    } }
+                  rsx! { FieldLabel { html_for: format!("assembly-hotswap-{}", dioxus::core::current_scope_id().0), class: "min-h-control-touch",
+                    Checkbox {
+                        id: format!("assembly-hotswap-{}", dioxus::core::current_scope_id().0),
+                        aria_label: "Hotswap socket",
+                        disabled,
+                        checked: Some(if checked { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                        on_checked_change: move |state: CheckboxState| {
+                            let enabled = bool::from(state);
+                            params.insert("hotswap".into(), serde_json::Value::Bool(enabled));
+                            params.insert("solder".into(), serde_json::Value::Bool(!enabled));
+                            update_member(value, assets, hotswap_draft.clone(), on_change, hotswap_id.clone(), MemberPatch::Parameters(Some(params.clone())));
+                        },
+                    }
+                    span { "Hotswap socket" }
                   } }
                 }
             }
-            label { class: "m1-parts-assembly-field", if member.parameters.as_ref().is_some_and(|parameters| parameters.contains_key("side")) { "Switch side" } else { "Side" }
-                select {
-                    value: if matches!(&member.side, Side::Back) { "back" } else { "front" },
-                    disabled,
-                    onchange: move |event| update_member(value, assets, side_draft.clone(), on_change, side_id.clone(), MemberPatch::Side(event.value() == "back")),
-                    option { value: "front", "Front" }
-                    option { value: "back", "Back" }
-                }
-            }
-            div { class: "m1-parts-assembly-transform",
-                label { "X (mm)" input { r#type: "number", step: "0.1", value: "{member.pose.at.x}", disabled, oninput: move |event| update_member(value, assets, x_draft.clone(), on_change, x_id.clone(), MemberPatch::X(event.value())) } }
-                label { "Y (mm)" input { r#type: "number", step: "0.1", value: "{member.pose.at.y}", disabled, oninput: move |event| update_member(value, assets, y_draft.clone(), on_change, y_id.clone(), MemberPatch::Y(event.value())) } }
-                label { "Angle (°)" input { r#type: "number", step: "1", value: "{member.pose.rotation}", disabled, oninput: move |event| update_member(value, assets, rotation_draft.clone(), on_change, rotation_id.clone(), MemberPatch::Rotation(event.value())) } }
-            }
-            BoardSelectField {
-                label: "3D models",
-                class: "m1-parts-assembly-field",
-                value: (if is_custom { "custom" } else { "defaults" }).to_string(),
+            EditorSelect {
+                label: if member.parameters.as_ref().is_some_and(|parameters| parameters.contains_key("side")) { "Switch side".to_owned() } else { "Side".to_owned() },
+                value: if matches!(&member.side, Side::Back) { "back".to_owned() } else { "front".to_owned() },
+                options: vec![("front".to_owned(), "Front".to_owned()), ("back".to_owned(), "Back".to_owned())],
                 disabled,
-                    onchange: move |event: FormEvent| {
-                        let custom = event.value() == "custom";
-                        let models = if custom && current_models.is_empty() { model_defaults.clone() } else { current_models.clone() };
-                        update_member(value, assets, mode_draft.clone(), on_change, mode_id.clone(), MemberPatch::ModelMode(custom, models));
-                    },
-                    option { value: "defaults", "Use component defaults" }
-                    option { value: "custom", "Custom model bindings" }
+                on_select: move |selected: String| update_member(value, assets, side_draft.clone(), on_change, side_id.clone(), MemberPatch::Side(selected == "back")),
+            }
+            div { class: "grid grid-cols-3 gap-2",
+                EditorNumberField { label: "X (mm)", step: "0.1", value: "{member.pose.at.x}", disabled, oninput: move |event: FormEvent| update_member(value, assets, x_draft.clone(), on_change, x_id.clone(), MemberPatch::X(event.value())) }
+                EditorNumberField { label: "Y (mm)", step: "0.1", value: "{member.pose.at.y}", disabled, oninput: move |event: FormEvent| update_member(value, assets, y_draft.clone(), on_change, y_id.clone(), MemberPatch::Y(event.value())) }
+                EditorNumberField { label: "Angle (°)", step: "1", value: "{member.pose.rotation}", disabled, oninput: move |event: FormEvent| update_member(value, assets, rotation_draft.clone(), on_change, rotation_id.clone(), MemberPatch::Rotation(event.value())) }
+            }
+            EditorSelect {
+                label: "3D models",
+                value: (if is_custom { "custom" } else { "defaults" }).to_string(),
+                options: vec![("defaults".to_owned(), "Use component defaults".to_owned()), ("custom".to_owned(), "Custom model bindings".to_owned())],
+                disabled,
+                on_select: move |selected: String| {
+                    let custom = selected == "custom";
+                    let models = if custom && current_models.is_empty() { model_defaults.clone() } else { current_models.clone() };
+                    update_member(value, assets, mode_draft.clone(), on_change, mode_id.clone(), MemberPatch::ModelMode(custom, models));
+                },
             }
             if is_custom {
                 if member.models.is_empty() {
-                    p { class: "m1-parts-empty", "No custom models in this member." }
+                    p { "No custom models in this member." }
                 }
                 for (index, model) in member.models.iter().cloned().enumerate() {
                     AssemblyModelFields {
@@ -1569,25 +1589,44 @@ fn AssemblyMemberFields(
                     }
                 }
             } else if definition.is_some() {
-                p { class: "m1-parts-empty", "Uses {definition_models.len()} component model default(s)." }
-                BoardButton { disabled, onclick: edit_defaults, "Edit model defaults" }
+                p { "Uses {definition_models.len()} component model default(s)." }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled, onclick: edit_defaults, "Edit model defaults" }
             } else {
-                p { class: "m1-parts-empty", "No component model defaults are attached." }
+                p { "No component model defaults are attached." }
             }
             if is_custom {
-                BoardButton { r#type: "button", disabled: disabled || options.is_empty(), onclick: move |_| {
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: disabled || options.is_empty(), onclick: move |_| {
                     if let Some(option) = options.first() {
                         update_member(value, assets, add_model_draft.clone(), on_change, add_model_id.clone(), MemberPatch::AddModel(default_model(option.id.clone())));
                     }
                 }, "Add model" }
             }
-            label { class: "m1-parts-assembly-field", "Import model"
-                input { r#type: "file", accept: ".step,.stp,.stl,.wrl", disabled, onchange: import_model }
+            Button {
+                variant: ButtonVariant::Secondary,
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                disabled,
+                onclick: move |_| {
+                    if let Some(input) = import_input() {
+                        input.click();
+                    }
+                },
+                "Import model"
+            }
+            input {
+                r#type: "file",
+                hidden: true,
+                accept: ".step,.stp,.stl,.wrl",
+                aria_label: "Import model",
+                disabled,
+                onmounted: move |event: MountedEvent| {
+                    import_input.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<HtmlInputElement>()).cloned());
+                },
+                onchange: import_model,
             }
             if let Some(message) = import_feedback.read().as_ref() {
-                p { class: "m1-parts-load-error", role: "alert", "{message}" }
+                Alert { variant: AlertVariant::Destructive, "{message}" }
             }
-            BoardButton { r#type: "button", disabled, onclick: move |_| update_member(value, assets, remove_draft.clone(), on_change, remove_id.clone(), MemberPatch::RemoveMember), "Remove component" }
+            Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled, onclick: move |_| update_member(value, assets, remove_draft.clone(), on_change, remove_id.clone(), MemberPatch::RemoveMember), "Remove component" }
         }
     }
 }
@@ -1613,20 +1652,21 @@ fn AssemblyModelFields(
     let remove_draft = draft.clone();
     let remove_id = member_id.clone();
     rsx! {
-        BoardDisclosure { class: "m1-parts-assembly-model", open: true,
-            heading: rsx! { summary { "Model {index + 1}" } },
-            BoardSelectField {
-                label: "Asset",
-                class: "m1-parts-assembly-field",
-                value: "{model.asset_id}",
-                disabled,
-            onchange: move |event: FormEvent| update_member(value, assets, asset_draft.clone(), on_change, asset_id.clone(), MemberPatch::ModelAsset(index, event.value())),
-                    {model_asset_options(&asset_options, &model.asset_id)}
+        Collapsible { keep_mounted: true, default_open: true,
+            CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Model {index + 1}" }
+            CollapsibleContent { class: "data-[open=false]:hidden grid gap-2",
+                EditorChoiceField {
+                    label: "Asset",
+                    value: "{model.asset_id}",
+                    options: model_asset_option_rows(&asset_options, &model.asset_id),
+                    disabled,
+                    on_select: move |selected: String| update_member(value, assets, asset_draft.clone(), on_change, asset_id.clone(), MemberPatch::ModelAsset(index, selected)),
+                }
+                ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Offset, draft: offset_draft, value, assets, disabled, on_change }
+                ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Rotation, draft: rotation_draft, value, assets, disabled, on_change }
+                ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Scale, draft: scale_draft, value, assets, disabled, on_change }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled, onclick: move |_| update_member(value, assets, remove_draft.clone(), on_change, remove_id.clone(), MemberPatch::RemoveModel(index)), "Remove model" }
             }
-            ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Offset, draft: offset_draft, value, assets, disabled, on_change }
-            ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Rotation, draft: rotation_draft, value, assets, disabled, on_change }
-            ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Scale, draft: scale_draft, value, assets, disabled, on_change }
-            BoardButton { r#type: "button", disabled, onclick: move |_| update_member(value, assets, remove_draft.clone(), on_change, remove_id.clone(), MemberPatch::RemoveModel(index)), "Remove model" }
         }
     }
 }
@@ -1656,7 +1696,7 @@ fn ModelVectorFields(
     let y_draft = draft.clone();
     let z_draft = draft.clone();
     rsx! {
-        div { class: "m1-parts-assembly-model-vector",
+        div { class: "grid gap-1",
             strong { "{label}" }
             ModelAxisGrid {
                 ModelAxisField { axis: "X", value: vector.x.to_string(), disabled, oninput: move |event: FormEvent| update_member(value, assets, x_draft.clone(), on_change, axis_x_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::X, event.value())) }
@@ -1842,38 +1882,41 @@ struct ModelOption {
     name: String,
 }
 
-fn component_options(options: &[ModelOption], selected_id: Option<&str>) -> Element {
+fn component_option_rows(
+    options: &[ModelOption],
+    selected_id: Option<&str>,
+) -> Vec<(String, String)> {
     let has_selected = selected_id.is_some_and(|id| options.iter().any(|option| option.id == id));
-    rsx! {
-        option { value: "", selected: selected_id.is_none(), "Visual model only" }
-        for (index, option) in options.iter().enumerate() {
-            option {
-                key: "{index}-{option.id}",
-                value: "{option.id}",
-                selected: selected_id == Some(option.id.as_str()),
-                "{option.name}"
-            }
-        }
-        if let Some(selected_id) = selected_id.filter(|_| !has_selected) {
-            option { value: "{selected_id}", selected: true, "Saved component unavailable" }
-        }
+    let mut rows = Vec::with_capacity(options.len() + 2);
+    rows.push((String::new(), "Visual model only".to_owned()));
+    rows.extend(
+        options
+            .iter()
+            .map(|option| (option.id.clone(), option.name.clone())),
+    );
+    if let Some(selected_id) = selected_id.filter(|_| !has_selected) {
+        rows.push((
+            selected_id.to_owned(),
+            "Saved component unavailable".to_owned(),
+        ));
     }
+    rows
 }
 
-fn model_asset_options(options: &[ModelOption], selected_id: &str) -> Element {
-    rsx! {
-        for (index, option) in options.iter().enumerate() {
-            option {
-                key: "{index}-{option.id}",
-                value: "{option.id}",
-                selected: option.id == selected_id,
-                "{option.name}"
-            }
-        }
-        if !options.iter().any(|option| option.id == selected_id) {
-            option { value: "{selected_id}", selected: true, "Saved model asset unavailable" }
-        }
+fn model_asset_option_rows(options: &[ModelOption], selected_id: &str) -> Vec<(String, String)> {
+    let mut rows = Vec::with_capacity(options.len() + 1);
+    rows.extend(
+        options
+            .iter()
+            .map(|option| (option.id.clone(), option.name.clone())),
+    );
+    if !options.iter().any(|option| option.id == selected_id) {
+        rows.push((
+            selected_id.to_owned(),
+            "Saved model asset unavailable".to_owned(),
+        ));
     }
+    rows
 }
 
 fn model_options(document_assets: &[Asset], draft_assets: &[Asset]) -> Vec<ModelOption> {
@@ -2219,13 +2262,17 @@ mod assembly_selector_tests {
             select {
                 id: "persisted-component",
                 value: member.definition_id.as_deref().unwrap_or(""),
-                {component_options(&component_options_signal(), member.definition_id.as_deref())}
+                for (row_id, row_name) in component_option_rows(&component_options_signal(), member.definition_id.as_deref()) {
+                    option { key: "component-{row_id}", value: "{row_id}", "{row_name}" }
+                }
             }
             for (index, model) in member.models.iter().enumerate() {
                 select {
                     id: "persisted-model-{index}",
                     value: "{model.asset_id}",
-                    {model_asset_options(&asset_options_signal(), &model.asset_id)}
+                    for (row_id, row_name) in model_asset_option_rows(&asset_options_signal(), &model.asset_id) {
+                        option { key: "model-{index}-{row_id}", value: "{row_id}", "{row_name}" }
+                    }
                 }
             }
         }
@@ -2346,6 +2393,7 @@ mod resolution_tests {
     use super::*;
     use boardstudio_web_runtime::pending_edits::PendingEdits;
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use wasm_bindgen_test::*;
 
     fn document() -> ProjectDoc {
@@ -2419,12 +2467,8 @@ mod resolution_tests {
         );
         gloo_timers::future::TimeoutFuture::new(40).await;
         let button = |label: &str| {
-            let buttons = root.query_selector_all("button").unwrap();
-            (0..buttons.length())
-                .filter_map(|index| buttons.get(index))
-                .map(|button| button.dyn_into::<web_sys::HtmlElement>().unwrap())
-                .find(|button| button.text_content().as_deref() == Some(label))
-                .unwrap()
+            by_role_name(&root, "button", label)
+                .unwrap_or_else(|| panic!("missing mounted assembly button {label}"))
         };
         button("Assembly").click();
         gloo_timers::future::TimeoutFuture::new(40).await;

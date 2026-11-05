@@ -234,15 +234,75 @@ pub fn InputGroupInput(
     }
 }
 
+/// Native textarea with extra global attributes/events. Explicit props own same-name attributes,
+/// even when optional props are omitted; use those props for value, constraints and the label.
+/// Blur/key/mount listeners and validation ARIA stay on this native textarea.
 #[component]
-pub fn InputGroupTextarea(#[props(into, optional)] class: Option<String>) -> Element {
+pub fn InputGroupTextarea(
+    #[props(into, optional)] class: Option<String>,
+    #[props(into, optional)] placeholder: Option<String>,
+    #[props(into, optional)] name: Option<String>,
+    #[props(into, optional)] id: Option<String>,
+    #[props(into, optional)] value: Option<String>,
+    #[props(into, optional)] rows: Option<String>,
+    #[props(optional)] disabled: bool,
+    #[props(optional)] readonly: bool,
+    #[props(optional)] required: bool,
+    #[props(into, optional)] aria_label: Option<String>,
+    #[props(optional)] oninput: Option<EventHandler<FormEvent>>,
+    #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
+) -> Element {
     let merged = tw_merge!(
         "flex-1 resize-none rounded-none border-0 bg-transparent py-3 shadow-none focus-visible:ring-0 dark:bg-transparent",
         "placeholder:text-muted-foreground w-full min-w-0 px-3 text-base outline-none transition-[color,box-shadow]",
+        "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
         class.as_deref().unwrap_or("")
     );
+    // Explicit props, including omitted options, own their native attributes and input listener.
+    // RSX requires the spread last; namespaced style properties and other events/ARIA pass through.
+    let mut attributes = attributes
+        .into_iter()
+        .filter(|attribute| {
+            attribute.namespace.is_some()
+                || !matches!(
+                    attribute.name,
+                    "data-slot"
+                        | "class"
+                        | "placeholder"
+                        | "name"
+                        | "id"
+                        | "value"
+                        | "rows"
+                        | "aria-label"
+                        | "disabled"
+                        | "readonly"
+                        | "required"
+                        | "oninput"
+                )
+        })
+        .collect::<Vec<_>>();
+    // Dioxus diffs each completed spread as a name-sorted list.
+    attributes.sort_by_key(|attribute| attribute.name);
     rsx! {
-        textarea { "data-slot": "input-group-control", class: "{merged}" }
+        textarea {
+            "data-slot": "input-group-control",
+            class: "{merged}",
+            placeholder: placeholder,
+            name: name,
+            id: id,
+            value: value,
+            rows: rows,
+            aria_label: aria_label,
+            disabled: disabled,
+            readonly: readonly,
+            required: required,
+            oninput: move |e| {
+                if let Some(handler) = &oninput {
+                    handler.call(e);
+                }
+            },
+            ..attributes,
+        }
     }
 }
 
@@ -255,6 +315,8 @@ mod tests {
         rsx! {
             InputGroupInput { r#type: InputType::Number, min: "0", step: "any", aria_label: "Snap gap" }
             InputGroupInput { r#type: InputType::Number }
+            InputGroupTextarea { rows: "2", aria_label: "Build notes" }
+            InputGroupTextarea {}
         }
     }
 
@@ -277,6 +339,16 @@ mod tests {
         let default = by_role_name(&root, "spinbutton", "").unwrap();
         for attribute in ["min", "max", "step", "aria-label"] {
             assert!(!default.has_attribute(attribute));
+        }
+        let notes = by_role_name(&root, "textbox", "Build notes").unwrap();
+        assert_eq!(notes.get_attribute("rows").as_deref(), Some("2"));
+        assert_eq!(
+            notes.get_attribute("data-slot").as_deref(),
+            Some("input-group-control")
+        );
+        let bare = by_role_name(&root, "textbox", "").unwrap();
+        for attribute in ["rows", "aria-label"] {
+            assert!(!bare.has_attribute(attribute));
         }
         root.remove();
     }
