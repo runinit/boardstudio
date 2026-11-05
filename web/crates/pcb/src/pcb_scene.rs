@@ -292,8 +292,8 @@ mod mounted_layer_tests {
         Board, BoardContours, Contour, Pad, Part, PartDefinition, PartKind, Pose2, ProjectDoc,
         Readiness, SceneDelta,
     };
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use std::{collections::BTreeMap, sync::Arc};
-    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -537,17 +537,8 @@ mod mounted_layer_tests {
             .length()
     }
 
-    fn click(selector: &str) {
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector(&format!("#pcb-layer-mount {selector}"))
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+    fn click(root: &web_sys::Element, name: &str) {
+        by_role_name(root, "button", name).unwrap().click();
     }
 
     async fn settle() {
@@ -571,32 +562,21 @@ mod mounted_layer_tests {
         assert_eq!(count(".m1-part-pad"), 3);
         assert_eq!(count(".m1-part-drill"), 1);
         assert_eq!(count(".m1-part-label"), 1);
-        assert_eq!(count("#m1-pcb-layers-trigger[aria-label='PCB layers']"), 1);
+        assert!(by_role_name(&root, "button", "PCB layers").is_some());
 
-        click("#m1-pcb-layers-trigger");
+        click(&root, "PCB layers");
         settle().await;
-        assert_eq!(count("button[aria-label='Hide F.Cu']"), 1);
-        assert_eq!(count("button[aria-label='Hide B.Cu']"), 1);
-        assert_eq!(
-            web_sys::window()
-                .unwrap()
-                .document()
-                .unwrap()
-                .query_selector("#pcb-layer-mount button[aria-label='Hide F.Cu'] .m1-layer-label")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Front copper")
-        );
-        click("button[aria-label='Hide F.Cu']");
+        assert!(by_role_name(&root, "button", "Hide F.Cu").is_some());
+        assert!(by_role_name(&root, "button", "Hide B.Cu").is_some());
+        assert!(by_role_name(&root, "group", "Front copper visibility").is_some());
+        click(&root, "Hide F.Cu");
         settle().await;
         assert_eq!(
             count(".m1-part-pad"),
             2,
             "back and through-hole pads remain"
         );
-        click("button[aria-label='Hide B.Cu']");
+        click(&root, "Hide B.Cu");
         settle().await;
         assert_eq!(
             count(".m1-part-pad"),
@@ -604,40 +584,38 @@ mod mounted_layer_tests {
             "through-hole needs either copper face"
         );
 
-        click("button[aria-label='Show F.Cu']");
+        click(&root, "Show F.Cu");
         settle().await;
         assert_eq!(count(".m1-part-pad"), 2);
-        click("button[aria-label='Hide Pads']");
+        click(&root, "Hide Pads");
         settle().await;
         assert_eq!(count(".m1-part-pad"), 0);
         assert_eq!(count(".m1-part-drill"), 1, "Pads and Holes are independent");
-        click("button[aria-label='Hide Holes']");
+        click(&root, "Hide Holes");
         settle().await;
         assert_eq!(count(".m1-part-drill"), 0);
         assert_eq!(count(".m1-part-label"), 1);
 
-        click("button[aria-label='Hide Edge.Cuts']");
-        click("button[aria-label='Hide Courtyards']");
-        click("button[aria-label='Hide References']");
+        click(&root, "Hide Edge.Cuts");
+        click(&root, "Hide Courtyards");
+        click(&root, "Hide References");
         settle().await;
         assert_eq!(count(".m1-outline"), 0);
         assert_eq!(count(".m1-part"), 0);
         assert_eq!(count(".m1-part-label"), 0);
 
-        click("#m1-pcb-layers-trigger");
+        click(&root, "PCB layers");
         settle().await;
-        assert_eq!(
-            count("#m1-pcb-layers-list"),
-            0,
-            "collapsing the layer accordion unmounts its list"
+        let trigger = by_role_name(&root, "button", "PCB layers").unwrap();
+        let panel = document
+            .get_element_by_id(&trigger.get_attribute("aria-controls").unwrap())
+            .unwrap();
+        assert!(
+            panel.has_attribute("hidden") && panel.has_attribute("inert"),
+            "collapsed layers remain mounted, hidden and inert"
         );
         assert_eq!(
-            document
-                .query_selector("#m1-pcb-layers-trigger")
-                .unwrap()
-                .unwrap()
-                .get_attribute("aria-expanded")
-                .as_deref(),
+            trigger.get_attribute("aria-expanded").as_deref(),
             Some("false"),
             "collapsing the layer accordion sets aria-expanded to false"
         );
@@ -655,43 +633,40 @@ mod mounted_layer_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         settle().await;
-        if document
-            .get_element_by_id("m1-pcb-layers-trigger")
+        if by_role_name(&root, "button", "PCB layers")
             .unwrap()
             .get_attribute("aria-expanded")
             .as_deref()
             != Some("true")
         {
-            click("#m1-pcb-layers-trigger");
+            click(&root, "PCB layers");
             settle().await;
         }
-        assert_eq!(count("button[aria-label='Hide F.Cu']"), 1);
-        click("#switch-pcb-board");
+        assert!(by_role_name(&root, "button", "Hide F.Cu").is_some());
+        click(&root, "Switch board");
         settle().await;
-        if document
-            .get_element_by_id("m1-pcb-layers-trigger")
+        if by_role_name(&root, "button", "PCB layers")
             .unwrap()
             .get_attribute("aria-expanded")
             .as_deref()
             != Some("true")
         {
-            click("#m1-pcb-layers-trigger");
+            click(&root, "PCB layers");
             settle().await;
         }
-        assert_eq!(count("button[aria-label='Hide F.Cu']"), 0);
-        click("#switch-pcb-board");
+        assert!(by_role_name(&root, "button", "Hide F.Cu").is_none());
+        click(&root, "Switch board");
         settle().await;
-        if document
-            .get_element_by_id("m1-pcb-layers-trigger")
+        if by_role_name(&root, "button", "PCB layers")
             .unwrap()
             .get_attribute("aria-expanded")
             .as_deref()
             != Some("true")
         {
-            click("#m1-pcb-layers-trigger");
+            click(&root, "PCB layers");
             settle().await;
         }
-        assert_eq!(count("button[aria-label='Hide F.Cu']"), 1);
+        assert!(by_role_name(&root, "button", "Hide F.Cu").is_some());
         root.remove();
     }
 
