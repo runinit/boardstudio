@@ -1289,7 +1289,7 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-object-layer-dock { flex: none; min-width: 0; }
 .m1-layer-dock:empty { display: none; }
 .m1-object-layer-dock :is(.m1-layers, .m1-case-assembly-layers) { position: static; width: 100%; max-width: none; max-height: none; margin: 0; overflow: visible; border: 0; border-top: 1px solid var(--wb-rule); border-radius: 0; box-shadow: none; background: transparent; }
-.m1-object-layer-dock :is(.m1-layers-trigger, .m1-case-assembly-layers-trigger) { width: 100%; margin: 0; border: 0; border-radius: 0 !important; background: transparent !important; font-weight: 600; }
+.m1-object-layer-dock :is(.m1-layers-trigger) { width: 100%; margin: 0; border: 0; border-radius: 0 !important; background: transparent !important; font-weight: 600; }
 .m1-object-layer-dock :is(.m1-layer-list, .m1-case-assembly-layers-list) { max-height: none; overflow: visible; padding: var(--wb-space-2); border: 0; border-radius: 0; margin: 0; background: transparent; }
 .m1-object-layer-dock .m1-viewer-layer { display: flex; flex-wrap: wrap; gap: var(--wb-space-1); }
 .m1-object-layer-dock .board-disclosure { margin: 0; }
@@ -1321,8 +1321,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 
 .m1-canvas-dimensions .m1-matrix-field:first-child { grid-column: auto; }
 .m1-canvas-dimensions input { text-overflow: clip; }
-.m1-object-layer-dock .m1-case-assembly-layer-row { display: grid; text-align: left; background: transparent; }
-.m1-object-layer-dock .m1-case-assembly-layer-row[aria-pressed='true'] { background: var(--wb-surface-soft); color: var(--wb-accent); }
 
 
 /* Shared command chrome follows the PCB pill across all workbenches. */
@@ -1342,7 +1340,7 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-object-layer-dock { flex: none; position: relative; margin-top: auto; border-top: 1px solid var(--wb-rule); }
 .m1-object-layer-dock :is(.m1-layer-list,.m1-case-assembly-layers-list) { position: absolute; z-index: 30; bottom: 100%; left: 0; box-sizing: border-box; width: 100%; max-height: min(65vh,520px); overflow: auto; border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-radius-toolbar) var(--wb-radius-toolbar) 0 0; background: var(--wb-panel); padding: var(--wb-space-3); }
 .m1-object-layer-dock :is(.m1-layers,.m1-case-assembly-layers) { border: 0; }
-.m1-object-layer-dock :is(.m1-layers-trigger,.m1-case-assembly-layers-trigger) { min-height: 44px; padding: 10px 12px; }
+.m1-object-layer-dock :is(.m1-layers-trigger) { min-height: 44px; padding: 10px 12px; }
 .m1-object-layer-dock .m1-layers-trigger { justify-content: space-between; }
 .m1-layer-dock > .board-disclosure { position: relative; }
 .m1-layer-dock > .board-disclosure > div { position: absolute; z-index: 31; bottom: 100%; left: 0; width: 100%; max-height: 60vh; overflow: auto; padding: var(--wb-space-3); box-sizing: border-box; background: var(--wb-panel); border: 1px solid var(--wb-rule-strong); }
