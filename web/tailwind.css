@@ -582,15 +582,12 @@
 .m1-save-state { order: 4; flex: none; position: relative; }
 .m1-save-state > summary { display: flex; gap: var(--wb-space-2); align-items: center; min-height: var(--wb-control-height); padding: 4px 8px; font-size: var(--wb-type-label); color: var(--wb-muted); }
 .m1-save-state > div { left: auto; right: 0; }
-.m1-topbar > .m1-compact-panel-controls { order: 5; }
 .m1-export-tab { order: 6; height: var(--wb-control-height); min-height: var(--wb-control-height); padding: 6px 14px; border-radius: var(--wb-radius-control); background: var(--wb-accent); color: var(--wb-on-accent); }
 .m1-export-tab:hover:not(:disabled) { background: var(--wb-accent-dark); }
 .m1-export-tab[aria-pressed='true'] { color: var(--wb-on-accent); background: var(--wb-accent); }
 
 /* Dock dimensions are defaults only; persisted widths and resize controls retain authority. */
 .m1-editor-body { --m1-left-panel-width: var(--wb-dock-left); --m1-right-panel-width: var(--wb-dock-right); }
-.m1-panel-heading { flex-basis: 52px; min-height: 52px; padding-inline: var(--wb-space-4); }
-.m1-panel-heading h2 { font-size: var(--wb-type-panel); font-weight: 650; }
 .m1-layout-objects-content { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .m1-layout-objects-content > .m1-objects { flex: 1; min-height: 0; overflow: auto; }
 .m1-tree-row { min-height: var(--wb-control-height); }
@@ -656,7 +653,6 @@
   .m1-project-menu > summary { gap: 4px; padding: 6px; font-size: 12px; }
   .m1-project-chevron { width: 10px; }
   .m1-save-state > summary { min-height: var(--wb-control-touch); padding: 4px; }
-  .m1-topbar > .m1-compact-panel-controls { flex: none; gap: 2px; }
   .m1-topbar .m1-panel-toggle { width: 32px; min-width: 32px; min-height: var(--wb-control-touch); padding: 6px; font-size: 0; }
   .m1-topbar .m1-panel-toggle svg { width: 18px; height: 18px; }
   .m1-export-tab { width: 32px; min-width: 32px; min-height: var(--wb-control-touch); padding: 6px; }
@@ -717,12 +713,6 @@
 @media (max-width: 760px) {
   .m1-project-menu .m1-project-name { display: block; }
   .m1-save-state > summary { padding: 4px 2px; }
-  .m1-drawer-scrim, .m1-panel-slot[data-side='objects'], .m1-panel-slot[data-side='inspector'] { top: var(--wb-header-height); bottom: var(--wb-footer-height); }
-  .m1-editor-body:has(.m1-layout-toolbar-region) > .m1-panel-slot[data-side] { left: 0; right: 0; width: 100%; max-width: 100%; opacity: 0; transition: transform var(--wb-motion-panel) var(--wb-ease-out), opacity var(--wb-motion-reveal) linear, visibility 0s linear var(--wb-motion-panel); box-shadow: none; }
-  .m1-editor-body:has(.m1-layout-toolbar-region) > .m1-panel-slot[data-side='objects'] { transform: translateX(-12px); }
-  .m1-editor-body:has(.m1-layout-toolbar-region) > .m1-panel-slot[data-side='inspector'] { transform: translateY(12px); }
-  .m1-editor-body:has(.m1-layout-toolbar-region) > .m1-panel-slot.compact-closed { visibility: hidden; pointer-events: none; }
-  .m1-editor-body:has(.m1-layout-toolbar-region) > .m1-panel-slot.compact-open { visibility: visible; pointer-events: auto; opacity: 1; transform: none; transition-delay: 0s; }
   .m1-layout-toolbar-region > .m1-layout-view-group { right: auto; left: 8px; }
   .m1-layout-toolbar-region .layout-context-actions { flex-wrap: wrap; overflow: visible; }
 }
@@ -904,7 +894,7 @@
 .m1-setup-hardware-preview text { fill: var(--wb-muted); text-anchor: middle; font-size: var(--wb-type-body); }
 .m1-setup-connection { fill: none; stroke: var(--wb-accent); stroke-width: 4; }
 /* Local project browser; editor stays mounted behind this view to retain drafts. */
-.is-project-browser .m1-topbar :is(.m1-header-history, .m1-save-state, .m1-export-tab, .m1-compact-panel-controls) { display: none; }
+.is-project-browser .m1-topbar :is(.m1-header-history, .m1-save-state, .m1-export-tab) { display: none; }
 .m1-library-landing { padding: 32px; flex: 1; min-height: 0; overflow: auto; max-width: none; }
 .m1-library-landing > h1 { font-size: 32px; }
 .m1-library-landing > p { color: var(--wb-muted); }
@@ -950,30 +940,12 @@
 @media (max-width: 760px) {
   .m1-setup-drawer .m1-setup-guide button { min-height: var(--wb-control-touch); }
 }
-@media (max-width: 760px) {
-  .m1-editor-body:has(.m1-case-panel) > .m1-panel-slot { width: 100%; max-width: 100%; z-index: 21; }
-  .m1-panel-close { min-width: var(--wb-control-touch); min-height: var(--wb-control-touch); }
-}
 .m1-design-canvas-toolbar + .m1-design-view-group { top: auto; bottom: var(--wb-space-3); box-shadow: none; }
-@media (max-width: 760px) {
-  .m1-editor-body > .m1-panel-slot[data-side] { left: 0; right: 0; width: 100%; max-width: 100%; transform: none; box-shadow: none; }
-}
 
 /* Matrix pin assignment rows follow the approved inspector's native groups. */
 .m1-pcb-board-wiring .m1-pcb-wiring-pin-group { margin: 0; padding: 0; border-top: 1px solid var(--wb-rule); }
 
-/* Layout selection is the dock heading, with its native panel controls retained. */
-.m1-inspector-slot .m1-panel-content:has(.m1-selected-context) { position: relative; }
-.m1-inspector-slot .m1-panel-content:has(.m1-selected-context) > .m1-panel-heading { position: absolute; z-index: 2; top: 10px; right: 8px; width: fit-content; height: 40px; min-height: 40px; padding: 0; border: 0; background: transparent; }
-.m1-inspector-slot .m1-panel-content:has(.m1-selected-context) > .m1-panel-heading h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.m1-inspector-slot .m1-selected-context { padding-right: 64px; }
-.m1-inspector-slot .m1-matrix-transform-inspector { gap: 0; padding-top: 0; }
 .m1-matrix-transform-inspector > .m1-matrix-inspector-heading { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.m1-inspector-slot .m1-matrix-transform-section:first-of-type { border-top: 0; }
-.m1-inspector-slot .m1-matrix-transform-section > :not(summary) { margin-bottom: var(--wb-space-3); }
-.m1-inspector-slot .m1-matrix-transform-section > .m1-matrix-field-context { display: none; }
-.m1-inspector-slot .m1-matrix-transform-section > .m1-inspector-secondary { justify-self: start; min-height: var(--wb-control-compact); padding: 4px 0; border-color: transparent; color: var(--wb-muted); background: transparent; }
-.m1-inspector-slot .m1-matrix-transform-section > .m1-inspector-secondary:hover { color: var(--wb-accent); }
 .m1-layout-toolbar-region .m1-layout-align-menu,
 .m1-layout-toolbar-region .m1-layout-transform-menu { padding-left: 6px; border-left: 1px solid var(--wb-toolbar-rule); }
 .m1-layout-toolbar-region .m1-layout-transform-menu > .board-popover-trigger::after { display: none; }
@@ -982,7 +954,6 @@
 .m1-layout-toolbar-region .m1-layout-command-trigger-icon { width: 22px; height: 22px; flex: none; }
 @media (max-width: 760px) {
   :root { --wb-header-height: 56px; --wb-control-height: 44px; }
-  .m1-inspector-slot .m1-selected-context { padding-right: 96px; }
   .m1-layout-toolbar-region .layout-context-actions .layout-context-action,
   .m1-layout-toolbar-region .m1-layout-command-pill .board-popover-trigger { gap: 5px; padding-inline: 7px; font-size: 13px; }
 }
@@ -1148,11 +1119,6 @@
 .m1-object-scroll-content { flex: 1 1 auto; min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; }
 .m1-object-scroll-content .m1-objects { height: auto; min-height: 0; max-height: none; overflow: visible; }
 .m1-object-scroll-content .m1-layout-objects-content { display: block; height: auto; overflow: visible; }
-.m1-object-slot :is(.m1-keymap-actions, .m1-mirrored-pair-actions, .m1-parts-actions) { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wb-space-1); }
-.m1-object-slot .m1-layout-add-menu section[aria-label='Selected matrix'],
-.m1-object-slot .m1-layout-add-menu section[aria-label='Board geometry'] { display: flex; flex-wrap: wrap; gap: var(--wb-space-1); }
-.m1-object-slot .m1-layout-add-menu section:is([aria-label='Selected matrix'], [aria-label='Board geometry']) h3 { flex-basis: 100%; }
-.m1-object-slot .m1-layout-add-menu section:is([aria-label='Selected matrix'], [aria-label='Board geometry']) button { width: auto; flex: 1 1 auto; }
 @media (max-width: 1100px) {
   .m1-topbar .m1-brand span { display: none; }
 }
@@ -1164,10 +1130,6 @@
   .m1-object-layer-dock button { min-height: var(--wb-control-touch); }
 }
 
-.m1-object-slot .m1-keymap-layer-controls { display: flex; flex-wrap: wrap; gap: var(--wb-space-1); }
-.m1-object-slot .m1-keymap-layer-controls .m1-keymap-layer-name-label { flex: 1 0 100%; }
-.m1-object-slot .m1-keymap-layer-controls > button { width: auto; }
-.m1-object-slot .m1-parts-actions > button { width: auto; flex: 1 1 auto; }
 
 .m1-workspace-content .m1-case-view-toolbar { justify-content: center; flex-wrap: wrap; }
 
@@ -1249,7 +1211,6 @@
 .m1-stackup-preview text { fill: var(--wb-ink); font: 11px var(--wb-body); }
 .m1-stackup-preview figcaption { color: var(--wb-muted); font-size: 12px; }
 .m1-mechanical-pair-row { border: 0; border-bottom: 1px solid var(--wb-rule); margin: 0; padding: 8px 0; }
-.m1-panel-options label:has([aria-label='Tree grouping']) { display: none; }
 .m1-pcb-net-overview ul { list-style: none; margin: 0; padding: 0; }
 .m1-pcb-net-overview li { display: flex; align-items: baseline; justify-content: space-between; gap: var(--wb-space-2); padding: 6px 0; border-bottom: 1px solid var(--wb-rule); }
 .m1-pcb-net-overview li span { color: var(--wb-muted); font-size: 12px; }
@@ -1260,7 +1221,6 @@
 .m1-header-identity { grid-column: 1; justify-self: start; }
 .m1-header-identity .m1-project-menu { flex: 0 1 180px; max-width: 180px; min-width: 0; margin: 0; }
 .m1-header-actions { grid-column: 3; justify-self: end; justify-content: flex-end; flex: none; }
-.m1-header-actions .m1-compact-panel-controls { order: initial; }
 .m1-settings-menu { position: relative; flex: none; }
 .m1-settings-menu > summary { display: grid; width: var(--wb-control-height); min-height: var(--wb-control-height); place-items: center; padding: 6px; border: 1px solid transparent; border-radius: var(--wb-radius-control); color: var(--wb-muted); cursor: pointer; list-style: none; }
 .m1-settings-menu > summary::-webkit-details-marker { display: none; }
@@ -1390,7 +1350,6 @@
   .m1-header-identity .m1-project-name, .m1-header-identity .m1-project-chevron { display: none; }
   .m1-workflow-navigation .m1-workspace-tree-link { min-height: var(--wb-control-touch); padding-inline: 7px; }
   .m1-header-actions { gap: 2px; }
-  .m1-header-actions .m1-compact-panel-controls { flex: none; gap: 0; }
   .m1-header-actions .m1-panel-toggle { width: 40px; min-width: 40px; min-height: var(--wb-control-touch); }
   .m1-header-actions .m1-export-tab { width: 40px; min-width: 40px; padding: 6px; }
   .m1-header-actions .m1-export-tab span { display: none; }
@@ -1423,7 +1382,6 @@
   .board-accordion .board-accordion-content,
   .m1-setup-drawer { animation: none; }
   .m1-setup-drawer { transition: none; }
-  .m1-panel-slot[data-side], .m1-panel-slot[data-side] > .m1-panel-content { transition: none; }
 }
 
 
