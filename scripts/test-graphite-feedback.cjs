@@ -136,7 +136,7 @@ const fs = require('node:fs');
       }
       if (workspace === 'Parts') {
         const create = page.locator('#m1-objects-panel').getByRole('button', { name: 'New assembly', exact: true });
-        await create.click(); await page.locator('.m1-parts-assembly-editor').waitFor();
+        await create.click(); await page.getByRole('region', { name: 'Assembly editor', exact: true }).waitFor();
         check('left + opens existing assembly editor', true);
         check('New assembly action removed from Inspector', await page.locator('.m1-inspector-body > .m1-parts-inspector > .m1-parts-assemblies > .m1-parts-create-component').count() === 0);
         await page.getByRole('option', { name: 'MX Hotswap', exact: true }).click();
