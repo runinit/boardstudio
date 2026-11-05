@@ -144,7 +144,7 @@ pub(crate) fn CaseCollisionChecks(
     };
     let clearance_id = format!("case-clearance-{}", dioxus::core::current_scope_id().0);
     rsx! {
-        Collapsible { keep_mounted: true, default_open: true,
+        Collapsible { class: "m1-case-collision-checks", keep_mounted: true, default_open: true,
             CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", aria_label: "Collision check", "Collision check" }
             CollapsibleContent { class: "data-[open=false]:hidden",
                 Field { class: "gap-1.5",
