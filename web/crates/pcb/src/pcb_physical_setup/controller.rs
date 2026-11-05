@@ -356,7 +356,7 @@ pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
             }
             FieldLabel { html_for: reversible_id.clone(), class: "m1-project-reversible-choice w-full min-h-control-touch",
                 Checkbox { id: reversible_id.clone(), aria_label: "Reversible layout", checked: Some(if projection.reversible { CheckboxState::Checked } else { CheckboxState::Unchecked }), disabled: projection.busy,
-                    style: "min-height: 1rem", on_checked_change: move |state| mount.submit(PhysicalSetupIntent::ProjectReversibleLayout(state == CheckboxState::Checked))
+                    style: "min-width: 1rem; min-height: 1rem", on_checked_change: move |state| mount.submit(PhysicalSetupIntent::ProjectReversibleLayout(state == CheckboxState::Checked))
                 }
                 span { "Reversible layout" }
             }
