@@ -13,7 +13,19 @@ use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{Event, ReadModel, Scope, SelectionMode, SnapshotToken};
 use boardstudio_core::model::{MechanicalGasketSupport, ProjectDoc};
 pub(super) use boardstudio_web_case::case_selection::{SelectedPartSummary, selected_part_summary};
-use boardstudio_web_ui_shared::controls::BoardSelectField;
+use boardstudio_web_ui_shared::ui::{
+    button::{Button, ButtonSize, ButtonVariant},
+    callout::Callout,
+    checkbox::{Checkbox, CheckboxState},
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    combobox::{Combobox, ComboboxOption},
+    field::{Field, FieldLabel},
+    icons::ChevronDown,
+    label::Label,
+    select::{Select, SelectOption},
+    toggle_group::{ToggleGroup, ToggleItem},
+    tooltip::{Tooltip, TooltipContent, TooltipTrigger},
+};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -550,22 +562,42 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                                     "aria-level": "{row_level + 1}", "aria-selected": "{selected}",
                                     "aria-expanded": if row_is_disclosure { "{row_expanded == Some(true)}" },
                                     if row_is_disclosure {
-                                        button {
-                                            id: "{label_id}-disclosure", class: "m1-tree-disclosure",
-                                            "aria-label": "{disclosure_label}", "aria-expanded": "{row_expanded == Some(true)}",
-                                            onclick: move |_| {
-                                                if let Some(action) = inactive_assembly_navigation(&row_action_for_disclosure) {
-                                                    action_handler.call(action);
-                                                } else {
-                                                    toggle_tree(expanded, &row_key_for_disclosure);
-                                                }
-                                            },
-                                            if row_expanded == Some(true) { "⌄" } else { "›" }
+                                        {
+                                            let trigger_label = disclosure_label.clone();
+                                            let disclosure_id = format!("{label_id}-disclosure");
+                                            rsx! { Tooltip {
+                                            TooltipTrigger {
+                                                r#as: move |attributes: Vec<Attribute>| {
+                                                    let row_action = row_action_for_disclosure.clone();
+                                                    let row_key = row_key_for_disclosure.clone();
+                                                    rsx! {
+                                                        Button {
+                                                            attributes,
+                                                            variant: ButtonVariant::Ghost,
+                                                            size: ButtonSize::IconSm,
+                                                            id: disclosure_id.clone(),
+                                                            class: "min-h-11 min-w-11",
+                                                            aria_label: "{trigger_label}",
+                                                            aria_expanded: row_expanded == Some(true),
+                                                            onclick: move |_| {
+                                                                if let Some(action) = inactive_assembly_navigation(&row_action) {
+                                                                    action_handler.call(action);
+                                                                } else {
+                                                                    toggle_tree(expanded, &row_key);
+                                                                }
+                                                            },
+                                                            ChevronDown { class: if row_expanded == Some(true) { "size-4" } else { "size-4 -rotate-90" } }
+                                                        }
+                                                    }
+                                                },
+                                            }
+                                            TooltipContent { "{disclosure_label}" }
+                                            } }
                                         }
                                     } else {
                                         span { class: "m1-tree-spacer", "aria-hidden": "true" }
                                     }
-                                    button {
+                                    Button { variant: ButtonVariant::Secondary,
                                         id: "{label_id}",
                                         class: if selected { "m1-component selected" } else { "m1-component" },
                                         disabled: !row_selectable,
@@ -604,21 +636,41 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                                         if let Some(detail) = row.detail { span { class: "m1-object-kind", "{detail}" } }
                                     }
                                     if let Some(id) = visibility_id {
-                                        button {
-                                            class: "m1-object-visibility",
-                                            r#type: "button",
-                                            "aria-pressed": visible,
-                                            "aria-label": if visible { "Hide {row_label}" } else { "Show {row_label}" },
-                                            onclick: move |_| display_handler.call(DisplayRequest {
-                                                target_scope: scope_for_visibility.clone(),
-                                                id: id.clone(),
-                                                action: DisplayAction::ToggleVisibility,
-                                            }),
-                                            svg { view_box: "0 0 24 24", "aria-hidden": "true",
-                                                path { d: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" }
-                                                circle { cx: "12", cy: "12", r: "3" }
-                                                if !visible { path { d: "m3 3 18 18" } }
+                                        {
+                                            let item_label = row_label.clone();
+                                            rsx! { ToggleGroup {
+                                            aria_label: "{row_label} visibility",
+                                            pressed: Some(if visible { [0].into_iter().collect() } else { Default::default() }),
+                                            on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                                                if next.contains(&0) != visible {
+                                                    display_handler.call(DisplayRequest {
+                                                        target_scope: scope_for_visibility.clone(),
+                                                        id: id.clone(),
+                                                        action: DisplayAction::ToggleVisibility,
+                                                    });
+                                                }
+                                            },
+                                            Tooltip {
+                                                TooltipTrigger {
+                                                    r#as: move |attributes: Vec<Attribute>| {
+                                                        let label = item_label.clone();
+                                                        rsx! {
+                                                        ToggleItem { index: 0usize,
+                                                            aria_label: if visible { "Hide {label}" } else { "Show {label}" },
+                                                            class: "min-h-11 min-w-11",
+                                                            attributes,
+                                                            svg { view_box: "0 0 24 24", "aria-hidden": "true",
+                                                                path { d: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" }
+                                                                circle { cx: "12", cy: "12", r: "3" }
+                                                                if !visible { path { d: "m3 3 18 18" } }
+                                                            }
+                                                        }
+                                                        }
+                                                    },
+                                                }
+                                                TooltipContent { if visible { "Hide {row_label}" } else { "Show {row_label}" } }
                                             }
+                                        } }
                                         }
                                     }
                                 }
@@ -948,6 +1000,43 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
     }
 }
 
+/// Presentation-only select; the caller owns the accepted value and domain request.
+/// Short fixed lists take Select, long or filterable ones Combobox (mapping rule).
+#[component]
+fn CaseInspectorSelect(
+    label: String,
+    value: String,
+    options: Vec<(String, String)>,
+    #[props(default)] disabled: bool,
+    on_change: EventHandler<Option<String>>,
+) -> Element {
+    let id = format!("case-inspector-select-{}", dioxus::core::current_scope_id().0);
+    let selected = use_memo(move || Some(value.clone()));
+    if options.len() <= 12 {
+        return rsx! {
+            Field { class: "gap-1.5", disabled,
+                FieldLabel { html_for: id.clone(), "{label}" }
+                Select::<String> { class: "max-[760px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch", id, aria_label: label, value: Some(selected.into()), disabled, on_value_change: on_change,
+                    for (index, (value, name)) in options.iter().enumerate() {
+                        SelectOption::<String> { key: "{value}", index, value: value.clone(), text_value: name.clone(), "{name}" }
+                    }
+                }
+            }
+        };
+    }
+    let name = label.clone();
+    rsx! {
+        Field { class: "gap-1.5", disabled,
+            FieldLabel { "{label}" }
+            Combobox::<String> { class: "max-[760px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch", aria_label: name.clone(), list_aria_label: name, placeholder: label.clone(), disabled, value: Some(selected.into()), on_value_change: on_change,
+                for (index, (value, name)) in options.iter().enumerate() {
+                    ComboboxOption::<String> { key: "{value}", index, value: value.clone(), text_value: name.clone(), "{name}" }
+                }
+            }
+        }
+    }
+}
+
 pub(super) fn inspector(input: InspectorInput) -> Element {
     let body_inspector_layer_id = input.selected_layer_id.clone();
     let generated = input
@@ -1022,62 +1111,63 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             if !input.instance_scope_pending {
                 section { class: "m1-case-physical-setup", "aria-label": "Physical assembly",
                     if let Some(instance) = input.physical_setup.projection.case_instance.clone() {
-                        details {
-                            summary { "Assembly setup" }
+                        Collapsible { keep_mounted: true, default_open: false,
+                            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", aria_label: "Assembly setup", "Assembly setup" }
+                            CollapsibleContent { class: "data-[open=false]:hidden",
                             if input.physical_setup.projection.topology == boardstudio_core::model::HardwareTopology::Split {
-                                BoardSelectField {
+                                CaseInspectorSelect {
                                     label: "Half connection",
-                                    aria_label: "Half connection",
                                     value: (match input.physical_setup.projection.transport { boardstudio_core::model::HardwareTransport::Wired => "wired", _ => "wireless" }).to_string(),
+                                    options: vec![("wireless".to_owned(), "Wireless · local battery on each half".to_owned()), ("wired".to_owned(), "Wired serial · local power on each half".to_owned())],
                                     disabled: input.physical_setup.projection.busy,
-                                    onchange: {
+                                    on_change: {
                                             let mount = input.physical_setup.clone();
-                                            move |event: FormEvent| {
-                                                let next = if event.value() == "wired" { boardstudio_core::model::HardwareTransport::Wired } else { boardstudio_core::model::HardwareTransport::Wireless };
+                                            move |value: Option<String>| {
+                                                let next = if value.as_deref() == Some("wired") { boardstudio_core::model::HardwareTransport::Wired } else { boardstudio_core::model::HardwareTransport::Wireless };
                                                 mount.submit(super::pcb_physical_setup::PhysicalSetupIntent::CaseTransport(next));
                                             }
                                         },
-                                    option { value: "wireless", "Wireless · local battery on each half" }
-                                        option { value: "wired", "Wired serial · local power on each half" }
                                 }
                                 if input.physical_setup.projection.transport == boardstudio_core::model::HardwareTransport::Wired {
-                                    p { "Use a straight TRRS cable: tip and ring 2 carry crossed TX/RX, sleeve is ground, ring 1 is unused. Power both halves locally and unplug power before connecting." }
+                                    Callout { "Use a straight TRRS cable: tip and ring 2 carry crossed TX/RX, sleeve is ground, ring 1 is unused. Power both halves locally and unplug power before connecting." }
                                 }
                             }
                             p { "{instance.name} · {instance.board_label} · {instance.role}" }
-                            BoardSelectField {
+                            CaseInspectorSelect {
                                 label: "PCB design",
-                                aria_label: "PCB design",
-                                value: "{instance.board_id}",
+                                value: instance.board_id.clone(),
+                                options: input.physical_setup.projection.case_boards.iter().map(|board| (board.id.clone(), board.name.clone())).collect(),
                                 disabled: input.physical_setup.projection.busy,
-                                onchange: {
+                                on_change: {
                                         let mount = input.physical_setup.clone();
-                                        move |event: FormEvent| mount.submit(super::pcb_physical_setup::PhysicalSetupIntent::CasePcbDesign(event.value()))
+                                        move |value: Option<String>| {
+                                            if let Some(id) = value {
+                                                mount.submit(super::pcb_physical_setup::PhysicalSetupIntent::CasePcbDesign(id))
+                                            }
+                                        }
                                     },
-                                for board in input.physical_setup.projection.case_boards.iter() {
-                                        option { value: "{board.id}", "{board.name}" }
-                                    }
                             }
-                            label {
-                                input {
-                                    r#type: "checkbox",
-                                    "aria-label": "Turn PCB over for this half",
-                                    checked: instance.flipped,
+                            FieldLabel { class: "min-h-control-touch", html_for: format!("case-flip-{}", dioxus::core::current_scope_id().0),
+                                Checkbox {
+                                    id: format!("case-flip-{}", dioxus::core::current_scope_id().0),
+                                    aria_label: "Turn PCB over for this half",
                                     disabled: input.physical_setup.projection.busy,
-                                    onchange: {
+                                    checked: Some(if instance.flipped { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                                    on_checked_change: {
                                         let mount = input.physical_setup.clone();
-                                        move |event: FormEvent| mount.submit(super::pcb_physical_setup::PhysicalSetupIntent::CaseFlip(event.checked()))
-                                    }
+                                        move |state: CheckboxState| mount.submit(super::pcb_physical_setup::PhysicalSetupIntent::CaseFlip(bool::from(state)))
+                                    },
                                 }
-                                "Turn PCB over for this half"
+                                span { "Turn PCB over for this half" }
                             }
                             if instance.has_board_reference {
-                                p { "Imported routing is a reference. Review it after changing the assembly." }
+                                Callout { "Imported routing is a reference. Review it after changing the assembly." }
+                            }
                             }
                         }
                     }
                     if input.selected_part_summary.is_some() && input.physical_setup.projection.case_instance.is_none() {
-                        p { "Select a physical assembly in Objects to edit its PCB design and flip state." }
+                        Callout { "Select a physical assembly in Objects to edit its PCB design and flip state." }
                     }
                     if let Some(feedback) = input.physical_setup.projection.feedback.clone() {
                         p { role: "status", "{feedback}" }
@@ -1090,8 +1180,10 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                     if active_display_layer.is_some() {
                 section { class: "m1-case-display", "aria-label": "Part appearance",
                     h3 { "Display" }
-                    label { "Colour"
+                    Field {
+                        Label { html_for: format!("case-part-colour-{}", dioxus::core::current_scope_id().0), "Colour" }
                         input {
+                                id: format!("case-part-colour-{}", dioxus::core::current_scope_id().0),
                                 r#type: "color", "aria-label": "Part colour", value: "{color}",
                                 oninput: move |event: FormEvent| {
                                     if let (Some(scope), Some(id)) = (&scope_for_color, &display_id_for_color) {
@@ -1104,8 +1196,9 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                                 }
                         }
                     }
-                    button {
-                        r#type: "button",
+                    Button {
+                        variant: ButtonVariant::Secondary, button_type: "button",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             onclick: move |_| {
                                 if let (Some(scope), Some(id)) = (&scope_for_reset, &display_id_for_reset) {
                                     display_for_reset.call(DisplayRequest {
@@ -1117,20 +1210,22 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                         },
                         "Reset colour"
                     }
-                    label {
-                        input {
-                            r#type: "checkbox", checked: visible,
-                                onchange: move |_| {
-                                    if let (Some(scope), Some(id)) = (&scope_for_visibility, &display_id_for_visibility) {
-                                        display_for_visibility.call(DisplayRequest {
-                                            target_scope: scope.clone(),
-                                            id: id.clone(),
-                                            action: DisplayAction::ToggleVisibility,
-                                        });
-                                    }
+                    FieldLabel { class: "min-h-control-touch", html_for: format!("case-part-visible-{}", dioxus::core::current_scope_id().0),
+                        Checkbox {
+                            id: format!("case-part-visible-{}", dioxus::core::current_scope_id().0),
+                            aria_label: "Visible",
+                            checked: Some(if visible { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                            on_checked_change: move |_| {
+                                if let (Some(scope), Some(id)) = (&scope_for_visibility, &display_id_for_visibility) {
+                                    display_for_visibility.call(DisplayRequest {
+                                        target_scope: scope.clone(),
+                                        id: id.clone(),
+                                        action: DisplayAction::ToggleVisibility,
+                                    });
                                 }
+                            },
                         }
-                        "Visible"
+                        span { "Visible" }
                     }
                     }
                     }
@@ -1271,6 +1366,7 @@ mod mounted_live_scene_tests {
     use boardstudio_core::model::{
         Board, Finding, MechanicalAssembly, Scope as FindingScope, Severity,
     };
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -1798,5 +1894,258 @@ mod mounted_live_scene_tests {
         let text = inspector.text_content().unwrap_or_default();
         assert!(!text.contains("previous generated geometry"));
         assert!(!text.contains("Previous resolved stack"));
+    }
+
+    fn key(element: &web_sys::HtmlElement, key: &str) {
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key(key);
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        element
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+    }
+
+    fn tree_host() -> Element {
+        super::super::use_empty_test_instance_selection();
+        let runtime = use_context::<Rc<Runtime>>();
+        let model = runtime.model();
+        let scope = runtime.scope();
+        let state = use_case_workspace_state();
+        let case_selection = state.selection();
+        let selected_context = use_signal(|| None::<ScopedTreeContext>);
+        let expanded = state.tree_expanded();
+        let mut action_calls = use_signal(String::new);
+        let mut display_calls = use_signal(String::new);
+        let tree = objects(ObjectsInput {
+            model: &model,
+            scope: scope.clone(),
+            instance_scope_pending: false,
+            scene: None,
+            selected_context,
+            selected_body_id: None,
+            selected_layer_id: String::new(),
+            case_selection,
+            expanded,
+            on_action: Callback::new(move |action: TreeAction| {
+                if matches!(action, TreeAction::SelectAssembly { .. }) {
+                    action_calls.set("select-assembly".into());
+                }
+            }),
+            on_select: EventHandler::new(|_| {}),
+            on_display: Callback::new(move |request: DisplayRequest| {
+                if matches!(request.action, DisplayAction::ToggleVisibility) {
+                    display_calls.set("toggle-visibility".into());
+                }
+            }),
+        });
+        rsx! {
+            {tree}
+            p { id: "tree-action-calls", "{action_calls}" }
+            p { id: "tree-display-calls", "{display_calls}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn case_tree_uses_copied_controls_for_rows_and_visibility() {
+        let (runtime, _, _) = accepted_fixture().await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(tree_host);
+        dom.provide_root_context(runtime);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        let label = "Main board case assembly";
+        wait_until("the case tree mounts", || {
+            by_role_name(&root, "button", &format!("Collapse {label}")).is_some()
+        })
+        .await;
+        let disclosure = by_role_name(&root, "button", &format!("Collapse {label}"))
+            .expect("tree disclosure");
+        assert_eq!(
+            disclosure.get_attribute("data-slot").as_deref(),
+            Some("button")
+        );
+        disclosure.click();
+        wait_until("the tree collapses", || {
+            by_role_name(&root, "button", &format!("Expand {label}")).is_some()
+        })
+        .await;
+        by_role_name(&root, "button", &format!("Expand {label}"))
+            .unwrap()
+            .click();
+        wait_until("the tree reopens", || {
+            by_role_name(&root, "button", &format!("Collapse {label}")).is_some()
+        })
+        .await;
+        let visibility = by_role_name(&root, "button", &format!("Hide {label}"))
+            .expect("visibility toggle");
+        assert_eq!(
+            visibility.get_attribute("data-slot").as_deref(),
+            Some("tooltip-trigger")
+        );
+        visibility.click();
+        let calls = || {
+            root.query_selector("#tree-display-calls")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .unwrap_or_default()
+        };
+        wait_until("visibility toggles through its owner", || {
+            calls() == "toggle-visibility"
+        })
+        .await;
+        let select = by_role_name(&root, "button", &format!("\u{25b0}{label}"))
+            .expect("row select");
+        assert_eq!(
+            select.get_attribute("data-slot").as_deref(),
+            Some("button")
+        );
+        select.click();
+        wait_until("assembly selects through its owner", || {
+            root.query_selector("#tree-action-calls")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .unwrap_or_default()
+                == "select-assembly"
+        })
+        .await;
+        root.remove();
+    }
+
+    async fn split_hardware_fixture() -> Rc<Runtime> {
+        let runtime = support::new_runtime();
+        let mut document =
+            serde_json::to_value(ProjectDoc::empty("case-physical-controls", "Physical")).unwrap();
+        document["boards"] = (0..13)
+            .map(|index| {
+                serde_json::json!({
+                    "id": format!("board-{index}"),
+                    "name": format!("Board {index}"),
+                    "outlineIds": [],
+                    "partIds": [],
+                    "netIds": [],
+                    "thickness": 1.6,
+                })
+            })
+            .collect();
+        document["hardware"] = serde_json::json!({"topology": "split", "transport": "wireless", "boards": [], "instances": [
+            {"id": "left", "name": "Left", "boardId": "board-0", "half": "left", "role": "central", "flipped": false, "controllerPartId": null, "mechanical": null, "constructionLinked": false},
+            {"id": "right", "name": "Right", "boardId": "board-0", "half": "right", "role": "peripheral", "flipped": true, "controllerPartId": null, "mechanical": null, "constructionLinked": false},
+        ]});
+        support::open_document(&runtime, serde_json::from_value(document).unwrap()).await;
+        runtime.submit(Event::Navigate {
+            operation_id: runtime.operation(),
+            board_id: "board-0".into(),
+            instance_id: Some("left".into()),
+        });
+        support::run_pending(&runtime).await;
+        runtime
+    }
+
+    fn physical_host() -> Element {
+        let version = use_signal(|| 0u64);
+        use_context_provider(|| version);
+        super::super::use_empty_test_instance_selection();
+        let runtime = use_context::<Rc<Runtime>>();
+        let instance_selection = use_context::<InstanceSelection>();
+        let state = use_case_workspace_state();
+        let generation = use_signal(|| 1u64);
+        let physical_setup = super::super::pcb_physical_setup::use_controller(
+            runtime.clone(),
+            version,
+            generation,
+            Rc::new(|| false),
+            instance_selection,
+            Rc::new(|_, _| true),
+            Rc::new(|_, _| {
+                Box::pin(async { panic!("physical controls test must not prepare edits") })
+            }),
+        );
+        rsx! {
+            {inspector(InspectorInput {
+                physical_setup,
+                mechanical_settings: MechanicalSettingsMount {
+                    props: None,
+                    generation_ready: false,
+                },
+                instance_scope_pending: false,
+                scope: runtime.scope(),
+                scene: None,
+                case_selection: state.selection(),
+                selected_layer_id: String::new(),
+                selected_context: None,
+                selected_part_summary: None,
+                on_show_configured_board: EventHandler::new(|_| {}),
+                on_display: EventHandler::new(|_| {}),
+            })}
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn physical_assembly_uses_select_combobox_checkbox_and_disclosure() {
+        let runtime = split_hardware_fixture().await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(physical_host);
+        dom.provide_root_context(runtime);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("assembly setup mounts", || {
+            root.text_content().unwrap_or_default().contains("Assembly setup")
+        })
+        .await;
+        let setup =
+            by_role_name(&root, "button", "Assembly setup").expect("assembly setup trigger");
+        assert_eq!(
+            setup.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        setup.click();
+        wait_until("assembly setup opens", || {
+            setup.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+        .await;
+        let half = by_role_name(&root, "button", "Half connection").expect("half connection");
+        assert_eq!(
+            half.get_attribute("data-slot").as_deref(),
+            Some("select-trigger")
+        );
+        half.click();
+        wait_until("half connection options open", || {
+            by_role_name(&root, "listbox", "Half connection").is_some()
+        })
+        .await;
+        assert!(by_role_name(&root, "option", "Wireless \u{b7} local battery on each half").is_some());
+        key(
+            &by_role_name(&root, "listbox", "Half connection").unwrap(),
+            "Escape",
+        );
+        wait_until("half connection options close", || {
+            by_role_name(&root, "listbox", "Half connection").is_none()
+        })
+        .await;
+        let design =
+            by_role_name(&root, "combobox", "PCB design").expect("thirteen-board picker");
+        assert_eq!(design.tag_name(), "INPUT");
+        design.focus().unwrap();
+        key(&design, "ArrowDown");
+        wait_until("the long board list opens", || {
+            by_role_name(&root, "option", "Board 12").is_some()
+        })
+        .await;
+        assert!(by_role_name(&root, "checkbox", "Turn PCB over for this half").is_some());
+        root.remove();
     }
 }
