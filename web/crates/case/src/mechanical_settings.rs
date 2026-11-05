@@ -20,7 +20,7 @@ use boardstudio_core::model::{
 };
 use boardstudio_web_ui_shared::controls::{
     BoardButton, BoardButtonDensity, BoardButtonVariant, BoardCheckbox, BoardDisclosure,
-    BoardNumberField, BoardSelectField,
+    BoardSelectField,
 };
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
@@ -839,7 +839,9 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
             if let Some(values) = props.values.as_ref().filter(|_| configuration_matches).or(props.preview_values.as_ref()) {
                 StackupPreview { values: values.clone() }
             }
-            BoardDisclosure { class: "m1-inspector-section", heading: rsx! { summary { "Linked halves" } },
+            Collapsible { keep_mounted: true, default_open: false,
+                CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Linked halves" }
+                CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
             if let Some(features) = props.pair_features.as_ref().filter(|features| !features.is_empty()) {
                 MechanicalPairControls {
                     identity: props.identity.clone(),
@@ -859,6 +861,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     on_request: props.on_request,
                 }
             }
+             }
             }
             if props.layers.iter().any(|layer| layer.is_previous) {
                 p { role: "status", class: "m1-mechanical-previous-result",
@@ -1218,10 +1221,12 @@ fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Eleme
                 p { class: "m1-mechanical-help",
                     "Removes {instance_id} from the project and clears the link. {counterpart} keeps the geometry and settings it shows today as its own local assembly. Your boards, PCBs and parts stay. One Undo restores the assembly and the link."
                 }
-                BoardButton {
-                    r#type: "button",
-                    class: "m1-mechanical-quiet",
-                    "aria-label": "Confirm removing assembly {instance_id}",
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
+                    button_type: "button",
+                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    aria_label: "Confirm removing assembly {instance_id}",
                     disabled: pending,
                     onclick: {
                         let identity = props.identity.clone();
@@ -1239,10 +1244,11 @@ fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Eleme
                     },
                     "Remove assembly"
                 }
-                BoardButton {
-                    variant: BoardButtonVariant::Quiet,
-                    density: BoardButtonDensity::Compact,
-                    class: "m1-mechanical-quiet",
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
+                    button_type: "button",
+                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Keep assembly {instance_id}",
                     onclick: move |_| confirming_state.set(false),
                     "Keep it"
@@ -1251,10 +1257,12 @@ fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Eleme
                 p { class: "m1-mechanical-help",
                     "Removing this assembly clears the link and removes only it; the other half stays as its own local assembly."
                 }
-                BoardButton {
-                    r#type: "button",
-                    class: "m1-mechanical-quiet",
-                    "aria-label": "Remove assembly {instance_id}",
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
+                    button_type: "button",
+                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    aria_label: "Remove assembly {instance_id}",
                     disabled: pending,
                     onclick: move |_| confirming_state.set(true),
                     "Remove this assembly…"
@@ -1381,68 +1389,70 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
         || mapping.is_none()
         || preview.is_none()
         || option.reviewed_fingerprint.is_none();
+    let selected_value = use_memo(move || selected().to_string());
+    let construction_value = use_memo(move || {
+        (if construction_from_other() {
+            "other"
+        } else {
+            "this"
+        })
+        .to_string()
+    });
     rsx! {
         section { class: "m1-mechanical-pair m1-mechanical-pair-link", aria_label: "Link a mechanical mirror pair",
             h3 { "Mirror another half" }
             p { class: "m1-mechanical-help",
                 "Linking keeps shared mounts, closure mounts, openings and gasket supports reflected and linked. Features without a match stay local to their half."
             }
-            BoardSelectField {
+            SettingsChoiceField {
                 label: "Link with",
-                class: "m1-mechanical-field",
                 aria_label: "Link with",
                 disabled: !props.editable,
-                value: "{index}",
-                onchange: {
+                value: selected_value,
+                options: options.iter().enumerate().map(|(candidate, item)| (candidate.to_string(), item.other_name.clone())).collect::<Vec<_>>(),
+                on_change: {
                         let mut selected = selected;
-                        move |event: FormEvent| {
-                            if let Ok(value) = event.value().parse::<usize>() {
+                        move |next: Option<String>| {
+                            if let Some(next) = next && let Ok(value) = next.parse::<usize>() {
                                 selected.set(value);
                             }
                         }
                     },
-                for (candidate, item) in options.iter().enumerate() {
-                        option { value: "{candidate}", "{item.other_name}" }
-                    }
             }
-            BoardSelectField {
+            SettingsSelect {
                 label: "Construction from",
-                class: "m1-mechanical-field",
                 aria_label: "Pair construction source",
                 disabled: !props.editable,
-                value: (if construction_from_other_value { "other" } else { "this" }).to_string(),
-                onchange: {
+                value: construction_value,
+                on_change: {
                         let mut construction_from_other = construction_from_other;
-                        move |event: FormEvent| {
-                            construction_from_other.set(event.value() == "other");
+                        move |next: Option<String>| {
+                            construction_from_other.set(next.as_deref() == Some("other"));
                         }
                     },
-                option { value: "this", "{option.instance_id}" }
-                    option { value: "other", "{option.other_instance_id}" }
+                SelectOption::<String> { index: 0usize, value: "this".to_owned(), text_value: option.instance_id.clone(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{option.instance_id}" }
+                    SelectOption::<String> { index: 1usize, value: "other".to_owned(), text_value: option.other_instance_id.clone(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{option.other_instance_id}" }
             }
             if option.derived_mapping.is_none() {
                 div { class: "m1-mechanical-pair-mapping",
-                    BoardNumberField {
+                    SettingsNumberField {
                         label: "Map offset X",
-                        class: "m1-mechanical-field",
                         aria_label: "Pair mapping X",
-                        value: "{mapping_x}",
+                        value: mapping_x,
                         oninput: { let mut mapping_x = mapping_x; move |event: FormEvent| mapping_x.set(event.value()) },
                         step: "1",
                     }
-                    BoardNumberField {
+                    SettingsNumberField {
                         label: "Map offset Y",
-                        class: "m1-mechanical-field",
                         aria_label: "Pair mapping Y",
-                        value: "{mapping_y}",
+                        value: mapping_y,
                         oninput: { let mut mapping_y = mapping_y; move |event: FormEvent| mapping_y.set(event.value()) },
                         step: "1",
                     }
-                    BoardNumberField {
+                    SettingsNumberField {
                         label: "Map rotation",
-                        class: "m1-mechanical-field",
                         aria_label: "Pair mapping rotation",
-                        value: "{mapping_rotation}",
+                        value: mapping_rotation,
                         oninput: { let mut mapping_rotation = mapping_rotation; move |event: FormEvent| mapping_rotation.set(event.value()) },
                         step: "1",
                     }
@@ -1477,23 +1487,24 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                         fieldset { key: "{row_id}", class: "m1-mechanical-pair-source",
                             "aria-label": "Source for {key}",
                             legend { "{feature_label(matched.kind)} {key} · {matched.second_feature_id}" }
-                            BoardSelectField {
+                            SettingsSelect {
                                 label: "Shared geometry from",
-                                class: "m1-mechanical-field",
                                 aria_label: "Source for {key}",
                                 disabled: !props.editable,
-                                value: "{chosen}",
-                                onchange: {
+                                value: chosen.clone(),
+                                on_change: {
                                         let mut sources = sources;
                                         let key = key.clone();
-                                        move |event: FormEvent| {
-                                            sources.write().insert(key.clone(), event.value());
+                                        move |next: Option<String>| {
+                                            if let Some(next) = next {
+                                                sources.write().insert(key.clone(), next);
+                                            }
                                         }
                                     },
-                                option { value: "{matched.source_instance_id}",
+                                SelectOption::<String> { index: 0usize, value: matched.source_instance_id.clone(), text_value: format!("{} · {first_label}", matched.source_instance_id), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                         "{matched.source_instance_id} · {first_label}"
                                     }
-                                    option { value: "{option.other_instance_id}",
+                                    SelectOption::<String> { index: 1usize, value: option.other_instance_id.clone(), text_value: format!("{} · {second_label}", option.other_instance_id), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                         "{option.other_instance_id} · {second_label}"
                                     }
                             }
@@ -1518,7 +1529,7 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                                 }
                             }
                             for finding in member.findings.iter() {
-                                p { role: "alert", class: "m1-mechanical-pair-preview-finding", "{finding}" }
+                                Alert { variant: AlertVariant::Destructive, "{finding}" }
                             }
                         }
                     }
@@ -1528,10 +1539,11 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                     "The complete proposed result is unavailable until you confirm: {note}"
                 }
             }
-            BoardButton {
-                r#type: "button",
-                class: "m1-mechanical-quiet",
-                "aria-label": "Link {option.instance_id} with {option.other_instance_id}",
+            Button {
+                variant: ButtonVariant::Secondary,
+                button_type: "button",
+                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                aria_label: "Link {option.instance_id} with {option.other_instance_id}",
                 disabled: blocked,
                 onclick: {
                     let mut sequence = props.request_sequence;
@@ -1666,13 +1678,14 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                             "aria-label": "Mirrored {feature_label(row.kind).to_lowercase()}",
                             legend { "{feature_label(row.kind)} · {state}" }
                             if let Some(message) = failure {
-                                p { role: "alert", "{message}" }
+                                Alert { variant: AlertVariant::Destructive, "{message}" }
                             }
                             if linked {
-                                BoardButton {
-                                    variant: BoardButtonVariant::Quiet,
-                                    density: BoardButtonDensity::Compact,
-                                    class: "m1-mechanical-quiet",
+                                Button {
+                                    variant: ButtonVariant::Ghost,
+                                    size: ButtonSize::Sm,
+                                    button_type: "button",
+                                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                     aria_label: "Make local {row.feature_id}",
                                     disabled: local_blocked,
                                     onclick: {
@@ -1684,10 +1697,11 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                     },
                                     "Make local"
                                 }
-                                BoardButton {
-                                    r#type: "button",
-                                    class: "m1-mechanical-quiet",
-                                    "aria-label": "Remove on this half {row.feature_id}",
+                                Button {
+                                    variant: ButtonVariant::Secondary,
+                                    button_type: "button",
+                                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    aria_label: "Remove on this half {row.feature_id}",
                                     disabled: omit_blocked,
                                     onclick: {
                                         let mut sequence = props.request_sequence;
@@ -1700,25 +1714,26 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                 }
                             } else {
                                 if offers_own_source {
-                                    BoardSelectField {
+                                    SettingsSelect {
                                         label: "Rejoin from",
-                                        class: "m1-mechanical-field",
                                         aria_label: "Rejoin source for {row.feature_id}",
                                         disabled: !props.editable,
-                                        value: "{chosen_source}",
-                                        onchange: {
+                                        value: chosen_source.clone(),
+                                        on_change: {
                                                 let mut rejoin_sources = rejoin_sources;
                                                 let feature_id = row.feature_id.clone();
-                                                move |event: FormEvent| {
-                                                    rejoin_sources
-                                                        .write()
-                                                        .insert(feature_id.clone(), event.value());
+                                                move |next: Option<String>| {
+                                                    if let Some(next) = next {
+                                                        rejoin_sources
+                                                            .write()
+                                                            .insert(feature_id.clone(), next);
+                                                    }
                                                 }
                                             },
-                                        option { value: "{row.instance_id}",
+                                        SelectOption::<String> { index: 0usize, value: row.instance_id.clone(), text_value: format!("this half · {}", row.own_geometry.clone().unwrap_or_default()), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                                 "this half · {row.own_geometry.clone().unwrap_or_default()}"
                                             }
-                                            option { value: "{row.counterpart_instance_id}",
+                                            SelectOption::<String> { index: 1usize, value: row.counterpart_instance_id.clone(), text_value: format!("the other half · {}", row.preview.clone().unwrap_or_else(|| "no geometry".to_owned())), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                                 "the other half · {row.preview.clone().unwrap_or_else(|| \"no geometry\".to_owned())}"
                                             }
                                     }
@@ -1732,10 +1747,11 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                         "The reviewed source half has no geometry for this feature, so it cannot be rejoined yet."
                                     }
                                 }
-                                BoardButton {
-                                    variant: BoardButtonVariant::Quiet,
-                                    density: BoardButtonDensity::Compact,
-                                    class: "m1-mechanical-quiet",
+                                Button {
+                                    variant: ButtonVariant::Ghost,
+                                    size: ButtonSize::Sm,
+                                    button_type: "button",
+                                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                     aria_label: "Rejoin {row.feature_id} from {source_label}",
                                     disabled: rejoin_blocked,
                                     onclick: {
@@ -3629,6 +3645,67 @@ fn ProfileTargetField(
         Combobox::<String> { class: "max-[760px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch", aria_label: name.clone(), list_aria_label: name, placeholder, disabled, value: Some(selected.into()), on_value_change: on_change,
             for (index, target) in options.iter().enumerate() {
                 ComboboxOption::<String> { key: "{target.definition_id}", index, value: target.definition_id.clone(), text_value: target.name.clone(), "{target.name}" }
+            }
+        }
+    } }
+}
+
+/// Presentation-only choice field for caller-owned dynamic lists, with the 12-option
+/// Select/Combobox boundary; the caller owns the accepted value and domain request.
+#[component]
+fn SettingsChoiceField(
+    label: String,
+    value: ReadSignal<String>,
+    options: Vec<(String, String)>,
+    #[props(into, optional)] placeholder: Option<String>,
+    #[props(into, optional)] aria_label: Option<String>,
+    #[props(default)] disabled: bool,
+    on_change: EventHandler<Option<String>>,
+) -> Element {
+    let selected = use_memo(move || Some(value()));
+    if options.len() > 12 {
+        let name = aria_label.unwrap_or_else(|| label.clone());
+        let placeholder = placeholder.unwrap_or_default();
+        return rsx! { Field { class: "gap-1.5", disabled,
+            FieldLabel { "{label}" }
+            Combobox::<String> { class: "max-[760px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch", aria_label: name.clone(), list_aria_label: name, placeholder, disabled, value: Some(selected.into()), on_value_change: on_change,
+                for (index, (option_value, text)) in options.iter().enumerate() {
+                    ComboboxOption::<String> { key: "{index}", class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index, value: option_value.clone(), text_value: text.clone(), "{text}" }
+                }
+            }
+        } };
+    }
+    rsx! { SettingsSelect { label, aria_label, value, disabled, on_change,
+        if let Some(placeholder) = placeholder.clone() {
+            SelectOption::<String> { index: 0usize, value: String::new(), text_value: placeholder.clone(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{placeholder}" }
+        }
+        for (index, (option_value, text)) in options.iter().enumerate() {
+            SelectOption::<String> { key: "{index}", index: index + 1, value: option_value.clone(), text_value: text.clone(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{text}" }
+        }
+    } }
+}
+
+/// Presentation-only numeric field for caller-owned drafts; parsing stays with the caller.
+#[component]
+fn SettingsNumberField(
+    label: String,
+    value: ReadSignal<String>,
+    #[props(into, optional)] aria_label: Option<String>,
+    #[props(into, optional)] step: Option<String>,
+    oninput: EventHandler<FormEvent>,
+) -> Element {
+    let id = format!("case-number-{}", dioxus::core::current_scope_id().0);
+    let name = aria_label.unwrap_or_else(|| label.clone());
+    rsx! { Field { class: "gap-1.5",
+        FieldLabel { html_for: id.clone(), "{label}" }
+        InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+            InputGroupInput {
+                id: id.clone(), class: "font-mono",
+                r#type: InputType::Number,
+                step,
+                aria_label: name,
+                value: value(),
+                oninput: move |event: FormEvent| oninput.call(event),
             }
         }
     } }
@@ -6329,6 +6406,19 @@ mod contextual_layer_tests {
         .await;
     }
 
+    /// The primitives commit an option on primary pointerdown/up, not on click.
+    fn tap_option(option: &web_sys::HtmlElement) {
+        for kind in ["pointerdown", "pointerup"] {
+            let event = js_sys::eval(&format!(
+                "new PointerEvent('{kind}', {{bubbles:true, cancelable:true, button:0}})"
+            ))
+            .unwrap()
+            .dyn_into::<web_sys::Event>()
+            .unwrap();
+            option.dispatch_event(&event).unwrap();
+        }
+    }
+
     fn mount_battery_test_page(root_id: &'static str, page: fn() -> Element) {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
@@ -6723,19 +6813,24 @@ mod contextual_layer_tests {
         rendered().await;
 
         // The panel renders the accepted pair state for every covered kind.
-        assert_eq!(
-            element(".m1-mechanical-pair h3").text_content().unwrap(),
-            "Mirrored pair"
+        by_role_name(&root, "button", "Linked halves")
+            .unwrap()
+            .click();
+        rendered().await;
+        let panel = root.text_content().unwrap();
+        assert!(
+            panel.contains("Mirrored pair"),
+            "the pair panel renders its heading, got {panel}"
         );
-        assert_eq!(
-            element(".m1-mechanical-pair-row:nth-of-type(1) legend")
-                .text_content()
-                .unwrap(),
-            "Mount · linked to the other half"
+        assert!(
+            panel.contains("Mount · linked to the other half"),
+            "the linked row states its relationship, got {panel}"
         );
 
         // Linked: make local, or remove on this half.
-        element("button[aria-label='Make local mount-1-left']").click();
+        by_role_name(&root, "button", "Make local mount-1-left")
+            .unwrap()
+            .click();
         rendered().await;
         let local = element("#case-pair-feature-last-request")
             .text_content()
@@ -6744,7 +6839,9 @@ mod contextual_layer_tests {
             local.contains("MakeFeatureLocal") && local.contains("mount-1-left"),
             "the linked row submits an explicit make-local, got {local}"
         );
-        element("button[aria-label='Remove on this half mount-1-left']").click();
+        by_role_name(&root, "button", "Remove on this half mount-1-left")
+            .unwrap()
+            .click();
         rendered().await;
         let omit = element("#case-pair-feature-last-request")
             .text_content()
@@ -6756,13 +6853,14 @@ mod contextual_layer_tests {
 
         // Local: the preview is shown before the commit, and rejoin names its source.
         assert!(
-            element(".m1-mechanical-pair-row:nth-of-type(2) .m1-mechanical-help")
-                .text_content()
+            root.text_content()
                 .unwrap()
-                .contains("Opening with 3 vertices"),
+                .contains("Rejoin takes Opening with 3 vertices from right"),
             "a rejoin previews the geometry it will take"
         );
-        element("button[aria-label='Rejoin opening-1-left from the other half']").click();
+        by_role_name(&root, "button", "Rejoin opening-1-left from the other half")
+            .unwrap()
+            .click();
         rendered().await;
         let rejoin = element("#case-pair-feature-last-request")
             .text_content()
@@ -6779,34 +6877,29 @@ mod contextual_layer_tests {
         );
 
         // A local half can deliberately take its OWN geometry as the shared value.
-        let rejoin_source = element("select[aria-label='Rejoin source for opening-1-left']");
+        by_role_name(&root, "button", "Rejoin source for opening-1-left")
+            .unwrap()
+            .click();
+        wait_until("the rejoin sources open", || {
+            by_role_name(&root, "listbox", "Rejoin source for opening-1-left").is_some()
+        })
+        .await;
         assert!(
-            element(".m1-mechanical-pair-row:nth-of-type(2)")
-                .text_content()
-                .unwrap()
-                .contains("Opening with 4 vertices"),
+            by_role_name(&root, "option", "this half · Opening with 4 vertices").is_some(),
             "the review shows this half's own geometry as a source choice"
         );
-        js_sys::Reflect::set(&rejoin_source, &"value".into(), &"left".into()).unwrap();
-        let source_change = web_sys::EventInit::new();
-        source_change.set_bubbles(true);
-        rejoin_source
-            .dispatch_event(
-                &web_sys::Event::new_with_event_init_dict("change", &source_change).unwrap(),
-            )
-            .unwrap();
+        tap_option(&by_role_name(&root, "option", "this half · Opening with 4 vertices").unwrap());
         rendered().await;
         assert!(
-            element(".m1-mechanical-pair-row:nth-of-type(2)")
-                .text_content()
+            root.text_content()
                 .unwrap()
                 .contains("Rejoin takes Opening with 4 vertices from left"),
             "the preview follows the chosen source, got {}",
-            element(".m1-mechanical-pair-row:nth-of-type(2)")
-                .text_content()
-                .unwrap()
+            root.text_content().unwrap()
         );
-        element("button[aria-label='Rejoin opening-1-left from this half']").click();
+        by_role_name(&root, "button", "Rejoin opening-1-left from this half")
+            .unwrap()
+            .click();
         rendered().await;
         let own_source = element("#case-pair-feature-last-request")
             .text_content()
@@ -6821,21 +6914,19 @@ mod contextual_layer_tests {
         let last_reviewed = element("#case-pair-feature-last-request")
             .text_content()
             .unwrap();
-        let document = web_sys::window().unwrap().document().unwrap();
-        assert!(
-            document
-                .query_selector(
-                    "button[aria-label='Rejoin support-1-left from the other half']:disabled"
-                )
+        let omitted_rejoin =
+            by_role_name(&root, "button", "Rejoin support-1-left from the other half").unwrap();
+        assert_eq!(
+            js_sys::Reflect::get(&omitted_rejoin, &"disabled".into())
                 .unwrap()
-                .is_some(),
+                .as_bool(),
+            Some(true),
             "an omitted feature whose other half has no geometry cannot be rejoined"
         );
         assert!(
-            element(".m1-mechanical-pair-row:nth-of-type(3) .m1-mechanical-help")
-                .text_content()
+            root.text_content()
                 .unwrap()
-                .contains("no geometry"),
+                .contains("has no geometry for this feature"),
         );
         let after = element("#case-pair-feature-last-request")
             .text_content()
@@ -7074,7 +7165,7 @@ mod contextual_layer_tests {
         rendered().await;
 
         // The control exists for a linked half and nothing is submitted on its own.
-        let remove = element("button[aria-label='Remove assembly left']");
+        let remove = by_role_name(&root, "button", "Remove assembly left").unwrap();
         assert!(
             element("#case-paired-removal-last-request")
                 .text_content()
@@ -7086,9 +7177,7 @@ mod contextual_layer_tests {
         // The first click asks for explicit confirmation of the whole change.
         remove.click();
         rendered().await;
-        let confirmation = element(".m1-mechanical-remove-member")
-            .text_content()
-            .unwrap();
+        let confirmation = root.text_content().unwrap();
         assert!(
             confirmation.contains("right")
                 && confirmation.contains("keeps the geometry and settings")
@@ -7105,7 +7194,9 @@ mod contextual_layer_tests {
         );
 
         // Cancelling keeps everything.
-        element("button[aria-label='Keep assembly left']").click();
+        by_role_name(&root, "button", "Keep assembly left")
+            .unwrap()
+            .click();
         rendered().await;
         assert!(
             element("#case-paired-removal-last-request")
@@ -7116,9 +7207,13 @@ mod contextual_layer_tests {
         );
 
         // Confirming submits exactly one typed physical-instance removal.
-        element("button[aria-label='Remove assembly left']").click();
+        by_role_name(&root, "button", "Remove assembly left")
+            .unwrap()
+            .click();
         rendered().await;
-        element("button[aria-label='Confirm removing assembly left']").click();
+        by_role_name(&root, "button", "Confirm removing assembly left")
+            .unwrap()
+            .click();
         rendered().await;
         let submitted = element("#case-paired-removal-last-request")
             .text_content()
@@ -7344,13 +7439,15 @@ mod contextual_layer_tests {
 
         // The review shows the map the link will use and the durable matches before
         // anything is submitted.
-        assert_eq!(
-            element(".m1-mechanical-pair-link h3")
-                .text_content()
-                .unwrap(),
-            "Mirror another half"
+        by_role_name(&root, "button", "Linked halves")
+            .unwrap()
+            .click();
+        rendered().await;
+        let review = root.text_content().unwrap();
+        assert!(
+            review.contains("Mirror another half"),
+            "the link review renders its heading, got {review}"
         );
-        let review = element(".m1-mechanical-pair-link").text_content().unwrap();
         assert!(
             review.contains("Derived from the halves' declared transforms"),
             "the review explains the map, got {review}"
@@ -7369,9 +7466,7 @@ mod contextual_layer_tests {
 
         // Both halves of the complete proposed result are rendered before the commit,
         // read from Core rather than computed in the panel.
-        let both_halves = element(".m1-mechanical-pair-preview")
-            .text_content()
-            .unwrap();
+        let both_halves = root.text_content().unwrap();
         assert!(
             both_halves.contains("left")
                 && both_halves.contains("right")
@@ -7381,29 +7476,23 @@ mod contextual_layer_tests {
 
         // Each match chooses its own source half, independently of the construction
         // source and of the other matches.
-        let source_row = element("select[aria-label='Source for mount-1-left']");
+        by_role_name(&root, "button", "Source for mount-1-left")
+            .unwrap()
+            .click();
+        wait_until("the source choices open", || {
+            by_role_name(&root, "listbox", "Source for mount-1-left").is_some()
+        })
+        .await;
         assert!(
-            source_row.text_content().is_some(),
-            "a matched feature offers its own source choice"
-        );
-        assert!(
-            element(".m1-mechanical-pair-source")
-                .text_content()
-                .unwrap()
-                .contains("Mount at (-2.0, 3.0)"),
+            by_role_name(&root, "option", "right · Mount at (-2.0, 3.0)").is_some(),
             "the other half's geometry is shown for the choice"
         );
-        js_sys::Reflect::set(&source_row, &"value".into(), &"right".into()).unwrap();
-        let source_change = web_sys::EventInit::new();
-        source_change.set_bubbles(true);
-        source_row
-            .dispatch_event(
-                &web_sys::Event::new_with_event_init_dict("change", &source_change).unwrap(),
-            )
-            .unwrap();
+        tap_option(&by_role_name(&root, "option", "right · Mount at (-2.0, 3.0)").unwrap());
         rendered().await;
 
-        element("button[aria-label='Link left with right']").click();
+        by_role_name(&root, "button", "Link left with right")
+            .unwrap()
+            .click();
         rendered().await;
         let linked = element("#case-pair-link-last-request")
             .text_content()
@@ -7433,38 +7522,37 @@ mod contextual_layer_tests {
         );
 
         // A translated frame has no derived map: the review asks for one explicitly.
-        let select = element("select[aria-label='Link with']");
-        js_sys::Reflect::set(&select, &"value".into(), &"1".into()).unwrap();
-        let change = web_sys::EventInit::new();
-        change.set_bubbles(true);
-        select
-            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
-            .unwrap();
+        by_role_name(&root, "button", "Link with").unwrap().click();
+        wait_until("the link candidates open", || {
+            by_role_name(&root, "listbox", "Link with").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "Lower half").unwrap());
         rendered().await;
         assert!(
-            element("input[aria-label='Pair mapping X']").is_connected(),
+            by_role_name(&root, "spinbutton", "Pair mapping X").is_some(),
             "a translated frame gets explicit mapping inputs"
         );
         assert!(
-            element(".m1-mechanical-pair-link")
-                .text_content()
+            root.text_content()
                 .unwrap()
                 .contains("complete proposed result is unavailable"),
             "a candidate without a projection says so instead of showing a partial result"
         );
-        assert!(
-            web_sys::window()
+        let blocked_link = by_role_name(&root, "button", "Link left with lower").unwrap();
+        assert_eq!(
+            js_sys::Reflect::get(&blocked_link, &"disabled".into())
                 .unwrap()
-                .document()
-                .unwrap()
-                .query_selector("button[aria-label='Link left with lower']:disabled")
-                .unwrap()
-                .is_some(),
+                .as_bool(),
+            Some(true),
             "the explicit map is required before the link can be committed"
         );
 
-        let mapping_input = |selector: &str, value: &str| {
-            let input: web_sys::HtmlInputElement = element(selector).dyn_into().unwrap();
+        let mapping_input = |name: &str, value: &str| {
+            let input: web_sys::HtmlInputElement = by_role_name(&root, "spinbutton", name)
+                .unwrap()
+                .dyn_into()
+                .unwrap();
             input.set_value(value);
             let event = web_sys::EventInit::new();
             event.set_bubbles(true);
@@ -7472,11 +7560,13 @@ mod contextual_layer_tests {
                 .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
                 .unwrap();
         };
-        mapping_input("input[aria-label='Pair mapping X']", "30");
-        mapping_input("input[aria-label='Pair mapping Y']", "-5");
-        mapping_input("input[aria-label='Pair mapping rotation']", "180");
+        mapping_input("Pair mapping X", "30");
+        mapping_input("Pair mapping Y", "-5");
+        mapping_input("Pair mapping rotation", "180");
         rendered().await;
-        element("button[aria-label='Link left with lower']").click();
+        by_role_name(&root, "button", "Link left with lower")
+            .unwrap()
+            .click();
         rendered().await;
         let explicit = element("#case-pair-link-last-request")
             .text_content()
