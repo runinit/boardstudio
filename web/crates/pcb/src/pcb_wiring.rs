@@ -2,12 +2,17 @@
 //!
 //! Root owns the accepted-source controller and Runtime request. This leaf receives only a
 //! cheap accepted-document handle, board scope, active selection, and guarded edit actions.
+use crate::pcb_controls::{PcbChoice, PcbInput, PcbSection};
 use boardstudio_application::Scope;
 use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan},
     model::{Net, PartDefinition, PartKind, ProjectDoc},
 };
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure, BoardSelectField};
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::input::InputType;
+use boardstudio_web_ui_shared::ui::spinner::Spinner;
+use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -565,8 +570,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                 source: source.clone(),
                 actions: props.part_input_actions.clone(),
                 board_details_and_connections: rsx! {
-            BoardDisclosure { class: "m1-pcb-wiring-section",
-                heading: rsx! { summary { "Board details" } },
+            PcbSection { class: "m1-pcb-wiring-section", label: "Board details",
                 ul {
                     li { span { "Board thickness" } strong { "{thickness:.2} mm" } }
                     li { span { "Placed parts" } strong { "{placed_parts}" } }
@@ -587,27 +591,20 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                             let pad_ids = row.pad_ids.clone();
                             let value = identity.as_ref().and_then(|identity| controller::pending_net(identity, &row.pad_ids)).unwrap_or_else(|| row.selected_net_id.clone()).unwrap_or_default();
                             rsx! {
-                                label { class: "m1-pcb-wiring-assignment", key: "{row.label}",
-                                    span { "{row.label}" }
-                                    select {
-                                        "aria-label": "Net for {row.label}",
-                                        value: "{value}",
+                                PcbChoice { class: "m1-pcb-wiring-assignment", key: "{row.label}",
+                                        label: row.label.clone(), aria_label: format!("Net for {}", row.label), value, searchable: true,
                                         disabled: !actions.editable || identity.is_none(),
-                                        onchange: move |event| {
+                                        on_change: move |value: String| {
                                             let Some(identity) = identity.clone() else { return; };
                                             on_edit.call(PartNetEditRequest {
                                                 identity,
                                                 action: PartNetEditAction::AssignPads {
                                                     pad_ids: pad_ids.clone(),
-                                                    net_id: (!event.value().is_empty()).then(|| event.value()),
+                                                    net_id: (!value.is_empty()).then_some(value),
                                                 },
                                             });
                                         },
-                                        option { value: "", "Unmapped" }
-                                        for net in nets {
-                                            option { value: "{net.id}", "{net.name}" }
-                                        }
-                                    }
+                                        options: std::iter::once((String::new(), "Unmapped".into(), false)).chain(nets.iter().map(|net| (net.id.clone(), net.name.clone(), false))).collect(),
                                 }
                             }
                         }
@@ -617,17 +614,14 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                 },
             }
             form { class: "m1-pcb-wiring-assignment m1-pcb-new-net", onsubmit: add_net,
-                input {
-                    "aria-label": "New net name",
-                    placeholder: "New net name",
-                    value: "{new_net_name}",
+                PcbInput { label: "New net name", aria_label: "New net name", r#type: InputType::Text,
+                    placeholder: Some("New net name".into()), value: new_net_name(),
                     disabled: !actions.editable || identity.is_none(),
-                    oninput: move |event| new_net_name.set(event.value()),
+                    oninput: move |event: FormEvent| new_net_name.set(event.value()),
                 }
-                BoardButton { r#type: "submit", disabled: !actions.editable || identity.is_none() || new_net_name().trim().is_empty() || actions.create_pending, "Add net" }
+                Button { button_type: "submit", variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !actions.editable || identity.is_none() || new_net_name().trim().is_empty() || actions.create_pending, "Add net" }
             }
-            BoardDisclosure { class: "m1-pcb-wiring-section",
-                heading: rsx! { summary { "Electrical nets ({nets.len()})" } },
+            PcbSection { class: "m1-pcb-wiring-section", label: format!("Electrical nets ({})", nets.len()),
                 ul {
                     for net in nets {
                         li { key: "{net.id}", span { "{net.name}" } small { "{net.pin_count} pins" } }
@@ -636,7 +630,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                 }
             }
             if let Some(feedback) = actions.feedback {
-                p { role: "alert", "{feedback.failure}" }
+                Alert { variant: AlertVariant::Destructive, "{feedback.failure}" }
             }
         }
     }
@@ -695,7 +689,7 @@ fn switch_wiring(
                     }
                 }
             }
-            button { type: "button", onclick: move |_| on_edit_board_wiring.call(()), "Edit board wiring" }
+            Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| on_edit_board_wiring.call(()), "Edit board wiring" }
         }
     }
 }
@@ -788,47 +782,45 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 }
                 span { class: "m1-pcb-wiring-topology", "{selected_mode}" }
             }
-            BoardDisclosure { class: "m1-inspector-section m1-pcb-net-overview", open: true,
-                heading: rsx! { summary { "Nets" } },
+            PcbSection { class: "m1-inspector-section m1-pcb-net-overview", default_open: true, label: "Nets",
                 ul {
                     for net in props.source.document.nets.iter().filter(|net| props.source.document.boards.iter().find(|board| board.id == props.source.identity.scope.board_id).is_some_and(|board| board.net_ids.contains(&net.id) || net.pins.iter().any(|pin| board.part_ids.contains(&pin.part_id)))) {
                         li { key: "{net.id}", strong { "{net.name}" } span { "{net.pins.len()} pins" } }
                     }
                 }
             }
-            BoardSelectField {
+            PcbChoice {
                 label: "Wiring mode",
                 class: "m1-pcb-wiring-mode-control",
                 aria_label: "Wiring mode",
                 value: "{selected_mode}",
                 disabled: !mode_actions.editable,
-                onchange: move |event: FormEvent| {
+                on_change: move |value: String| {
                         let Some(identity) = mode_identity.clone() else { return; };
-                        let mode = match event.value().as_str() {
+                        let mode = match value.as_str() {
                             "matrix" => ElectricalMode::Matrix,
                             "direct" => ElectricalMode::Direct,
                             _ => return,
                         };
                         change_mode.call(BoardWiringModeEditRequest { identity, mode });
                     },
-                option { value: "matrix", "Matrix" }
-                    option { value: "direct", "Direct GPIO" }
+                options: vec![("matrix".into(), "Matrix".into(), false), ("direct".into(), "Direct GPIO".into(), false)],
             }
             if display.controller_choices.is_empty() {
                 p { "Place a controller from Parts to assign this board’s wiring." }
-                BoardButton { r#type: "button", onclick: move |_| on_choose_controller.call(()), "Add controller" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| on_choose_controller.call(()), "Add controller" }
             }
             if mode_pending {
-                p { role: "status", "Saving wiring mode…" }
+                p { role: "status", Spinner {} "Saving wiring mode…" }
             }
             if let Some(message) = &mode_failure {
-                p { role: "alert", "{message}" }
+                Alert { variant: AlertVariant::Destructive, "{message}" }
             }
             if pin_pending {
-                p { role: "status", "Saving wiring pin…" }
+                p { role: "status", Spinner {} "Saving wiring pin…" }
             }
             if let Some(message) = &pin_failure {
-                p { role: "alert", "{message}" }
+                Alert { variant: AlertVariant::Destructive, "{message}" }
             }
             if protected_remap_actions.handoff_revision.is_some()
                 || protected_remap_actions.feedback.is_some()
@@ -837,11 +829,9 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     strong { "Protected handoff" }
                     if let Some(revision) = protected_remap_actions.handoff_revision {
                         p { "Pins protected by PCB handoff at revision {revision}" }
-                        BoardDisclosure {
-                            heading: rsx! { summary { "Review PCB remap" } },
+                        PcbSection { label: "Review PCB remap",
                             p { "Changing a protected assignment creates a new hardware revision. The old PCB and firmware must be regenerated before export." }
-                            button {
-                                type: "button",
+                            Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 disabled: !protected_remap_actions.editable,
                                 onclick: move |_| {
                                     let Some(identity) = protected_remap_identity.clone() else { return; };
@@ -853,18 +843,18 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     }
                     if let Some(feedback) = &protected_remap_actions.feedback {
                         if matches!(feedback.state, ProtectedRemapFeedback::Pending) {
-                            p { role: "status", "Starting a new PCB revision…" }
+                            p { role: "status", Spinner {} "Starting a new PCB revision…" }
                         } else if matches!(feedback.state, ProtectedRemapFeedback::Saved) {
                             p { role: "status", "New PCB revision started. Regenerate PCB and firmware before export." }
                         } else if let ProtectedRemapFeedback::Failed(message) = &feedback.state {
-                            p { role: "alert", "{message}" }
+                            Alert { variant: AlertVariant::Destructive, "{message}" }
                         }
                     }
                 }
             }
             match &resolution_notice {
-                WiringResolutionNotice::Pending => rsx! { p { role: resolution_notice.role(), "Resolving wiring…" } },
-                WiringResolutionNotice::Failed(error) => rsx! { p { role: resolution_notice.role(), "{error}" } },
+                WiringResolutionNotice::Pending => rsx! { p { role: resolution_notice.role(), Spinner {} "Resolving wiring…" } },
+                WiringResolutionNotice::Failed(error) => rsx! { Alert { variant: AlertVariant::Destructive, "{error}" } },
                 WiringResolutionNotice::Waiting if matching_plan.is_none() => {
                     rsx! { p { role: "status", "Waiting for a current wiring plan." } }
                 }
@@ -881,19 +871,19 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 }
             }
             div { class: "m1-pcb-wiring-actions",
-                button { type: "button", disabled: pending || display.controller_choices.is_empty(), onclick: move |_| on_resolve.call(()),
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: pending || display.controller_choices.is_empty(), onclick: move |_| on_resolve.call(()),
                     if pending { "Resolving…" } else { "Resolve automatically" }
                 }
-                BoardButton { class: "m1-pcb-wiring-apply", r#type: "button", disabled: !apply_actions.editable, onclick: move |_| {
+                Button { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !apply_actions.editable, onclick: move |_| {
                     let Some(identity) = apply_identity.clone() else { return; };
                     on_apply.call(identity);
                 }, "Apply wiring" }
             }
             if let Some(message) = &apply_failure {
-                p { role: "alert", "{message}" }
+                Alert { variant: AlertVariant::Destructive, "{message}" }
             }
             if let Some(plan) = matching_plan.filter(|plan| !plan.diagnostics.is_empty()) {
-                div { class: "m1-pcb-wiring-findings", role: "alert",
+                Alert { variant: AlertVariant::Destructive, class: "m1-pcb-wiring-findings",
                     strong { "Review before handoff" }
                     for (index, diagnostic) in plan.diagnostics.iter().enumerate() {
                         p { key: "{index}", "{diagnostic.severity}: {diagnostic.message}" }
@@ -904,8 +894,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 div { class: "m1-pcb-wiring-protected",
                     strong { "Review existing connections" }
                     p { "{review.pin_count} pin connections already belong to {existing_connection_names}. Switching them to automatic wiring removes these assignments so the board plan can replace them. Other connections stay in place. You can undo this change." }
-                    button {
-                        type: "button",
+                    Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: !mode_actions.editable || review_connections_identity.is_none() || release_disabled,
                         onclick: move |_| {
                             let Some(identity) = review_connections_identity.clone() else { return; };
@@ -917,39 +906,23 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             }
             {props.firmware_controls.clone()}
             if let Some(plan) = matching_plan {
-                BoardDisclosure { open: true, class: "m1-pcb-wiring-section m1-pcb-wiring-assignments",
-                    heading: rsx! { summary { class: "m1-pcb-wiring-section-heading",
-                        span { "Assignments" }
-                        span { class: "m1-pcb-wiring-assignment-count", "{pin_rows.len()}" }
-                    } },
+                PcbSection { default_open: true, class: "m1-pcb-wiring-section m1-pcb-wiring-assignments", label: format!("Assignments ({})", pin_rows.len()),
                     if plan.mode == ElectricalMode::Matrix && !assignment_groups.rows.is_empty() {
-                        BoardDisclosure { class: "m1-pcb-wiring-pin-group",
-                            heading: rsx! { summary { class: "m1-pcb-wiring-pin-group-heading",
-                                span { "Row pins" }
-                                span { class: "m1-pcb-wiring-pin-count", "{assignment_groups.rows.len()}" }
-                            } },
+                        PcbSection { class: "m1-pcb-wiring-pin-group", label: format!("Row pins ({})", assignment_groups.rows.len()),
                             for row in assignment_groups.rows.iter() {
                                 {pin_assignment_row(row, &pin_actions, plan)}
                             }
                         }
                     }
                     if plan.mode == ElectricalMode::Matrix && !assignment_groups.columns.is_empty() {
-                        BoardDisclosure { class: "m1-pcb-wiring-pin-group",
-                            heading: rsx! { summary { class: "m1-pcb-wiring-pin-group-heading",
-                                span { "Column pins" }
-                                span { class: "m1-pcb-wiring-pin-count", "{assignment_groups.columns.len()}" }
-                            } },
+                        PcbSection { class: "m1-pcb-wiring-pin-group", label: format!("Column pins ({})", assignment_groups.columns.len()),
                             for row in assignment_groups.columns.iter() {
                                 {pin_assignment_row(row, &pin_actions, plan)}
                             }
                         }
                     }
                     if plan.mode == ElectricalMode::Matrix && !assignment_groups.other.is_empty() {
-                        BoardDisclosure { class: "m1-pcb-wiring-pin-group",
-                            heading: rsx! { summary { class: "m1-pcb-wiring-pin-group-heading",
-                                span { "Peripheral pins" }
-                                span { class: "m1-pcb-wiring-pin-count", "{assignment_groups.other.len()}" }
-                            } },
+                        PcbSection { class: "m1-pcb-wiring-pin-group", label: format!("Peripheral pins ({})", assignment_groups.other.len()),
                             for row in assignment_groups.other.iter() {
                                 {pin_assignment_row(row, &pin_actions, plan)}
                             }
@@ -986,17 +959,16 @@ fn pin_assignment_row(
                     small { "{detail}" }
                 }
             }
-            label { class: "m1-pcb-wiring-pin-control",
-                span { class: "m1-visually-hidden", "Pin for {row.label}" }
-                select {
-                    "aria-label": "Pin for {row.label}",
-                    value: "{row.value.as_deref().unwrap_or(\"\")}",
+            PcbChoice { class: "m1-pcb-wiring-pin-control", label_class: "m1-visually-hidden",
+                    label: format!("Pin for {}", row.label), aria_label: format!("Pin for {}", row.label),
+                    value: row.value.clone().unwrap_or_default(), searchable: true,
                     disabled: !actions.editable || row.locked,
-                    onchange: {
+                    options: std::iter::once((String::new(), "Unresolved".into(), false)).chain(pin_choices.into_iter().map(|pin| (pin.clone(), pin, false))).collect(),
+                    on_change: {
                         let assignment_id = assignment_id.clone();
                         let identity = identity.clone();
-                        move |event| {
-                            let (Some(identity), value) = (identity.clone(), event.value()) else { return; };
+                        move |value: String| {
+                            let Some(identity) = identity.clone() else { return; };
                             on_pin_change.call(PcbWiringPinEditRequest {
                                 identity,
                                 assignment_id: assignment_id.clone(),
@@ -1004,22 +976,16 @@ fn pin_assignment_row(
                             });
                         }
                     },
-                    {pin_assignment_options(row, pin_choices)}
-                }
             }
-            button {
-                type: "button",
-                class: "m1-pcb-wiring-lock-button",
+            ToggleGroup { aria_label: format!("Pin lock for {}", row.label), horizontal: true,
+                pressed: Some(if row.locked { [0usize].into_iter().collect() } else { std::collections::HashSet::new() }),
                 disabled: !actions.editable,
-                "aria-label": "{pin_lock_action(row.locked)} {row.label}",
-                "aria-pressed": "{row.locked}",
-                title: "{pin_lock_action(row.locked)} assignment",
-                onclick: {
+                on_pressed_change: {
                     let assignment_id = assignment_id.clone();
                     let current_pin = row.value.clone();
                     let locked = row.locked;
                     let identity = identity.clone();
-                    move |_| {
+                    move |_: std::collections::HashSet<usize>| {
                         let Some(identity) = identity.clone() else { return; };
                         if locked || current_pin.is_some() {
                             on_pin_change.call(PcbWiringPinEditRequest {
@@ -1030,11 +996,7 @@ fn pin_assignment_row(
                         }
                     }
                 },
-                svg { view_box: "0 0 20 20", "aria-hidden": "true", fill: "none", stroke: "currentColor", stroke_width: "1.5",
-                    rect { x: "4", y: "9", width: "12", height: "9", rx: "2" }
-                    path { d: if row.locked { "M6 9V6a4 4 0 0 1 8 0v3" } else { "M6 9V6a4 4 0 0 1 8 0" } }
-                    path { d: "M10 12v3" }
-                }
+                ToggleItem { index: 0usize, aria_label: "{pin_lock_action(row.locked)} {row.label}", class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{pin_lock_action(row.locked)}" }
             }
         }
     }
@@ -1064,32 +1026,143 @@ fn pin_lock_action(locked: bool) -> &'static str {
     if locked { "Unlock" } else { "Lock" }
 }
 
-fn pin_assignment_options(row: &pins::PcbWiringPinAssignment, choices: Vec<String>) -> Element {
-    rsx! {
-        option {
-            value: "",
-            selected: row.value.is_none(),
-            "Unresolved"
-        }
-        for pin in choices {
-            option {
-                value: "{pin}",
-                selected: row.value.as_deref() == Some(pin.as_str()),
-                "{pin}"
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     #[cfg(target_arch = "wasm32")]
-    use wasm_bindgen::JsValue;
-    #[cfg(target_arch = "wasm32")]
     use wasm_bindgen_test::*;
+
     #[cfg(target_arch = "wasm32")]
-    use web_sys::Element as DomElement;
+    #[derive(Clone)]
+    struct PinCapture(Rc<std::cell::RefCell<Option<PcbWiringPinEditRequest>>>);
+
+    #[cfg(target_arch = "wasm32")]
+    fn mounted_pin_row() -> Element {
+        let capture = use_context::<PinCapture>();
+        let scope = boardstudio_application::Scope {
+            session_epoch: boardstudio_application::SessionEpoch(1),
+            document_id: "project".into(),
+            board_id: "board".into(),
+            instance_id: None,
+        };
+        let identity = crate::pcb_wiring_mode_operation::BoardWiringModeIdentity {
+            plan: crate::firmware_position_projection::FirmwarePlanIdentity {
+                scope: scope.clone(),
+                token: boardstudio_application::SnapshotToken(1),
+                revision: 0,
+                executor_epoch: 0,
+            },
+            ui_scope: scope,
+            selected_part_id: None,
+            scope_generation: 0,
+        };
+        let actions = PcbWiringPinActions {
+            identity: Some(identity),
+            editable: true,
+            pending: false,
+            failure: None,
+            on_change: EventHandler::new(move |request| *capture.0.borrow_mut() = Some(request)),
+        };
+        let row = pins::PcbWiringPinAssignment {
+            id: "row/0".into(),
+            label: "Row 1".into(),
+            detail: None,
+            value: Some("P5".into()),
+            locked: false,
+        };
+        let mut plan = boardstudio_core::electrical::resolve(
+            boardstudio_core::electrical::ElectricalPlanRequest {
+                document: ProjectDoc::empty("project", "Fixture"),
+                instance_id: None,
+                mode: ElectricalMode::Matrix,
+                locks: Default::default(),
+                controller_profile: None,
+                board_id: Some("board".into()),
+                controller_part_id: None,
+            },
+        );
+        plan.free_pins = vec!["P6".into()];
+        pin_assignment_row(&row, &actions, &plan)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[wasm_bindgen_test]
+    async fn pin_assignment_filters_and_retains_accepted_choice() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+        use wasm_bindgen::JsCast;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let capture = Rc::new(std::cell::RefCell::new(None));
+        let dom = VirtualDom::new(mounted_pin_row);
+        dom.provide_root_context(PinCapture(capture.clone()));
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("pin picker mounts", || {
+            by_role_name(&root, "combobox", "Pin for Row 1").is_some()
+        })
+        .await;
+        let picker = by_role_name(&root, "combobox", "Pin for Row 1").unwrap();
+        let input: web_sys::HtmlInputElement = picker
+            .clone()
+            .dyn_into()
+            .expect("long pin list is searchable");
+        assert_eq!(input.value(), "P5");
+        picker.focus().unwrap();
+        let key = |value: &str| {
+            let event = web_sys::KeyboardEventInit::new();
+            event.set_key(value);
+            event.set_bubbles(true);
+            event.set_cancelable(true);
+            picker
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
+                        .unwrap(),
+                )
+                .unwrap();
+        };
+        key("ArrowDown");
+        input.set_value("P6");
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+        wait_until("pin list filters", || {
+            by_role_name(&root, "option", "P6").is_some()
+                && by_role_name(&root, "option", "P5").is_none()
+        })
+        .await;
+        key("ArrowDown");
+        wait_until("matching pin is active", || {
+            by_role_name(&root, "option", "P6").is_some_and(|option| {
+                picker.get_attribute("aria-activedescendant").as_deref()
+                    == Some(option.id().as_str())
+            })
+        })
+        .await;
+        key("Enter");
+        wait_until("pin request emitted", || {
+            capture.borrow().as_ref().is_some_and(|request| {
+                request.assignment_id == "row/0" && request.pin.as_deref() == Some("P6")
+            })
+        })
+        .await;
+        assert!(by_role_name(&root, "group", "Pin lock for Row 1").is_some());
+        let lock = by_role_name(&root, "button", "Lock Row 1").unwrap();
+        assert_eq!(lock.get_attribute("aria-pressed").as_deref(), Some("false"));
+        lock.focus().unwrap();
+        lock.click();
+        wait_until("lock preserves the accepted pin", || {
+            capture.borrow().as_ref().is_some_and(|request| {
+                request.assignment_id == "row/0" && request.pin.as_deref() == Some("P5")
+            })
+        })
+        .await;
+        root.remove();
+    }
 
     #[cfg(target_arch = "wasm32")]
     wasm_bindgen_test_configure!(run_in_browser);
@@ -1110,14 +1183,26 @@ mod tests {
             value: None,
             locked: false,
         };
-        rsx! {
-            select { id: "retained-pin", value: "P5",
-                {pin_assignment_options(&retained, vec!["P5".into(), "P6".into()])}
-            }
-            select { id: "unresolved-pin", value: "",
-                {pin_assignment_options(&unresolved, vec!["P1".into()])}
-            }
-        }
+        let actions = PcbWiringPinActions {
+            identity: None,
+            editable: false,
+            pending: false,
+            failure: None,
+            on_change: EventHandler::new(|_| {}),
+        };
+        let mut plan = boardstudio_core::electrical::resolve(
+            boardstudio_core::electrical::ElectricalPlanRequest {
+                document: ProjectDoc::empty("project", "Fixture"),
+                instance_id: None,
+                mode: ElectricalMode::Matrix,
+                locks: Default::default(),
+                controller_profile: None,
+                board_id: Some("board".into()),
+                controller_part_id: None,
+            },
+        );
+        plan.free_pins = vec!["P1".into(), "P6".into()];
+        rsx! { {pin_assignment_row(&retained, &actions, &plan)} {pin_assignment_row(&unresolved, &actions, &plan)} }
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -1134,31 +1219,25 @@ mod tests {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn selected_option(root: &web_sys::Element, selector: &str) -> Result<DomElement, JsValue> {
-        root.query_selector(&format!("{selector} option:checked"))?
-            .ok_or_else(|| JsValue::from_str("expected selected pin option"))
-    }
-
-    #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen_test]
     async fn wiring_pin_options_select_saved_values_and_only_unresolved_for_empty_rows() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+        use wasm_bindgen::JsCast;
         let root = mount_pin_option_fixture();
-        gloo_timers::future::TimeoutFuture::new(40).await;
-
-        assert_eq!(
-            selected_option(&root, "#retained-pin")
+        wait_until("pin rows mount", || {
+            by_role_name(&root, "combobox", "Pin for Row 1").is_some()
+                && by_role_name(&root, "combobox", "Pin for left/SW25/encoder-a").is_some()
+        })
+        .await;
+        let value = |name| {
+            by_role_name(&root, "combobox", name)
                 .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("P5")
-        );
-        assert_eq!(
-            selected_option(&root, "#unresolved-pin")
+                .dyn_into::<web_sys::HtmlInputElement>()
                 .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Unresolved")
-        );
+                .value()
+        };
+        assert_eq!(value("Pin for Row 1"), "P5");
+        assert_eq!(value("Pin for left/SW25/encoder-a"), "Unresolved");
         root.remove();
     }
 }

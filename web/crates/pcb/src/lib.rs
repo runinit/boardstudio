@@ -69,6 +69,8 @@ pub mod firmware_positions;
 #[cfg(target_arch = "wasm32")]
 pub mod pcb_board_reference;
 #[cfg(target_arch = "wasm32")]
+mod pcb_controls;
+#[cfg(target_arch = "wasm32")]
 pub mod pcb_layers;
 #[cfg(target_arch = "wasm32")]
 pub mod pcb_module_footprints;
