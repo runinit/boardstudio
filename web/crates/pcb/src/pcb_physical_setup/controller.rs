@@ -6,7 +6,9 @@ use boardstudio_application::{
 use boardstudio_core::model::{EditOperation, HardwareTopology, HardwareTransport, ProjectDoc};
 use boardstudio_web_catalogue::physical_setup::PreparedSetup;
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
-use boardstudio_web_ui_shared::controls::BoardCheckbox;
+use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
+use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
+use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 use dioxus::prelude::*;
 use std::{cell::Cell, future::Future, pin::Pin, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -322,54 +324,141 @@ pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
     let wireless = mount.clone();
     let wired = mount.clone();
     let split = projection.topology == HardwareTopology::Split;
+    let reversible_id = format!("project-reversible-{}", dioxus::core::current_scope_id().0);
     rsx! {
         section { class: "m1-project-physical-setup", "aria-label": "Physical assembly",
             div { class: "m1-project-setup-choice",
                 span { "Keyboard configuration" }
-                div { role: "group", "aria-label": "Keyboard configuration",
-                    button {
-                        r#type: "button", "aria-pressed": !split, disabled: projection.busy,
-                        onclick: move |_| topology_single.submit(PhysicalSetupIntent::ProjectTopology(false)),
-                        "One keyboard"
-                    }
-                    button {
-                        r#type: "button", "aria-pressed": split, disabled: projection.busy,
-                        onclick: move |_| topology_split.submit(PhysicalSetupIntent::ProjectTopology(true)),
-                        "Split keyboard"
-                    }
+                ToggleGroup { aria_label: "Keyboard configuration", horizontal: true, disabled: projection.busy,
+                    pressed: Some([if split { 1usize } else { 0usize }].into_iter().collect()),
+                    on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                        if next.contains(&0) && split { topology_single.submit(PhysicalSetupIntent::ProjectTopology(false)); }
+                        else if next.contains(&1) && !split { topology_split.submit(PhysicalSetupIntent::ProjectTopology(true)); }
+                    },
+                    ToggleItem { index: 0usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "One keyboard" }
+                    ToggleItem { index: 1usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Split keyboard" }
                 }
             }
             if split {
                 div { class: "m1-project-setup-choice",
                     span { "Half connection" }
-                    div { role: "group", "aria-label": "Half connection",
-                        button {
-                            r#type: "button", "aria-pressed": projection.transport == HardwareTransport::Wireless,
-                            disabled: projection.busy,
-                            onclick: move |_| wireless.submit(PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wireless)),
-                            "Wireless"
-                        }
-                        button {
-                            r#type: "button", "aria-pressed": projection.transport == HardwareTransport::Wired,
-                            disabled: projection.busy,
-                            onclick: move |_| wired.submit(PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wired)),
-                            "Wired"
-                        }
+                    ToggleGroup { aria_label: "Half connection", horizontal: true, disabled: projection.busy,
+                        pressed: Some([if projection.transport == HardwareTransport::Wireless { 0usize } else { 1usize }].into_iter().collect()),
+                        on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                            if next.contains(&0) && projection.transport != HardwareTransport::Wireless { wireless.submit(PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wireless)); }
+                            else if next.contains(&1) && projection.transport != HardwareTransport::Wired { wired.submit(PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wired)); }
+                        },
+                        ToggleItem { index: 0usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Wireless" }
+                        ToggleItem { index: 1usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Wired" }
                     }
                 }
                 p { class: "m1-project-setup-note", if projection.reversible { "Use the same PCB on both halves, turned over on the right." } else { "Both halves use front-facing assemblies." } }
             }
-            label { class: "m1-project-reversible-choice",
-                BoardCheckbox {
-                    checked: projection.reversible, disabled: projection.busy,
-                    onchange: move |event: FormEvent| mount.submit(PhysicalSetupIntent::ProjectReversibleLayout(event.checked()))
+            Field { class: "m1-project-reversible-choice max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                Checkbox { id: reversible_id.clone(), aria_label: "Reversible layout", checked: Some(if projection.reversible { CheckboxState::Checked } else { CheckboxState::Unchecked }), disabled: projection.busy,
+                    on_checked_change: move |state| mount.submit(PhysicalSetupIntent::ProjectReversibleLayout(state == CheckboxState::Checked))
                 }
-                "Reversible layout"
+                FieldLabel { html_for: reversible_id, "Reversible layout" }
             }
             if let Some(feedback) = projection.project_feedback {
                 p { role: "status", "{feedback}" }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod mounted_setup_tests {
+    use super::*;
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+    use std::cell::RefCell;
+    use wasm_bindgen_test::*;
+
+    #[derive(Clone)]
+    struct Capture(Rc<RefCell<Vec<PhysicalSetupIntent>>>);
+
+    fn fixture() -> Element {
+        let capture = use_context::<Capture>();
+        let owner = OwnerIdentity {
+            context: OwnerContext::ProjectGuide,
+            session_epoch: boardstudio_application::SessionEpoch(1),
+            document_id: "document".into(),
+            board_id: "board".into(),
+            instance_id: None,
+            token: SnapshotToken(1),
+            revision: 0,
+            generation: 0,
+            scope_transition: None,
+        };
+        let mount = PhysicalSetupMount {
+            projection: PhysicalSetupProjection {
+                topology: HardwareTopology::Split,
+                transport: HardwareTransport::Wireless,
+                reversible: false,
+                case_instance: None,
+                case_boards: Vec::new(),
+                feedback: None,
+                project_feedback: None,
+                busy: false,
+            },
+            busy: use_signal(|| None),
+            project_owner: Some(owner),
+            case_owner: None,
+            on_intent: EventHandler::new(move |request: PhysicalSetupRequest| {
+                capture.0.borrow_mut().push(request.intent)
+            }),
+        };
+        project_setup_controls(mount)
+    }
+
+    #[wasm_bindgen_test]
+    async fn setup_groups_roving_focus_and_checkbox_submit_existing_intents() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let capture = Rc::new(RefCell::new(Vec::new()));
+        let dom = VirtualDom::new(fixture);
+        dom.provide_root_context(Capture(capture.clone()));
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("setup mounts", || {
+            by_role_name(&root, "button", "Wireless").is_some()
+        })
+        .await;
+        let wireless = by_role_name(&root, "button", "Wireless").unwrap();
+        let wired = by_role_name(&root, "button", "Wired").unwrap();
+        wireless.focus().unwrap();
+        let event = web_sys::KeyboardEventInit::new();
+        event.set_key("ArrowRight");
+        event.set_bubbles(true);
+        event.set_cancelable(true);
+        wireless
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
+                    .unwrap(),
+            )
+            .unwrap();
+        wait_until("transport focus roves", || {
+            document
+                .active_element()
+                .is_some_and(|active| active == *wired)
+        })
+        .await;
+        wired.click();
+        by_role_name(&root, "checkbox", "Reversible layout")
+            .unwrap()
+            .click();
+        wait_until("setup requests emitted", || {
+            capture.borrow().as_slice()
+                == [
+                    PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wired),
+                    PhysicalSetupIntent::ProjectReversibleLayout(true),
+                ]
+        })
+        .await;
+        root.remove();
     }
 }
 

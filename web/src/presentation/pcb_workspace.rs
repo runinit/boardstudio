@@ -139,21 +139,111 @@ pub(super) fn inspector() -> Element {
 /// Both panes stay mounted so changing the presentation mode retains numeric drafts.
 #[component]
 pub(super) fn PcbInspector(selected: bool, children: Element) -> Element {
-    use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
+    use boardstudio_web_ui_shared::ui::collapsible::{
+        Collapsible, CollapsibleContent, CollapsibleTrigger,
+    };
+    use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
     let mut wiring = use_signal(|| true);
+    let mut position_open = use_signal(|| true);
     rsx! {
         section { class: "m1-pcb-inspector", aria_label: "PCB inspector",
-            div { class: "m1-inspector-mode", role: "group", aria_label: "PCB inspector mode",
-                BoardButton { pressed: Some(!wiring()), disabled: !selected, onclick: move |_| wiring.set(false), "Selection" }
-                BoardButton { pressed: Some(wiring()), onclick: move |_| wiring.set(true), "Routing & nets" }
+            ToggleGroup { class: "m1-inspector-mode", aria_label: "PCB inspector mode", horizontal: true,
+                pressed: Some([if wiring() { 1usize } else { 0usize }].into_iter().collect()),
+                on_pressed_change: move |pressed: std::collections::HashSet<usize>| {
+                    if pressed.contains(&1) { wiring.set(true); }
+                    else if pressed.contains(&0) && selected { wiring.set(false); }
+                },
+                ToggleItem { index: 0usize, disabled: !selected, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Selection" }
+                ToggleItem { index: 1usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Routing & nets" }
             }
-            div { hidden: wiring(),
-                BoardDisclosure { open: true, class: "m1-inspector-section",
-                    heading: rsx! { summary { "Position" } },
-                    super::inspector::Inspector {}
+            div { hidden: wiring(), inert: wiring().then_some(""),
+                Collapsible { open: position_open(), on_open_change: move |next| position_open.set(next), keep_mounted: true, class: "m1-inspector-section",
+                    CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Position" }
+                    CollapsibleContent { hidden: !position_open(), inert: (!position_open()).then_some(""), super::inspector::Inspector {} }
                 }
             }
-            div { hidden: !wiring(), {children} }
+            div { hidden: !wiring(), inert: (!wiring()).then_some(""), {children} }
         }
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod mounted_tests {
+    use super::*;
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+    use wasm_bindgen_test::*;
+
+    fn fixture() -> Element {
+        use_context_provider(|| crate::runtime::Runtime::new().unwrap());
+        use_context_provider(|| Signal::new(0u64));
+        rsx! { PcbInspector { selected: true, div { role: "status", aria_label: "Routing content", "Wiring remains mounted" } } }
+    }
+
+    #[wasm_bindgen_test]
+    async fn pcb_inspector_mode_roves_and_preserves_mounted_panes() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("PCB inspector mounts", || {
+            by_role_name(&root, "button", "Routing & nets").is_some()
+        })
+        .await;
+        let routing = by_role_name(&root, "button", "Routing & nets").unwrap();
+        let selection = by_role_name(&root, "button", "Selection").unwrap();
+        assert_eq!(
+            routing.get_attribute("aria-pressed").as_deref(),
+            Some("true")
+        );
+        routing.focus().unwrap();
+        let event = web_sys::KeyboardEventInit::new();
+        event.set_key("ArrowLeft");
+        event.set_bubbles(true);
+        event.set_cancelable(true);
+        routing
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
+                    .unwrap(),
+            )
+            .unwrap();
+        wait_until("selection receives roving focus", || {
+            document
+                .active_element()
+                .is_some_and(|active| active == *selection)
+        })
+        .await;
+        let event = web_sys::KeyboardEventInit::new();
+        event.set_key(" ");
+        event.set_bubbles(true);
+        event.set_cancelable(true);
+        selection
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
+                    .unwrap(),
+            )
+            .unwrap();
+        selection.click();
+        wait_until("selection pane is active", || {
+            selection.get_attribute("aria-pressed").as_deref() == Some("true")
+        })
+        .await;
+        assert!(
+            by_role_name(&root, "status", "Routing content").is_some(),
+            "hidden routing pane remains mounted"
+        );
+        let disclosure = by_role_name(&root, "button", "Position").unwrap();
+        assert_eq!(
+            disclosure.get_attribute("aria-expanded").as_deref(),
+            Some("true")
+        );
+        disclosure.click();
+        wait_until("position collapses", || {
+            disclosure.get_attribute("aria-expanded").as_deref() == Some("false")
+        })
+        .await;
+        root.remove();
     }
 }
