@@ -4,6 +4,7 @@ use crate::runtime::Runtime;
 use crate::ui::{
     button::{Button, ButtonSize, ButtonVariant},
     checkbox::{Checkbox, CheckboxState},
+    combobox::{Combobox, ComboboxOption},
     input_group::{InputGroup, InputGroupInput, InputGroupTextarea},
     select::{Select, SelectOption},
 };
@@ -226,6 +227,40 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
     let current_error = model.last_error.clone();
     let current_findings = snapshot.scene.findings.clone();
     let on_back_key = on_back;
+    let on_select_script = EventHandler::new({
+        let scripts = scripts.clone();
+        let pending = pending.clone();
+        let mut pending_owner = pending_owner;
+        let document_id = document.id.clone();
+        let session_epoch = snapshot.session_epoch;
+        move |value: Option<String>| {
+            let Some(id) = value else {
+                return;
+            };
+            pending.settle(false, |_| String::new());
+            pending_owner.set((!id.is_empty()).then(|| ScriptOwner {
+                document_id: document_id.clone(),
+                session_epoch,
+                script_id: id.clone(),
+            }));
+            active.set(id.clone());
+            if let Some(script) = scripts.iter().find(|script| script.id == id) {
+                name.set(script.name.clone());
+                source.set(script.source.clone());
+                enabled.set(script.enabled);
+                draft.set(encode_script_draft(
+                    &script.name,
+                    &script.source,
+                    script.enabled,
+                ));
+            } else {
+                name.set(String::new());
+                source.set(String::new());
+                enabled.set(true);
+                draft.set(encode_script_draft("", "", true));
+            }
+        }
+    });
     rsx! {
         section {
             class: "grid content-start gap-3 min-w-0 px-4 pt-3 pb-5 text-foreground [&_h2]:m-0 [&_h3]:m-0 [&_p]:m-0",
@@ -298,41 +333,24 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
             if !scripts.is_empty() {
                 div { class: "grid gap-1 min-w-0 text-sm text-muted-foreground",
                     span { "Active script" }
-                    Select::<String> {
-                        aria_label: "Active script",
-                        value: Some(selected_script.into()),
-                        disabled: !can_edit,
-                        on_value_change: {
-                            let scripts = scripts.clone();
-                            let pending = pending.clone();
-                            let mut pending_owner = pending_owner;
-                            let document_id = document.id.clone();
-                            let session_epoch = snapshot.session_epoch;
-                            move |value: Option<String>| {
-                                let Some(id) = value else { return; };
-                                pending.settle(false, |_| String::new());
-                                pending_owner.set((!id.is_empty()).then(|| ScriptOwner {
-                                    document_id: document_id.clone(),
-                                    session_epoch,
-                                    script_id: id.clone(),
-                                }));
-                                active.set(id.clone());
-                                if let Some(script) = scripts.iter().find(|script| script.id == id) {
-                                    name.set(script.name.clone());
-                                    source.set(script.source.clone());
-                                    enabled.set(script.enabled);
-                                    draft.set(encode_script_draft(&script.name, &script.source, script.enabled));
-                                } else {
-                                    name.set(String::new());
-                                    source.set(String::new());
-                                    enabled.set(true);
-                                    draft.set(encode_script_draft("", "", true));
-                                }
+                    if scripts.len() + 1 > 12 {
+                        Combobox::<String> {
+                            aria_label: "Active script", list_aria_label: "Active script",
+                            value: Some(selected_script.into()), disabled: !can_edit,
+                            on_value_change: on_select_script,
+                            ComboboxOption::<String> { index: 0usize, value: "", text_value: "Select a script", "Select a script" }
+                            for (index, script) in scripts.iter().enumerate() {
+                                ComboboxOption::<String> { index: index + 1, value: script.id.clone(), text_value: script.name.clone(), "{script.name}" }
                             }
-                        },
-                        SelectOption::<String> { index: 0usize, value: "", text_value: "Select a script", "Select a script" }
-                        for (index, script) in scripts.iter().enumerate() {
-                            SelectOption::<String> { index: index + 1, value: script.id.clone(), text_value: script.name.clone(), "{script.name}" }
+                        }
+                    } else {
+                        Select::<String> {
+                            aria_label: "Active script", value: Some(selected_script.into()), disabled: !can_edit,
+                            on_value_change: on_select_script,
+                            SelectOption::<String> { index: 0usize, value: "", text_value: "Select a script", "Select a script" }
+                            for (index, script) in scripts.iter().enumerate() {
+                                SelectOption::<String> { index: index + 1, value: script.id.clone(), text_value: script.name.clone(), "{script.name}" }
+                            }
                         }
                     }
                 }
@@ -671,6 +689,49 @@ mod queued_script_tests {
             },
         )
         .await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn many_scripts_use_a_searchable_picker() {
+        let runtime = support::new_runtime();
+        let mut document = document();
+        for index in 2..=13 {
+            document.scripts.push(Script {
+                id: format!("script-{index}"),
+                name: format!("Script {index}"),
+                source: format!("// script {index}"),
+                enabled: false,
+            });
+        }
+        support::open_document(&runtime, document).await;
+        let probe = mount_editor(runtime).await;
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("geometry-script-owner-test")
+            .unwrap();
+        let input = crate::test_role::by_role_name(&root, "combobox", "Active script").unwrap();
+        input.focus().unwrap();
+        let input_value = input
+            .clone()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        input_value.set_value("Script 13");
+        input.dispatch_event(&bubbling_event("input")).unwrap();
+        crate::test_wait::wait_until("matching script is available", || {
+            crate::test_role::by_role_name(&root, "option", "Script 13").is_some()
+        })
+        .await;
+        let option = crate::test_role::by_role_name(&root, "option", "Script 13").unwrap();
+        for phase in ["pointerdown", "pointerup"] {
+            let event = web_sys::PointerEvent::new(phase).unwrap();
+            event.init_event_with_bubbles_and_cancelable(phase, true, true);
+            option.dispatch_event(&event).unwrap();
+        }
+        flush(&probe).await;
+        assert_eq!(source_value(), "// script 13");
+        root.remove();
     }
 
     #[wasm_bindgen_test]
