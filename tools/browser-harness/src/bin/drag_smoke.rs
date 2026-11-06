@@ -699,24 +699,20 @@ async fn set_slider(page: &Page, name: &str, target: i64) -> Result<()> {
     let query = format!(
         "document.querySelector('[role=\"slider\"][aria-label=\"{name}\"]')?.getAttribute('aria-valuenow')"
     );
-    // The setup step may mount asynchronously after its Continue button is
-    // clicked. Do not send keys to the previously focused footer.
+    // The setup step may mount or become visible asynchronously. Re-attempt
+    // focus when it can receive input instead of typing into the old footer.
     driver::wait_for(
         page,
-        &format!("!!document.querySelector('[role=\"slider\"][aria-label=\"{name}\"]')"),
-        &format!("slider {name} to mount"),
-        Duration::from_secs(10),
-    )
-    .await?;
-    driver::eval(
-        page,
-        &format!("document.querySelector('[role=\"slider\"][aria-label=\"{name}\"]')?.focus()"),
-    )
-    .await?;
-    driver::wait_for(
-        page,
-        &format!("document.activeElement === document.querySelector('[role=\"slider\"][aria-label=\"{name}\"]')"),
-        &format!("slider {name} to receive focus"),
+        &format!(
+            r#"(() => {{
+  const slider = document.querySelector('[role="slider"][aria-label="{name}"]');
+  if (!slider || slider.getClientRects().length === 0 || slider.disabled
+      || slider.getAttribute('aria-disabled') === 'true' || slider.closest('[inert]')) return false;
+  slider.focus();
+  return document.activeElement === slider;
+}})()"#
+        ),
+        &format!("slider {name} to mount and receive focus"),
         Duration::from_secs(10),
     )
     .await?;

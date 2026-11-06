@@ -77,6 +77,12 @@ with tempfile.TemporaryDirectory(prefix="bs-", dir=BROWSER_TMP) as directory:
           const next = [...document.querySelectorAll('button')].find(b => b.textContent === 'Continue to layout');
           next.addEventListener('click', () => setTimeout(() => document.body.append(slider), 300));
         });</script>''', "slider Rows did not reach 10"),
+        ("slider-late-visible", '''<script>addEventListener('DOMContentLoaded', () => {
+          const slider = document.querySelector('[role=slider]');
+          slider.hidden = true;
+          const next = [...document.querySelectorAll('button')].find(b => b.textContent === 'Continue to layout');
+          next.addEventListener('click', () => setTimeout(() => { slider.hidden = false; }, 300));
+        });</script>''', "slider Rows did not reach 10"),
         ("assertion", "", "slider Rows did not reach 10"),
         ("exception", "<script>setTimeout(() => { throw new Error('consumer exception control'); }, 0)</script>",
          "consumer exception control"),
