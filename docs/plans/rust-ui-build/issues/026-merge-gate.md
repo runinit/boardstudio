@@ -1,6 +1,7 @@
 # 026: Merge gate and single merge
 
-Status: ready-for-agent
+Status: claimed
+Owner: lane/026-merge-gate
 Type: build
 Blocked by: [024: Delete the old layer](024-delete-the-old-layer.md), [025: Rewrite DESIGN.md for the new structure](025-rewrite-design-md.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
