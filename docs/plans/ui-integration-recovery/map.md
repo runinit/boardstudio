@@ -49,8 +49,9 @@ The user added these on 2026-11-06 after 002 and 003 closed. They do not block
 | [015: Decide headings for other y-symmetric parts](issues/015-decide-y-symmetric-part-headings.md) | resolved | none | Decided 2026-11-06: keep `180 - r`; no change |
 | [016: Audit ADR decisions](issues/016-audit-adr-decisions.md) | resolved | none | All 40 indexed primary decisions audited; delivery gaps and uncertainties recorded |
 | [020: Export split firmware with either half as central](issues/020-split-firmware-either-half-central.md) | ready-for-agent | none | ADR-0026 delivery: right or left central without reordering logical keys |
-| [021: Stop repeated save Toasts](issues/021-repeated-save-toasts.md) | needs-triage | none | Investigate reported Toast floods during zooming and routine interaction |
+| [021: Stop repeated save Toasts](issues/021-repeated-save-toasts.md) | ready-for-agent | none | Reproduced zoom flood; agreed truthful save-feedback behavior and test seams in 023 |
 | [022: Restore collision/provider browser proof](issues/022-restore-collision-provider-browser-proof.md) | ready-for-agent | none | Complete required collision/provider smoke and validate the success receipt; blocks 010 |
+| [023: Truthful and quiet save feedback specification](issues/023-truthful-save-feedback-spec.md) | ready-for-agent | none | Ordinary autosave status in the header; no save notification for camera/navigation completion |
 
 For the build-update addition, 013 remains the decision-owning umbrella; 017 is
 the specification, 018 is complete, and 019 is now unblocked. Both children must
