@@ -59,6 +59,12 @@ coding instead of widening this ticket.
 
 ## Comments
 
+- 2026-11-06: The user confirmed that shield names identify physical sides:
+  retain `boardstudio_left` and `boardstudio_right` and assign their role flags
+  according to the selected central/peripheral roles. A split design assigning
+  both halves as central must be rejected with a clear error. Preserve existing
+  left-central output as required above. Hardware and transport support still
+  need evidence; no new capability model is implied by this decision.
 - 2026-11-06: Created from 016's initial audit finding at the user's request
   ("split firmware export needs to be updated"). Routed with `ask-matt`: the
   policy is already decided by an accepted ADR, so no grilling step; it looks
