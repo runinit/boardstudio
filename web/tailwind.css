@@ -151,18 +151,6 @@
 }
 
 @theme inline {
-  --color-paper: var(--wb-paper);
-  --color-panel: var(--wb-panel);
-  --color-raised: var(--wb-raised);
-  --color-toolbar-rule: var(--wb-toolbar-rule);
-  --color-on-accent: var(--wb-on-accent);
-  --color-surface-soft: var(--wb-surface-soft);
-  --color-surface-strong: var(--wb-surface-strong);
-  --color-ink: var(--wb-ink);
-  --color-subtle: var(--wb-subtle);
-  --color-rule: var(--wb-rule);
-  --color-rule-strong: var(--wb-rule-strong);
-  --color-rule-control: var(--wb-rule-control);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -249,35 +237,6 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --color-accent-dark: var(--wb-accent-dark);
-  --color-accent-secondary: var(--wb-accent-secondary);
-  --color-selection-ink: var(--wb-selection-ink);
-  --color-selection-surface: var(--wb-selection-surface);
-  --color-status-success: var(--wb-status-success);
-  --color-status-success-surface: var(--wb-status-success-surface);
-  --color-status-warning: var(--wb-status-warning);
-  --color-status-warning-surface: var(--wb-status-warning-surface);
-  --color-status-error: var(--wb-status-error);
-  --color-status-error-surface: var(--wb-status-error-surface);
-  --font-display: var(--wb-display);
-  --text-workbench-title: var(--wb-type-title);
-  --text-workbench-page: var(--wb-type-page);
-  --text-workbench-brand: var(--wb-type-brand);
-  --text-workbench-context: var(--wb-type-context);
-  --text-workbench-panel: var(--wb-type-panel);
-  --text-workbench-micro: var(--wb-type-micro);
-  --text-workbench-body: var(--wb-type-body);
-  --text-workbench-label: var(--wb-type-label);
-  --spacing-workbench-1: var(--wb-space-1);
-  --spacing-workbench-2: var(--wb-space-2);
-  --spacing-workbench-3: var(--wb-space-3);
-  --spacing-workbench-4: var(--wb-space-4);
-  --spacing-workbench-5: var(--wb-space-5);
-  --spacing-workbench-6: var(--wb-space-6);
-  --duration-feedback: var(--wb-motion-feedback);
-  --duration-reveal: var(--wb-motion-reveal);
-  --duration-panel: var(--wb-motion-panel);
-  --ease-workbench-out: var(--wb-ease-out);
 }
 
 .m1-canvas-measurements { display: grid; gap: 6px; color: var(--wb-ink); font: 12px var(--wb-body); }
