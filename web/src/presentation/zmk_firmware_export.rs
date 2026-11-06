@@ -188,19 +188,19 @@ pub(crate) fn ZmkFirmwareExportRow(ready: bool, on_export: EventHandler<()>) -> 
     }]);
     rsx! {
         div { "data-export-kind": "ZMK firmware",
-          Item { class: "m1-export-row",
-            ItemContent { class: "m1-export-row-copy",
-                strong { "ZMK firmware" }
+          Item { class: "grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-none border-0 border-t border-border p-4 bg-card max-[760px]:grid-cols-1",
+            ItemContent { class: "flex-row flex-wrap items-start gap-x-3 gap-y-1 min-w-0 max-[760px]:flex-col max-[760px]:gap-1",
+                strong { class: "text-lg", "ZMK firmware" }
                 Badge { variant: if ready { BadgeVariant::Success } else { BadgeVariant::Warning },
                     if ready { "Available" } else { "Needs controller wiring" }
                 }
-                ItemDescription { "ZMK v0.3.0 configuration and editable starter keymap" }
+                ItemDescription { class: "basis-full line-clamp-none", "ZMK v0.3.0 configuration and editable starter keymap" }
                 if !ready {
                     Callout { variant: CalloutVariant::Warning, "Review the layout and resolve controller wiring in PCB." }
                 }
             }
             Button { variant: ButtonVariant::Secondary,
-                class: "m1-export-row-action",
+                class: "min-w-[104px] min-h-9 max-[760px]:col-start-1 max-[760px]:justify-self-start",
                 button_type: "button",
                 aria_label: "Export ZMK firmware",
                 disabled: !ready,
