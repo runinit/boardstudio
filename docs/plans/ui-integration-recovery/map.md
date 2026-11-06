@@ -47,7 +47,7 @@ or 011 unless the user says so.
 | [019: Adopt the waiting build through protected Refresh](issues/019-adopt-build-safely.md) | ready-for-agent | 018 | "Update Now" in the Toast and a persistent header notice, with work/cache protection and real A-to-B adoption evidence |
 | [014: Correct controller heading comments](issues/014-correct-controller-heading-comments.md) | resolved | none | Describe plain reflection accurately without changing Core behavior |
 | [015: Decide headings for other y-symmetric parts](issues/015-decide-y-symmetric-part-headings.md) | resolved | none | Decided 2026-11-06: keep `180 - r`; no change |
-| [016: Audit ADR decisions](issues/016-audit-adr-decisions.md) | claimed | none | Bounded source review of each indexed ADR primary decision |
+| [016: Audit ADR decisions](issues/016-audit-adr-decisions.md) | resolved | none | All 40 indexed primary decisions audited; delivery gaps and uncertainties recorded |
 | [020: Export split firmware with either half as central](issues/020-split-firmware-either-half-central.md) | ready-for-agent | none | ADR-0026 delivery: right or left central without reordering logical keys |
 
 For the build-update addition, 013 remains the decision-owning umbrella; 017 is
@@ -56,6 +56,8 @@ on 018. Both children must complete before 013 can close. These additions do not
 block 010/011. Publication does not claim implementation or browser evidence.
 
 ## Evidence and decisions
+
+- 016: Completed the bounded 40-record source audit; four acknowledged delivery gaps and explicit unverified areas remain. No ADR or implementation changes. See [016](issues/016-audit-adr-decisions.md#answer).
 
 - 014: Controller comments now describe plain reflection; focused checks passed. See [014](issues/014-correct-controller-heading-comments.md#answer).
 
