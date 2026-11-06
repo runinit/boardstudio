@@ -157,7 +157,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
         } => (
             "Position & orientation",
             rsx! {
-                div { class: "m1-matrix-inspector-fields",
+                div { class: "grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-3",
                     NumericTransformField {
                         owner: owner.clone(),
                         snapshot_token,
@@ -224,7 +224,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
         MatrixTransformFields::Row { row, offset } => (
             "Position & rotation",
             rsx! {
-                div { class: "m1-matrix-inspector-fields",
+                div { class: "grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-3",
                     NumericTransformField {
                         owner: owner.clone(),
                         snapshot_token,
@@ -273,7 +273,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     splay_affect,
                     on_edit,
                 }
-                span { class: "m1-matrix-field-context", "Row {row}" }
+                span { class: "m-0 text-xs leading-normal text-muted-foreground", "Row {row}" }
             },
         ),
         MatrixTransformFields::Column {
@@ -288,7 +288,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             "Column properties",
             rsx! {
                         Collapsible {
-                            class: "m1-matrix-transform-section",
+                            class: "grid min-w-0 gap-2.5 border-t border-border pt-2.5 [&_h3]:m-0 [&_h3]:text-xs [&_h3]:font-[650] [&_p]:m-0 [&_p]:text-xs [&_p]:text-muted-foreground",
                             aria_label: "Position and rotation",
                             keep_mounted: true,
                             open: Some(transform_open()),
@@ -314,7 +314,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                                     on_edit,
                                     splay_affect,
                                 }
-                                div { class: "m1-matrix-inspector-fields",
+                                div { class: "grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-3",
                                     NumericTransformField {
                                         owner: owner.clone(),
                                         snapshot_token,
@@ -389,7 +389,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             });
             rsx! {
 
-                                        Field { class: "m1-matrix-field",
+                                        Field { class: "grid min-w-0 content-start gap-[5px] text-xs text-muted-foreground",
                                             FieldLabel { html_for: control_id.clone(), "{control_label}" }
                                             Select::<String> {
                                                 id: control_id,
@@ -454,11 +454,11 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                                         on_edit,
                                     }
                                 }
-                                span { class: "m1-matrix-field-context", {format!("Column {}", column + 1)} }
+                                span { class: "m-0 text-xs leading-normal text-muted-foreground", {format!("Column {}", column + 1)} }
                             }
                          }
                         Collapsible {
-                            class: "m1-matrix-transform-section",
+                            class: "grid min-w-0 gap-2.5 border-t border-border pt-2.5 [&_h3]:m-0 [&_h3]:text-xs [&_h3]:font-[650] [&_p]:m-0 [&_p]:text-xs [&_p]:text-muted-foreground",
                             aria_label: "Splay and origin",
                             keep_mounted: true,
                             open: Some(origin_open()),
@@ -467,7 +467,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                             CollapsibleContent {
                                 hidden: !origin_open(),
                                 inert: (!origin_open()).then_some(""),
-                                div { class: "m1-matrix-inspector-fields",
+                                div { class: "grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-3",
                                     NumericTransformField {
                                         owner: owner.clone(),
                                         snapshot_token,
@@ -504,7 +504,6 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                                 Button {
                                     variant: ButtonVariant::Secondary,
                                     button_type: "button",
-                                    class: "m1-secondary",
                                     disabled: !props.mount.editable,
                                     onclick: move |_| props.on_pick_splay_origin.call(()),
 
@@ -532,7 +531,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             "Key properties",
             rsx! {
                 Collapsible {
-                    class: "m1-matrix-transform-section",
+                    class: "grid min-w-0 gap-2.5 border-t border-border pt-2.5 [&_h3]:m-0 [&_h3]:text-xs [&_h3]:font-[650] [&_p]:m-0 [&_p]:text-xs [&_p]:text-muted-foreground",
                     keep_mounted: true,
                     open: Some(transform_open()),
                     on_open_change: move |next| transform_open.set(next),
@@ -551,7 +550,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                             on_edit,
                             splay_affect,
                         }
-                        div { class: "m1-matrix-inspector-fields",
+                        div { class: "grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-3",
                             NumericTransformField {
                                 owner: owner.clone(),
                                 snapshot_token,
@@ -625,7 +624,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     }
                 }
                 Collapsible {
-                    class: "m1-matrix-transform-section",
+                    class: "grid min-w-0 gap-2.5 border-t border-border pt-2.5 [&_h3]:m-0 [&_h3]:text-xs [&_h3]:font-[650] [&_p]:m-0 [&_p]:text-xs [&_p]:text-muted-foreground",
                     keep_mounted: true,
                     open: Some(assembly_open()),
                     on_open_change: move |next| assembly_open.set(next),
@@ -664,7 +663,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         }
                     }
                 }
-                span { class: "m1-matrix-field-context", "Key {row}, {column}" }
+                span { class: "m-0 text-xs leading-normal text-muted-foreground", "Key {row}, {column}" }
             },
         ),
     };
@@ -677,7 +676,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
     rsx! {
         section {
             key: "{owner_key}",
-            class: "m1-matrix-inspector m1-matrix-transform-inspector",
+            class: "grid min-w-0 gap-3 border-t border-border px-4 pt-3 pb-4 text-foreground",
             aria_label: "Matrix transform properties",
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == " " {
@@ -687,7 +686,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     }
                 }
             },
-            header { class: "m1-matrix-inspector-heading",
+            header { class: "sr-only",
                 h2 { "{title}" }
                 span { "{projection.label}" }
             }
@@ -699,7 +698,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                 {body}
             } else {
                 Collapsible {
-                    class: "m1-matrix-transform-section",
+                    class: "grid min-w-0 gap-2.5 border-t border-border pt-2.5 [&_h3]:m-0 [&_h3]:text-xs [&_h3]:font-[650] [&_p]:m-0 [&_p]:text-xs [&_p]:text-muted-foreground",
                     keep_mounted: true,
                     open: Some(transform_open()),
                     on_open_change: move |next| transform_open.set(next),
@@ -712,7 +711,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     }
                 }
             }
-            div { class: "m1-selection-delete",
+            div { class: "border-t border-border pt-3",
                 ResetTransformButton {
                     label: delete_label,
                     owner: owner.clone(),
@@ -747,7 +746,7 @@ pub fn SelectionDeleteControl(mount: MatrixTransformInspectorMount) -> Element {
     };
     rsx! {
         div {
-            class: "m1-canvas-delete",
+            class: "[&_button]:min-h-8 [&_button]:rounded-md [&_button]:border [&_button]:border-border-strong [&_button]:bg-card [&_button]:text-xs",
             onpointerdown: move |event| event.stop_propagation(),
             onkeydown: move |event: KeyboardEvent| {
                 event.stop_propagation();
@@ -929,7 +928,7 @@ pub(super) fn NumericTransformField(props: NumericTransformFieldProps) -> Elemen
                 (true, false) => None,
             };
             rsx! {
-                Field { class: "m1-matrix-field", invalid: error_message.is_some(),
+                Field { class: "grid min-w-0 content-start gap-[5px] text-xs text-muted-foreground", invalid: error_message.is_some(),
                     FieldLabel { html_for: input_id.clone(), "{props.label}" }
                     InputGroup { class: "max-[760px]:h-control-touch",
                         InputGroupInput { class: "max-[760px]:h-control-touch",
@@ -1092,7 +1091,7 @@ fn MirrorTransformField(props: MirrorTransformFieldProps) -> Element {
     });
     rsx! {
 
-                Field { class: "m1-matrix-field", invalid: error.is_some(),
+                Field { class: "grid min-w-0 content-start gap-[5px] text-xs text-muted-foreground", invalid: error.is_some(),
                     FieldLabel { html_for: control_id.clone(), "{control_label}" }
                     Select::<String> {
                         id: control_id,
@@ -1217,7 +1216,7 @@ fn OriginModeTransformField(props: OriginModeTransformFieldProps) -> Element {
     });
     rsx! {
 
-                Field { class: "m1-matrix-field", invalid: error.is_some(),
+                Field { class: "grid min-w-0 content-start gap-[5px] text-xs text-muted-foreground", invalid: error.is_some(),
                     FieldLabel { html_for: control_id.clone(), "{control_label}" }
                     Select::<String> {
                         id: control_id,
@@ -1291,7 +1290,7 @@ fn EnabledTransformField(props: EnabledTransformFieldProps) -> Element {
                 ("Key enabled").replace(' ', "-"),
             );
             rsx! {
-                Label { html_for: check_id.clone(), class: "m1-matrix-key-enabled",
+                Label { html_for: check_id.clone(),
                     Checkbox {
                         id: check_id.clone(),
                         aria_label: "Key enabled",
@@ -1331,7 +1330,7 @@ fn EnabledTransformField(props: EnabledTransformFieldProps) -> Element {
             }
         }
         if let Some(message) = error.as_deref() {
-            FieldError { class: "m1-matrix-transform-error", "{message}"  }
+            FieldError { "{message}"  }
         }
     }
 }
@@ -1414,7 +1413,7 @@ fn KeyAssemblyField(props: KeyAssemblyFieldProps) -> Element {
     });
     rsx! {
 
-                Field { class: "m1-matrix-key-assembly",
+                Field {
                     FieldLabel { html_for: control_id.clone(), "{control_label}" }
                     Combobox::<String> {
                         id: control_id,
@@ -1437,7 +1436,7 @@ fn KeyAssemblyField(props: KeyAssemblyFieldProps) -> Element {
             }
         }
         if let Some(message) = error.as_deref() {
-            FieldError { class: "m1-matrix-transform-error", "{message}"  }
+            FieldError { "{message}"  }
         }
     }
 }
@@ -1512,7 +1511,7 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
         });
     };
     rsx! {
-            h3 { class: "m1-matrix-subtitle", "Attached components" }
+            h3 { "Attached components" }
             if props.mirror_target {
                 if props.assemblies_local {
                     ResetTransformButton {
@@ -1546,7 +1545,7 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
                         &definition_id,
                     );
                     rsx! {
-                        div { key: "{assembly_id}", class: "m1-matrix-attached-row",
+                        div { key: "{assembly_id}",
                             {
                                 let control_label = format!("Replace {}", assembly_id);
                                 let control_aria_label = format!("Replace {}", assembly_id);
@@ -1609,7 +1608,6 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
                             }
                             Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    class: "m1-inspector-secondary",
     disabled: remove_disabled,
     aria_label: "Remove {assembly_id}",
     onclick: {
@@ -1627,7 +1625,7 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
                 }
             }
             if let Some(message) = error.as_deref() {
-                FieldError { class: "m1-matrix-transform-error", "{message}"  }
+                FieldError { "{message}"  }
             }
         }
 }
@@ -1689,7 +1687,6 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
     rsx! {
             Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    class: "m1-inspector-secondary",
     disabled: disabled,
     onclick: move |_| {
                         let Some(id) = sequence().checked_add(1) else { return; };
@@ -1705,10 +1702,10 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
 
              }
             if let Some(reason) = props.blocked.as_deref() {
-                small { class: "m1-empty-note m1-matrix-transform-unavailable", "{reason}" }
+                small { "{reason}" }
             }
             if let Some(message) = error.as_deref() {
-                FieldError { class: "m1-matrix-transform-error", "{message}"  }
+                FieldError { "{message}"  }
             }
         }
 }

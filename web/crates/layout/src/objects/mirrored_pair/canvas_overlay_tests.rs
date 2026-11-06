@@ -121,7 +121,7 @@ fn composition() -> Element {
                 },
             }
         }
-        section { id: "mirror-overlay-workspace", class: "m1-workspace-content",
+        section { id: "mirror-overlay-workspace", class: "relative min-h-[320px]",
             div { id: "mirror-overlay-canvas", "Layout canvas" }
             if active() {
                 MirroredPairCanvasOverlay {
@@ -216,14 +216,18 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
     );
     rendered().await;
 
-    let in_workspace =
-        element("#mirror-overlay-workspace > .m1-mirrored-pair-canvas-overlay").is_connected();
+    let overlay = element("#mirror-overlay-workspace [aria-label='New mirrored pair']")
+        .parent_element()
+        .expect("the form is mounted in its canvas overlay");
+    let in_workspace = overlay
+        .parent_element()
+        .is_some_and(|parent| parent.is_same_node(Some(&element("#mirror-overlay-workspace"))));
     let absent_from_objects = document
-        .query_selector("#mirror-overlay-objects .m1-mirrored-pair-setup")
+        .query_selector("#mirror-overlay-objects [aria-label='New mirrored pair']")
         .unwrap()
         .is_none();
     let one_form_in_workspace = document
-        .query_selector_all("#mirror-overlay-workspace .m1-mirrored-pair-setup")
+        .query_selector_all("#mirror-overlay-workspace [aria-label='New mirrored pair']")
         .unwrap()
         .length()
         == 1;
@@ -236,7 +240,7 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
     .into_iter()
     .all(|(role, name)| {
         control(role, name)
-            .closest(".m1-mirrored-pair-fields")
+            .closest("[role='group'][aria-label='Mirrored pair dimensions']")
             .unwrap()
             .is_some()
     });
@@ -304,10 +308,7 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
     let escaped_owner = element("#mirror-overlay-cancel-result")
         .get_attribute("data-owner")
         .unwrap();
-    let hidden_after_escape = document
-        .query_selector("#mirror-overlay-workspace .m1-mirrored-pair-canvas-overlay")
-        .unwrap()
-        .is_none();
+    let hidden_after_escape = !overlay.is_connected();
 
     control("button", "Open new form").click();
     rendered().await;

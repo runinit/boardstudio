@@ -1348,6 +1348,17 @@ fn second_column_y(runtime: &Rc<Runtime>) -> f64 {
         .y
 }
 
+fn has_exact_text(root: &web_sys::Element, expected: &str) -> bool {
+    let elements = root.query_selector_all("*").unwrap();
+    (0..elements.length()).any(|index| {
+        elements
+            .item(index)
+            .and_then(|node| node.text_content())
+            .as_deref()
+            == Some(expected)
+    })
+}
+
 #[wasm_bindgen_test]
 async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_with_one_undo() {
     let (document, _) = two_key_fixture(false);
@@ -1359,12 +1370,7 @@ async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_wi
     )
     .await;
     settle(&probe).await;
-    let label = root
-        .query_selector(".m1-matrix-field-context")
-        .unwrap()
-        .expect("the column context label is mounted")
-        .text_content();
-    assert_eq!(label.as_deref(), Some("Column 1"));
+    assert!(has_exact_text(&root, "Column 1"));
     // The fixture's key poses were never laid out by Core; the first edit syncs them, so
     // measure the second change from that synced state.
     set_numeric_field(&root, "Stagger", "1");
@@ -1520,12 +1526,7 @@ async fn convert_to_stagger_is_disabled_with_core_reason_on_a_splayed_column() {
         0,
     )
     .unwrap_err();
-    let shown = root
-        .query_selector(".m1-matrix-transform-unavailable")
-        .unwrap()
-        .expect("the reason is shown")
-        .text_content();
-    assert_eq!(shown.as_deref(), Some(reason.as_str()));
+    assert!(has_exact_text(&root, &reason));
     assert_eq!(
         reason,
         "Converting would move this column: its splay pivots with the stagger."

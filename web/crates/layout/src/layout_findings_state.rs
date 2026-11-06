@@ -212,8 +212,8 @@ pub fn focus_layout_finding_return_destination() -> bool {
     };
     for selector in [
         "#m1-inspector-panel-content .layout-inspector-tabs [role='tab'][aria-selected='true']",
-        "#m1-inspector-panel-content .m1-board-inspector :is(input, select, button):not(:disabled)",
-        "#m1-inspector-panel-content .m1-outline-inspector :is(input, select, button):not(:disabled)",
+        "#m1-inspector-panel-content [aria-label='Board Inspector'] :is(input, select, button):not(:disabled)",
+        "#m1-inspector-panel-content [aria-label='Board outline'] :is(input, select, button):not(:disabled)",
     ] {
         if let Some(element) = document
             .query_selector(selector)
@@ -227,7 +227,7 @@ pub fn focus_layout_finding_return_destination() -> bool {
     }
     if let Some(element) = document
         .query_selector(
-            "#m1-inspector-panel-content .m1-inspector-body, #m1-inspector-panel-content .m1-selected-context, #m1-inspector-panel-content .m1-board-inspector, #m1-inspector-panel-content .m1-outline-inspector",
+            "#m1-inspector-panel-content > div, #m1-inspector-panel-content [aria-label='Board Inspector'], #m1-inspector-panel-content [aria-label='Board outline']",
         )
         .ok()
         .flatten()
@@ -477,14 +477,14 @@ mod layout_finding_return_regression_tests {
 
         for (inspector, destination, expected_focus) in [
             (
-                r#"<button id="back">Back to selection</button><section class="m1-board-inspector"><input id="board-name"></section>"#,
+                r#"<button id="back">Back to selection</button><section aria-label="Board Inspector"><input id="board-name"></section>"#,
                 objects::TreeContext::Board {
                     board_id: scope.board_id.clone(),
                 },
                 "board-name",
             ),
             (
-                r#"<button id="back">Back to selection</button><section class="m1-outline-inspector"><select id="outline-version"><option>Generated</option></select></section>"#,
+                r#"<button id="back">Back to selection</button><section aria-label="Board outline"><select id="outline-version"><option>Generated</option></select></section>"#,
                 objects::TreeContext::Outline {
                     board_id: scope.board_id.clone(),
                 },
@@ -544,7 +544,7 @@ mod layout_finding_return_regression_tests {
         }
 
         root.set_inner_html(
-            r#"<button id="back">Back to selection</button><section class="m1-board-inspector"><input id="board-name"></section>"#,
+            r#"<button id="back">Back to selection</button><section aria-label="Board Inspector"><input id="board-name"></section>"#,
         );
         let back = document
             .get_element_by_id("back")

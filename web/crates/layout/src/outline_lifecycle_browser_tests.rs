@@ -678,6 +678,73 @@ async fn mounted_outline_inspector() -> (InspectorProbe, web_sys::Element) {
     mounted_outline_inspector_with_version(None).await
 }
 
+#[wasm_bindgen_test]
+async fn outline_actions_keep_their_layout_without_legacy_classes() {
+    let (_probe, root) = mounted_outline_inspector().await;
+    wait_until("outline actions mount", || {
+        by_role_name(&root, "button", "Copy outline").is_some()
+    })
+    .await;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let stylesheet = document.create_element("style").unwrap();
+    stylesheet.set_text_content(Some(include_str!("../../../assets/tailwind.css")));
+    document.head().unwrap().append_child(&stylesheet).unwrap();
+    let action = by_role_name(&root, "button", "Copy outline").unwrap();
+    let row = action.parent_element().unwrap();
+    let classes = row.get_attribute("class").unwrap_or_default();
+    row.set_attribute(
+        "class",
+        &classes
+            .split_whitespace()
+            .filter(|class| !class.starts_with("m1-"))
+            .collect::<Vec<_>>()
+            .join(" "),
+    )
+    .unwrap();
+    let window = web_sys::window().unwrap();
+    let row_style = window.get_computed_style(&row).unwrap().unwrap();
+    let action_style = window.get_computed_style(&action).unwrap().unwrap();
+    assert_eq!(row_style.get_property_value("display").unwrap(), "flex");
+    assert_eq!(row_style.get_property_value("gap").unwrap(), "8px");
+    assert_eq!(row_style.get_property_value("margin-top").unwrap(), "12px");
+    assert_eq!(
+        action_style.get_property_value("min-height").unwrap(),
+        "36px"
+    );
+    let heading = root
+        .query_selector("[aria-label='Board outline'] h2")
+        .unwrap()
+        .unwrap();
+    let heading_row = heading.parent_element().unwrap();
+    let classes = heading_row.get_attribute("class").unwrap_or_default();
+    heading_row
+        .set_attribute(
+            "class",
+            &classes
+                .split_whitespace()
+                .filter(|class| !class.starts_with("m1-"))
+                .collect::<Vec<_>>()
+                .join(" "),
+        )
+        .unwrap();
+    let heading_row_style = window.get_computed_style(&heading_row).unwrap().unwrap();
+    let heading_style = window.get_computed_style(&heading).unwrap().unwrap();
+    assert_eq!(
+        heading_row_style.get_property_value("display").unwrap(),
+        "flex"
+    );
+    assert_eq!(
+        heading_style.get_property_value("margin-top").unwrap(),
+        "0px"
+    );
+    assert_eq!(
+        heading_style.get_property_value("font-size").unwrap(),
+        "16px"
+    );
+    stylesheet.remove();
+    root.remove();
+}
+
 async fn mounted_outline_inspector_with_version(
     version: Option<boardstudio_core::model::OutlineVersion>,
 ) -> (InspectorProbe, web_sys::Element) {
@@ -805,7 +872,7 @@ async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
                 selection.read().as_ref().map(|selected| &selected.context),
                 Some(super::super::objects::TreeContext::Board { board_id }) if board_id == &probe.scope.board_id
             ) && document
-                .query_selector("#outline-points-inspector-mount .m1-outline-point-editor")
+                .query_selector("#outline-points-inspector-mount [aria-label='Perimeter']")
                 .unwrap()
                 .is_none()
                 && document
@@ -825,7 +892,7 @@ async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
     );
     assert!(
         document
-            .query_selector("#outline-points-inspector-mount .m1-outline-point-editor")
+            .query_selector("#outline-points-inspector-mount [aria-label='Perimeter']")
             .unwrap()
             .is_none(),
         "the nested Perimeter inspector is no longer mounted after returning to Board"
@@ -921,7 +988,7 @@ async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_edit
         .unwrap();
     wait_until("Escape closes the canvas point editor", || {
         document
-            .query_selector("#outline-points-inspector-mount .m1-outline-point-editor")
+            .query_selector("#outline-points-inspector-mount [aria-label='Perimeter']")
             .unwrap()
             .is_none()
             && document
@@ -944,7 +1011,7 @@ async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_edit
     );
     assert!(
         document
-            .query_selector("#outline-points-inspector-mount .m1-outline-point-editor")
+            .query_selector("#outline-points-inspector-mount [aria-label='Perimeter']")
             .unwrap()
             .is_none(),
         "Escape from the canvas point exits perimeter editing"
@@ -2232,7 +2299,7 @@ mod ownership_presentation {
             "the linked refinement stays visibly available after the freeze copy: {labels:?}"
         );
         assert!(
-            root.query_selector(".m1-outline-problem")
+            root.query_selector("[data-finding-id] [role=alert]")
                 .unwrap()
                 .is_none(),
             "a resolvable linked refinement reports no problem"
@@ -2280,7 +2347,7 @@ mod ownership_presentation {
 
         let finding_id = format!("board:{BOARD}:outline:linked:linked-v1");
         let problem = root
-            .query_selector(&format!(".m1-outline-problem[data-finding-id='{finding_id}']"))
+            .query_selector(&format!("[data-finding-id='{finding_id}']"))
             .unwrap()
             .unwrap_or_else(|| {
                 panic!(
@@ -2288,6 +2355,10 @@ mod ownership_presentation {
                     root.inner_html()
                 )
             });
+        assert!(
+            problem.get_attribute("class").is_none(),
+            "the located finding does not depend on a legacy styling class"
+        );
         let announcement = problem
             .query_selector("[role=alert]")
             .unwrap()
