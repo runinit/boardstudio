@@ -599,7 +599,7 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                                     }
                                     Button { variant: ButtonVariant::Secondary,
                                         id: "{label_id}",
-                                        class: if selected { "flex min-h-8 min-w-0 flex-1 items-center justify-start gap-[9px] rounded-[3px] border-primary bg-selection px-[5px] text-left text-selection-foreground [&_span]:text-selection-foreground" } else { "flex min-h-8 min-w-0 flex-1 items-center justify-start gap-[9px] rounded-[3px] border-transparent bg-transparent px-[5px] text-left hover:bg-accent" },
+                                        class: if selected { "flex min-h-8 min-w-0 flex-1 items-center justify-start gap-[9px] rounded-[3px] border-primary bg-selected px-[5px] text-left text-selected-foreground [&_span]:text-selected-foreground" } else { "flex min-h-8 min-w-0 flex-1 items-center justify-start gap-[9px] rounded-[3px] border-transparent bg-transparent px-[5px] text-left hover:bg-accent" },
                                         disabled: !row_selectable,
                                         onclick: move |_| {
                                             if let Some(action) = row_action_for_click.clone() {

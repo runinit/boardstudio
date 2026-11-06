@@ -315,8 +315,8 @@ PCB and case settings remain shared at board level.
 ### Catalog rows and metadata tags
 
 Catalog and tree rows use compact, selectable surfaces with names and
-supporting detail. Some use `selected` and `selected-foreground`; existing
-Layout and Case tree rows use `selection` and `selection-foreground` instead.
+supporting detail. Selected objects use `selected` and `selected-foreground`;
+`selection` and `selection-foreground` are reserved for text highlights.
 Focus remains independently visible.
 
 ### Inspector disclosures

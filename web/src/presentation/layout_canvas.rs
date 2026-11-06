@@ -463,7 +463,7 @@ fn PartContents(
             {
                 let inset = 1.5_f64.min(size.x / 6.0).min(size.y / 6.0);
                 rsx! {
-                    g { class: if selected { "pointer-events-none [&_rect]:fill-selection [&_rect]:stroke-primary [&_rect]:[stroke-width:0.22] [&_rect]:[fill-opacity:0.75]" } else { "pointer-events-none [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-outline [&_rect]:[stroke-width:0.22] [&_rect]:[fill-opacity:0.75]" }, "aria-hidden": "true", "data-geometry": "keycap", "data-selected": "{selected}",
+                    g { class: if selected { "pointer-events-none [&_rect]:fill-selected [&_rect]:stroke-primary [&_rect]:[stroke-width:0.22] [&_rect]:[fill-opacity:0.75]" } else { "pointer-events-none [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-outline [&_rect]:[stroke-width:0.22] [&_rect]:[fill-opacity:0.75]" }, "aria-hidden": "true", "data-geometry": "keycap", "data-selected": "{selected}",
                         rect { x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9" }
                         rect { class: "[fill-opacity:0.25]! [stroke-width:0.14]!", x: "{-size.x / 2.0 + inset}", y: "{-size.y / 2.0 + inset}", width: "{size.x - inset * 2.0}", height: "{size.y - inset * 2.0}", rx: "0.7" }
                     }

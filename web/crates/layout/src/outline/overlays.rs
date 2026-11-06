@@ -195,7 +195,7 @@ pub fn OutlinePointCanvasOverlay(
                     for (index, guide) in snap.guides.iter().enumerate() {
                         line {
                             key: "guide-{index}-{guide.id}",
-                            class: "pointer-events-none stroke-selection-foreground stroke-[0.3] [stroke-dasharray:1_0.7]",
+                            class: "pointer-events-none stroke-selected-foreground stroke-[0.3] [stroke-dasharray:1_0.7]",
                             x1: "{guide.from.x - guide.direction.x * width * 2.0}",
                             y1: "{guide.from.y - guide.direction.y * width * 2.0}",
                             x2: "{guide.from.x + guide.direction.x * width * 2.0}",
@@ -203,7 +203,7 @@ pub fn OutlinePointCanvasOverlay(
                             "data-guide": "{guide.label}"
                         }
                         text {
-                            class: "pointer-events-none fill-selection-foreground stroke-canvas stroke-[0.25] text-[2.6px] [paint-order:stroke]",
+                            class: "pointer-events-none fill-selected-foreground stroke-canvas stroke-[0.25] text-[2.6px] [paint-order:stroke]",
                             transform: "translate({snap.at.x - handle_radius} {snap.at.y - handle_radius * (2.0 + index as f64)}) scale(1,-1)",
                             text_anchor: "end",
                             "{guide.label}"

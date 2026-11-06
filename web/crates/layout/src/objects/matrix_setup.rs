@@ -276,7 +276,7 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
                                     }
                                 },
                                 for (index, label) in ["MX", "Choc"].iter().enumerate() {
-                                    ToggleItem { index, class: "grid min-h-[58px] grid-cols-[28px_max-content] items-center justify-center gap-2 rounded-md p-1.5 text-left data-[state=on]:bg-selection data-[state=on]:text-selection-foreground [&_span]:grid [&_span]:min-w-0 [&_span]:gap-0.5 [&_small]:text-xs [&_small]:text-muted-foreground [&_strong]:font-semibold [&_svg]:size-[26px] [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.6]",
+                                    ToggleItem { index, class: "grid min-h-[58px] grid-cols-[28px_max-content] items-center justify-center gap-2 rounded-md p-1.5 text-left data-[state=on]:bg-selected data-[state=on]:text-selected-foreground [&_span]:grid [&_span]:min-w-0 [&_span]:gap-0.5 [&_small]:text-xs [&_small]:text-muted-foreground [&_strong]:font-semibold [&_svg]:size-[26px] [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.6]",
                                         svg {
                                             view_box: "0 0 32 32",
                                             "aria-hidden": "true",

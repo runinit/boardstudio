@@ -9018,7 +9018,7 @@ fn Editor() -> Element {
                                     "data-placement-preview": "part",
                                     transform: "translate({at.x},{at.y})",
                                     "aria-hidden": "true",
-                                    polygon { points: "{courtyard}", class: "fill-selection stroke-primary stroke-[0.7] [stroke-dasharray:2_1]" }
+                                    polygon { points: "{courtyard}", class: "fill-selected stroke-primary stroke-[0.7] [stroke-dasharray:2_1]" }
                                     FootprintGraphics {
                                         definition: definition.clone(),
                                         parameters: placement.pending.part.generator_parameters.clone(),

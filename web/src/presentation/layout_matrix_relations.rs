@@ -361,7 +361,7 @@ pub(super) fn RelationMatrixKey(
         });
     rsx! {
         rect {
-            class: if selected { "pointer-events-none fill-selection stroke-primary stroke-[0.42]" } else if highlighted { "pointer-events-none fill-geometry-fill-muted/55 stroke-geometry-part stroke-[0.42] [stroke-dasharray:1.2_0.8]" } else { "pointer-events-none fill-geometry-fill-muted/55 stroke-geometry-outline stroke-[0.28]" },
+            class: if selected { "pointer-events-none fill-selected stroke-primary stroke-[0.42]" } else if highlighted { "pointer-events-none fill-geometry-fill-muted/55 stroke-geometry-part stroke-[0.42] [stroke-dasharray:1.2_0.8]" } else { "pointer-events-none fill-geometry-fill-muted/55 stroke-geometry-outline stroke-[0.28]" },
             "data-selected": "{selected}",
             "data-relation-highlight": "{highlighted}",
             x: "{x}",
@@ -388,7 +388,7 @@ pub(super) fn RelationPartOutline(part_id: String, selected: bool, points: Strin
     rsx! {
         polygon {
             points: "{points}",
-            class: if selected { "cursor-grab fill-selection stroke-primary stroke-[0.8]" } else if highlighted { "cursor-grab fill-geometry-body stroke-geometry-part stroke-[0.8] [stroke-dasharray:1.2_0.8]" } else { "cursor-grab fill-geometry-body stroke-geometry-part stroke-[0.4]" },
+            class: if selected { "cursor-grab fill-selected stroke-primary stroke-[0.8]" } else if highlighted { "cursor-grab fill-geometry-body stroke-geometry-part stroke-[0.8] [stroke-dasharray:1.2_0.8]" } else { "cursor-grab fill-geometry-body stroke-geometry-part stroke-[0.4]" },
             "data-geometry": "part-outline",
             "data-relation-highlight": "{highlighted}",
         }

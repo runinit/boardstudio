@@ -382,7 +382,7 @@ pub fn ProjectSetupGuide(
                                 aria_label: title,
                                 aria_current: (stage == item_stage).then_some("step"),
                                 "aria-description": if ready { "Ready" } else { "Not ready" },
-                                class: if stage == item_stage { "flex min-h-11 w-full items-center gap-2.5 bg-selection px-2 py-1.5 text-left [&_[data-slot=stepper-item]]:items-center [&_[data-slot=stepper-title]]:text-left" } else { "flex min-h-11 w-full items-center gap-2.5 px-2 py-1.5 text-left [&_[data-slot=stepper-item]]:items-center [&_[data-slot=stepper-title]]:text-left" },
+                                class: if stage == item_stage { "flex min-h-11 w-full items-center gap-2.5 bg-selected px-2 py-1.5 text-left [&_[data-slot=stepper-item]]:items-center [&_[data-slot=stepper-title]]:text-left" } else { "flex min-h-11 w-full items-center gap-2.5 px-2 py-1.5 text-left [&_[data-slot=stepper-item]]:items-center [&_[data-slot=stepper-title]]:text-left" },
                                 // Readiness is independent of stage order; only this status presentation remounts.
                                 Stepper {
                                     key: "{stage == item_stage}-{ready}",
