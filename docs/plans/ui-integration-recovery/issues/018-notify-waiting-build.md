@@ -1,6 +1,6 @@
 # 018: Notify the editor when a build is waiting
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: none
 Parent: [013: Build update umbrella](013-surface-build-updates.md)

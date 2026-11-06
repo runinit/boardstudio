@@ -30,7 +30,8 @@ fn core_executor_identity(core: &Rc<dyn CoreExecutor>) -> usize {
     Rc::as_ptr(core) as *const () as usize
 }
 use boardstudio_web_host::host::{
-    BrowserStore, CoreWorker, SaveError, SavedProject, StorageSession, StorageToken,
+    BrowserStore, CoreWorker, SaveError, SavedProject, StorageSession, StorageToken, UpdateSignals,
+    UpdateWatch,
 };
 use boardstudio_web_host::{
     cad_jobs::{
@@ -343,6 +344,8 @@ pub struct Runtime {
     notify: RefCell<Option<Notifier>>,
     status: RefCell<RuntimeReport>,
     notifications: RefCell<Vec<RuntimeNotification>>,
+    update_waiting: Cell<bool>,
+    update_observer: RefCell<Option<Box<dyn UpdateWatch>>>,
     open_sequence: Cell<u64>,
     project_deletion_pending: Cell<bool>,
     project_deletion_open: Cell<Option<OperationId>>,
@@ -454,6 +457,8 @@ impl Runtime {
                 "Open a saved keyboard or an editable demo copy.",
             )),
             notifications: RefCell::default(),
+            update_waiting: Cell::new(false),
+            update_observer: RefCell::new(None),
             open_sequence: Cell::new(0),
             project_deletion_pending: Cell::new(false),
             project_deletion_open: Cell::new(None),
@@ -523,10 +528,17 @@ impl Runtime {
         let weak = Rc::downgrade(&runtime);
         #[cfg(not(any(test, feature = "test-support")))]
         spawn_local(async move {
-            if let Err(error) = boardstudio_web_host::host::register_offline(prefix).await
-                && let Some(runtime) = weak.upgrade()
-            {
-                runtime.report(format!("Offline setup failed; this keyboard still needs an online connection: {error:?}"));
+            match boardstudio_web_host::host::register_offline(prefix).await {
+                Ok(registration) => {
+                    if let Some(runtime) = weak.upgrade() {
+                        runtime.observe_update_waiting(Rc::new(registration));
+                    }
+                }
+                Err(error) => {
+                    if let Some(runtime) = weak.upgrade() {
+                        runtime.report(format!("Offline setup failed; this keyboard still needs an online connection: {error:?}"));
+                    }
+                }
             }
         });
         Ok(runtime)
@@ -812,6 +824,41 @@ impl Runtime {
     /// Only the shell consumes this queue; reading it does not trigger another render.
     pub fn take_notifications(&self) -> Vec<RuntimeNotification> {
         std::mem::take(&mut *self.notifications.borrow_mut())
+    }
+    /// Whether a newer build is installed and waiting while this page runs an
+    /// older one. Derived from the live registration on every observation, so
+    /// dismissal is never stored: the notice returns on the next page load.
+    /// Ticket 018 shows no action for this state; Refresh arrives with 019.
+    pub fn update_waiting(&self) -> bool {
+        self.update_waiting.get()
+    }
+    fn set_update_waiting(&self, waiting: bool) {
+        if self.update_waiting.get() != waiting {
+            self.update_waiting.set(waiting);
+            self.changed();
+        }
+    }
+    /// Observe real release lifecycle signals and keep the waiting state the
+    /// shell notice renders. Replaces any previous observer so repeated
+    /// observations never stack listeners or duplicate the notice.
+    pub fn observe_update_waiting(self: &Rc<Self>, signals: Rc<dyn UpdateSignals>) {
+        if let Some(mut previous) = self.update_observer.borrow_mut().take() {
+            previous.stop();
+        }
+        let runtime = Rc::downgrade(self);
+        let watched = signals.clone();
+        self.update_observer
+            .borrow_mut()
+            .replace(signals.watch(Rc::new(move || {
+                if let Some(runtime) = runtime.upgrade() {
+                    runtime.set_update_waiting(boardstudio_web_host::offline::is_update_waiting(
+                        watched.snapshot(),
+                    ));
+                }
+            })));
+        self.set_update_waiting(boardstudio_web_host::offline::is_update_waiting(
+            signals.snapshot(),
+        ));
     }
     pub fn embed_used_models(&self) -> bool {
         self.archive_export_options.embed_used_models()
