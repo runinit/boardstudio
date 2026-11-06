@@ -59,9 +59,27 @@ class CheckTests(unittest.TestCase):
         self.assertIn([check.PY, "cad/scripts/test-cad-provider.py"], check.STEPS["browser"][1])
 
     def test_full_check_runs_the_documented_steps_in_order(self):
-        self.assertEqual(check.DEFAULT, ("repo", "tooling", "lint", "build", "test", "browser"))
+        self.assertEqual(check.DEFAULT, ("repo", "tooling", "build", "lint", "test", "browser"))
         self.assertNotIn("security", check.DEFAULT)
         self.assertNotIn("typecheck", check.DEFAULT)
+
+    def test_lint_has_generated_test_css_before_wasm_clippy(self):
+        plans = []
+        with mock.patch.object(check, "run_plan", side_effect=lambda plan, *args: plans.append(plan) or 0):
+            self.assertEqual(check.run(["lint"]), 0)
+            self.assertEqual(check.run(list(check.DEFAULT)), 0)
+        self.assertEqual([name for name, _ in plans[0]], ["test-css", "lint"])
+        full = [name for name, _ in plans[1]]
+        self.assertLess(full.index("build"), full.index("lint"))
+        self.assertNotIn("test-css", full)
+
+    def test_css_dependent_browser_subsets_prepare_test_css(self):
+        for crate in ("ui-shared", "keycaps", "case", "layout"):
+            plans = []
+            with self.subTest(crate=crate), \
+                    mock.patch.object(check, "run_plan", side_effect=lambda plan, *args: plans.append(plan) or 0):
+                self.assertEqual(check.run(["browser"], only=[crate]), 0)
+                self.assertEqual([name for name, _ in plans[0]], ["test-css", f"browser (only: {crate})"])
 
     def test_lint_runs_wasm_clippy_over_the_web_workspace_crates(self):
         # Native Clippy builds the non-WASM stubs, so the WASM-gated web crates
@@ -271,11 +289,11 @@ class CheckTests(unittest.TestCase):
         self.assertNotIn("--fast", check.STEPS["release"][1][0])
         self.assertNotIn("release", check.DEFAULT)
 
-    def test_layout_test_css_build_runs_from_the_web_project(self):
+    def test_test_css_build_runs_from_the_web_project(self):
         command = ["dx", "build"]
         with mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0)) as run, \
                 contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(check.run_plan([("layout-test-css", [command])]), 0)
+            self.assertEqual(check.run_plan([("test-css", [command])]), 0)
         self.assertEqual(run.call_args.kwargs["cwd"], check.ROOT / "web")
 
     def test_independent_native_test_commands_run_together(self):
@@ -321,16 +339,17 @@ class CheckTests(unittest.TestCase):
         with mock.patch.object(check.subprocess, "run", side_effect=fake), \
                 contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(check.main(["browser", "--only", "case", "ui-shared"]), 0)
-        self.assertEqual(len(seen), 3, "case plus both ui-shared launches run without build or smoke")
-        self.assertTrue(all(check.is_crate_launch(cmd) for cmd in seen))
+        self.assertEqual(seen[0], check.TEST_CSS)
+        self.assertEqual(len(seen), 4, "test CSS followed by case and both ui-shared launches")
+        self.assertTrue(all(check.is_crate_launch(cmd) for cmd in seen[1:]))
         self.assertFalse(any("build-web.py" in " ".join(cmd) or "run-drag-browser.py" in " ".join(cmd)
                              for cmd in seen))
         text = output.getvalue()
         self.assertIn("== browser (only: case, ui-shared)", text)
-        self.assertIn("check: partial steps passed: browser (only: case, ui-shared)", text)
+        self.assertIn("check: partial steps passed: test-css, browser (only: case, ui-shared)", text)
         self.assertNotIn("check: all steps passed:", text)
 
-    def test_browser_only_layout_runs_layout_test_css_prerequisite_and_stops_if_it_fails(self):
+    def test_browser_only_layout_runs_test_css_prerequisite_and_stops_if_it_fails(self):
         seen = []
 
         def fake_pass(command, **kwargs):
@@ -341,15 +360,15 @@ class CheckTests(unittest.TestCase):
                 mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(check.main(["browser", "--only", "layout"]), 0)
-        self.assertEqual(seen[0], (check.LAYOUT_TEST_CSS, check.ROOT / "web"))
-        self.assertEqual(len(seen), 3, "layout-test-css followed by both layout crate launches")
+        self.assertEqual(seen[0], (check.TEST_CSS, check.ROOT / "web"))
+        self.assertEqual(len(seen), 3, "test-css followed by both layout crate launches")
 
         seen.clear()
         error = io.StringIO()
         with mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=2, stdout="")), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
             self.assertEqual(check.main(["browser", "--only", "layout", "--keep-going"]), 1)
-        self.assertIn("step 'layout-test-css' failed", error.getvalue())
+        self.assertIn("step 'test-css' failed", error.getvalue())
 
     def test_browser_only_and_keep_going_validate_argument_combinations(self):
         invalid = (
@@ -386,8 +405,9 @@ class CheckTests(unittest.TestCase):
                 check.main(["browser", "--only", "library,case", "parts", "--keep-going"]),
                 1,
             )
+        self.assertEqual(seen[0], check.TEST_CSS)
         self.assertEqual(
-            [check.launch_crate(cmd) for cmd in seen],
+            [check.launch_crate(cmd) for cmd in seen[1:]],
             ["library", "case", "parts"],
         )
         stderr = error.getvalue()

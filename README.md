@@ -84,7 +84,9 @@ them with `--files`) and runs the documentation checks, rustfmt and Clippy, WASM
 the native tests of the changed crates and everything that depends on them, and the browser tests
 of the affected presentation crates (page tests by file). It never runs `build`. A shared input
 (`Cargo.toml`, `Cargo.lock`, `.cargo/`) or a path it cannot place falls back to every Rust check and
-says so. Documentation-only changes run only the documentation checks.
+says so. Documentation-only changes run only the documentation checks. Rust checks first run a
+Dioxus page build to generate the Tailwind stylesheet required by WASM test fixtures; they do not
+run the full provider-and-packaging `build` step.
 
 **Full check.** The default runs documentation link checks, build and content tool tests, rustfmt and
 Clippy, native Rust and provider tests, a checked web build, native/WASM boundary checks and mounted
@@ -113,9 +115,10 @@ separately because their mounted fixtures need an isolated DOM. The check runs u
 at once (`BOARDSTUDIO_CHECK_JOBS`, `1` for serial) and builds test wasm without debug info
 (`CARGO_PROFILE_DEV_DEBUG=false`, which is most of a launch's cost; run `wasm-pack test` by hand,
 without the variable, for source-level debugging). Use `python3 scripts/check.py browser --only <crate>...`
-to run only the named presentation crate launch(es) without the full page build or drag smoke (reported
+to run only the named presentation crate launch(es) without the full packaged build or drag smoke (reported
 as a partial subset, not full acceptance), and add `--keep-going` to continue across independent browser
-launches while still exiting nonzero if any failed. Each batch has a bounded two-minute timeout,
+launches while still exiting nonzero if any failed. CSS-dependent crate subsets first build the
+Dioxus page to generate the test stylesheet. Each batch has a bounded two-minute timeout,
 overridable with `WASM_BINDGEN_TEST_TIMEOUT`. A native test run alone does not compile WASM-only
 presentation code. Browser setup installs the locked wasm-bindgen runner before executing tests.
 The browser step opens the packaged page and runs a trusted mouse-drag smoke over

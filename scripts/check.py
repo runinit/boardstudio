@@ -68,9 +68,11 @@ TOOLING_TESTS = (
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 ISOLATED = ("presentation::case_workspace::",)
 DRAG_SMOKE = [PY, "scripts/run-drag-browser.py"]
-LAYOUT_TEST_CSS: list[str] = [
+TEST_CSS: list[str] = [
     "dx", "build", "--web", "--no-default-features", "--features", "page", "--cargo-args=--locked",
 ]
+# These browser-test targets include the generated Tailwind stylesheet at compile time.
+CSS_TEST_CRATES = {"ui-shared", "keycaps", "case", "layout"}
 
 Command = list[str]
 # The active opt-in receipt collector for `--receipt`; set by `main` and read by `run_plan`.
@@ -149,9 +151,9 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
     "tooling": (True, [["node", "--version"], *[
         ["node", script] if script.endswith(".cjs") else [PY, "-B", script]
         for script in TOOLING_TESTS]]),
-    "lint": (True, LINT),
     # The routine build skips wasm-opt and the optimized Dioxus build; `release` keeps both.
     "build": (True, [[PY, "scripts/build-web.py", "--fast"]]),
+    "lint": (True, LINT),
     "release": (False, [[PY, "scripts/build-web.py"]]),
     "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cad.py"]]),
     "typecheck": (False, typecheck()),
@@ -538,8 +540,8 @@ def run(names: list[str], update_native_baseline: bool = False,
             raise ValueError("--only applies to `browser` alone")
         only_crates = parse_only_crates(only)
         plan: list[tuple[str, list[Command]]] = []
-        if "layout" in only_crates:
-            plan.append(("layout-test-css", [LAYOUT_TEST_CSS]))
+        if CSS_TEST_CRATES.intersection(only_crates):
+            plan.append(("test-css", [TEST_CSS]))
         plan.append((f"browser (only: {', '.join(only_crates)})",
                      select_browser_crate_launches(only_crates)))
         return (run_plan(plan, update_native_baseline, keep_going=True)
@@ -567,6 +569,10 @@ def run(names: list[str], update_native_baseline: bool = False,
             else:
                 names.insert(smoke_index, names.pop(later_build))
     plan = [(name, STEPS[name][1]) for name in names]
+    if "lint" in names:
+        lint_index = names.index("lint")
+        if not any(name in ("build", "release") for name in names[:lint_index]):
+            plan.insert(lint_index, ("test-css", [TEST_CSS]))
     return (run_plan(plan, update_native_baseline, keep_going=True)
             if keep_going else run_plan(plan, update_native_baseline))
 
@@ -612,7 +618,7 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
             # Test wasm without DWARF is about a seventh of the size, which is most of a launch.
             environment.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
         captured: list[tuple[Command, str]] | None = [] if name == "test" else None
-        cwd = ROOT / "web" if name == "layout-test-css" else ROOT
+        cwd = ROOT / "web" if name == "test-css" else ROOT
         elapsed, passed = run_commands(
             name, commands, environment, cwd, captured,
             keep_going=keep_going and is_browser_step(name),
@@ -643,12 +649,12 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
 
 
 def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_quick.Package]") -> list[tuple[str, list[Command]]]:
-    """Run affected checks and required test assets, without the full frontend build."""
+    """Run affected checks and required test assets, without the packaged frontend build."""
     plan: list[tuple[str, list[Command]]] = [("repo", STEPS["repo"][1])]
     if selection.tooling:
         plan.append(("tooling", STEPS["tooling"][1]))
     if selection.rust:
-        plan += [("lint", LINT), ("typecheck", typecheck())]
+        plan += [("test-css", [TEST_CSS]), ("lint", LINT), ("typecheck", typecheck())]
         if selection.full_rust:
             native = list(CARGO_TESTS)
         else:
@@ -668,8 +674,6 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
                 commands.append([PY, "scripts/run-wasm-tests.py", "--files", *selection.page_files,
                                  "--result-json", "web/target/test-results/browser-quick.json"])
         if commands:
-            if "layout" in crates:
-                plan.append(("layout-test-css", [LAYOUT_TEST_CSS]))
             plan.append(("browser", commands))
     if selection.cad:
         plan.append(("test", [[PY, "cad/scripts/test-cad.py"]]))

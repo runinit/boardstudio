@@ -74,6 +74,12 @@ class QuickPlanTests(unittest.TestCase):
     def plan(self, files):
         return dict(check.quick_plan(quick.select(files, PACKAGES), PACKAGES))
 
+    def test_quick_prepares_css_before_wasm_lint_once(self):
+        plan = check.quick_plan(quick.select(["web/crates/layout/src/lib.rs"], PACKAGES), PACKAGES)
+        names = [name for name, _ in plan]
+        self.assertEqual(names.count("test-css"), 1)
+        self.assertLess(names.index("test-css"), names.index("lint"))
+
     def test_a_web_crate_edit_runs_its_launches_without_full_web_build(self):
         plan = self.plan(["web/crates/keymap/src/lib.rs"])
         self.assertNotIn("build", plan)
@@ -87,13 +93,13 @@ class QuickPlanTests(unittest.TestCase):
     def test_layout_tests_generate_the_css_asset_before_browser_tests(self):
         plan = check.quick_plan(quick.select(["web/crates/layout/src/lib.rs"], PACKAGES), PACKAGES)
         names = [name for name, _ in plan]
-        self.assertLess(names.index("layout-test-css"), names.index("browser"))
-        command = dict(plan)["layout-test-css"][0]
+        self.assertLess(names.index("test-css"), names.index("browser"))
+        command = dict(plan)["test-css"][0]
         self.assertEqual(command, ["dx", "build", "--web", "--no-default-features",
                                    "--features", "page", "--cargo-args=--locked"])
 
-    def test_other_crate_tests_do_not_generate_layout_css(self):
-        self.assertNotIn("layout-test-css", self.plan(["web/crates/keymap/src/lib.rs"]))
+    def test_other_crate_lint_also_generates_test_css(self):
+        self.assertIn("test-css", self.plan(["web/crates/keymap/src/lib.rs"]))
 
     def test_a_page_edit_adds_the_page_runner_for_those_files(self):
         plan = self.plan(["web/src/presentation/a.rs"])
