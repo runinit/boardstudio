@@ -560,7 +560,7 @@ async fn doc(page: &Page) -> Result<Document> {
 async fn scene(page: &Page) -> Result<Value> {
     driver::eval(
         page,
-        r#"[...document.querySelectorAll('.m1-scene-part')]
+        r#"[...document.querySelectorAll('[data-geometry="scene-part"]')]
     .map(element => [element.dataset.partId, element.getAttribute('transform')])"#,
     )
     .await
@@ -699,11 +699,25 @@ async fn set_slider(page: &Page, name: &str, target: i64) -> Result<()> {
     let query = format!(
         "document.querySelector('[role=\"slider\"][aria-label=\"{name}\"]')?.getAttribute('aria-valuenow')"
     );
-    // The old runner's `press` focuses the slider first; bare key events would
-    // land on whatever holds focus instead.
+    // The setup step may mount asynchronously after its Continue button is
+    // clicked. Do not send keys to the previously focused footer.
+    driver::wait_for(
+        page,
+        &format!("!!document.querySelector('[role=\"slider\"][aria-label=\"{name}\"]')"),
+        &format!("slider {name} to mount"),
+        Duration::from_secs(10),
+    )
+    .await?;
     driver::eval(
         page,
         &format!("document.querySelector('[role=\"slider\"][aria-label=\"{name}\"]')?.focus()"),
+    )
+    .await?;
+    driver::wait_for(
+        page,
+        &format!("document.activeElement === document.querySelector('[role=\"slider\"][aria-label=\"{name}\"]')"),
+        &format!("slider {name} to receive focus"),
+        Duration::from_secs(10),
     )
     .await?;
     loop {
@@ -2016,7 +2030,7 @@ async fn drag_scenarios(smoke: &mut Smoke) -> Result<()> {
     driver::click_role(&page, None, "button", "Create matrix").await?;
     println!("drag-smoke: setup created a 10 x 10 matrix");
     let first_key =
-        ".m1-scene-part[data-part-id^=\"matrix/\"][data-part-id$=\"r4c2\"] .m1-part-hit-area";
+        "[data-geometry='scene-part'][data-part-id^=\"matrix/\"][data-part-id$=\"r4c2\"] [data-geometry='part-hit-area']";
     driver::wait_for(
         &page,
         &format!(
@@ -2034,7 +2048,7 @@ async fn drag_scenarios(smoke: &mut Smoke) -> Result<()> {
     driver::click_css(&page, first_key).await?;
     let target_part = driver::eval(
         &page,
-        r#"document.querySelector('.m1-scene-part[data-part-id^="matrix/"][data-part-id$="r4c2"]').closest('[data-part-id]').dataset.partId"#,
+        r#"document.querySelector('[data-geometry="scene-part"][data-part-id^="matrix/"][data-part-id$="r4c2"]').dataset.partId"#,
     )
     .await?;
     let target_part = target_part
@@ -2045,7 +2059,7 @@ async fn drag_scenarios(smoke: &mut Smoke) -> Result<()> {
         smoke,
         &DragConfig {
             name: "Part drag",
-            selector: format!(".m1-scene-part[data-part-id=\"{target_part}\"] .m1-part-hit-area"),
+            selector: format!("[data-geometry='scene-part'][data-part-id=\"{target_part}\"] [data-geometry='part-hit-area']"),
             label: None,
             dx: 36.0,
             dy: 22.0,
@@ -2064,7 +2078,7 @@ async fn drag_scenarios(smoke: &mut Smoke) -> Result<()> {
         smoke,
         &DragConfig {
             name: "Column body drag",
-            selector: format!(".m1-scene-part[data-part-id=\"{target_part}\"] .m1-part-hit-area"),
+            selector: format!("[data-geometry='scene-part'][data-part-id=\"{target_part}\"] [data-geometry='part-hit-area']"),
             label: None,
             dx: 36.0,
             dy: 22.0,

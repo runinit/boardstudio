@@ -71,6 +71,12 @@ with tempfile.TemporaryDirectory(prefix="bs-", dir=BROWSER_TMP) as directory:
           document.querySelector('#m1-library-landing-content').prepend(alert);
           document.querySelector('button').addEventListener('click', () => { throw new Error('create clicked after storage failure'); });
         });</script>''', "Storage could not be initialized safely"),
+        ("slider-late-mount", '''<script>addEventListener('DOMContentLoaded', () => {
+          const slider = document.querySelector('[role=slider]');
+          slider.remove();
+          const next = [...document.querySelectorAll('button')].find(b => b.textContent === 'Continue to layout');
+          next.addEventListener('click', () => setTimeout(() => document.body.append(slider), 300));
+        });</script>''', "slider Rows did not reach 10"),
         ("assertion", "", "slider Rows did not reach 10"),
         ("exception", "<script>setTimeout(() => { throw new Error('consumer exception control'); }, 0)</script>",
          "consumer exception control"),
