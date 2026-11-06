@@ -19,11 +19,11 @@ fn panel_composition() -> Element {
     });
     let requested = panels::use_workspace_panel_defaults(workspace(), objects_open, inspector_open);
     rsx! {
-        div { class: "m1-editor",
+        div { class: "flex min-h-0 flex-1 flex-col",
             button { id: "test-layout-route", onclick: move |_| workspace.set("Layout"), "Test ordinary Layout navigation" }
             button { id: "test-case-route", onclick: move |_| workspace.set("Case"), "Test ordinary Case navigation" }
             button { id: "test-reopen-guide", onclick: move |_| activate_stage(SetupGuideStage::Case, workspace, requested, objects_open, inspector_open, objects_settings, inspector_settings), "Test same-workspace guide reveal" }
-            div { class: "m1-editor-body",
+            div { class: "relative grid min-h-0 flex-1 grid-cols-[264px_minmax(0,1fr)_360px] overflow-hidden max-[760px]:flex max-[760px]:flex-col max-[760px]:overflow-visible",
                 ObjectsPanel { compact_open: objects_open, settings: objects_settings,
                     ProjectSetupGuide {
                         stage: stage(), stage_readiness: [false; 5], stage_detail: stage_detail(stage(), &ProjectDoc::empty("fixture", "Fixture"), "board"), project_name: "Fixture".to_owned(),
@@ -36,7 +36,7 @@ fn panel_composition() -> Element {
                         on_open_matrix_setup: None, on_choose_controller: None, on_dismiss: |_| {}, on_finish: |_| {}, project_controls: None,
                     }
                 }
-                section { class: "m1-workspace-content", role: "region", aria_label: "Fixture workspace", "{workspace()}" }
+                section { class: "relative col-start-2 row-start-1 flex min-h-0 min-w-0 flex-col overflow-auto bg-canvas [container-type:inline-size] max-[760px]:order-1 max-[760px]:min-h-[54svh] max-[760px]:overflow-visible", role: "region", aria_label: "Fixture workspace", "{workspace()}" }
                 InspectorPanel { compact_open: inspector_open, settings: inspector_settings,
                     button { "Case settings control" }
                 }
