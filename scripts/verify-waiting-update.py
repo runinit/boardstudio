@@ -8,8 +8,7 @@ echoes its exact command and every browser assertion output is printed raw, so
 the combined stdout is the complete evidence log (redirect it to .evidence/).
 
 Modes:
-  pre     pre-feature A (no notice code): the same waiting scenario must show
-          NO Update Available notice while the waiting worker is present (RED).
+  pre     pre-feature A: the waiting-update notice assertion must fail (RED).
   post    feature A: waiting installation must produce the production notice,
           plus initial-install/failed-install controls, real production
           Workspace switch without duplication, real keyboard dismissal,
@@ -298,8 +297,7 @@ def scenario_green(driver: Driver, served_a: str, served_b: str, marker: str) ->
     driver.check("GREEN: waiting worker present", result.get("waiting") == "PRESENT",
                  str(result))
     driver.check("GREEN: controller still A", result.get("controller") is not None)
-    driver.check("GREEN: notice shown", result.get("updateNotice") is True,
-                 str(result.get("allStatuses")))
+    check_waiting_notice(driver, result)
     driver.check("GREEN: toast role=status", result.get("toastRole") == "status")
     driver.check("GREEN: toast atomic", result.get("toastAtomic") == "true")
     driver.check("GREEN: toast info type", result.get("toastDataType") == "info")
@@ -314,6 +312,11 @@ def scenario_green(driver: Driver, served_a: str, served_b: str, marker: str) ->
     }
     driver.check("GREEN: both version caches present", result.get("caches") is not None)
     check_caches_match(driver, "GREEN", expected)
+
+
+def check_waiting_notice(driver: Driver, result: dict) -> None:
+    driver.check("waiting update: notice shown", result.get("updateNotice") is True,
+                 str(result.get("allStatuses")))
 
 
 def scenario_workspace(driver: Driver, marker: str) -> None:
@@ -481,11 +484,9 @@ def main(argv: list[str] | None = None) -> int:
             driver.check("pre RED: update did not reject", result.get("updateThrew") is None)
             driver.check("pre RED: waiting worker present", result.get("waiting") == "PRESENT")
             driver.check("pre RED: controller intact", result.get("controller") is not None)
-            driver.check("pre RED: NO notice (feature absent)",
-                         result.get("updateNotice") is False,
-                         str(result.get("allStatuses")))
+            check_waiting_notice(driver, result)
             driver.check("pre RED: editor alive", result.get("editorAlive") is True)
-            driver.check("pre RED: load marker unchanged", result.get("loadMark") is not None)
+            driver.check("pre RED: load marker unchanged", result.get("loadMark") == marker)
             check_caches_match(driver, "pre RED", {
                 f"boardstudio-m1-offline-path-2f-{served_pre}": served_pre,
                 f"boardstudio-m1-offline-path-2f-{served_b}": served_b,

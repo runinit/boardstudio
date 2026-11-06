@@ -1,6 +1,6 @@
 # 018: Notify the editor when a build is waiting
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: none
 Parent: [013: Build update umbrella](013-surface-build-updates.md)
@@ -17,26 +17,26 @@ This slice alone does not satisfy the umbrella's chosen complete interaction.
 
 ## Acceptance criteria
 
-- [ ] Handle a worker already waiting at observation startup and one that finishes
+- [x] Handle a worker already waiting at observation startup and one that finishes
   installation during editing. Initial installation, failed installation and no
   update do not produce a false waiting-update notice.
-- [ ] Drive the production shell notification without interrupting editing or
+- [x] Drive the production shell notification without interrupting editing or
   stealing focus. It stays beyond normal Toast expiry; dismissal does not reload.
   Workspace changes and repeated observations do not duplicate the same notice.
-- [ ] Reuse the shared Toast pattern with keyboard dismissal, atomic announcement,
+- [x] Reuse the shared Toast pattern with keyboard dismissal, atomic announcement,
   semantic Theme roles and reduced-motion handling. Preserve transient result
   Toasts and inline persistent reports; document the narrow update exception.
-- [ ] Mounted production notification/shared-control tests prove those behaviors,
+- [x] Mounted production notification/shared-control tests prove those behaviors,
   including observer cleanup. Follow specification S5–S7 rather than inspecting
   source strings or substituting a standalone lookalike fixture.
-- [ ] Record RED/GREEN using real packaged A then B releases at the same test
+- [x] Record RED/GREEN using real packaged A then B releases at the same test
   origin while A remains open: actual waiting installation must produce the
   production notice. Keep this fixture usable by 019 without clearing caches.
   Record loaded A and waiting B identities independently.
-- [ ] Running version/time display (user: drop it if it needs plumbing): include
+- [x] Running version/time display (user: drop it if it needs plumbing): include
   only if actual loaded-build metadata makes it nearly free; otherwise record its
   omission. Do not call the waiting/server identity the running identity.
-- [ ] Dismissal (user, 2026-11-06): dismissing the Toast does not reload. Derive the
+- [x] Dismissal (user, 2026-11-06): dismissing the Toast does not reload. Derive the
   notice from the real waiting worker and store nothing about dismissal; the Toast
   shows again on the next page load (confirmed by the user). The persistent **header**
   notice that follows dismissal needs a working "Update Now", so it is delivered with
@@ -55,6 +55,21 @@ browser checks have been run as part of publishing this ticket.
 
 ## Comments
 
+- 2026-11-06: Independent review found the earlier pre-mode driver expected
+  absence and therefore returned a passing negative control rather than RED.
+  The driver now applies the same positive waiting-notice assertion in both
+  modes and compares the pre-run load marker with its original value. The
+  pre-feature run exits 1 with exactly that assertion failing; the post-feature
+  run exits 0 with it passing and no other failures. Logs:
+  `.evidence/ui-integration-recovery/018-recheck-pre.log` and
+  `.evidence/ui-integration-recovery/018-recheck-post.log`. The earlier 21-pass
+  pre run below is historical evidence of absence, not the RED assertion.
+- 2026-11-06: `python3 scripts/check.py test` passed on the isolated 018 source:
+  all 2,384 baselined native tests executed, with 28 new tests. Log:
+  `.evidence/ui-integration-recovery/018-full-native-tests.log`. Independent
+  spec and standards reviews identified the corrected issues recorded above;
+  the final driver correction was inspected and its two affected browser runs
+  were rerun. Ticket 019 owns the update action and persistent header notice.
 - 2026-11-06: Real packaged A-then-B evidence, first run (dedicated origin http://127.0.0.1:4723/, root scope `/`, isolated browser session `018-ab-270824a22972`; no live preview; no cache clears; no unregister).
   - Source: WIP commit 2b7d1927 plus working-tree clippy-alias fixes in `web/crates/host/src/host/offline.rs` and `web/src/presentation/notifications.rs`.
   - Packaged with `python3 scripts/build-web.py --fast --routes root --output web/target/site-018-a` (full) and `--skip-providers ... --output web/target/site-018-b`. Loaded A identity `boardstudio-c947e6770e10178a-1793994010714373437`; waiting B identity `boardstudio-c947e6770e10178a-1793994577136586039` (same source, distinct release versions).

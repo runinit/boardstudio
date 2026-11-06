@@ -43,7 +43,7 @@ or 011 unless the user says so.
 | [012: Review the mirrored-heading ADRs](issues/012-review-mirrored-heading-adrs.md) | resolved | none | ADR-0010 amended with one heading table and the controller rule; ADR-0039 pointer; Core unchanged (carries the A8 controller-heading item) |
 | [013: Make a stale or updated build visible](issues/013-surface-build-updates.md) | ready-for-agent | none for coordination | Umbrella for specification 017 and implementation children; retains the user decisions |
 | [017: Build update notification specification](issues/017-build-update-spec.md) | ready-for-agent | none for planning | Source-grounded behavior, test seams, assumptions and open questions for 013 |
-| [018: Notify the editor when a build is waiting](issues/018-notify-waiting-build.md) | ready-for-agent | none | Real waiting installation to a persistent dismissible Toast, with mounted and packaged RED/GREEN |
+| [018: Notify the editor when a build is waiting](issues/018-notify-waiting-build.md) | resolved | none | Real waiting installation to a persistent dismissible Toast, with mounted and packaged RED/GREEN |
 | [019: Adopt the waiting build through protected Refresh](issues/019-adopt-build-safely.md) | ready-for-agent | 018 | "Update Now" in the Toast and a persistent header notice, with work/cache protection and real A-to-B adoption evidence |
 | [014: Correct controller heading comments](issues/014-correct-controller-heading-comments.md) | resolved | none | Describe plain reflection accurately without changing Core behavior |
 | [015: Decide headings for other y-symmetric parts](issues/015-decide-y-symmetric-part-headings.md) | resolved | none | Decided 2026-11-06: keep `180 - r`; no change |
@@ -51,8 +51,8 @@ or 011 unless the user says so.
 | [020: Export split firmware with either half as central](issues/020-split-firmware-either-half-central.md) | ready-for-agent | none | ADR-0026 delivery: right or left central without reordering logical keys |
 
 For the build-update addition, 013 remains the decision-owning umbrella; 017 is
-the specification, 018 is the unblocked implementation frontier, and 019 waits
-on 018. Both children must complete before 013 can close. These additions do not
+the specification, 018 is complete, and 019 is now unblocked. Both children must
+complete before 013 can close. These additions do not
 block 010/011. Publication does not claim implementation or browser evidence.
 
 ## Evidence and decisions
@@ -87,7 +87,7 @@ block 010/011. Publication does not claim implementation or browser evidence.
 
 ## Next step and boundaries
 
-Unblocked implementation tickets include 008, 018 and 020. Claim the selected
+Unblocked implementation tickets include 008, 019 and 020. Claim the selected
 ticket before working it, keep execution bounded to that ticket, and retain the
 next blockers and stopping point in its completion record. Final acceptance
 remains open; a focused pass does not close 010 or 011.
