@@ -18,21 +18,20 @@ neither is deferred to a separate cleanup ticket.
 | Ticket | Status | Blocked by | Delivers |
 | --- | --- | --- | --- |
 | [002: Diagnose MCU rotation](issues/002-diagnose-mcu-rotation.md) | resolved | none | Actual reproduction, minimized fixture and demonstrated cause |
-| [003: Resolve the diagnosed MCU symptom](issues/003-resolve-mcu-orientation.md) | ready-for-agent | 002 | Evidence-backed correction and original-scenario verification |
+| [003: Resolve the diagnosed MCU symptom](issues/003-resolve-mcu-orientation.md) | wontfix | 002 | Not applicable; closed by the user (see 002). Evidence-backed correction and original-scenario verification |
 | [004: Restore placement and Relationships](issues/004-restore-placement-relationships.md) | ready-for-agent | none | Facts beside fields, navigation/highlighting and meaningful split-focus proof |
 | [005: Restore nonduplicated scope actions](issues/005-restore-scope-actions.md) | ready-for-agent | none | Matrix/Row/Column actions and guidance transitions without competing popups |
 | [006: Restore shared disclosure motion](issues/006-restore-disclosure-motion.md) | ready-for-agent | none | Open/close motion, reduced motion, draft retention and focus handling |
 | [007: Correct disclosure chevrons](issues/007-correct-disclosure-chevrons.md) | ready-for-agent | none | Each affected arrow follows its own disclosure state |
 | [008: Restore real drag/save/Undo proof](issues/008-restore-drag-save-undo-proof.md) | ready-for-agent | none | Current-control gestures, durable saves, cancellation and exact Undo |
 | [009: Verify persistence across reload](issues/009-verify-reload-persistence.md) | ready-for-agent | 008 | Explicit reload of saved edits and saved Undo results |
-| [010: Final technical verification and independent review](issues/010-final-technical-verification.md) | ready-for-agent | 003–007, 009 | Full combined gates and independent spec+standards review |
+| [010: Final technical verification and independent review](issues/010-final-technical-verification.md) | ready-for-agent | 004–007, 009 | Full combined gates and independent spec+standards review |
 | [011: Populated-workspace human acceptance](issues/011-populated-workspace-acceptance.md) | ready-for-human | 010 | User review of the checked candidate across the complete review matrix |
 
-Dependencies cover 002 transitively through 003 and 008 through 009. The
-independent UI repairs do not wait on MCU diagnosis. Coordinate overlapping
-shared-file changes without inventing a blocking edge. Ticket 003 may be claimed
-only after 002 establishes its bounded correction; a missing reproduction keeps
-that chain open.
+Dependencies cover 008 through 009. 002 is resolved and 003 is `wontfix`
+(user, 2026-11-06), so neither blocks 010. The independent UI repairs do not
+wait on MCU work. Coordinate overlapping shared-file changes without inventing a
+blocking edge.
 
 ## Evidence and decisions
 
@@ -50,7 +49,7 @@ that chain open.
   engine work is integrated but has no new browser acceptance from this plan.
 - 002 (2026-11-06): the user attributes the observed MCU orientation to a stale cached
   build, not the integrated candidate; no defect was reproduced and no Core or renderer
-  change is indicated. A1 remains open until 003 is re-scoped. See
+  change is indicated. The user closed 003 as not applicable (`wontfix`). See
   [002](issues/002-diagnose-mcu-rotation.md#answer).
 - The source recheck adds explicit requirements for a real split-focus fixture,
   closing the scope hint when selection arrives, and reload verification after

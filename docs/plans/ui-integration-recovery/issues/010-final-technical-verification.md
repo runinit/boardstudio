@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 Type: task
-Blocked by: [003](003-resolve-mcu-orientation.md), [004](004-restore-placement-relationships.md), [005](005-restore-scope-actions.md), [006](006-restore-disclosure-motion.md), [007](007-correct-disclosure-chevrons.md), [009](009-verify-reload-persistence.md)
+Blocked by: [004](004-restore-placement-relationships.md), [005](005-restore-scope-actions.md), [006](006-restore-disclosure-motion.md), [007](007-correct-disclosure-chevrons.md), [009](009-verify-reload-persistence.md)
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
 Related: [Plan map](../map.md), [Migration gate record](../../rust-ui-build/issues/026-merge-gate.md)
 
@@ -15,8 +15,8 @@ identified checked candidate for populated-workspace human review in 011.
 
 ## Acceptance criteria
 
-- [ ] All listed blockers are resolved with their required evidence. 002 is
-  covered through 003, and 008 through 009. Do not infer completion from source
+- [ ] All listed blockers are resolved with their required evidence. 003 is `wontfix` (not applicable)
+  and 008 is covered through 009. Do not infer completion from source
   presence, diagnosis alone or a ticket title/status without its acceptance.
 - [ ] Run the full repository default check, including the full browser gate,
   against the final source. Record exact invocation, source/build/browser
