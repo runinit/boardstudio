@@ -82,7 +82,7 @@ async function setSlider(page, name, target) {
     delete project.revision;
     return { project, revision, signature: JSON.stringify(stable(project)) };
   });
-  const scene = () => page.evaluate(() => [...document.querySelectorAll('.m1-scene-part')]
+  const scene = () => page.evaluate(() => [...document.querySelectorAll('[data-geometry=scene-part]')]
     .map(element => [element.dataset.partId, element.getAttribute('transform')]));
   const saved = () => page.waitForFunction(() =>
     document.querySelector('.m1-save-state')?.dataset.state === 'saved', null, { timeout: 20000 });
@@ -147,7 +147,7 @@ async function setSlider(page, name, target) {
           trusted: event.isTrusted,
           pointerType: event.pointerType,
           pointerId: event.pointerId,
-          label: event.target.closest?.('.m1-transform-handle')?.getAttribute('aria-label'),
+          label: event.target.closest?.('[role=button][aria-label^="Drag to "]')?.getAttribute('aria-label'),
           partId: event.target.closest?.('[data-part-id]')?.getAttribute('data-part-id'),
         }), true);
       }
@@ -180,7 +180,7 @@ async function setSlider(page, name, target) {
       try {
         await page.mouse.move(box.x + box.width / 2 + dx, box.y + box.height / 2 + dy, { steps: 5 });
         await page.waitForFunction(before => JSON.stringify(
-          [...document.querySelectorAll('.m1-scene-part')]
+          [...document.querySelectorAll('[data-geometry=scene-part]')]
             .map(element => [element.dataset.partId, element.getAttribute('transform')]),
         ) !== before, JSON.stringify(beforeScene), { timeout: 5000 });
         const live = await page.evaluate(() => {
@@ -188,9 +188,9 @@ async function setSlider(page, name, target) {
           const down = events.find(event => event.type === 'pointerdown');
           return {
             events,
-            capture: down && [...document.querySelectorAll('svg.m1-canvas,.m1-transform-handle')]
+            capture: down && [...document.querySelectorAll('svg[role=group][aria-label^="Keyboard layout"],[role=button][aria-label^="Drag to "]')]
               .some(element => element.hasPointerCapture(down.pointerId)),
-            scene: [...document.querySelectorAll('.m1-scene-part')]
+            scene: [...document.querySelectorAll('[data-geometry=scene-part]')]
               .map(element => [element.dataset.partId, element.getAttribute('transform')]),
           };
         });
@@ -366,14 +366,14 @@ async function setSlider(page, name, target) {
     for (const name of ['Rows', 'Columns']) await setSlider(page, name, 10);
     await page.getByRole('button', { name: 'Create matrix', exact: true }).click({ timeout: 60000 });
     console.log('drag-smoke: setup created a 10 x 10 matrix');
-    const firstKey = page.locator('.m1-scene-part[data-part-id^="matrix/"][data-part-id$="r4c2"] .m1-part-hit-area').first();
+    const firstKey = page.locator('[data-geometry=scene-part][data-part-id^="matrix/"][data-part-id$="r4c2"] [data-geometry=part-hit-area]').first();
     await firstKey.waitFor({ timeout: 60000 });
     await page.getByRole('button', { name: 'Hide guide', exact: true }).click({ timeout: 60000 });
     await page.getByRole('button', { name: 'Fit board', exact: true }).click();
 
     await selectScope('Part');
     await firstKey.click();
-    const targetPart = await page.locator('.m1-scene-part[data-part-id^="matrix/"][data-part-id$="r4c2"]').first()
+    const targetPart = await page.locator('[data-geometry=scene-part][data-part-id^="matrix/"][data-part-id$="r4c2"]').first()
       .getAttribute('data-part-id');
     const [, matrixId, cell] = targetPart.split('/');
     const row = Number(cell.match(/r(\d+)c/)[1]);
@@ -382,13 +382,13 @@ async function setSlider(page, name, target) {
       const { columnCellOffsets, ...state } = matrixState(project, matrixId, row, column);
       return state;
     };
-    await runDrag({ name: 'Part drag', selector: `.m1-scene-part[data-part-id="${targetPart}"] .m1-part-hit-area` },
+    await runDrag({ name: 'Part drag', selector: `[data-geometry=scene-part][data-part-id="${targetPart}"] [data-geometry=part-hit-area]` },
       partRead, ['cellOffset'], { matrixId, row, column });
 
     await selectScope('Column');
     await firstKey.click();
     const columnRead = project => matrixState(project, matrixId, row, column);
-    await runDrag({ name: 'Column body drag', selector: `.m1-scene-part[data-part-id="${targetPart}"] .m1-part-hit-area` },
+    await runDrag({ name: 'Column body drag', selector: `[data-geometry=scene-part][data-part-id="${targetPart}"] [data-geometry=part-hit-area]` },
       columnRead, ['columnCellOffsets'], { matrixId, row, column }, ['columnCellOffsets', 'cellOffset']);
 
     const stagger = '[aria-label="Drag to stagger"]';
