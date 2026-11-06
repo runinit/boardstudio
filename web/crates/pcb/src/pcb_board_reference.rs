@@ -898,7 +898,7 @@ pub fn Editor(
     let mut error_signal = error;
 
     rsx! {
-        PcbSection { class: "m1-case-physical-setup", label: "Routed PCB reference",
+        PcbSection { class: "grid gap-2 py-2.5 border-b border-border [&>p]:m-0 [&>p]:text-muted-foreground [&>p]:text-xs [&>p]:leading-normal", label: "Routed PCB reference",
             p { "Preview a routed KiCad board with the case. Replace this reference after editing routing in KiCad." }
             PcbFile {
                     label: if reference.is_some() { "Replace KiCad board" } else { "Import KiCad board" },

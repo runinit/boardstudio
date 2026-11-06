@@ -533,7 +533,7 @@ fn PcbMountedModuleInspector(
     };
 
     rsx! {
-        section { class: "m1-pcb-module-inspector", "aria-label": "Mounted module placement",
+        section { class: "grid gap-2.5 min-w-0 overflow-auto p-4 text-foreground [&_h2]:m-0 [&_h2]:text-lg [&_p]:m-0 [&_p]:text-xs [&_p]:leading-normal [&_p]:text-muted-foreground", "aria-label": "Mounted module placement",
             h2 { "{module_name} placement" }
             p { "Placement edits affect this project instance. Source footprint artwork remains owned by the module." }
             PcbChoice {
@@ -631,11 +631,11 @@ fn PcbMountedModuleInspector(
                         }
                     },
             }
-            section { class: "m1-pcb-module-supports", "aria-label": "{support_section}",
+            section { class: "grid gap-2 min-w-0 p-2.5 border border-border rounded-md bg-card [&_h3]:m-0 [&_h3]:text-xs [&_h3]:text-foreground", "aria-label": "{support_section}",
                 h3 { "{support_section}" }
                 p { "Choose a source PCB hole and enter designer-selected ring dimensions. Z and height are module-midplane millimetres; these values are not vendor specifications." }
                 for (index, support) in draft().mount_supports.iter().enumerate() {
-                    div { key: "{support.mount_id}", class: "m1-pcb-module-support-row",
+                    div { key: "{support.mount_id}", class: "flex items-center justify-between gap-2 py-1.5 border-b border-border text-foreground text-xs [&_button]:flex-none",
                         span { "{support.mount_id} · OD {support.outer_diameter} / ID {support.hole_diameter} · Z {support.z} · height {support.height} mm" }
                         Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable, aria_label: "Remove support {support.mount_id}", onclick: move |_| {
                             edit_module_draft(draft, draft_dirty, |value| { value.mount_supports.remove(index); });
@@ -643,7 +643,7 @@ fn PcbMountedModuleInspector(
                     }
                 }
                 if !resolved_supports.is_empty() {
-                    div { class: "m1-pcb-module-support-preview", "aria-label": "Resolved support geometry",
+                    div { class: "p-2 border-l-2 border-primary bg-canvas [&_strong]:block [&_strong]:mb-1 [&_strong]:text-foreground [&_strong]:text-xs", "aria-label": "Resolved support geometry",
                         strong { "Resolved {support_section}" }
                         for (index, support) in resolved_supports.iter().enumerate() {
                             p { key: "{support.mount_id}-{index}", "{support.mount_id} · center {support.at.x:.2}, {support.at.y:.2} mm · OD {support.outer_diameter:.2} / ID {support.hole_diameter:.2} mm · Z {support.z:.2} · height {support.height:.2} mm" }
@@ -917,7 +917,7 @@ fn PcbMountedModuleInspector(
                     p { "This module has no editable component circuit source." }
                 }
             }
-            div { class: "m1-pcb-module-actions",
+            div { class: "flex flex-wrap gap-2 mt-1",
                 Button { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable || draft().connection.as_ref().is_some_and(|connection| connection.host_connector_part_id.is_empty()), onclick: save, "Save placement" }
                 Button { variant: ButtonVariant::Destructive, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable || remove_disabled(), onclick: remove, "Remove module" }
             }
