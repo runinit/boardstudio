@@ -667,7 +667,7 @@ fn WorkbenchApp() -> Element {
         link { rel: "stylesheet", href: "assets/shell.css" }
         link { rel: "stylesheet", href: "assets/firmware-keymap-panel.css" }
         link { rel: "stylesheet", href: "assets/tailwind.css" }
-        main { class: if project_browser() || runtime.model().accepted.is_none() { "m1-workbench is-project-browser" } else { "m1-workbench" },
+        main { class: "flex h-dvh min-h-0 w-full flex-col overflow-hidden",
             onkeydown: {
                 let runtime = runtime.clone();
                 move |event: KeyboardEvent| {
@@ -696,17 +696,17 @@ fn WorkbenchApp() -> Element {
             }
             command_palette::CommandPalette { state: palette }
             if runtime.model().accepted.is_some() {
-                div { class: "m1-editor-host", hidden: project_browser(), Editor {} }
+                div { class: "flex min-h-0 flex-1 flex-col", hidden: project_browser(), Editor {} }
             }
             if project_browser() || runtime.model().accepted.is_none() { LibraryLanding {} }
                 notifications::RuntimeNotifications {}
             if preference_warning() {
-                p { role: "status", "aria-live": "polite", class: "m1-status",
+                p { role: "status", "aria-live": "polite", class: "m-0 flex-none truncate border-t border-border bg-card px-3 py-[5px] text-xs text-muted-foreground",
                     "Preferences are session-only because browser storage is unavailable."
                 }
             }
             if !new_keyboard_error().is_empty() {
-                p { role: "alert", class: "m1-status", "{new_keyboard_error()}" }
+                p { role: "alert", class: "m-0 flex-none truncate border-t border-border bg-card px-3 py-[5px] text-xs text-muted-foreground", "{new_keyboard_error()}" }
             }
         }
     }
@@ -724,7 +724,7 @@ fn RuntimeReportBanner() -> Element {
             p {
                 role: if alert { "alert" } else { "status" },
                 "aria-live": if alert { "assertive" } else { "polite" },
-                class: "m1-status",
+                class: "m-0 flex-none truncate border-t border-border bg-card px-3 py-[5px] text-xs text-muted-foreground",
                 "{status}"
             }
         }
@@ -751,7 +751,7 @@ fn read_system_appearance() -> &'static str {
 fn LibraryLanding() -> Element {
     use boardstudio_web_ui_shared::ui::card::Card;
     rsx! {
-        Card { class: "m1-library-landing",
+        Card { class: "block min-h-0 w-full flex-1 overflow-hidden border-0 bg-canvas p-0 [&>[id=m1-library-landing-content]]:grid [&>[id=m1-library-landing-content]]:h-full [&>[id=m1-library-landing-content]]:min-h-0 [&>[id=m1-library-landing-content]]:w-full [&>[id=m1-library-landing-content]]:max-w-none [&>[id=m1-library-landing-content]]:grid-cols-[minmax(0,2.7fr)_minmax(280px,1fr)] [&>[id=m1-library-landing-content]]:gap-0 max-[1100px]:[&>[id=m1-library-landing-content]]:grid-cols-[minmax(0,1.8fr)_minmax(260px,1fr)] max-[760px]:overflow-auto max-[760px]:[&>[id=m1-library-landing-content]]:flex max-[760px]:[&>[id=m1-library-landing-content]]:h-auto max-[760px]:[&>[id=m1-library-landing-content]]:min-h-full max-[760px]:[&>[id=m1-library-landing-content]]:flex-col",
             Library { project_menu: false }
         }
     }
@@ -771,22 +771,22 @@ fn ExportPanel(#[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInpu
     let preference = runtime.clone();
     let step = runtime.clone();
     rsx! {
-        section { class: "m1-export-panel", "aria-label": "Export",
+        section { class: "m-auto w-[min(100%,760px)] p-7 text-foreground [&>p]:max-w-[60ch] [&>p]:text-muted-foreground [&>h2]:mt-6 [&>h2]:mb-2.5", "aria-label": "Export",
             h1 { "Export" }
             p { "Create files from the saved keyboard in the current board and instance scope." }
-            div { class: "m1-export-actions",
+            div { class: "my-5 flex flex-wrap gap-2",
                 Button { variant: ButtonVariant::Secondary, disabled: model.accepted.is_none(), onclick: move |_| step.export_step(), "Export STEP" }
             }
             if let Some(firmware) = zmk_firmware {
                 h2 { "Design files" }
-                div { class: "m1-export-list",
+                div { class: "grid gap-2",
                     ZmkFirmwareExportRow { ready: firmware.ready, on_export: firmware.on_export }
                 }
             }
-            section { class: "m1-export-portable", "aria-label": "Portable project",
+            section { class: "mt-6 grid gap-2.5 rounded-md border border-border bg-card p-4 [&_h2]:m-0 [&_p]:m-0 [&_p]:text-muted-foreground", "aria-label": "Portable project",
                 h2 { "Portable project" }
                 p { "Keep an editable copy of the whole project, including all boards." }
-                Label { class: "m1-export-option",
+                Label { class: "flex items-start gap-2.5 [&_span]:grid [&_span]:gap-[3px] [&_small]:text-xs [&_small]:text-muted-foreground",
                     Checkbox {
                         aria_label: "Embed used models",
                         checked: if runtime.embed_used_models() { CheckboxState::Checked } else { CheckboxState::Unchecked },
@@ -795,7 +795,7 @@ fn ExportPanel(#[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInpu
                     span { strong { "Embed used models" } small { "Include attached 3D model files used in this project." } }
                 }
                 Button { variant: ButtonVariant::Secondary,
-                    class: "m1-export-action",
+                    class: "justify-self-start",
                     disabled: model.accepted.is_none(),
                     onclick: move |_| archive.export_project_copy(),
                     "Save .boardstudio project"
@@ -885,7 +885,7 @@ fn keymap_toolbar_height() -> f64 {
         .and_then(|window| window.document())
         .and_then(|document| {
             document
-                .query_selector(".m1-design-canvas-toolbar")
+                .query_selector("[role='group'][aria-label='Keymap commands']")
                 .ok()
                 .flatten()
         })
@@ -2520,7 +2520,7 @@ fn focus_first_inspector_control_on_next_frame(
                 .and_then(|window| window.document())
                 .and_then(|document| {
                     if let Some(body) = document
-                        .query_selector("#m1-inspector-panel-content .m1-inspector-body")
+                        .query_selector("#m1-inspector-panel-content > div")
                         .ok()
                         .flatten()
                         .and_then(|element| element.dyn_into::<HtmlElement>().ok())
@@ -8689,18 +8689,18 @@ fn Editor() -> Element {
     boardstudio_web_ui_shared::ui::command::use_commands(palette_commands);
 
     rsx! {
-        section { class: "m1-editor", "aria-label": "Keyboard editor",
-            div { class: if setup_guide_active { "m1-editor-body m1-editor-body--guided-setup dock-desk" } else if active_workspace == "Layout" { "m1-editor-body m1-editor-body--layout dock-desk" } else { "m1-editor-body dock-desk" },
+        section { class: "flex min-h-0 flex-1 flex-col", "aria-label": "Keyboard editor",
+            div { class: if active_workspace == "Export" { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2 [&_[id=workspace-panel-sheet]]:hidden!" } else { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2" },
                 DockLayout {
                     objects: if guide.is_none() { Some(rsx! {
                 ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
                     header_action: if active_workspace == "Layout" {
                         Some(layout_workspace::add_object_header_action(layout_state.add_object_menu_open()))
                     } else { None },
-                    div { class: "m1-object-scroll-content",
+                    div { class: "min-h-0 min-w-0 flex-[1_1_auto] overflow-x-hidden overflow-y-auto",
                     {workspace_composition::objects(objects_input)}
                     }
-                    div { class: "m1-object-layer-dock",
+                    div { class: "relative mt-auto min-w-0 flex-none border-t border-border max-[760px]:[&_button]:min-h-control-touch [&_[id=m1-layers-list]]:absolute [&_[id=m1-layers-list]]:bottom-full [&_[id=m1-layers-list]]:left-0 [&_[id=m1-layers-list]]:z-30 [&_[id=m1-layers-list]]:w-full [&_[id=m1-layers-list]]:max-h-[min(65vh,520px)] [&_[id=m1-layers-list]]:overflow-auto [&_[id=m1-layers-list]]:rounded-t-xl [&_[id=m1-layers-list]]:border [&_[id=m1-layers-list]]:border-border-strong [&_[id=m1-layers-list]]:bg-card [&_[id=m1-layers-list]]:p-3",
                         if active_workspace == "Layout" && !layout_assembly_3d() {
                             CanvasLayers {
                                 initially_open: false,
@@ -8741,9 +8741,9 @@ fn Editor() -> Element {
                     }
                     }) } else { None },
                 if guide.is_some() {
-                    section { class: "m1-setup-drawer", aria_label: "Keyboard setup",
+                    section { class: "absolute inset-y-0 left-0 z-24 flex w-[min(380px,calc(100vw-32px))] max-w-[calc(100%-16px)] flex-col overflow-hidden border-r border-border-strong bg-card shadow-[8px_0_24px_rgb(0_0_0/16%)] [&>[role=alert]]:mx-4 [&>[role=alert]]:mt-3 [&>[role=alert]]:text-destructive max-[760px]:z-40 max-[760px]:w-[min(380px,calc(100vw-16px))]", aria_label: "Keyboard setup",
                     if full_case_settings() && active_workspace == "Case" {
-                        aside { class: "m1-setup-case-settings", aria_label: "Full case settings",
+                        aside { class: "flex min-h-0 flex-1 flex-col bg-card p-4 [&>header]:flex [&>header]:items-center [&>header]:gap-3 [&>header]:pb-4 [&>header_h2]:m-0 [&>header_h2]:text-lg", aria_label: "Full case settings",
                             header {
                                 Button { variant: ButtonVariant::Secondary,
                                     class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
@@ -8756,7 +8756,7 @@ fn Editor() -> Element {
                                 }
                                 h2 { "Case settings" }
                             }
-                            div { class: "m1-setup-case-settings__content",
+                            div { class: "min-h-0 overflow-y-auto",
                                 if let Some(settings) = mechanical_settings.props.clone() {
                                     boardstudio_web_case::mechanical_settings::MechanicalSettings { ..settings }
                                 }
@@ -8794,7 +8794,7 @@ fn Editor() -> Element {
                     }
                     }
                 }
-                section { class: "m1-workspace-content", role: "region", id: "m1-workspace-panel", aria_label: "{active_workspace} workspace",
+                section { class: if setup_guide_active { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size] [&>[data-workspace-toolbar]]:hidden" } else if active_workspace == "Export" { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-auto rounded-xl border-0 bg-card shadow-sm" } else { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size]" }, role: "region", id: "m1-workspace-panel", aria_label: "{active_workspace} workspace",
                     if guide.is_none() && active_workspace == "Layout"
                         && let Some(projection) = matrix_setup.projection.clone()
                     {
@@ -8837,7 +8837,7 @@ fn Editor() -> Element {
                             },
                         }
                     } else if active_workspace == "Layout" {
-                    svg { class: "m1-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "{canvas_aria_label}", onmounted: mount,
+                    svg { class: "mt-[76px] block h-[calc(100%-120px)] min-h-0 w-full touch-none bg-canvas max-[760px]:mt-0 max-[760px]:h-full", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "{canvas_aria_label}", onmounted: mount,
                     onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
                     defs {
                         pattern { id: "m1-layout-grid-small", width: "{canvas_grid.spacing_mm}", height: "{canvas_grid.spacing_mm}", pattern_units: "userSpaceOnUse",
@@ -8848,7 +8848,7 @@ fn Editor() -> Element {
                     g { transform: "scale(1,-1)",
                         if !(layer_visibility.hidden)().contains("Board") {
                             for contour in scene.board_contours.iter().filter(|b| b.board_id == model.active_board_id).flat_map(|b| &b.contours) {
-                                polygon { points: polygon_points(&contour.points), class: if contour.hole { "m1-outline is-hole" } else { "m1-outline" } }
+                                polygon { points: polygon_points(&contour.points), class: if contour.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" } }
                             }
                         }
                         if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.editing_points)()) {
@@ -8870,7 +8870,7 @@ fn Editor() -> Element {
                             }
                         }
                         if let Some(bridge) = selected_bridge {
-                            polygon { points: polygon_points(&bridge.points), class: "m1-outline-bridge-selected", "data-outline-bridge": bridge.id.clone() }
+                            polygon { points: polygon_points(&bridge.points), class: "pointer-events-none fill-none stroke-primary stroke-[1.25]", "data-outline-bridge": bridge.id.clone() }
                         }
                         if !(layer_visibility.hidden)().contains("Keys") {
                             if let Some(active) = matrix_placement.placement.as_ref() {
@@ -8878,12 +8878,12 @@ fn Editor() -> Element {
                                     let cells = crate::mirrored_pair_geometry::preview_cells(&active.scene, &active.matrix);
                                     rsx! {
                                         g {
-                                            class: "m1-mirrored-pair-preview m1-matrix-placement-preview",
+                                            class: "pointer-events-none",
                                             "aria-label": "Matrix placement preview",
                                             transform: "translate({active.matrix.origin.x} {active.matrix.origin.y})",
                                             for cell in cells {
                                                 g { key: "{cell.row}-{cell.column}", transform: "translate({cell.center.x} {cell.center.y}) rotate({cell.rotation})",
-                                                    rect { class: "m1-mirrored-pair-cell", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
+                                                    rect { class: "fill-primary/20 stroke-primary stroke-[0.35]", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
                                                 }
                                             }
                                         }
@@ -8897,16 +8897,16 @@ fn Editor() -> Element {
                                     let right_cells = crate::mirrored_pair_geometry::preview_cells(&active_pair.right_scene, &pair.right_preview);
                                     let line_half_height = f64::from(pair.matrix.rows) * pair.matrix.pitch.y / 2.0 + 16.0;
                                     rsx! {
-                                        g { class: "m1-mirrored-pair-preview", "aria-label": "Mirrored pair placement preview", transform: "translate({pair.center.x} {pair.center.y})",
-                                            line { class: "m1-mirror-pair-axis", x1: "0", x2: "0", y1: "{-line_half_height}", y2: "{line_half_height}" }
+                                        g { class: "pointer-events-none", "aria-label": "Mirrored pair placement preview", transform: "translate({pair.center.x} {pair.center.y})",
+                                            line { class: "stroke-primary stroke-[0.35] [stroke-dasharray:2_2]", x1: "0", x2: "0", y1: "{-line_half_height}", y2: "{line_half_height}" }
                                             for cell in left_cells {
                                                 g { key: "left-{cell.row}-{cell.column}", transform: "translate({cell.center.x} {cell.center.y}) rotate({cell.rotation})",
-                                                    rect { class: "m1-mirrored-pair-cell", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
+                                                    rect { class: "fill-primary/20 stroke-primary stroke-[0.35]", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
                                                 }
                                             }
                                             for cell in right_cells {
                                                 g { key: "right-{cell.row}-{cell.column}", transform: "translate({cell.center.x} {cell.center.y}) rotate({cell.rotation})",
-                                                    rect { class: "m1-mirrored-pair-cell", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
+                                                    rect { class: "fill-primary/20 stroke-primary stroke-[0.35]", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
                                                 }
                                             }
                                         }
@@ -8931,7 +8931,7 @@ fn Editor() -> Element {
                             && matrix_transform_inspector.projection.is_some()
                         {
                             g {
-                                foreignObject { class: "m1-canvas-delete-host", transform: "translate({x - 60.0 * scale} {y - 66.0 * scale}) scale({scale} {-scale})", width: "120", height: "44",
+                                foreignObject { class: "overflow-visible", transform: "translate({x - 60.0 * scale} {y - 66.0 * scale}) scale({scale} {-scale})", width: "120", height: "44",
                                 objects::SelectionDeleteControl { mount: matrix_transform_inspector.clone() }
                             }
                             if !matches!(selected_tree_context.as_ref().map(|selected| &selected.context), Some(objects::TreeContext::Column { .. } | objects::TreeContext::Row { .. })) {
@@ -8940,7 +8940,7 @@ fn Editor() -> Element {
                                   let arbiter = canvas_interaction.clone(); let scope = render_scope.clone();
                                   rsx! {
                                     g {
-                                        class: "m1-transform-handle",
+                                        class: "cursor-grab touch-none fill-card stroke-current text-primary outline-none [pointer-events:all] [stroke-width:0.4] active:cursor-grabbing focus-visible:stroke-foreground [&_path]:fill-none",
                                         transform: "translate({x} {y - 18.0 * scale}) scale({scale * 3.0})",
                                         role: "button", tabindex: "0", "aria-label": "Move selection",
                                         "aria-description": "Drag to move. Press Enter to edit the exact position.",
@@ -9014,10 +9014,10 @@ fn Editor() -> Element {
                               let reference = placement.pending.part.reference.clone();
                               rsx! {
                                 g {
-                                    class: "m1-part-placement-preview",
+                                    class: "pointer-events-none opacity-[0.68]",
                                     transform: "translate({at.x},{at.y})",
                                     "aria-hidden": "true",
-                                    polygon { points: "{courtyard}", class: "m1-part-placement-envelope" }
+                                    polygon { points: "{courtyard}", class: "fill-selection stroke-primary stroke-[0.7] [stroke-dasharray:2_1]" }
                                     FootprintGraphics {
                                         definition: definition.clone(),
                                         parameters: placement.pending.part.generator_parameters.clone(),
@@ -9025,12 +9025,12 @@ fn Editor() -> Element {
                                     for pad in &definition.pads {
                                         g { transform: "translate({pad.at.x} {pad.at.y}) rotate({pad.rotation.unwrap_or(0.0)})",
                                             if pad.plated != Some(false) {
-                                                rect { class: "m1-part-pad", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}" }
+                                                rect { class: "fill-geometry-part stroke-none", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}" }
                                             }
-                                            if let Some(drill) = pad.drill { circle { class: "m1-part-drill", r: "{drill / 2.0}" } }
+                                            if let Some(drill) = pad.drill { circle { class: "fill-canvas stroke-geometry-outline stroke-[0.1]", r: "{drill / 2.0}" } }
                                         }
                                     }
-                                    text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{reference}" }
+                                    text { transform: "scale(1,-1)", text_anchor: "middle", class: "pointer-events-none fill-geometry-label font-mono text-[1.8px]", x: "0", y: "-5.2", "{reference}" }
                                 }
                               }
                             }
@@ -9088,7 +9088,7 @@ fn Editor() -> Element {
                     if active_workspace == "Layout"
                         && let Some(placement) = part_placement.projection.as_ref()
                     {
-                        div { class: "m1-canvas-placement-hint", role: "status",
+                        div { class: "pointer-events-none absolute right-[17px] bottom-[62px] flex items-center gap-2 rounded-sm border border-border bg-card px-[9px] py-[7px] text-[10px] text-muted-foreground shadow-[0_4px_14px_#24373312]", role: "status",
                             {format!("Place {}", parts::placement_label(&placement.pending.definition))}
                             if let Some(layout_name) = placement.owner.layout_id.as_ref()
                                 .and_then(|id| document.layouts.iter().find(|layout| &layout.id == id))
@@ -9100,7 +9100,7 @@ fn Editor() -> Element {
                         }
                     }
                     if active_workspace == "Layout" && pending_splay_origin_pick().is_some() {
-                        div { class: "m1-canvas-placement-hint", role: "status",
+                        div { class: "pointer-events-none absolute right-[17px] bottom-[62px] flex items-center gap-2 rounded-sm border border-border bg-card px-[9px] py-[7px] text-[10px] text-muted-foreground shadow-[0_4px_14px_#24373312]", role: "status",
                             "Pick splay origin · Click the canvas · Esc cancels"
                         }
                     }
@@ -9132,7 +9132,7 @@ fn Editor() -> Element {
                         on_zoom_in: on_zoom_keymap_in,
                     }
                     if let Some(guide) = model.snap_guide.as_ref() {
-                        span { class: "m1-layout-snap-guide", role: "status", "{guide.label}" }
+                        span { class: "ml-auto max-w-[min(35vw,340px)] truncate", role: "status", "{guide.label}" }
                     }
                 } else {
                     span { "{model.camera.zoom * 100.0:.0}%" }
