@@ -48,10 +48,9 @@ def main():
                 for (const [token, expected] of [['control-height','40px'], ['control-compact','36px'], ['control-touch','44px']]) {
                     if (value(token) !== expected) throw Error(token + ': ' + value(token));
                 }
-                for (const token of tokens.filter(t => t.startsWith('geometry-') || t.startsWith('grid-'))) {
-                    if (value('wb-' + token) !== value(token)) throw Error('Legacy alias: ' + token);
+                for (const token of ['canvas', ...tokens.filter(t => t.startsWith('geometry-') || t.startsWith('grid-'))]) {
+                    if (value('wb-' + token)) throw Error('Retired alias remains: ' + token);
                 }
-                if (value('wb-canvas') !== value('canvas')) throw Error('Legacy canvas alias');
                 const canvas = document.querySelector('[role="group"][aria-label^="Keyboard layout"]');
                 if (!canvas) throw Error('Mounted layout canvas missing');
                 const footer = document.querySelector('footer[aria-label="Canvas status"]');
@@ -109,7 +108,7 @@ def main():
             observations.append(result.strip())
             browser("screenshot", str((args.evidence / f"{theme}-{appearance}.png").resolve()))
     (args.evidence / "mounted.txt").write_text("\n".join(observations) + "\n")
-    print("PASS: four Theme/Appearance combinations; tokens, desk/card, mounted canvas, legacy geometry aliases, control utilities and bundled fonts")
+    print("PASS: four Theme/Appearance combinations; tokens, desk/card, mounted canvas, retired geometry aliases, control utilities and bundled fonts")
 
 
 if __name__ == "__main__":
