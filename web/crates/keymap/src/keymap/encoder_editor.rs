@@ -36,10 +36,10 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
     let row_count = rows.len();
 
     rsx! {
-        section { class: "m1-keymap-encoder-editor", "aria-label": "Encoders",
-            header { class: "m1-keymap-encoder-heading",
-                h3 { "Encoders" }
-                span { "{row_count}" }
+        section { class: "grid gap-3 mt-3 pt-3 border-t border-border", "aria-label": "Encoders",
+            header { class: "flex items-center justify-between gap-2",
+                h3 { class: "m-0", "Encoders" }
+                span { class: "text-muted-foreground", "{row_count}" }
             }
             if rows.is_empty() {
                 p { class: "my-2 text-muted-foreground text-base leading-normal", role: "status",
@@ -254,6 +254,42 @@ mod mounted_tests {
         gloo_timers::future::TimeoutFuture::new(50).await;
         let guidance = by_role_name(&root, "status", "Add a rotary encoder in Layout. Configure its GPIOs in PCB, then assign rotation here.")
             .expect("encoder guidance");
+        let editor = guidance.parent_element().expect("encoder editor section");
+        let classes = editor.get_attribute("class").unwrap_or_default();
+        for expected in ["grid", "gap-3", "mt-3", "pt-3", "border-t", "border-border"] {
+            assert!(
+                classes.split_whitespace().any(|class| class == expected),
+                "encoder editor: missing {expected}"
+            );
+        }
+        let header = editor.query_selector("header").unwrap().unwrap();
+        let classes = header.get_attribute("class").unwrap_or_default();
+        for expected in ["flex", "items-center", "justify-between", "gap-2"] {
+            assert!(
+                classes.split_whitespace().any(|class| class == expected),
+                "encoder heading: missing {expected}"
+            );
+        }
+        assert!(
+            header
+                .query_selector("h3")
+                .unwrap()
+                .unwrap()
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class == "m-0")
+        );
+        assert!(
+            header
+                .query_selector("span")
+                .unwrap()
+                .unwrap()
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class == "text-muted-foreground")
+        );
         let classes = guidance.get_attribute("class").unwrap_or_default();
         for expected in [
             "my-2",
