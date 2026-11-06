@@ -1,6 +1,6 @@
 # 005: Restore nonduplicated scope actions
 
-Status: ready-for-agent
+Status: wontfix
 Type: build
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -44,5 +44,7 @@ specification and original audit unchanged.
 
 ## Comments
 
+- 2026-11-06: Cancelled by the user. This ticket will not be actioned; its
+  acceptance criteria are retained as historical context, not completed evidence.
 - 2026-11-06: Published from the accepted breakdown; independent of MCU diagnosis
   and the other UI behaviors, with shared-file changes coordinated as necessary.

@@ -1,6 +1,6 @@
 # 007: Correct disclosure chevrons
 
-Status: ready-for-agent
+Status: wontfix
 Type: build
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -39,5 +39,7 @@ for testing disclosure state. Keep the parent specification and audit unchanged.
 
 ## Comments
 
+- 2026-11-06: Cancelled by the user. This ticket will not be actioned; its
+  acceptance criteria are retained as historical context, not completed evidence.
 - 2026-11-06: Published independently from 006 as accepted; one consistent
   binding correction does not need a separate ticket for every call site.

@@ -1,6 +1,6 @@
 # 004: Restore placement and Relationships
 
-Status: ready-for-agent
+Status: wontfix
 Type: build
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -47,5 +47,7 @@ parent specification and original audit unchanged.
 
 ## Comments
 
+- 2026-11-06: Cancelled by the user. This ticket will not be actioned; its
+  acceptance criteria are retained as historical context, not completed evidence.
 - 2026-11-06: Published as one behavior slice because the Inspector views share
   tab state and navigation semantics; tests and documentation travel with it.

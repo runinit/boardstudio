@@ -1,6 +1,6 @@
 # 006: Restore shared disclosure motion
 
-Status: ready-for-agent
+Status: wontfix
 Type: build
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -45,5 +45,7 @@ and original audit unchanged.
 
 ## Comments
 
+- 2026-11-06: Cancelled by the user. This ticket will not be actioned; its
+  acceptance criteria are retained as historical context, not completed evidence.
 - 2026-11-06: Published with motion, reduced motion and content/focus handling
   together because they define a complete disclosure transition.

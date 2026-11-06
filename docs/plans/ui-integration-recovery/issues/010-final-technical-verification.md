@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 Type: task
-Blocked by: [004](004-restore-placement-relationships.md), [005](005-restore-scope-actions.md), [006](006-restore-disclosure-motion.md), [007](007-correct-disclosure-chevrons.md), [009](009-verify-reload-persistence.md)
+Blocked by: [009](009-verify-reload-persistence.md)
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
 Related: [Plan map](../map.md), [Migration gate record](../../rust-ui-build/issues/026-merge-gate.md)
 
@@ -52,3 +52,7 @@ replacement is authorized by this gate. Product acceptance still requires 011.
 
 - 2026-11-06: Published with direct dependencies only. This ticket separates
   combined technical evidence from the user's populated-workspace acceptance.
+- 2026-11-06: The user cancelled 004–007; they are no longer dependencies.
+  Cancellation does not establish their behaviors or waive outstanding review
+  findings. Reconcile final acceptance scope with that decision when running
+  the independent review and human acceptance.
