@@ -369,6 +369,8 @@ fn contour_points(points: &[Vec2]) -> String {
         .join(" ")
 }
 
+/// Native source compatibility is intentionally broken: this crate is unpublished,
+/// has no native consumers as of 024, and its projections remain native.
 #[cfg(target_arch = "wasm32")]
 #[component]
 pub fn KeycapsKeyList(
