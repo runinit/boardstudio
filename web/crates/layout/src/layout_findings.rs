@@ -98,7 +98,7 @@ pub fn LayoutFindingsInspector(
     let groups = keycaps_fit::grouped_findings(&findings, &document);
     rsx! {
         section {
-            class: "m1-layout-findings",
+            class: "grid min-w-0 gap-2.5 px-4 pt-3 pb-4 text-foreground",
             aria_label: "Layout findings",
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == " " {
@@ -185,7 +185,7 @@ fn LayoutFinding(
     });
 
     rsx! {
-        li { class: "m1-layout-finding",
+        li { class: "my-1.5",
             Item { size: ItemSize::Sm, class: "items-start",
                 Badge { variant: severity_variant, "{severity}" }
                 p { "{finding.message}" }

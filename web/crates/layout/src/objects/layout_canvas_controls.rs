@@ -87,11 +87,11 @@ pub fn LayoutCanvasControls(
     let owner_key = format!("{:?}", projection.owner);
     rsx! {
         div {
-            class: "m1-canvas-measurements",
+            class: "grid gap-1.5 text-xs text-foreground",
             role: "group", aria_label: "Selection geometry",
             onpointerdown: move |event| event.stop_propagation(),
             onkeydown: move |event| event.stop_propagation(),
-            div { class: "m1-canvas-dimensions",
+            div { class: "box-border grid w-[276px] grid-cols-2 gap-2 rounded-md border border-toolbar-border bg-toolbar p-2 [&_input]:min-w-0 [&_input]:w-full [&_input]:font-mono [&_input]:text-xs [&_input]:tabular-nums",
                 for (field, label, unit, value) in fields {
                     CanvasDimension {
                         key: "{owner_key}-{field:?}", mount: mount.clone(), field, label, unit, value,

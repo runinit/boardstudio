@@ -399,11 +399,11 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                 }
             }
         },
-            header { class: "m1-matrix-inspector-heading",
+            header { class: "flex items-baseline justify-between gap-2 border-b border-border pb-2.5 [&_h2]:m-0 [&_h2]:text-[16px]! [&_h2]:font-[650] [&_span]:text-xs [&_span]:text-muted-foreground",
                 h2 { "Matrix" }
                 span { "{projection.matrix_label}" }
             }
-            div { class: "m1-matrix-inspector-fields",
+            div { class: "grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-3",
                 {
                     rsx! {
                         MatrixFieldEditor {
@@ -511,7 +511,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                 }
             }
             if let Some(relation) = projection.layout_relation.as_ref() {
-                div { class: "m1-layout-link",
+                div { class: "mb-2 grid gap-2 border-b border-border pb-3 [&_p]:m-0 [&_p]:text-xs [&_p]:text-muted-foreground [&_button]:justify-self-start",
                     strong {
                         if let Some(partner_name) = relation.partner_name.as_ref() {
                             "Linked to {partner_name}"
@@ -539,7 +539,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                 }
             }
             Collapsible {
-                class: "m1-matrix-inspector-section",
+                class: "grid min-w-0 gap-2.5",
                 keep_mounted: true,
                 open: Some(assembly_open()),
                 on_open_change: move |next| assembly_open.set(next),
@@ -551,7 +551,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     class: "data-[open=true]:overflow-visible",
                     hidden: !assembly_open(),
                     inert: (!assembly_open()).then_some(""),
-                    div { class: "m1-matrix-inspector-fields",
+                    div { class: "grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-3",
                         {
                             let control_label = "Assembly preset".to_owned();
                             let control_aria_label = "Apply matrix preset".to_owned();
@@ -580,7 +580,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
     });
     rsx! {
 
-                                Field { class: "m1-matrix-field",
+                                Field { class: "grid min-w-0 content-start gap-[5px] text-xs text-muted-foreground",
                                     FieldLabel { html_for: control_id.clone(), "{control_label}" }
                                     Select::<String> {
                                         id: control_id,
@@ -626,7 +626,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
     });
     rsx! {
 
-                                Field { class: "m1-matrix-field",
+                                Field { class: "grid min-w-0 content-start gap-[5px] text-xs text-muted-foreground",
                                     FieldLabel { html_for: control_id.clone(), "{control_label}" }
                                     Select::<String> {
                                         id: control_id,
@@ -725,7 +725,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                 }
             }
             Collapsible {
-                class: "m1-matrix-inspector-section",
+                class: "grid min-w-0 gap-2.5",
                 keep_mounted: true,
                 open: Some(spacing_open()),
                 on_open_change: move |next| spacing_open.set(next),
@@ -736,7 +736,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                 CollapsibleContent {
                     hidden: !spacing_open(),
                     inert: (!spacing_open()).then_some(""),
-                    div { class: "m1-matrix-inspector-fields",
+                    div { class: "grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-3",
                         {
                             rsx! {
                                 {
@@ -796,7 +796,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                 }
             }
             Collapsible {
-                class: "m1-matrix-inspector-section",
+                class: "grid min-w-0 gap-2.5",
                 keep_mounted: true,
                 open: Some(actions_open()),
                 on_open_change: move |next| actions_open.set(next),
@@ -1128,8 +1128,8 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
     let choices = props.choices.clone();
     let is_select = props.kind == MatrixFieldKind::Choice;
     rsx! {
-            div { class: if error_text.is_some() { "m1-matrix-field has-error" } else { "m1-matrix-field" },
-                span { class: "m1-matrix-field-input",
+            div { class: "grid min-w-0 content-start gap-[5px] text-xs text-muted-foreground",
+                span { class: "flex min-w-0 items-center gap-1.5",
                     if is_select {
                         {
                             let control_label = (if props.field == MatrixEditField::SwitchDefinition {

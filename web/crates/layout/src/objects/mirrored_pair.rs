@@ -202,7 +202,7 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
 
     rsx! {
                 section {
-                    class: "m1-matrix-setup m1-mirrored-pair-setup",
+                    class: "pointer-events-auto relative box-border flex max-h-full w-[min(380px,100%)] flex-col gap-0 overflow-y-auto rounded-md border border-border-strong bg-card p-6 text-foreground shadow-md max-[760px]:w-[min(380px,calc(100%-8px))] max-[760px]:p-[18px]",
                     aria_label: "New mirrored pair",
                     onkeydown: move |event: KeyboardEvent| {
                         if event.key().to_string() == " " {
@@ -212,14 +212,14 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                             }
                         }
                     },
-                    header { class: "m1-matrix-setup-heading",
+                    header { class: "flex items-baseline justify-between gap-2 [&_h2]:m-0 [&_h2]:text-xl!",
                         h2 { "Mirrored pair" }
                     }
-                    p { class: "m1-mirrored-pair-intro",
+                    p { class: "mt-2.5 mb-5 text-[13px] leading-normal text-muted-foreground",
                         "Linked key assemblies, diode settings and components. Substitute a component on either half when needed."
                     }
                     form { onsubmit: submit,
-                        div { class: "m1-mirrored-pair-fields", role: "group", aria_label: "Mirrored pair dimensions",
+                        div { class: "grid grid-cols-2 gap-x-4 gap-y-3", role: "group", aria_label: "Mirrored pair dimensions",
                             {
                                 let control_input_id = format!(
                                     "layout-input-{}-5",
@@ -379,7 +379,7 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                                 }
                             }
                         }
-                        p { class: "m1-mirrored-pair-policy",
+                        p { class: "mt-2.5 mb-5 border-t border-border pt-3.5 text-[13px] leading-normal text-muted-foreground",
                             "Edit either half to update both. Unlink in the inspector for independent geometry."
                         }
                         if let Some(error) = error {
@@ -389,7 +389,7 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                         if let Some(status) = status {
                             div { role: "status",  Callout { variant: CalloutVariant::Info,  "{status}"  } }
                         }
-                        footer { class: "m1-mirrored-pair-actions",
+                        footer { class: "flex justify-end gap-2",
                             Button {
                                 variant: ButtonVariant::Secondary,
                                 button_type: "button",

@@ -188,7 +188,7 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
     let mut return_focus_on_mount = return_focus;
 
     rsx! {
-                section { class: "m1-matrix-setup", aria_label: "New matrix",
+                section { class: "absolute inset-x-2 top-[100px] bottom-2 z-6 flex flex-col gap-2.5 overflow-auto rounded-md border border-border-strong bg-card p-3 text-foreground shadow-md [&_form]:grid [&_form]:gap-2 [&_footer]:flex [&_footer]:justify-end [&_footer]:gap-2", aria_label: "New matrix",
                 onkeydown: move |event: KeyboardEvent| {
                     if event.key().to_string() == " " {
                         event.stop_propagation();
@@ -197,11 +197,11 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
                         }
                     }
                 },
-                    header { class: "m1-matrix-setup-heading",
+                    header { class: "flex items-baseline justify-between gap-2 [&_h2]:m-0 [&_h2]:text-[16px]!",
                         h2 { "New matrix" }
                     }
                     form { onsubmit: on_submit,
-                        div { class: "m1-matrix-dimension",
+                        div { class: "grid grid-cols-1 gap-1 [&>label]:flex [&>label]:justify-between [&>label]:font-semibold [&>[role=group]]:w-full",
                             label {
                                 "Rows"
                                 strong { "{rows_value}" }
@@ -245,7 +245,7 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
                                  }
                             }
                         }
-                        div { class: "m1-matrix-dimension",
+                        div { class: "grid grid-cols-1 gap-1 [&>label]:flex [&>label]:justify-between [&>label]:font-semibold [&>[role=group]]:w-full",
                             label {
                                 "Columns"
                                 strong { "{columns_value}" }
@@ -263,7 +263,7 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
 
                              }
                         }
-                        div { class: "m1-matrix-assembly-picker",
+                        div { class: "grid gap-2 [&_h3]:m-0 [&_h3]:text-xs [&_h3:not(:first-child)]:mt-2 [&>[data-orientation]]:grid [&>[data-orientation]]:grid-cols-2 [&>[data-orientation]]:gap-1.5",
                             h3 { "Key assembly" }
                             ToggleGroup {
                                 aria_label: "New matrix assembly",
@@ -276,7 +276,7 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
                                     }
                                 },
                                 for (index, label) in ["MX", "Choc"].iter().enumerate() {
-                                    ToggleItem { index, class: "m1-matrix-assembly-choice",
+                                    ToggleItem { index, class: "grid min-h-[58px] grid-cols-[28px_max-content] items-center justify-center gap-2 rounded-md p-1.5 text-left data-[state=on]:bg-selection data-[state=on]:text-selection-foreground [&_span]:grid [&_span]:min-w-0 [&_span]:gap-0.5 [&_small]:text-xs [&_small]:text-muted-foreground [&_strong]:font-semibold [&_svg]:size-[26px] [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.6]",
                                         svg {
                                             view_box: "0 0 32 32",
                                             "aria-hidden": "true",
@@ -332,7 +332,7 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
                             }
                         }
                         if let Some((preview_rows, preview_columns)) = preview {
-                            figure { class: "wb-matrix-preview",
+                            figure { class: "m-0 rounded-md border border-border bg-muted p-2 [&_svg]:mx-auto [&_svg]:block [&_svg]:max-h-[128px] [&_svg]:w-[min(100%,220px)] [&_svg]:fill-primary [&_figcaption]:mt-1 [&_figcaption]:text-center [&_figcaption]:text-[11px] [&_figcaption]:text-muted-foreground",
                                 svg {
                                     view_box: "-1 -1 {preview_columns * 10 + 1} {preview_rows * 10 + 1}",
                                     role: "img",
@@ -354,11 +354,11 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
                             }
                         }
                         if let Some(message) = feedback_error {
-                            Alert { class: "m1-matrix-setup-error",
+                            Alert {
         variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
                         }
                         if let Some(message) = feedback_status {
-                            div { role: "status",  Callout { class: "m1-matrix-setup-status", variant: CalloutVariant::Info,  "{message}"  } }
+                            div { role: "status",  Callout { variant: CalloutVariant::Info,  "{message}"  } }
                         }
                         footer {
                             if props.projection.can_cancel {
