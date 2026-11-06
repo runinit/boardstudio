@@ -2086,8 +2086,8 @@ pub fn part_correspondence(
     None
 }
 
-/// Whether `definition_id` names a controller: controllers keep the plain
-/// reflected heading so both halves share the world rotation.
+/// Whether `definition_id` names a controller: controllers use the plain
+/// reflected heading (ADR-0010, 2026-11-06 amendment).
 fn is_controller_definition(doc: &ProjectDoc, definition_id: &str) -> bool {
     doc.definitions
         .iter()
@@ -3359,9 +3359,8 @@ pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, Strin
                     }
                 }
             };
-            // One rule for every mirrored part heading: controllers keep the plain reflection
-            // so both halves share the world rotation; the axis map is `forward_angle = -r`
-            // with `mapping.rotation == 0`.
+            // Controllers use plain reflection (ADR-0010, 2026-11-06 amendment);
+            // this axis map gives `forward_angle = -r` with `mapping.rotation == 0`.
             let is_controller = doc.definitions.iter().any(|definition| {
                 definition.id == source.definition_id && definition.kind == PartKind::Controller
             });
@@ -4805,8 +4804,8 @@ mod case_hardware_tests {
     #[test]
     fn linked_controller_mirror_keeps_world_heading() {
         // Setup "Place controller": one controller source part at rotation 0 on a linked
-        // source layout. The derived mirror must share world rotation 0 (plain reflection
-        // `-r = 0`), not ADR-0010's `180 - r` half turn.
+        // source layout. Plain reflection gives the derived mirror rotation `-r = 0`,
+        // without the half turn (ADR-0010, 2026-11-06 amendment).
         let mut doc = ProjectDoc::empty("linked-controller", "Linked controller");
         doc.definitions = serde_json::from_value(serde_json::json!([
             {"id":"mcu","name":"MCU","kind":"controller","courtyard":[],"pads":[]}
@@ -4837,7 +4836,7 @@ mod case_hardware_tests {
         assert_eq!(mirrored.pose.at, Vec2 { x: 90.0, y: 5.0 });
         assert!(
             (mirrored.pose.rotation - 0.0).abs() < 1e-9,
-            "controller mirror keeps world heading 0, got {}",
+            "controller mirror reflects heading 0 to 0, got {}",
             mirrored.pose.rotation
         );
         for heading in [90.0f64, 180.0, 270.0] {

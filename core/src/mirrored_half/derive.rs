@@ -15,9 +15,9 @@ pub(super) fn is_controller(definitions: &[PartDefinition], definition_id: &str)
 
 /// Reflect an independent part's pose through the pair map.
 ///
-/// Matrix-owned parts take the switch rule elsewhere; here every part takes ADR-0010's full
-/// heading rule `forward_angle + 180`, except controllers, which keep the reflected heading
-/// without the half turn so a mirrored MCU faces the same way as its source.
+/// Matrix-owned parts take the switch rule elsewhere; other parts add 180 to the reflected
+/// heading, except controllers, which use plain reflection without the half turn. See
+/// ADR-0010's 2026-11-06 amendment.
 pub(super) fn pose(mapping: Pose2, pose: Pose2, is_controller: bool) -> Pose2 {
     Pose2 {
         at: pair::forward(mapping, pose.at),

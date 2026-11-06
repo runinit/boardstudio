@@ -57,9 +57,9 @@ pub fn inverse_angle(mapping: Pose2, angle: f64) -> f64 {
 
 /// One rule for every mirrored independent-part heading.
 ///
-/// Controllers (the MCU) keep the plain reflected heading `forward_angle`, so both halves
-/// share the same world rotation. Every other independent part takes ADR-0010's full rule
-/// `forward_angle + 180`. The result is normalized to `[0, 360)`.
+/// Controllers (the MCU) use the plain reflected heading `forward_angle` (`-r` for
+/// an axis map); other independent parts add 180 degrees. See ADR-0010's
+/// 2026-11-06 amendment. The result is normalized to `[0, 360)`.
 ///
 /// The inverse direction uses the same function: `inverse_angle` is the same arithmetic as
 /// `forward_angle` (each heading rule is its own inverse over the full circle), so callers
