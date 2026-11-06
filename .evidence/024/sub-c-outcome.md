@@ -1,46 +1,66 @@
-# 024 sub-lane C, run 3 — PARTIAL / NOT READY FOR INTEGRATION
+# 024 sub-lane C — run 4 outcome (pre-merge checkpoint)
 
-Initial `e40b346a1` was clean; run-1 base is `64763a3`. Seven per-file commits end at `51b9039ce`. Merging `lane/024-delete-the-old-layer` at `64763a392` was already up to date; affected checks were repeated after the merge. No push, tracked CSS edit, ticket edit, public API change or shape change was made. One accidental read of the main checkout's Rust skill file occurred; no write or Git command was made there.
+Initial HEAD `5e0abdce8` on `lane/024c-rest-migrate` was clean; run-1 base is `64763a3`. Four grouped commits migrate PCB wiring/inspectors, PCB/keycap/keymap SVG scenes, Parts/controller previews and shared docks, and the Library/project browser to existing Theme tokens and utilities. No CSS or ticket was edited, no API was widened, no test-name baseline was changed, and no push or main-checkout operation was made. Run 4 does not add per-class utility assertions or run mutation checks. The controller-preview ancestor styling now uses the carousel's existing accessible attribute rather than the legacy dotted class.
 
-Of the 143 distinct CSS-linked names left untriaged by run 2, 13 were migrated here and **130 remain untriaged**. They are not justified needs-home findings; none may be deleted on that basis. Run 2 also listed 13 unclassified and 24 additional raw candidates, many identifiers or prefixes, that remain unadjudicated. The fresh quoted-start/dotted scan has **156 distinct raw candidates**, including non-class IDs and prefixes (`run3-raw-candidates.log`). See the historical `run3-prior-untriaged.log` and `continuation-enumeration.log`, subtracting the 13 names below. That historical inventory's file locations may have moved. In particular, the project-menu close query/focus dependency and contextual controller-picker styles need coordinated investigation.
+**Outstanding functional dependencies, not needs-home styling rules:** (1) `.m1-inspector-body` must remain until merging the parent, whose `layout_findings_state.rs` changes the focus fallback to `#m1-inspector-panel-content > div`; then remove it and reverify. (2) the Library test host retains `m1-project-menu` because `ui-shared::project_menu::close_project_menu` uses `details.m1-project-menu` to close and restore focus. Changing that production selector is outside this lane's ui-shared class-only brief and needs coordinated semantic-selector migration; deleting only the class would silently break the close/focus path. (3) `web/src/presentation/layout_layers_tests.rs` has a now-vacuous `.m1-layers` absence query and needs a role/name replacement by the owner of that file. These are not evidence that arbitrary legacy identifiers are styling classes.
 
-Run 3 removed: `m1-project-setup-choice`, `m1-footprint-graphic`, `m1-footprint-graphics-error`, `m1-footprint-keepout`, `m1-footprint-zone`, `m1-footprint-text`, `m1-parts-details`, `m1-parts-detail-list`, `m1-layer-dock`, `m1-keymap-section-body`, `m1-keymap-macros`, `m1-keymap-encoder-editor`, and `m1-keymap-encoder-heading`. The section-body replacement preserves the nested macro border/padding and macro/encoder heading rules with descendant utilities. The old layer-dock `board-disclosure` descendant rules have no such descendant in the current Case or Parts callers; empty outlet behavior is retained with `empty:hidden`.
+`web/assets/imported-modules.json` is an ignored build copy of the tracked `catalogue/modules/imported-modules.json`, not a UI snapshot. `scripts/build-web.py` copies it; `parts/modules_catalogue.rs` deserializes ModuleDefinition records. Its `board-outline` and `board-outline-missing` strings are diagnostic codes, not runtime CSS classes; the data is unchanged. Other unchanged counts below are board/document/operation IDs, input/list IDs, transaction IDs, cache keys, or prefix checks; they must not be renamed as styling.
 
 ## Per-file before/after vs `64763a3`
 
-The counts are quoted-start/dotted regex matches, not distinct class uses. They include IDs/selector-like strings and miss classes later in a quoted string. Generated from the complete committed owned-path diff (`run3-per-file.log`).
-
-| File | Before | After |
+Distinct raw quoted-start or dotted `m1-` / `board-` names per file; **not class counts**: includes IDs, diagnostic codes, test-only prefix strings, and can miss a class later in a string. Includes all 35 named files plus earlier run changes. Asset base uses the tracked source copied to the ignored asset.
+| File | Base raw | Current raw |
 |---|---:|---:|
-| `web/crates/keycaps/src/keycaps_scene.rs` | 6 | 5 |
-| `web/crates/keymap/src/keymap/binding_editor.rs` | 3 | 0 |
-| `web/crates/keymap/src/keymap/canvas.rs` | 9 | 8 |
+| `web/assets/imported-modules.json` | 2 | 2 |
+| `web/crates/host/src/cad_jobs.rs` | 2 | 2 |
+| `web/crates/host/src/cad_worker.rs` | 2 | 2 |
+| `web/crates/keycaps/src/keycaps_finding_marker_tests.rs` | 2 | 2 |
+| `web/crates/keycaps/src/keycaps_scene.rs` | 4 | 0 |
+| `web/crates/keymap/src/keymap/binding_editor.rs` | 2 | 0 |
+| `web/crates/keymap/src/keymap/canvas.rs` | 6 | 0 |
 | `web/crates/keymap/src/keymap/encoder_editor.rs` | 4 | 0 |
 | `web/crates/keymap/src/keymap/macro_editor.rs` | 3 | 0 |
-| `web/crates/keymap/src/keymap/panel.rs` | 25 | 0 |
-| `web/crates/library/src/library.rs` | 120 | 76 |
-| `web/crates/parts/src/parts.rs` | 15 | 8 |
-| `web/crates/parts/src/parts/details.rs` | 4 | 0 |
-| `web/crates/parts/src/parts/modules_catalogue.rs` | 7 | 2 |
+| `web/crates/keymap/src/keymap/panel.rs` | 17 | 0 |
+| `web/crates/library/src/library.rs` | 63 | 5 |
+| `web/crates/parts/src/parts.rs` | 13 | 0 |
+| `web/crates/parts/src/parts/details.rs` | 3 | 0 |
+| `web/crates/parts/src/parts/modules_catalogue.rs` | 6 | 0 |
 | `web/crates/parts/src/parts/modules_catalogue/module_attachment.rs` | 1 | 0 |
-| `web/crates/parts/src/parts/preview.rs` | 24 | 21 |
-| `web/crates/pcb/src/pcb_board_reference.rs` | 7 | 6 |
-| `web/crates/pcb/src/pcb_module_inspector.rs` | 18 | 8 |
-| `web/crates/pcb/src/pcb_physical_setup/controller.rs` | 7 | 2 |
-| `web/crates/pcb/src/pcb_scene.rs` | 28 | 10 |
-| `web/crates/pcb/src/pcb_wiring.rs` | 33 | 31 |
-| `web/crates/pcb/src/pcb_wiring/part_input_settings.rs` | 8 | 8 |
-| `web/crates/ui-shared/src/canvas_layers.rs` | 8 | 5 |
-| `web/crates/ui-shared/src/footprint_graphics.rs` | 11 | 0 |
+| `web/crates/parts/src/parts/placement_action_tests.rs` | 2 | 2 |
+| `web/crates/parts/src/parts/preview.rs` | 17 | 3 |
+| `web/crates/parts/src/parts_import_footprint.rs` | 1 | 1 |
+| `web/crates/pcb/src/board_reference_owner.rs` | 2 | 2 |
+| `web/crates/pcb/src/pcb_board_reference.rs` | 7 | 5 |
+| `web/crates/pcb/src/pcb_layers.rs` | 2 | 2 |
+| `web/crates/pcb/src/pcb_module_footprints.rs` | 12 | 0 |
+| `web/crates/pcb/src/pcb_module_inspector.rs` | 15 | 1 |
+| `web/crates/pcb/src/pcb_physical_setup/controller.rs` | 6 | 2 |
+| `web/crates/pcb/src/pcb_scene.rs` | 9 | 1 |
+| `web/crates/pcb/src/pcb_wiring.rs` | 17 | 0 |
+| `web/crates/pcb/src/pcb_wiring/part_input_settings.rs` | 6 | 0 |
+| `web/crates/runtime/src/case_preview.rs` | 1 | 1 |
+| `web/crates/runtime/src/edit_ticket.rs` | 2 | 2 |
+| `web/crates/runtime/src/export_lease.rs` | 3 | 3 |
+| `web/crates/runtime/src/layout_viewer_source.rs` | 1 | 1 |
+| `web/crates/runtime/src/model_delivery.rs` | 1 | 1 |
+| `web/crates/runtime/src/portable_archive.rs` | 1 | 1 |
+| `web/crates/runtime/src/runtime.rs` | 4 | 4 |
+| `web/crates/ui-shared/examples/canvas_layers.rs` | 1 | 1 |
+| `web/crates/ui-shared/examples/dock_layout.rs` | 4 | 0 |
+| `web/crates/ui-shared/src/canvas_layers.rs` | 6 | 0 |
+| `web/crates/ui-shared/src/footprint_graphics.rs` | 6 | 0 |
 | `web/crates/ui-shared/src/layer_dock.rs` | 1 | 0 |
-| `web/crates/ui-shared/src/panels_resize_tests.rs` | 7 | 6 |
-| `web/crates/ui-shared/src/panels_scroll_tests.rs` | 7 | 6 |
+| `web/crates/ui-shared/src/panels.rs` | 5 | 5 |
+| `web/crates/ui-shared/src/panels_resize_tests.rs` | 6 | 0 |
+| `web/crates/ui-shared/src/panels_scroll_tests.rs` | 6 | 0 |
+| `web/tests/matrix_setup_operation.rs` | 1 | 1 |
 
-## Verification
+## Pre-merge verification
 
-- Focused browser RED/GREEN for each migrated file/behavior: `run3-{setup,svg,details,layer-dock,keymap-panel,macro,encoder}-{red,green}.log`, plus `run3-svg-error-red.log` and `run3-svg-green-final.log` for the error branch. REDs failed on the expected missing utility. The per-file native/browser/typecheck/page logs use the same slice names except that setup uses `run3-pcb-*` and `run3-setup-page.log`; all passed before the next file.
-- `python3 scripts/check.py build` passed both before changes and at the final committed state (`run3-build.log`, `run3-final-build.log`). Staging outputs are ignored worktree build outputs; the Cargo target resolves to the worktree-specific allowlisted cache directory.
-- After the no-op parent merge: `cargo test --locked --lib -p boardstudio-web-ui-shared -p boardstudio-web-parts -p boardstudio-web-pcb -p boardstudio-web-case -p boardstudio-web-keymap` — 125 passed; `python3 scripts/check.py browser --only ui-shared parts pcb case keymap` — 358 passed; `python3 scripts/check.py typecheck` passed; `python3 scripts/run-wasm-tests.py --files` on the setup, Parts, PCB, Case and Keymap workspace modules — 8 passed. Logs: `run3-post-merge-{native,browser,typecheck,page}.log`.
-- `scripts/mutation-check.py` killed the empty-outlet and macro-grid mutants and verified restoration (`run3-mutation-{layer,macro}.log`). Tailwind CLI emitted the relevant SVG, nested, grid and empty-state utilities (`run3-*-tailwind.log`, generated output in ignored `web/target/`). Rustfmt and `git diff --check` passed.
-- The new browser assertions inspect rendered utility classes and mounted state; compilation of the utilities was checked separately. They do **not** prove pixel equivalence or theme/viewport visual equivalence. No full gate or tooling probe was run, per instruction. Strict old-CSS deletion is not ready while remaining callers are untriaged.
-- Earlier run evidence and the main-checkout write/reversal incident are retained in `run3-prior-outcome.log` and in the prior tracked outcome at `e40b346a1`. These two outcome records are tracked; the detailed run logs are gitignored.
+- `cargo check --locked -p boardstudio-web-pcb`: failed as expected on native UI-shared runtime cfg gating (see `run4-pcb-check.log`); following WASM checks passed.
+- `cargo check --locked --target wasm32-unknown-unknown` with `-p boardstudio-web-pcb`, then PCB/keymap/keycaps, then parts/pcb/ui-shared `--examples`, then library: all passed (`run4-{pcb-wasm,scenes,parts-ui,library}-check.log`).
+- `python3 scripts/check.py build`: passed (`run4-build.log`); generated Tailwind output was inspected for carousel ancestor, settings, dock, SVG, and state variants.
+- `cargo test --locked --lib -p boardstudio-web-ui-shared -p boardstudio-web-parts -p boardstudio-web-pcb -p boardstudio-web-case -p boardstudio-web-keymap -p boardstudio-web-keycaps -p boardstudio-web-library`: 137 passed (`run4-native.log`).
+- `python3 scripts/check.py browser --only ui-shared parts pcb case keymap keycaps library --keep-going`: 409 passed (`run4-browser.log`); partial browser gate only.
+- `python3 scripts/run-wasm-tests.py --files` on case, keycaps, keymap, layout, Parts, PCB, setup workspace modules and layout layers: 16 passed (`run4-page.log`).
+- `cargo fmt --all -- --check` and `git diff --check` passed. No full gate, mutation, visual equivalence review, or tooling probe was run; integrator owns those gates. Theme/viewport visual equivalence is not proven by mounted interaction tests.

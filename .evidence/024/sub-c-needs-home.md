@@ -1,3 +1,3 @@
 # 024 sub-lane C — needs-home findings
 
-No rule has been established as genuinely inexpressible with the existing utilities in run 3. This is **not** a claim that migration is complete: 130 previously inventoried live names and additional candidates remain untriaged. They are not needs-home entries. The preserved historical inventory is `run3-prior-untriaged.log`; see `sub-c-outcome.md` for the 13 names migrated since that inventory and the remaining risks.
+No styling rule was established as inexpressible with the existing utilities or Theme tokens. The remaining `m1-project-menu` fixture class and dotted query are a **functional close/focus selector dependency**, not a styling rule: coordinated migration is needed without changing the public UI-shared behavior. The temporarily retained inspector-body selector is expected to become removable after the parent merge changes its Layout focus fallback. See `sub-c-outcome.md`.
