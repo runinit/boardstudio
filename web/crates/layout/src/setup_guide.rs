@@ -61,15 +61,6 @@ pub struct SetupGuideStageStatus {
     pub detail: String,
 }
 
-fn step_class(current: bool, ready: bool) -> &'static str {
-    match (current, ready) {
-        (true, true) => "m1-setup-guide__item is-current is-ready",
-        (true, false) => "m1-setup-guide__item is-current",
-        (false, true) => "m1-setup-guide__item is-ready",
-        (false, false) => "m1-setup-guide__item",
-    }
-}
-
 fn sync_stage_trigger(stage: SetupGuideStage) {
     let index = match stage {
         SetupGuideStage::Project => 0,
@@ -85,10 +76,7 @@ fn sync_stage_trigger(stage: SetupGuideStage) {
             .and_then(|window| window.document())
             .and_then(|document| {
                 document
-                    .query_selector(&format!(
-                        ".m1-setup-stage-accordion > div:nth-child({}) > button",
-                        index + 1
-                    ))
+                    .query_selector(&format!("[aria-controls='m1-setup-panel-{index}']"))
                     .ok()
                     .flatten()
             })
@@ -337,7 +325,7 @@ pub fn ProjectSetupGuide(
     };
     let mut expanded_for_trigger = expanded;
     rsx! {
-            aside { class: "m1-setup-guide", "aria-label": "Project setup guide",
+            aside { class: "grid min-h-0 min-w-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] content-start gap-3 overflow-hidden bg-card p-4 text-foreground [&_button]:min-h-control-touch", "aria-label": "Project setup guide",
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == " " {
                     event.stop_propagation();
@@ -346,7 +334,7 @@ pub fn ProjectSetupGuide(
                     }
                 }
             },
-                header { class: "m1-setup-guide__header",
+                header { class: "flex items-start justify-between gap-2 [&_h2]:text-[18px]! [&_p]:mt-1 [&_p]:text-muted-foreground",
                     div {
                         h2 {
                             id: "m1-setup-guide-heading",
@@ -359,13 +347,13 @@ pub fn ProjectSetupGuide(
                     }
                     Button {
                         variant: ButtonVariant::Secondary,
-                        class: "m1-setup-guide__dismiss",
+                        class: "min-h-control-touch shrink-0 whitespace-nowrap px-2.5",
                         button_type: "button",
                         onclick: move |_| on_dismiss.call(()),
                         "Hide guide"
                     }
                 }
-                Accordion { class: "m1-setup-stage-accordion", allow_multiple_open: false,
+                Accordion { class: "grid content-start gap-2 overflow-y-auto overscroll-contain p-0.5 [scrollbar-width:thin]", allow_multiple_open: false,
                     for (index, item_stage, title, ready) in [
                         (0usize, SetupGuideStage::Project, "Project & hardware", stage_readiness[0]),
                         (1usize, SetupGuideStage::Layout, "Layout & assemblies", stage_readiness[1]),
@@ -376,7 +364,7 @@ pub fn ProjectSetupGuide(
                         AccordionItem {
                             index,
                             default_open: stage == item_stage,
-                            class: step_class(stage == item_stage, ready),
+                            class: "block",
                             on_change: move |open| {
                                 if open {
                                     expanded_for_trigger.set(Some(item_stage));
@@ -394,7 +382,7 @@ pub fn ProjectSetupGuide(
                                 aria_label: title,
                                 aria_current: (stage == item_stage).then_some("step"),
                                 "aria-description": if ready { "Ready" } else { "Not ready" },
-                                class: if stage == item_stage { "m1-setup-guide__step is-current" } else { "m1-setup-guide__step" },
+                                class: if stage == item_stage { "flex min-h-11 w-full items-center gap-2.5 bg-selection px-2 py-1.5 text-left [&_[data-slot=stepper-item]]:items-center [&_[data-slot=stepper-title]]:text-left" } else { "flex min-h-11 w-full items-center gap-2.5 px-2 py-1.5 text-left [&_[data-slot=stepper-item]]:items-center [&_[data-slot=stepper-title]]:text-left" },
                                 // Readiness is independent of stage order; only this status presentation remounts.
                                 Stepper {
                                     key: "{stage == item_stage}-{ready}",
@@ -412,10 +400,10 @@ pub fn ProjectSetupGuide(
                             }
                             div {
                                 id: "m1-setup-panel-{index}",
-                                class: if expanded() == Some(item_stage) { "m1-setup-guide__panel is-open" } else { "m1-setup-guide__panel" },
+                                class: if expanded() == Some(item_stage) { "grid grid-rows-[1fr] visible opacity-100 transition-[grid-template-rows,opacity,visibility] motion-reduce:transition-none [&>section]:min-h-0 [&>section]:overflow-visible" } else { "grid grid-rows-[0fr] invisible opacity-0 transition-[grid-template-rows,opacity,visibility] motion-reduce:transition-none [&>section]:min-h-0 [&>section]:overflow-hidden [&>section]:border-0 [&>section]:py-0" },
                                 aria_hidden: expanded() != Some(item_stage),
                                 inert: (expanded() != Some(item_stage)).then_some(""),
-                                section { class: "m1-setup-guide__content m1-setup-stage-form",
+                                section { class: "grid content-start gap-4 border-0 px-1 py-4 [&>p]:mt-1 [&>p]:text-muted-foreground [&>[aria-label='New_matrix']]:static! [&>[aria-label='New_matrix']]:grid! [&>[aria-label='New_matrix']]:w-full! [&>[aria-label='New_matrix']]:overflow-visible! [&>[aria-label='New_matrix']]:border-0! [&>[aria-label='New_matrix']]:bg-transparent! [&>[aria-label='New_matrix']]:p-0! [&>[aria-label='New_matrix']]:shadow-none!",
                                     if item_stage == SetupGuideStage::Project {
                                         {
                                             let control_input_id = format!(
@@ -450,7 +438,6 @@ pub fn ProjectSetupGuide(
                                         } else if let Some(on_open) = on_open_matrix_setup {
                                             Button {
                                                 variant: ButtonVariant::Default,
-                                                class: "m1-setup-guide__primary m1-setup-guide__add-matrix",
                                                 onclick: move |_| on_open.call(()),
                                                 if has_matrix {
                                                     "Add Thumb cluster"
@@ -468,7 +455,6 @@ pub fn ProjectSetupGuide(
                                         } else if let Some(on_choose) = on_choose_controller {
                                             Button {
                                                 variant: ButtonVariant::Secondary,
-                                                class: "m1-setup-guide__secondary",
                                                 onclick: move |_| on_choose.call(()),
                                                 "Choose controller"
                                             }
@@ -482,7 +468,6 @@ pub fn ProjectSetupGuide(
                                         }
                                         Button {
                                             variant: ButtonVariant::Secondary,
-                                            class: "m1-setup-guide__secondary",
                                             onclick: move |_| on_open_workspace.call("Case"),
                                             "Open full case settings"
                                         }
@@ -494,7 +479,7 @@ pub fn ProjectSetupGuide(
                         }
                     }
                 }
-                footer { class: "m1-setup-guide__footer",
+                footer { class: "sticky bottom-0 z-2 mt-auto flex items-center justify-between gap-2 border-t border-border bg-card pt-3",
                     if let Some(previous) = previous_stage {
                         Tooltip {
                             TooltipTrigger {
@@ -502,7 +487,7 @@ pub fn ProjectSetupGuide(
                                     Button {
                                         attributes,
                                         variant: ButtonVariant::Secondary,
-                                        class: "m1-setup-guide__back",
+                                        class: "grid w-[42px] min-w-[42px] place-items-center p-2 [&_svg]:size-5 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.8] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]",
                                         aria_label: "Previous step",
                                         onclick: move |_| on_stage_change.call(previous),
                                         svg { view_box: "0 0 24 24", "aria-hidden": "true",
@@ -519,14 +504,12 @@ pub fn ProjectSetupGuide(
                     if let Some(next) = next_stage {
                         Button {
                             variant: ButtonVariant::Default,
-                            class: "m1-setup-guide__primary",
                             onclick: move |_| on_stage_change.call(next),
                             "{footer}"
                         }
                     } else {
                         Button {
                             variant: ButtonVariant::Default,
-                            class: "m1-setup-guide__primary",
                             onclick: move |_| on_finish.call(()),
                             "{footer}"
                         }
@@ -680,7 +663,7 @@ pub fn reveal_panels(
 
 pub fn focus_settings(workspace: &str) {
     let selector = if workspace == "Export" {
-        ".m1-workspace-content :is(input, select, button):not(:disabled)"
+        "#m1-workspace-panel :is(input, select, button):not(:disabled)"
     } else {
         "#m1-inspector-panel-content :is(input, select, button):not(:disabled)"
     };
@@ -701,7 +684,7 @@ mod tests;
 pub fn SetupHardwarePreview(split: bool, wired: bool) -> Element {
     rsx! {
         section {
-            class: "m1-setup-hardware-preview m1-setup-preview",
+            class: "flex min-h-0 flex-1 flex-col justify-center p-8 [&_h2]:text-[18px]! [&_p]:mt-3 [&_p]:text-muted-foreground [&_svg]:max-h-[500px] [&_svg]:w-full [&_svg]:flex-1 [&_rect]:fill-canvas [&_rect]:stroke-geometry-board [&_rect]:stroke-2 [&_text]:fill-muted-foreground [&_text]:text-[16px] [&_text]:[text-anchor:middle]",
             aria_label: "Assembly preview",
             h2 { "Assembly preview" }
             p {
@@ -738,7 +721,7 @@ pub fn SetupHardwarePreview(split: bool, wired: bool) -> Element {
                         rx: "12",
                     }
                     if wired {
-                        path { class: "m1-setup-connection", d: "M260 200H340" }
+                        path { class: "fill-none stroke-primary stroke-4", d: "M260 200H340" }
                     }
                     text { x: "150", y: "290", "Left assembly" }
                     text { x: "450", y: "290", "Right assembly" }

@@ -412,8 +412,8 @@ pub fn BoardInspector(mount: BoardInspectorMount) -> Element {
         _ => {}
     };
     rsx! {
-            section { class: "m1-board-inspector", aria_label: "Board Inspector",
-                p { class: "m1-board-inspector-guidance",
+            section { class: "grid content-start gap-2.5 min-w-0 px-4 pt-3 pb-5 text-foreground", aria_label: "Board Inspector",
+                p { class: "m-0 mb-[5px] text-muted-foreground text-[11px] leading-[1.6]",
                     "Select a key, component, or matrix to edit it."
                 }
                 {
@@ -422,7 +422,7 @@ pub fn BoardInspector(mount: BoardInspectorMount) -> Element {
                         dioxus::core::current_scope_id().0,
                     );
                     rsx! {
-                        Field { class: "m1-board-inspector-name",
+                        Field { class: "grid gap-1.5 m-0 text-muted-foreground text-[11px]",
                             FieldLabel { html_for: control_input_id.clone(), "Board name" }
                             InputGroup { class: "max-[760px]:h-control-touch",
                                 InputGroupInput { class: "max-[760px]:h-control-touch", aria_label: "Board name",
@@ -438,13 +438,13 @@ pub fn BoardInspector(mount: BoardInspectorMount) -> Element {
                 if let Some(message) = failure() {
                     FieldError { "{message}" }
                 }
-                div { class: "m1-board-inspector-measure",
+                div { class: "flex justify-between py-2 border-b border-border text-muted-foreground text-[10px]",
                     span { "Outline" }
-                    strong { "{projection.outline_status}" }
+                    strong { class: "text-foreground font-mono text-[10px] font-normal", "{projection.outline_status}" }
                 }
-                div { class: "m1-board-inspector-measure",
+                div { class: "flex justify-between py-2 border-b border-border text-muted-foreground text-[10px]",
                     span { "Placed parts" }
-                    strong { "{projection.placed_parts}" }
+                    strong { class: "text-foreground font-mono text-[10px] font-normal", "{projection.placed_parts}" }
                 }
             }
         }
@@ -502,6 +502,87 @@ mod queued_board_name_tests {
                 BoardInspector { mount }
             }
         }
+    }
+
+    #[wasm_bindgen_test]
+    async fn board_inspector_measurements_keep_layout_without_legacy_classes() {
+        let runtime = support::new_runtime();
+        let mut project = boardstudio_core::model::ProjectDoc::empty("board-measure", "Project");
+        project.boards.push(serde_json::from_value(serde_json::json!({
+            "id": "board", "name": "Board", "outlineIds": [], "partIds": [], "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+        })).unwrap());
+        support::open_document(&runtime, project).await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let stylesheet = document.create_element("style").unwrap();
+        stylesheet.set_text_content(Some(include_str!("../../../assets/tailwind.css")));
+        document.head().unwrap().append_child(&stylesheet).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        boardstudio_web_ui_shared::test_wait::wait_until("board inspector mounts", || {
+            boardstudio_web_ui_shared::test_role::by_role_name(&root, "textbox", "Board name")
+                .is_some()
+        })
+        .await;
+        let labels = root.query_selector_all("span").unwrap();
+        let label = (0..labels.length())
+            .filter_map(|index| labels.item(index))
+            .find(|node| node.text_content().as_deref() == Some("Placed parts"))
+            .unwrap()
+            .dyn_into::<web_sys::Element>()
+            .unwrap();
+        let row = label.parent_element().unwrap();
+        let classes = row.get_attribute("class").unwrap_or_default();
+        row.set_attribute(
+            "class",
+            &classes
+                .split_whitespace()
+                .filter(|class| !class.starts_with("m1-"))
+                .collect::<Vec<_>>()
+                .join(" "),
+        )
+        .unwrap();
+        let style = web_sys::window()
+            .unwrap()
+            .get_computed_style(&row)
+            .unwrap()
+            .unwrap();
+        assert_eq!(style.get_property_value("display").unwrap(), "flex");
+        assert_eq!(
+            style.get_property_value("justify-content").unwrap(),
+            "space-between"
+        );
+        assert_eq!(style.get_property_value("padding-top").unwrap(), "8px");
+        let input =
+            boardstudio_web_ui_shared::test_role::by_role_name(&root, "textbox", "Board name")
+                .unwrap();
+        let field = input.closest("[data-slot=field]").unwrap().unwrap();
+        let classes = field.get_attribute("class").unwrap_or_default();
+        field
+            .set_attribute(
+                "class",
+                &classes
+                    .split_whitespace()
+                    .filter(|class| !class.starts_with("m1-"))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            )
+            .unwrap();
+        let field_style = web_sys::window()
+            .unwrap()
+            .get_computed_style(&field)
+            .unwrap()
+            .unwrap();
+        assert_eq!(field_style.get_property_value("display").unwrap(), "grid");
+        assert_eq!(field_style.get_property_value("gap").unwrap(), "6px");
+        runtime.unsubscribe();
+        stylesheet.remove();
+        root.remove();
     }
 
     #[wasm_bindgen_test]
