@@ -195,7 +195,7 @@ pub fn OutlinePointCanvasOverlay(
                     for (index, guide) in snap.guides.iter().enumerate() {
                         line {
                             key: "guide-{index}-{guide.id}",
-                            class: "m1-outline-snap-guide",
+                            class: "pointer-events-none stroke-selection-foreground stroke-[0.3] [stroke-dasharray:1_0.7]",
                             x1: "{guide.from.x - guide.direction.x * width * 2.0}",
                             y1: "{guide.from.y - guide.direction.y * width * 2.0}",
                             x2: "{guide.from.x + guide.direction.x * width * 2.0}",
@@ -203,7 +203,7 @@ pub fn OutlinePointCanvasOverlay(
                             "data-guide": "{guide.label}"
                         }
                         text {
-                            class: "m1-outline-snap-label",
+                            class: "pointer-events-none fill-selection-foreground stroke-canvas stroke-[0.25] text-[2.6px] [paint-order:stroke]",
                             transform: "translate({snap.at.x - handle_radius} {snap.at.y - handle_radius * (2.0 + index as f64)}) scale(1,-1)",
                             text_anchor: "end",
                             "{guide.label}"
@@ -212,7 +212,7 @@ pub fn OutlinePointCanvasOverlay(
                 }
             }
             polyline {
-                class: "m1-outline-control-path",
+                class: "pointer-events-none fill-none stroke-primary stroke-[0.65] [stroke-dasharray:1.2_0.6]",
                 points: "{rendered_point_string}",
             }
             for (index, point) in rendered_points.iter().copied().enumerate() {
@@ -272,7 +272,7 @@ pub fn OutlinePointCanvasOverlay(
                     rsx! {
                         circle {
                             key: "{point_id}",
-                            class: if is_selected { "m1-outline-point-handle is-selected" } else { "m1-outline-point-handle" },
+                            class: if is_selected { "cursor-grab fill-primary stroke-card stroke-[1.2] [pointer-events:all] focus-visible:stroke-primary focus-visible:stroke-[1.7]" } else { "cursor-grab fill-card stroke-primary stroke-[0.9] [pointer-events:all] focus-visible:stroke-primary focus-visible:stroke-[1.7]" },
                             role: "button",
                             tabindex: "0",
                             "aria-label": "{point_label}",
@@ -379,7 +379,7 @@ pub fn OutlinePointCanvasOverlay(
                                 key_action.call(key_context.edit_perimeter(key_target.clone(), points, EditPhase::Commit, format!("outline-nudge-{}-{}", key_runtime.operation().0, index)));
                             }
                         }
-                        text { class: "m1-outline-point-label", x: "{point_x + 2.0}", y: "{point_y + 2.0}", "aria-hidden": "true", "{index + 1}" }
+                        text { class: "pointer-events-none fill-foreground stroke-card stroke-[0.3] text-[2.5px] [paint-order:stroke]", x: "{point_x + 2.0}", y: "{point_y + 2.0}", "aria-hidden": "true", "{index + 1}" }
                     }
                 }
             }
@@ -475,7 +475,7 @@ pub fn OutlineDraftCanvasOverlay(
         }
     };
     rsx! {
-        g { class: "m1-outline-draft-controls", "aria-label": match tool { OutlineDrawTool::Polygon(Operation::Add) => "Draw addition", OutlineDrawTool::Polygon(Operation::Subtract) => "Draw cutout", OutlineDrawTool::Connect => "Connect points" },
+        g { class: "[&_rect]:cursor-crosshair [&_rect]:[pointer-events:all] [&_rect:focus-visible]:outline-none [&_rect:focus-visible]:stroke-primary [&_rect:focus-visible]:stroke-[0.4]", "aria-label": match tool { OutlineDrawTool::Polygon(Operation::Add) => "Draw addition", OutlineDrawTool::Polygon(Operation::Subtract) => "Draw cutout", OutlineDrawTool::Connect => "Connect points" },
             rect {
                 transform: "scale(1,-1)",
                 x: "{view_x}", y: "{view_y}", width: "{width}", height: "{height}",
@@ -517,9 +517,9 @@ pub fn OutlineDraftCanvasOverlay(
                 },
             }
             if !draft.is_empty() {
-                polyline { class: "m1-outline-draft-path", points: "{point_string}" }
+                polyline { class: "pointer-events-none fill-none stroke-primary stroke-[0.65] [stroke-dasharray:1.5_1]", points: "{point_string}" }
                 for (index, point) in draft.iter().enumerate() {
-                    circle { key: "outline-draft-point-{index}", class: "m1-outline-draft-point", cx: "{point.x}", cy: "{point.y}", r: "1.5" }
+                    circle { key: "outline-draft-point-{index}", class: "pointer-events-none fill-primary stroke-card stroke-[0.35]", cx: "{point.x}", cy: "{point.y}", r: "1.5" }
                 }
             }
         }
@@ -599,7 +599,7 @@ pub(super) fn OutlineDimension(
         && parsed.is_ok_and(|parsed| parsed.is_finite() && parsed >= minimum);
     let error = !valid;
     rsx! {
-            { let control_input_id = format!("layout-input-{}-2", dioxus::core::current_scope_id().0); rsx! { Field { class: "m1-outline-field", FieldLabel { html_for: control_input_id.clone(),
+            { let control_input_id = format!("layout-input-{}-2", dioxus::core::current_scope_id().0); rsx! { Field { class: "grid gap-[5px] text-xs text-muted-foreground", FieldLabel { html_for: control_input_id.clone(),
                 span { "{label}" }
                  } InputGroup { class: "max-[760px]:h-control-touch", InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
     step: "0.1",
@@ -660,7 +660,7 @@ pub(super) fn OutlineCoordinate(
             .parse::<f64>()
             .is_ok_and(|parsed| parsed.is_finite());
     rsx! {
-            { let control_input_id = format!("layout-input-{}-1", dioxus::core::current_scope_id().0); rsx! { Field { class: "m1-outline-field", FieldLabel { html_for: control_input_id.clone(),
+            { let control_input_id = format!("layout-input-{}-1", dioxus::core::current_scope_id().0); rsx! { Field { class: "grid gap-[5px] text-xs text-muted-foreground", FieldLabel { html_for: control_input_id.clone(),
                 span { "{label}" }
                  } InputGroup { class: "max-[760px]:h-control-touch", InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
     step: "0.1",

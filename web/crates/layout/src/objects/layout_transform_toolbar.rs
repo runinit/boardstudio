@@ -961,13 +961,13 @@ pub fn LayoutTransformToolOverlay(
     let quick_offset_shown = quick_glyph() || control() || tool == LayoutTransformTool::Offset;
     rsx! {
         if let Some(guide) = snap_guide() {
-            g { class: "m1-transform-snap-guide", "aria-hidden": "true",
+            g { class: "pointer-events-none fill-none stroke-primary stroke-[0.45] [&_circle]:fill-card", "aria-hidden": "true",
                 circle { cx: "{guide.x}", cy: "{guide.y}", r: "{width / 170.0}" }
             }
         }
         if matches!(tool, LayoutTransformTool::Stagger | LayoutTransformTool::Offset) {
             g {
-                class: "m1-transform-handle",
+                class: "cursor-grab touch-none fill-card stroke-current stroke-[0.4] text-primary outline-none [pointer-events:all] active:cursor-grabbing focus-visible:stroke-foreground [&_path]:fill-none",
                 transform: "translate({handle_point.x} {handle_point.y}) scale({handle_scale})",
                 // The value is a description, not `aria-valuenow`: that belongs to range
                 // roles, and a handle that also edits a 2-D offset is a button.
@@ -993,12 +993,12 @@ pub fn LayoutTransformToolOverlay(
         } else {
             g {
                 if tool == LayoutTransformTool::Splay {
-                    path { class: "m1-transform-splay-guide", d: "M{handle_point.x} {handle_point.y} L{angle_point.x} {angle_point.y}" }
-                    path { class: "m1-transform-splay-guide", d: "{arc}" }
+                    path { class: "pointer-events-none fill-none stroke-primary stroke-1 opacity-70 [stroke-dasharray:2_1.5] [vector-effect:non-scaling-stroke]", d: "M{handle_point.x} {handle_point.y} L{angle_point.x} {angle_point.y}" }
+                    path { class: "pointer-events-none fill-none stroke-primary stroke-1 opacity-70 [stroke-dasharray:2_1.5] [vector-effect:non-scaling-stroke]", d: "{arc}" }
 
                 }
                 g {
-                    class: "m1-transform-handle",
+                    class: "cursor-grab touch-none fill-card stroke-current stroke-[0.4] text-primary outline-none [pointer-events:all] active:cursor-grabbing focus-visible:stroke-foreground [&_path]:fill-none",
                     transform: "translate({handle_point.x} {handle_point.y}) scale({handle_scale})",
                     role: "button", tabindex: "0", "aria-label": "Move splay origin",
                     onpointerdown: { let start = start_drag.clone(); move |event| start(event, TransformGesture::Origin { column: selected_column }) },
@@ -1022,7 +1022,7 @@ pub fn LayoutTransformToolOverlay(
                         };
                         rsx! {
                             g {
-                                class: "m1-transform-handle",
+                                class: "cursor-grab touch-none fill-card stroke-current stroke-[0.4] text-primary outline-none [pointer-events:all] active:cursor-grabbing focus-visible:stroke-foreground [&_path]:fill-none",
                                 transform: "translate({angle_point.x} {angle_point.y}) scale({handle_scale})",
                                 role: "button", tabindex: "0", "aria-label": "Drag to splay",
                                 onpointerdown: { let start = start_drag.clone(); move |event| start(event, gesture) },
