@@ -329,6 +329,43 @@ mod scenario_verdict_tests {
     }
 
     #[test]
+    fn drag_geometry_paths_cover_only_the_dragged_cell_and_moved_parts() {
+        let project = json!({
+            "matrices": [
+                {"cells": [{"row": 4, "column": 2}, {"row": 0, "column": 0}]},
+                {"cells": [{"row": 4, "column": 2}]},
+            ],
+            "parts": [{"id": "p1"}, {"id": "p2"}, {"id": "p3"}],
+        });
+        let before_scene = json!([["p1", "t1"], ["p2", "t2"], ["p3", "t3"]]);
+        let after_scene = json!([["p1", "t1"], ["p2", "moved"], ["p3", "t3"]]);
+        let allowed = drag_geometry(&project, 4, 2, &before_scene, &after_scene);
+        assert_eq!(allowed.cells, vec![(0, 0), (1, 0)]);
+        assert_eq!(allowed.parts, vec![1]);
+        for path in [
+            "$.matrices[0].cells[0].offset added",
+            "$.matrices[1].cells[0].offset.x",
+            "$.parts[1].pose.at.x",
+            "$.parts[1].pose.at.y",
+        ] {
+            assert!(is_drag_geometry_path(path, &allowed), "{path}");
+        }
+        for path in [
+            "$.name",
+            "$.matrices[0].cells[1].offset.x",
+            "$.matrices[0].cells[0].offsetX",
+            "$.parts[0].pose.at.x",
+            "$.parts[1].pose.rotation",
+            "$.definitions[0].name",
+        ] {
+            assert!(!is_drag_geometry_path(path, &allowed), "{path}");
+        }
+        let before = json!({"a": [1, 2, 3]});
+        let after = json!({"a": [1, 9, 3], "b": true});
+        assert_eq!(diff_paths_all(&before, &after).len(), 2);
+    }
+
+    #[test]
     fn receipt_float_fixture_matches_python_regression() {
         assert_eq!(serde_json::to_string(&1e-7_f64).unwrap(), "1e-7");
     }
@@ -446,8 +483,18 @@ fn resolve_chrome() -> Result<String> {
 /// First differing paths between two canonical values, for actionable failure
 /// records. Capped so one structural diff cannot flood the run log.
 fn diff_paths(before: &Value, after: &Value) -> Vec<String> {
-    fn walk(before: &Value, after: &Value, path: &str, out: &mut Vec<String>) {
-        if out.len() >= 8 || before == after {
+    diff_paths_limited(before, after, 8)
+}
+
+/// Every differing path between two canonical values, uncapped: the
+/// mounted-document re-save proof must not hide a wrong field past a cap.
+fn diff_paths_all(before: &Value, after: &Value) -> Vec<String> {
+    diff_paths_limited(before, after, usize::MAX)
+}
+
+fn diff_paths_limited(before: &Value, after: &Value, limit: usize) -> Vec<String> {
+    fn walk(before: &Value, after: &Value, path: &str, limit: usize, out: &mut Vec<String>) {
+        if out.len() >= limit || before == after {
             return;
         }
         match (before, after) {
@@ -457,11 +504,11 @@ fn diff_paths(before: &Value, after: &Value) -> Vec<String> {
                 keys.dedup();
                 for key in keys {
                     match (before_map.get(key), after_map.get(key)) {
-                        (Some(a), Some(b)) => walk(a, b, &format!("{path}.{key}"), out),
+                        (Some(a), Some(b)) => walk(a, b, &format!("{path}.{key}"), limit, out),
                         (None, _) => out.push(format!("{path}.{key} added")),
                         (_, None) => out.push(format!("{path}.{key} removed")),
                     }
-                    if out.len() >= 8 {
+                    if out.len() >= limit {
                         return;
                     }
                 }
@@ -476,8 +523,8 @@ fn diff_paths(before: &Value, after: &Value) -> Vec<String> {
                     return;
                 }
                 for (index, (a, b)) in before_items.iter().zip(after_items.iter()).enumerate() {
-                    walk(a, b, &format!("{path}[{index}]"), out);
-                    if out.len() >= 8 {
+                    walk(a, b, &format!("{path}[{index}]"), limit, out);
+                    if out.len() >= limit {
                         return;
                     }
                 }
@@ -486,8 +533,165 @@ fn diff_paths(before: &Value, after: &Value) -> Vec<String> {
         }
     }
     let mut out = Vec::new();
-    walk(before, after, "$", &mut out);
+    walk(before, after, "$", limit, &mut out);
     out
+}
+
+/// The exact geometry one Part drag may change in a re-saved document:
+/// the offset of the dragged cell in each matrix that carries it, and the
+/// poses of the parts whose rendered transform actually moved. Indices are
+/// array positions in the saved document, matching `diff_paths_all` paths.
+struct DragGeometry {
+    cells: Vec<(usize, usize)>,
+    parts: Vec<usize>,
+}
+
+fn drag_geometry(
+    project: &Value,
+    row: i64,
+    column: i64,
+    before_scene: &Value,
+    after_scene: &Value,
+) -> DragGeometry {
+    let mut cells = Vec::new();
+    if let Some(matrices) = project.get("matrices").and_then(Value::as_array) {
+        for (matrix_index, matrix) in matrices.iter().enumerate() {
+            if let Some(items) = matrix.get("cells").and_then(Value::as_array) {
+                for (cell_index, cell) in items.iter().enumerate() {
+                    if cell.get("row").and_then(Value::as_i64) == Some(row)
+                        && cell.get("column").and_then(Value::as_i64) == Some(column)
+                    {
+                        cells.push((matrix_index, cell_index));
+                    }
+                }
+            }
+        }
+    }
+    let transforms = |scene: &Value| -> BTreeMap<String, String> {
+        scene
+            .as_array()
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| {
+                        let pair = item.as_array()?;
+                        Some((
+                            pair.first()?.as_str()?.to_owned(),
+                            pair.get(1)?.as_str()?.to_owned(),
+                        ))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let (before, after) = (transforms(before_scene), transforms(after_scene));
+    let moved: std::collections::BTreeSet<&String> = before
+        .keys()
+        .chain(after.keys())
+        .filter(|id| before.get(*id) != after.get(*id))
+        .collect();
+    let mut parts = Vec::new();
+    if let Some(items) = project.get("parts").and_then(Value::as_array) {
+        for (index, part) in items.iter().enumerate() {
+            if part
+                .get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| moved.contains(&id.to_owned()))
+            {
+                parts.push(index);
+            }
+        }
+    }
+    DragGeometry { cells, parts }
+}
+
+/// A differing path is a drag change only when it is the dragged cell's
+/// offset (possibly newly present) or a moved part's pose. Anything else in
+/// a re-saved document came from the document the application had mounted,
+/// not from the drag.
+fn is_drag_geometry_path(path: &str, allowed: &DragGeometry) -> bool {
+    let path = path
+        .strip_suffix(" added")
+        .or_else(|| path.strip_suffix(" removed"))
+        .unwrap_or(path);
+    let cell_offset = allowed.cells.iter().any(|(matrix, cell)| {
+        let prefix = format!("$.matrices[{matrix}].cells[{cell}].offset");
+        path == prefix || path.starts_with(&format!("{prefix}."))
+    });
+    cell_offset
+        || allowed.parts.iter().any(|part| {
+            path == format!("$.parts[{part}].pose.at.x")
+                || path == format!("$.parts[{part}].pose.at.y")
+        })
+}
+
+/// Prove the document the application mounted after a reload is the
+/// expected one, through the public workflow: a known Part drag makes the
+/// application re-save its mounted document, and that re-saved document
+/// must differ from `expected` only in the drag's geometry paths. A wrong
+/// non-rendered field restored into the mounted document would be written
+/// back here and named. Undo then restores the mounted pre-drag document
+/// and saves it as a new revision: that save must equal `expected` at every
+/// path, including the drag's own geometry, so no restored field is left
+/// proven only by the rendered scene. Returns the re-saved document.
+async fn mounted_document_proof(
+    page: &Page,
+    target_part: &str,
+    identity: (String, i64, i64),
+    name: &str,
+    expected: &Document,
+) -> Result<Document> {
+    select_scope(page, "Part").await?;
+    let first_key = format!(
+        "[data-geometry='scene-part'][data-part-id=\"{target_part}\"] [data-geometry='part-hit-area']"
+    );
+    driver::click_css(page, &first_key).await?;
+    let (_, before_scene, resaved, after_scene) =
+        accepted_part_drag(page, target_part, identity.clone(), name).await?;
+    let allowed = drag_geometry(
+        &resaved.project,
+        identity.1,
+        identity.2,
+        &before_scene,
+        &after_scene,
+    );
+    if allowed.cells.is_empty() || allowed.parts.is_empty() {
+        return Err(fail(format!(
+            "{name}: the drag's expected geometry is identifiable in the saved document"
+        )));
+    }
+    let differing = diff_paths_all(&expected.project, &resaved.project);
+    if differing.is_empty()
+        || !differing
+            .iter()
+            .all(|path| is_drag_geometry_path(path, &allowed))
+    {
+        return Err(fail(format!(
+            "{name}: reopened document re-saved with only the accepted drag change; differs at {}",
+            differing.join(", ")
+        )));
+    }
+    driver::click_role(page, None, "button", "Undo").await?;
+    wait_document(page, &expected.page_signature).await?;
+    saved(page).await?;
+    let restored = doc(page).await?;
+    if restored.page_signature != expected.page_signature {
+        let differing = diff_paths(&expected.project, &restored.project);
+        return Err(fail(format!(
+            "{name}: Undo of the proof drag restored the exact reopened document; differs at {}",
+            differing.join(", ")
+        )));
+    }
+    let resaved_revision = resaved.revision.as_i64();
+    let restored_revision = restored.revision.as_i64();
+    if resaved_revision.is_some()
+        && restored_revision.is_some_and(|revision| revision <= resaved_revision.unwrap_or(0))
+    {
+        return Err(fail(format!(
+            "{name}: Undo of the proof drag was saved as a new revision"
+        )));
+    }
+    Ok(resaved)
 }
 
 /// The saved project plus its revision and canonical signatures.
@@ -570,7 +774,13 @@ async fn scene(page: &Page) -> Result<Value> {
 /// (observed about 160 ms), so the cancel comparison waits for it: true only
 /// when the scene's canonical signature equals `expected` within the bound.
 async fn scene_settles_to(page: &Page, expected: &Value) -> Result<bool> {
-    let deadline = Instant::now() + Duration::from_secs(2);
+    scene_settles_within(page, expected, Duration::from_secs(2)).await
+}
+
+/// True only when the scene's canonical signature equals `expected` within
+/// `bound`; the comparison itself is always the exact signature.
+async fn scene_settles_within(page: &Page, expected: &Value, bound: Duration) -> Result<bool> {
+    let deadline = Instant::now() + bound;
     loop {
         if signature_of(&scene(page).await?) == signature_of(expected) {
             return Ok(true);
@@ -580,6 +790,157 @@ async fn scene_settles_to(page: &Page, expected: &Value) -> Result<bool> {
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
+}
+
+/// Release a drag hold and observe one complete durable save cycle.
+async fn commit_drag(page: &Page, hold: &mut DragHold) -> Result<()> {
+    start_save_tracking(page).await?;
+    driver::end_drag(page, hold).await?;
+    wait_for_save_cycle(page).await
+}
+
+/// The saved project's identity: the one local project's `id` and `name`.
+/// Reload proof must reopen this project, not whichever document happens
+/// to be stored or mounted afterwards.
+fn project_identity(project: &Value) -> Result<(String, String)> {
+    let id = project.get("id").and_then(Value::as_str);
+    let name = project.get("name").and_then(Value::as_str);
+    match (id, name) {
+        (Some(id), Some(name)) if !id.is_empty() => Ok((id.to_owned(), name.to_owned())),
+        _ => Err(fail("the saved project has no identity (id and name)")),
+    }
+}
+
+/// Reload the page and prove the same saved project reopens with the exact
+/// expected document, revision and rendered scene. No Undo history is
+/// expected to survive: `expected` is whatever document was durably saved
+/// before the reload, whether an accepted edit or a saved Undo result.
+async fn reload_and_verify(
+    page: &Page,
+    name: &str,
+    expected: &Document,
+    expected_scene: &Value,
+) -> Result<()> {
+    let expected_identity = project_identity(&expected.project)?;
+    page.reload()
+        .await
+        .map_err(|error| fail(format!("{name}: reloading the page failed: {error}")))?;
+    driver::wait_for(
+        page,
+        r#"document.querySelectorAll('[data-geometry="scene-part"]').length > 0"#,
+        "the reopened project's rendered scene",
+        Duration::from_secs(60),
+    )
+    .await?;
+    // The reopened page renders asynchronously; poll for the same exact
+    // scene signature rather than accepting the first mounted frame.
+    if !scene_settles_within(page, expected_scene, Duration::from_secs(20)).await? {
+        return Err(fail(format!(
+            "{name}: reload restored the exact canvas scene"
+        )));
+    }
+    // The header project name comes from the reopened application's accepted
+    // snapshot, not from storage: it proves the mounted project, while the
+    // IndexedDB identity below proves the stored one.
+    let mounted_name = driver::eval(
+        page,
+        "document.querySelector('.header-project-name')?.textContent?.trim()",
+    )
+    .await?;
+    if mounted_name.as_str() != Some(expected_identity.1.as_str()) {
+        return Err(fail(format!(
+            "{name}: reload reopened the same saved project"
+        )));
+    }
+    saved(page).await?;
+    let restored = doc(page).await?;
+    if project_identity(&restored.project)? != expected_identity {
+        return Err(fail(format!(
+            "{name}: reload reopened the same saved project"
+        )));
+    }
+    if restored.page_signature != expected.page_signature {
+        let differing = diff_paths(&expected.project, &restored.project);
+        return Err(fail(format!(
+            "{name}: reload restored the exact saved document; differs at {}",
+            differing.join(", ")
+        )));
+    }
+    if restored.revision != expected.revision {
+        return Err(fail(format!("{name}: reload preserved the saved revision")));
+    }
+    Ok(())
+}
+
+/// One accepted Part drag through the trusted gesture and durable save,
+/// without the Undo that `run_drag` performs: the caller keeps the saved
+/// edit (or Undoes it itself) and captures the result for a reload proof.
+/// Returns the documents and scenes before and after the accepted edit.
+async fn accepted_part_drag(
+    page: &Page,
+    target_part: &str,
+    identity: (String, i64, i64),
+    name: &str,
+) -> Result<(Document, Value, Document, Value)> {
+    let fields = ["offset", "stagger", "cellOffset", "origin"];
+    saved(page).await?;
+    let before = doc(page).await?;
+    let before_scene = scene(page).await?;
+    let (matrix_id, row, column) = identity;
+    let before_state_js = capture_state_js(page, &matrix_id, row, column, &fields).await?;
+    let selector = format!(
+        "[data-geometry='scene-part'][data-part-id=\"{target_part}\"] [data-geometry='part-hit-area']"
+    );
+    let (live, mut hold) = drag(name, page, &selector, 36.0, 22.0, false, &before_scene).await?;
+    let events = drag_events(&live.events);
+    if !events.iter().any(|event| {
+        event.get("type") == Some(&json!("pointerdown"))
+            && event.get("trusted") == Some(&json!(true))
+    }) || events
+        .iter()
+        .filter(|event| {
+            event.get("type") == Some(&json!("pointermove"))
+                && event.get("trusted") == Some(&json!(true))
+        })
+        .count()
+        < 2
+        || !live.capture
+    {
+        driver::end_drag(page, &mut hold).await.ok();
+        return Err(fail(format!(
+            "{name}: trusted pointer gesture with capture produced the preview"
+        )));
+    }
+    commit_drag(page, &mut hold).await?;
+    let verdict = poll_state_verdict(
+        page,
+        &matrix_id,
+        row,
+        column,
+        &fields,
+        &before_state_js,
+        &["cellOffset"],
+    )
+    .await?;
+    if verdict.changed.get("cellOffset") != Some(&true) {
+        return Err(fail(format!("{name}: changed cellOffset")));
+    }
+    for field in fields {
+        if field != "cellOffset" && verdict.changed.get(field) == Some(&true) {
+            return Err(fail(format!("{name}: preserved {field}")));
+        }
+    }
+    let after = doc(page).await?;
+    if after.page_signature == before.page_signature {
+        return Err(fail(format!("{name}: edit was durably saved")));
+    }
+    let after_scene = scene(page).await?;
+    if signature_of(&after_scene) == signature_of(&before_scene) {
+        return Err(fail(format!(
+            "{name}: accepted edit changed the rendered geometry"
+        )));
+    }
+    Ok((before, before_scene, after, after_scene))
 }
 
 /// The header save status is the only save-state observation; an absent
@@ -1233,9 +1594,7 @@ async fn run_drag(
             return Err(fail(format!("{name}: gesture used {label}")));
         }
     }
-    start_save_tracking(page).await?;
-    driver::end_drag(page, &mut hold).await?;
-    wait_for_save_cycle(page).await?;
+    commit_drag(page, &mut hold).await?;
     let verdict = poll_state_verdict(
         page,
         &matrix_id,
@@ -2232,6 +2591,99 @@ async fn drag_scenarios(smoke: &mut Smoke) -> Result<()> {
         (matrix_id.clone(), row, column),
     )
     .await?;
+
+    // 009 scenario A: a saved accepted edit survives an actual reload of
+    // the same saved project, document and rendered geometry exact.
+    select_scope(&page, "Part").await?;
+    driver::click_css(&page, first_key).await?;
+    let (_, _, edited, edited_scene) = accepted_part_drag(
+        &page,
+        target_part,
+        (matrix_id.clone(), row, column),
+        "Reload saved edit drag",
+    )
+    .await?;
+    reload_and_verify(&page, "Reload saved edit", &edited, &edited_scene).await?;
+    record(
+        &mut smoke.checks,
+        "Reload saved edit",
+        detail(&[
+            ("exactDocument", json!(true)),
+            ("exactScene", json!(true)),
+            ("sameProject", json!(true)),
+            ("savedRevision", edited.revision.clone()),
+        ]),
+    );
+    println!(
+        "drag-smoke: Reload saved edit passed at revision {}",
+        edited.revision
+    );
+
+    // 009 scenario B: an edit Undone before reload, with the Undo result
+    // saved as a new revision, survives reload exactly. The in-memory Undo
+    // stack itself is not expected to survive the reload. This scenario's
+    // drag doubles as scenario A's mounted-document proof: after reload A
+    // the application re-saves its mounted document for this drag, and the
+    // re-save must differ from the saved edited document only in the drag's
+    // geometry paths, so `edited` is also the exact pre-drag document here.
+    // The proof's Undo is this scenario's Undo: it happens before reload B,
+    // and its saved result is what reload B must restore.
+    let undo_edited = mounted_document_proof(
+        &page,
+        target_part,
+        (matrix_id.clone(), row, column),
+        "Reload saved edit mounted resave",
+        &edited,
+    )
+    .await?;
+    saved(&page).await?;
+    let undone = doc(&page).await?;
+    if undone.page_signature != edited.page_signature {
+        let differing = diff_paths(&edited.project, &undone.project);
+        return Err(fail(format!(
+            "Reload saved Undo: Undo restored the complete saved document; differs at {}",
+            differing.join(", ")
+        )));
+    }
+    let edited_revision = undo_edited.revision.as_i64();
+    let undone_revision = undone.revision.as_i64();
+    if edited_revision.is_some()
+        && undone_revision.is_some_and(|revision| revision <= edited_revision.unwrap_or(0))
+    {
+        return Err(fail("Reload saved Undo: Undo was saved as a new revision"));
+    }
+    if signature_of(&scene(&page).await?) != signature_of(&edited_scene) {
+        return Err(fail(
+            "Reload saved Undo: Undo restored the exact canvas scene",
+        ));
+    }
+    reload_and_verify(&page, "Reload saved Undo", &undone, &edited_scene).await?;
+    // Scenario B's mounted-document proof: the reopened application re-saves
+    // its mounted document for one more known drag, differing from the saved
+    // Undo result only in that drag's geometry paths, and Undo of that drag
+    // saves the exact reopened document again.
+    mounted_document_proof(
+        &page,
+        target_part,
+        (matrix_id.clone(), row, column),
+        "Reload saved Undo mounted resave",
+        &undone,
+    )
+    .await?;
+    record(
+        &mut smoke.checks,
+        "Reload saved Undo",
+        detail(&[
+            ("exactDocument", json!(true)),
+            ("exactScene", json!(true)),
+            ("sameProject", json!(true)),
+            ("savedRevision", undone.revision.clone()),
+        ]),
+    );
+    println!(
+        "drag-smoke: Reload saved Undo passed at revision {}",
+        undone.revision
+    );
     Ok(())
 }
 

@@ -24,7 +24,7 @@ neither is deferred to a separate cleanup ticket.
 | [006: Restore shared disclosure motion](issues/006-restore-disclosure-motion.md) | wontfix | none | Cancelled by the user; no completion evidence |
 | [007: Correct disclosure chevrons](issues/007-correct-disclosure-chevrons.md) | wontfix | none | Cancelled by the user; no completion evidence |
 | [008: Restore real drag/save/Undo proof](issues/008-restore-drag-save-undo-proof.md) | resolved | none | Drag, save, cancel and exact Undo pass on a pinned build; the complete runner still fails later at the unrelated Case collision control (see Answer) |
-| [009: Verify persistence across reload](issues/009-verify-reload-persistence.md) | ready-for-agent | 008 | Explicit reload of saved edits and saved Undo results |
+| [009: Verify persistence across reload](issues/009-verify-reload-persistence.md) | resolved | 008 | Saved edit and saved Undo result survive an actual reload with exact document/scene/identity/revision proof; the complete runner still fails later at the unrelated Case collision control (see Answer) |
 | [010: Final technical verification and independent review](issues/010-final-technical-verification.md) | ready-for-agent | 009 | Full combined gates and independent spec+standards review |
 | [011: Populated-workspace human acceptance](issues/011-populated-workspace-acceptance.md) | ready-for-human | 010 | User review of the checked candidate across the complete review matrix |
 
@@ -57,6 +57,8 @@ complete before 013 can close. These additions do not
 block 010/011. Publication does not claim implementation or browser evidence.
 
 ## Evidence and decisions
+
+- 009: Saved accepted edits and saved Undo results survive an actual reload of the same saved project (exact document, revision, project identity, rendered scene and mounted-document re-save/Undo proof); nine reload/Undo mutants killed by their intended messages. The complete runner still fails later at the unrelated Case collision control, so no full smoke pass is claimed. See [009](issues/009-verify-reload-persistence.md#answer).
 
 - 016: Completed the bounded 40-record source audit; four acknowledged delivery gaps and explicit unverified areas remain. No ADR or implementation changes. See [016](issues/016-audit-adr-decisions.md#answer).
 
