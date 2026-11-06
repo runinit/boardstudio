@@ -49,6 +49,7 @@ or 011 unless the user says so.
 | [015: Decide headings for other y-symmetric parts](issues/015-decide-y-symmetric-part-headings.md) | resolved | none | Decided 2026-11-06: keep `180 - r`; no change |
 | [016: Audit ADR decisions](issues/016-audit-adr-decisions.md) | resolved | none | All 40 indexed primary decisions audited; delivery gaps and uncertainties recorded |
 | [020: Export split firmware with either half as central](issues/020-split-firmware-either-half-central.md) | ready-for-agent | none | ADR-0026 delivery: right or left central without reordering logical keys |
+| [021: Stop repeated save Toasts](issues/021-repeated-save-toasts.md) | needs-triage | none | Investigate reported Toast floods during zooming and routine interaction |
 
 For the build-update addition, 013 remains the decision-owning umbrella; 017 is
 the specification, 018 is complete, and 019 is now unblocked. Both children must
