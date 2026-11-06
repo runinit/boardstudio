@@ -17,7 +17,7 @@ neither is deferred to a separate cleanup ticket.
 
 | Ticket | Status | Blocked by | Delivers |
 | --- | --- | --- | --- |
-| [002: Diagnose MCU rotation](issues/002-diagnose-mcu-rotation.md) | ready-for-agent | none | Actual reproduction, minimized fixture and demonstrated cause |
+| [002: Diagnose MCU rotation](issues/002-diagnose-mcu-rotation.md) | needs-info | none | Actual reproduction, minimized fixture and demonstrated cause |
 | [003: Resolve the diagnosed MCU symptom](issues/003-resolve-mcu-orientation.md) | ready-for-agent | 002 | Evidence-backed correction and original-scenario verification |
 | [004: Restore placement and Relationships](issues/004-restore-placement-relationships.md) | ready-for-agent | none | Facts beside fields, navigation/highlighting and meaningful split-focus proof |
 | [005: Restore nonduplicated scope actions](issues/005-restore-scope-actions.md) | ready-for-agent | none | Matrix/Row/Column actions and guidance transitions without competing popups |
