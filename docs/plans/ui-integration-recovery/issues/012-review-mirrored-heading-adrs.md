@@ -76,6 +76,11 @@ review, not decided here.
 - [ ] Say which ADRs, if any, are outdated beyond heading rules where the review
   happens to show it, without widening the review into a full ADR audit. Propose
   that audit as a separate ticket if the evidence warrants it.
+- [ ] Present the rules as one table by part class (key switch, controller,
+  other independent part such as a facing-outward connector) and source heading,
+  with the reason each class differs, so a reader no longer has to combine three
+  separate statements. Cover companions (diode, LED) only as far as the review
+  touches them.
 - [ ] Propose exact ADR amendments, following the existing amendment style and
   [domain docs](../../../agents/domain.md) rules. Historical text stays; new
   decisions are dated amendments, not silent rewrites.
@@ -95,3 +100,12 @@ the user approves them; if approved here, record them in a comment.
   It does. An earlier version of this ticket wrongly called Core's `-r` a defect
   at 90 and 270, using `180 - r` as the true mirror; that was my error and is
   corrected above. No fix ticket is needed.
+- 2026-11-06: The user found the rules confusing because they differ by part and by
+  source placement, and said (comment on the 90/270 analysis, quoted): "an MCU placed
+  facing up should not be rotated (0 degrees vs -0 degrees).. at 180 degrees it ALSO
+  should be rotated, we care about the x axis mirror only for components.. keyswitches
+  are handled differently". The "ALSO should be rotated" wording is ambiguous (possibly
+  "should not be"); pending the user's confirmation it is read as: components mirror
+  position across the X axis only, a controller at 0 or 180 keeps its heading, and
+  keyswitches follow their own rule. That matches Core at 0 and 180. The 180 case is
+  an open question for the user.
