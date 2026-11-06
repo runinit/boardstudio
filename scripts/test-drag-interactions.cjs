@@ -311,20 +311,20 @@ async function setSlider(page, name, target) {
     await collisionPage.getByRole('button', { name: 'Check collisions', exact: true }).click();
     // Finished means the pending status is gone and the check produced findings or errors.
     await collisionPage.waitForFunction(() => {
-      const panel = document.querySelector('.m1-case-collision-checks');
+      const panel = document.querySelector('[aria-label="Collision check"]')?.closest('[data-slot=collapsible]');
       return panel && !panel.querySelector('[role="status"]')
-        && [...panel.querySelectorAll('p')].some(element => element.textContent.includes('↔') || element.getAttribute('role') === 'alert');
+        && (panel.querySelector('[role="alert"]') || [...panel.querySelectorAll('p')].some(element => element.textContent.includes('↔')));
     }, null, { timeout: 120000 });
     const collisionMs = Date.now() - startedMs;
     const layout = await collisionPage.evaluate(() => {
-      const panel = document.querySelector('.m1-case-collision-checks');
-      const container = panel.closest('.m1-case-panel');
+      const panel = document.querySelector('[aria-label="Collision check"]').closest('[data-slot=collapsible]');
+      const container = panel.closest('section[aria-label="Case assembly"]');
       const viewer = document.querySelector('[aria-label^="Interactive 3D Case preview"]');
       const box = element => { const { x, y, width, height } = element.getBoundingClientRect(); return { x, y, width, height }; };
-      const outside = element => !element.closest('.m1-case-collision-provenance');
+      const outside = element => element.closest('[data-slot=collapsible]') === panel;
       return {
-        alerts: [...panel.querySelectorAll('p[role="alert"]')].map(element => element.textContent),
-        findings: [...panel.querySelectorAll('p:not([role="alert"])')]
+        alerts: [...panel.querySelectorAll('[role="alert"]')].map(element => element.textContent),
+        findings: [...panel.querySelectorAll('p')]
           .filter(element => outside(element) && element.textContent.includes('↔')).map(element => element.textContent),
         panel: { ...box(panel), scrollHeight: panel.scrollHeight, clientHeight: panel.clientHeight,
           overflowY: getComputedStyle(panel).overflowY },

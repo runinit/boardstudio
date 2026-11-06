@@ -71,14 +71,14 @@ module.exports = async function qualificationPageScenario(context, baseUrl, unav
       await page.evaluate(() => { window.collisionPreparations = []; });
       await page.getByRole('button', { name: button, exact: true }).click();
       await page.waitForFunction(() => {
-        const panel = document.querySelector('.m1-case-collision-checks');
+        const panel = document.querySelector('[aria-label="Collision check"]')?.closest('[data-slot=collapsible]');
         return panel && !panel.querySelector('[role="status"]') && panel.textContent.includes('↔');
       }, null, { timeout: 120000 });
-      const panel = page.locator('.m1-case-collision-checks');
-      const summaries = await panel.locator('p').evaluateAll(nodes => nodes.filter(node => !node.closest('.m1-case-collision-provenance')
+      const panel = page.getByRole('button', { name: 'Collision check', exact: true }).locator('xpath=ancestor::*[@data-slot="collapsible"][1]');
+      const summaries = await panel.locator('p').evaluateAll(nodes => nodes.filter(node => node.closest('[data-slot=collapsible]') === document.querySelector('[aria-label="Collision check"]').closest('[data-slot=collapsible]')
         && node.textContent.includes('↔')).map(node => node.textContent));
       const alerts = await panel.locator('[role="alert"]').allTextContents();
-      const provenance = await panel.locator('.m1-case-collision-provenance').allTextContents();
+      const provenance = await panel.locator('[data-slot=collapsible]:has(> [aria-label="Witness identity"])').allTextContents();
       const preparations = await page.evaluate(() => window.collisionPreparations);
       return { summaries, alerts, provenance, preparations };
     }
@@ -118,7 +118,7 @@ module.exports = async function qualificationPageScenario(context, baseUrl, unav
     await page.getByRole('button', { name: 'Check collisions', exact: true }).click();
     await page.getByRole('button', { name: 'Cancel check', exact: true }).click();
     await page.waitForTimeout(500);
-    assert.equal(await page.locator('.m1-case-collision-checks').locator('p').filter({ hasText: '↔' }).count(), 0,
+    assert.equal(await page.getByRole('button', { name: 'Collision check', exact: true }).locator('xpath=ancestor::*[@data-slot="collapsible"][1]').locator('p').filter({ hasText: '↔' }).count(), 0,
       'cancelled real page run cannot publish old findings');
     assert.deepEqual(errors, []);
     return { defaults, tight };
