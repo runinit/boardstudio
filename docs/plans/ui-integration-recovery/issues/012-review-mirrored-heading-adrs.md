@@ -142,6 +142,7 @@ and a pointer in ADR-0039. ADR-0010's earlier text is unchanged.
 **Not done.** The imprecise comments above remain; this ticket changes no code. Correcting
 them is a one-line wording fix at five sites and can ride along with any change to those
 files. Whether `180 - r` is right for other parts symmetric about local y (screen,
-encoder) is not decided; ADR-0010's own 2026-10-10 verification note raises it. No wider
+encoder) was decided afterwards in [015](015-decide-y-symmetric-part-headings.md):
+keep `180 - r` (user, 2026-11-06). No wider
 ADR audit is proposed: the review found the other heading statements consistent with Core,
 but I did not check ADRs outside the mirrored-heading rules.

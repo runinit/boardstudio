@@ -33,11 +33,15 @@ This slice alone does not satisfy the umbrella's chosen complete interaction.
   origin while A remains open: actual waiting installation must produce the
   production notice. Keep this fixture usable by 019 without clearing caches.
   Record loaded A and waiting B identities independently.
-- [ ] Decide whether nearly-free running version/time display is supported by
-  actual loaded-build metadata; include accurate text or record its omission.
-  Do not call the waiting/server identity the running identity.
-- [ ] Record dismissal scope as an unresolved assumption if not settled; do not
-  invent cross-session persistence or a reminder schedule.
+- [ ] Running version/time display (user: drop it if it needs plumbing): include
+  only if actual loaded-build metadata makes it nearly free; otherwise record its
+  omission. Do not call the waiting/server identity the running identity.
+- [ ] Dismissal (user, 2026-11-06): dismissing the Toast does not reload and moves
+  the notice to the **header bar**, which keeps showing the waiting update for as long
+  as it waits. Derive it from the real waiting worker; store nothing about dismissal,
+  and record the assumption that the Toast shows again on the next page load. The
+  header notice must not offer a working "Update Now" until 019 delivers it; show the
+  state only, with no misleading enabled no-op.
 
 ## Verification and completion
 

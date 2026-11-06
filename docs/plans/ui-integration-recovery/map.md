@@ -46,7 +46,7 @@ or 011 unless the user says so.
 | [018: Notify the editor when a build is waiting](issues/018-notify-waiting-build.md) | ready-for-agent | none | Real waiting installation to persistent dismissible Toast, with mounted and packaged RED/GREEN |
 | [019: Adopt the waiting build through protected Refresh](issues/019-adopt-build-safely.md) | ready-for-agent | 018 | Refresh with work/cache protection and real A-to-B adoption evidence |
 | [014: Correct controller heading comments](issues/014-correct-controller-heading-comments.md) | resolved | none | Describe plain reflection accurately without changing Core behavior |
-| [015: Decide headings for other y-symmetric parts](issues/015-decide-y-symmetric-part-headings.md) | needs-info | none | User decision for screens, encoders and other y-symmetric parts |
+| [015: Decide headings for other y-symmetric parts](issues/015-decide-y-symmetric-part-headings.md) | resolved | none | Decided 2026-11-06: keep `180 - r`; no change |
 | [016: Audit ADR decisions](issues/016-audit-adr-decisions.md) | claimed | none | Bounded source review of each indexed ADR primary decision |
 | [020: Export split firmware with either half as central](issues/020-split-firmware-either-half-central.md) | ready-for-agent | none | ADR-0026 delivery: right or left central without reordering logical keys |
 

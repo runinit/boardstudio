@@ -16,23 +16,28 @@ notification and A/B fixture; it does not depend on unrelated recovery tickets.
 
 ## Acceptance criteria
 
-- [ ] Add the action through the existing shared control/notification seam.
+- [ ] The action is labelled **"Update Now"** and is clickable text in the Toast and
+  in the persistent header notice that 018 shows after dismissal (user, 2026-11-06).
+  Add it through the existing shared control/notification seam.
   Refresh uses real waiting state and rechecks safety at activation. Avoid
   duplicate adoption from repeated activation or stale notifications.
 - [ ] Inventory the relevant Draft value, Pending edit and local-save owners.
   Warn before reload and offer cancellation when work is at risk. Cancellation
   preserves the editor and values; pending or failed save never counts as safe.
-  A warning acknowledgment alone is not permission to discard work. If safe
-  preservation is unavailable, defer with an explanation and record the gap.
+  A warning acknowledgment alone is not permission to discard work. The user
+  decided on 2026-11-06 that unsaved drafts that cannot yet be saved **defer the
+  update** until the user resolves them; explain that and record any gap in detecting
+  them.
 - [ ] Demonstrate safe refresh after work settles and saves, with the same saved
   project reopened. Do not equate the header save label with complete draft safety.
 - [ ] Preserve ordinary delayed activation and other open editors' offline assets.
   Document the adoption/cache mechanism before applying it; the current activation
   cleanup removes old scoped caches, so forced activation with unchanged cleanup
   is insufficient. Add a dated ADR-0022 amendment for any policy refinement.
-- [ ] When another editor prevents safe adoption, preserve it and explain the
-  obstacle. If choosing the next interaction requires a new product decision,
-  record that exact blocker rather than silently force, close or reload other tabs.
+- [ ] When another editor prevents safe adoption, preserve it and tell the user to
+  close other open tabs (user, 2026-11-06: wording like "Please close any other open
+  tabs"). Never silently force, close or reload other tabs. Any further interaction
+  that needs a new product decision is recorded as an exact blocker.
 - [ ] Mounted production tests drive Refresh, warning/cancel and pending/failure
   states. Shared Toast tests cover action reachability, Tab/Enter/Space, focus
   after cancellation, normal/reduced motion and Theme/Appearance/narrow layouts.
@@ -49,7 +54,7 @@ notification and A/B fixture; it does not depend on unrelated recovery tickets.
   scenario after implementation, plus mounted safety controls. Do not clear caches,
   unregister workers or replace real lifecycle with mocks to obtain GREEN.
 - [ ] Record whether optional running version/time display was included or omitted
-  under 013's nearly-free assumption. Any shown identity belongs to the loaded page.
+  (user: drop it if it needs plumbing). Any shown identity belongs to the loaded page.
   Reconcile 013's acceptance list with evidence without closing 010/011 or claiming
   historical stale-build causation.
 

@@ -242,6 +242,10 @@ the controller rule as "keeping the world heading" is true only at 0 and 180 and
 used. The general `180 - r` rule is that same reflection plus a half turn, which is why it
 applies to parts that face an edge and not to a controller.
 
+The user confirmed on 2026-11-06 that screens, encoders and every other independent part
+besides controllers keep `180 - r` for now, even where a part is symmetric about its local y
+axis; this can be revisited, and a reversible-footprint flip is not specified.
+
 An anchored part's carried rotation follows the same split: `-rotation` for a controller and
 `-rotation + 180` for every other part ([ADR-0040](0040-part-anchoring-column-vocabulary.md)).
 The rule is implemented once, in `mirrored_part_heading`

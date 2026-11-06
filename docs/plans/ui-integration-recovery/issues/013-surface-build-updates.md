@@ -57,6 +57,22 @@ can overrule any of them:
   not requested; include it only where it is nearly free, for example in the
   notification text, and say so in the ticket.
 
+### Later answers (user, 2026-11-06)
+
+These answer the four questions raised in [017](017-build-update-spec.md) and supersede
+the working assumptions above where they differ:
+
+1. The notification can be dismissed and offers **"Update Now"** as clickable text.
+   Once dismissed, the **header bar** shows the update notification and keeps it for as
+   long as the update is waiting (persists). The action is "Update Now", not a button
+   labelled refresh.
+2. When another open editor blocks adoption, the user is told something like
+   **"Please close any other open tabs"**. Other tabs are never forced closed or reloaded.
+3. Unsaved draft values that cannot yet be saved: **yes, defer the update** until the
+   user resolves them.
+4. Running version/time display: **drop it** if it needs real plumbing. Include it only
+   if actual loaded-build metadata makes it nearly free; record the omission otherwise.
+
 ## Acceptance criteria
 
 - [ ] The notification and its refresh button behave as in Decisions; any
@@ -93,3 +109,8 @@ so.
 
 - 2026-11-06: Published children 018 (unblocked) and 019 (blocked by 018).
   All original choices and assumptions remain; open questions are in 017.
+
+- 2026-11-06: The user answered 017's four open questions (see Later answers under
+  Decisions): dismissible toast with "Update Now" and a persistent header indicator
+  after dismissal; "Please close any other open tabs" when blocked; defer for
+  unresolved drafts; drop build identity if it needs plumbing. 018 and 019 updated.

@@ -1,6 +1,6 @@
 # 015: Decide headings for other y-symmetric parts
 
-Status: needs-info
+Status: resolved
 Type: decision
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -44,3 +44,15 @@ Compare representative headings at 0, 90, 180 and 270 degrees with the chosen ph
 
   No ADR or Core change until that is answered; then a follow-up ticket would change
   `mirrored_part_heading` from a controller flag to a part class and amend ADR-0010.
+- 2026-11-06: The user answered: "you know what just leave this as 180 - r right now".
+  This supersedes the earlier reading in the comment above: screens, encoders and
+  every other non-controller, non-switch independent part keep `180 - r`. Core and
+  ADR-0010 are unchanged. The reversible-footprint flip stays an unspecified possible
+  later refinement.
+
+## Answer
+
+Keep `180 - r` for all independent parts other than controllers (plain reflection `-r`)
+and key switches (`-r` tilt); decided by the user on 2026-11-06 "right now", so it may be
+revisited. No code or ADR change is required. The earlier edge-facing-part question is
+moot.
