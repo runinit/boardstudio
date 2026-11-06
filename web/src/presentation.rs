@@ -9107,7 +9107,7 @@ fn Editor() -> Element {
                 }
                 }
             }
-            footer { class: "shell-footer", aria_label: "Canvas status",
+            footer { class: "shell-footer", hidden: active_workspace == "Export", aria_label: "Canvas status",
                 boardstudio_web_ui_shared::ui::toolbar::Toolbar { class: "shell-history", aria_label: "Footer edit history",
                     boardstudio_web_ui_shared::ui::toolbar::ToolbarButton { index: 0usize, aria_label: "Undo", on_click: move |_| undo.submit(Event::Undo { operation_id: undo.operation() }), "Undo" }
                     boardstudio_web_ui_shared::ui::toolbar::ToolbarButton { index: 1usize, aria_label: "Redo", on_click: move |_| redo.submit(Event::Redo { operation_id: redo.operation() }), "Redo" }

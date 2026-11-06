@@ -11,6 +11,7 @@
   color: var(--muted-foreground);
   font-size: 14px;
 }
+.shell-footer[hidden] { display: none; }
 .shell-footer [data-slot='toolbar'] { background: transparent; box-shadow: none; padding: 0; flex-shrink: 0; }
 .shell-footer [data-slot='toolbar-button'], .shell-footer [data-slot='button'] { min-height: var(--control-compact); padding: 0 6px; color: var(--foreground); }
 .shell-footer [data-slot='toolbar-button']:hover:not(:disabled), .shell-footer [data-slot='button']:hover:not(:disabled) { background: var(--accent); }
