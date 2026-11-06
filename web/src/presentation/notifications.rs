@@ -181,11 +181,17 @@ mod tests {
     /// Scripted registration signals for the mounted update seam. Production
     /// uses the real [`ServiceWorkerRegistration`](web_sys::ServiceWorkerRegistration)
     /// implementation; the packaged A-then-B scenario proves that end.
+    /// Stopped watchers are detached from the list, mirroring how the
+    /// production guard removes its event listeners: a replaced listener can
+    /// no longer emit.
+    type Watchers = Rc<RefCell<Vec<Option<Rc<dyn Fn()>>>>>;
+
     #[derive(Clone)]
     struct FakeUpdateSignals {
         snapshot: Rc<RefCell<UpdateSnapshot>>,
-        watchers: Rc<RefCell<Vec<Rc<dyn Fn()>>>>,
+        watchers: Watchers,
         stopped: Rc<Cell<bool>>,
+        dropped: Rc<Cell<bool>>,
     }
 
     impl FakeUpdateSignals {
@@ -194,30 +200,48 @@ mod tests {
                 snapshot: Rc::new(RefCell::new(snapshot)),
                 watchers: Rc::new(RefCell::new(Vec::new())),
                 stopped: Rc::new(Cell::new(false)),
+                dropped: Rc::new(Cell::new(false)),
             }
         }
 
         fn set(&self, snapshot: UpdateSnapshot) {
             *self.snapshot.borrow_mut() = snapshot;
-            for watcher in self.watchers.borrow().iter() {
+            for watcher in self.watchers.borrow().iter().flatten() {
                 watcher();
             }
+        }
+
+        fn listener_count(&self) -> usize {
+            self.watchers.borrow().iter().flatten().count()
         }
     }
 
     struct FakeUpdateWatch {
+        signals: Watchers,
+        index: usize,
         stopped: Rc<Cell<bool>>,
+        dropped: Rc<Cell<bool>>,
     }
 
     impl UpdateWatch for FakeUpdateWatch {
         fn stop(&mut self) {
+            // Detach this listener so it can no longer emit, then record the
+            // explicit stop separately from the eventual drop.
+            if let Some(slot) = self.signals.borrow_mut().get_mut(self.index) {
+                slot.take();
+            }
             self.stopped.set(true);
         }
     }
 
     impl Drop for FakeUpdateWatch {
         fn drop(&mut self) {
-            self.stopped.set(true);
+            // Detach like the production guard's listener removal, then
+            // record the drop: after owner drop no listener may remain.
+            if let Some(slot) = self.signals.borrow_mut().get_mut(self.index) {
+                slot.take();
+            }
+            self.dropped.set(true);
         }
     }
 
@@ -227,26 +251,81 @@ mod tests {
         }
 
         fn watch(&self, on_change: Rc<dyn Fn()>) -> Box<dyn UpdateWatch> {
-            self.watchers.borrow_mut().push(on_change);
+            let mut watchers = self.watchers.borrow_mut();
+            watchers.push(Some(on_change));
             Box::new(FakeUpdateWatch {
+                signals: self.watchers.clone(),
+                index: watchers.len() - 1,
                 stopped: self.stopped.clone(),
+                dropped: self.dropped.clone(),
             })
         }
     }
 
-    fn update_root(runtime: &Rc<Runtime>) -> web_sys::Element {
+    fn update_root(
+        runtime: &Rc<Runtime>,
+        make: fn() -> Element,
+    ) -> (web_sys::Element, Rc<Cell<Option<Signal<bool>>>>) {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        let dom = VirtualDom::new(fixture);
+        let dom = VirtualDom::new(make);
         dom.provide_root_context(runtime.clone());
         let visibility = Rc::new(Cell::new(None::<Signal<bool>>));
-        dom.provide_root_context(visibility);
+        dom.provide_root_context(visibility.clone());
         dioxus_web::launch::launch_virtual_dom(
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        root
+        (root, visibility)
+    }
+
+    /// The real production shell: `Header` (which owns the workspace
+    /// navigation in production) beside the real notification bridge. Only
+    /// the state atoms the shell itself owns (version, workspace, preference
+    /// signals) are provided; every rendered control is production code.
+    /// Mounting the full `WorkbenchApp` is not possible here: it creates its
+    /// own `Runtime` and production wires observation inside `Runtime::new`
+    /// behind cfg gates, so scripted registration signals could never reach
+    /// that runtime. `Header` reads no contexts; its `ThemePicker` slot is
+    /// fed by the same preference signals production provides.
+    fn production_shell_fixture() -> Element {
+        let runtime = use_context::<Rc<Runtime>>();
+        let version = use_signal(|| 0u64);
+        let workspace = use_signal(|| "Layout");
+        let settings_open = use_signal(|| false);
+        let palette_open = use_signal(|| false);
+        use_context_provider(|| version);
+        let preference_warning = use_signal(|| false);
+        use_context_provider(|| super::super::PreferenceStorageWarning(preference_warning));
+        let appearance = use_signal(|| "light");
+        use_context_provider(|| super::super::AppearanceState(appearance));
+        let theme = use_signal(|| "original");
+        use_context_provider(|| super::super::ThemeState(theme));
+        use_hook(move || {
+            runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                let next = *version.peek() + 1;
+                version.set(next);
+            }));
+        });
+        rsx! {
+            NotificationProvider { RuntimeNotifications {} }
+            super::super::header::Header {
+                project_menu: rsx! {},
+                workspace,
+                show_workspaces: true,
+                has_project: true,
+                save_state: "saved",
+                settings_open,
+                palette_open,
+                on_search: EventHandler::new(move |_| {}),
+                on_undo: EventHandler::new(move |_| {}),
+                on_redo: EventHandler::new(move |_| {}),
+                on_export: EventHandler::new(move |_| {}),
+                panel_controls: rsx! {},
+            }
+        }
     }
 
     fn location_href() -> String {
@@ -266,7 +345,7 @@ mod tests {
             installing: false,
             controlled: true,
         });
-        let root = update_root(&runtime);
+        let (root, _) = update_root(&runtime, fixture);
         let document = web_sys::window().unwrap().document().unwrap();
         let focused_before = document.active_element();
         let href_before = location_href();
@@ -281,6 +360,11 @@ mod tests {
             Some("true"),
             "the notice is one atomic announcement"
         );
+        // Reduced-motion behavior is proven in the packaged browser run by
+        // emulating `prefers-reduced-motion` and observing the rendered
+        // notice (computed style carries no animation/transition and the
+        // control stays fully operable); no motion-dependent code path exists
+        // to unit-test here.
         assert_eq!(
             document.active_element(),
             focused_before,
@@ -316,6 +400,18 @@ mod tests {
             "repeated observations and rerenders never duplicate the notice"
         );
         TimeoutFuture::new(6_000).await;
+        let leftovers = all_by_role_name(
+            &root,
+            "status",
+            "A transient result still expires on its own",
+        );
+        assert!(
+            !leftovers.is_empty()
+                && leftovers
+                    .iter()
+                    .all(|toast| !toast.has_attribute("data-type")),
+            "the transient result Toast expires while the inline persistent report stays"
+        );
         assert!(
             by_role_name(&root, "status", "Update Available").is_some(),
             "the update notice outlives the normal five-second Toast expiry"
@@ -352,7 +448,7 @@ mod tests {
             installing: true,
             controlled: true,
         });
-        let root = update_root(&runtime);
+        let (root, _) = update_root(&runtime, fixture);
         runtime.observe_update_waiting(Rc::new(signals.clone()));
         TimeoutFuture::new(1_000).await;
         assert!(
@@ -413,7 +509,7 @@ mod tests {
             let (runtime, _, _) = support::fixture().await;
             runtime.take_notifications();
             let signals = FakeUpdateSignals::new(first);
-            let root = update_root(&runtime);
+            let (root, _) = update_root(&runtime, fixture);
             runtime.observe_update_waiting(Rc::new(signals.clone()));
             if let Some(next) = second {
                 signals.set(next);
@@ -428,6 +524,89 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
+    async fn mounted_production_workspace_switch_keeps_one_notice() {
+        let (runtime, _, _) = support::fixture().await;
+        runtime.take_notifications();
+        let signals = FakeUpdateSignals::new(UpdateSnapshot {
+            waiting: true,
+            installing: false,
+            controlled: true,
+        });
+        let (root, _) = update_root(&runtime, production_shell_fixture);
+        runtime.observe_update_waiting(Rc::new(signals));
+        wait_until("the waiting update notice mounts", || {
+            by_role_name(&root, "status", "Update Available").is_some()
+        })
+        .await;
+        by_role_name(&root, "button", "Open PCB workspace")
+            .unwrap()
+            .click();
+        wait_until("the production control marks PCB current", || {
+            by_role_name(&root, "button", "Open PCB workspace").is_some_and(|button| {
+                button.get_attribute("aria-current").as_deref() == Some("page")
+            })
+        })
+        .await;
+        TimeoutFuture::new(500).await;
+        assert_eq!(
+            all_by_role_name(&root, "status", "Update Available").len(),
+            1,
+            "switching workspaces through the production control does not duplicate the notice"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_bridge_unmount_remount_shows_a_single_notice() {
+        let (runtime, _, _) = support::fixture().await;
+        runtime.take_notifications();
+        let signals = FakeUpdateSignals::new(UpdateSnapshot {
+            waiting: true,
+            installing: false,
+            controlled: true,
+        });
+        let (root, visibility) = update_root(&runtime, fixture);
+        runtime.observe_update_waiting(Rc::new(signals.clone()));
+        wait_until("the waiting update notice mounts", || {
+            by_role_name(&root, "status", "Update Available").is_some()
+        })
+        .await;
+        let mut visible = visibility.get().expect("the fixture shares its visibility");
+        visible.set(false);
+        wait_until(
+            "the production bridge unmounts with the notice live",
+            || by_role_name(&root, "status", "Notifications unmounted").is_some(),
+        )
+        .await;
+        assert!(
+            by_role_name(&root, "status", "Update Available").is_none(),
+            "unmounting the bridge removes the live notice"
+        );
+        signals.set(UpdateSnapshot {
+            waiting: false,
+            installing: false,
+            controlled: true,
+        });
+        signals.set(UpdateSnapshot {
+            waiting: true,
+            installing: false,
+            controlled: true,
+        });
+        visible.set(true);
+        wait_until("the remounted bridge shows the waiting notice", || {
+            by_role_name(&root, "status", "Update Available").is_some()
+        })
+        .await;
+        TimeoutFuture::new(500).await;
+        assert_eq!(
+            all_by_role_name(&root, "status", "Update Available").len(),
+            1,
+            "remounting the production bridge shows exactly one notice"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn update_observation_replaces_listeners_without_stacking() {
         let (runtime, _, _) = support::fixture().await;
         let idle = UpdateSnapshot {
@@ -435,15 +614,62 @@ mod tests {
             installing: false,
             controlled: true,
         };
+        let waiting = UpdateSnapshot {
+            waiting: true,
+            installing: false,
+            controlled: true,
+        };
         let first = FakeUpdateSignals::new(idle);
         let second = FakeUpdateSignals::new(idle);
         runtime.observe_update_waiting(Rc::new(first.clone()));
         assert!(!first.stopped.get());
+        assert_eq!(
+            first.listener_count(),
+            1,
+            "observation installs exactly one listener"
+        );
+        first.set(waiting);
+        assert!(
+            runtime.update_waiting(),
+            "the first listener drives the waiting state while attached"
+        );
         runtime.observe_update_waiting(Rc::new(second.clone()));
         assert!(
+            !runtime.update_waiting(),
+            "the replacement observation re-applies its own snapshot"
+        );
+        assert!(
             first.stopped.get(),
-            "replacing the observer must stop the previous listeners"
+            "replacing the observer must explicitly stop the previous listeners"
+        );
+        assert!(first.dropped.get(), "the replaced guard is released");
+        assert_eq!(
+            first.listener_count(),
+            0,
+            "the replaced signals keep no listeners behind"
+        );
+        first.set(waiting);
+        assert!(
+            !runtime.update_waiting(),
+            "the stopped listener no longer emits: replacing never stacks observations"
+        );
+        second.set(waiting);
+        assert!(
+            runtime.update_waiting(),
+            "the live listener still drives the waiting state"
         );
         assert!(!second.stopped.get());
+        assert!(!second.dropped.get());
+        let released = second.dropped.clone();
+        drop(runtime);
+        assert!(
+            released.get(),
+            "dropping the owning runtime releases its observer"
+        );
+        assert_eq!(
+            second.listener_count(),
+            0,
+            "no listeners survive the owner drop, so nothing can emit afterwards"
+        );
     }
 }

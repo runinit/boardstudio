@@ -46,8 +46,8 @@ pub trait UpdateSignals: 'static {
     fn snapshot(&self) -> crate::offline::UpdateSnapshot;
     /// Call `on_change` whenever the registration or its installing worker
     /// changes state, so the caller can re-snapshot and re-apply the rule.
-    /// Replaces nothing: the caller owns the returned guard and drops the
-    /// previous one, so repeated observations never stack listeners.
+    /// Keeps no registry itself: the caller owns the returned guard and drops
+    /// the previous one, so repeated observations never stack listeners.
     fn watch(&self, on_change: Rc<dyn Fn()>) -> Box<dyn UpdateWatch>;
 }
 
@@ -58,9 +58,9 @@ pub trait UpdateWatch {
 }
 
 /// Read the live signals of a real registration. A waiting worker counts only
-/// together with a controller (see [`crate::offline::is_update_waiting`): a
+/// together with a controller (see [`crate::offline::is_update_waiting`]): a
 /// waiting worker on an uncontrolled page is the initial install, not an update.
-pub fn snapshot_registration(
+fn snapshot_registration(
     registration: &ServiceWorkerRegistration,
 ) -> crate::offline::UpdateSnapshot {
     let controlled = web_sys::window()
@@ -73,10 +73,16 @@ pub fn snapshot_registration(
     }
 }
 
+/// Shared slot for the currently tracked installing worker and its
+/// `statechange` listener. The `updatefound` closure moves a clone so it can
+/// re-point the slot without borrowing the guard that owns the closure.
+type InstallingSlot =
+    Rc<std::cell::RefCell<Option<(ServiceWorker, Closure<dyn FnMut(web_sys::Event)>)>>>;
+
 struct RegistrationWatch {
     registration: ServiceWorkerRegistration,
     updatefound: Option<Closure<dyn FnMut(web_sys::Event)>>,
-    installing: Rc<std::cell::RefCell<Option<(ServiceWorker, Closure<dyn FnMut(web_sys::Event)>)>>>,
+    installing: InstallingSlot,
 }
 
 /// Point the shared installing slot at the registration's current installing
@@ -85,7 +91,7 @@ struct RegistrationWatch {
 /// caller re-snapshots and applies the waiting rule instead.
 fn track_installing(
     registration: &ServiceWorkerRegistration,
-    slot: &Rc<std::cell::RefCell<Option<(ServiceWorker, Closure<dyn FnMut(web_sys::Event)>)>>>,
+    slot: &InstallingSlot,
     on_change: &Rc<dyn Fn()>,
 ) {
     if let Some((worker, statechange)) = slot.borrow_mut().take() {
