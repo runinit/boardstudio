@@ -30,26 +30,35 @@ Known starting facts, each to be re-verified rather than trusted:
 
 ## Decision so far (user, 2026-11-06)
 
-Asked whether a controller at 90 or 270 degrees is mirrored as well, the user
-answered yes. Read as "a controller at 90 or 270 takes the ordinary mirrored
-heading", that answer conflicts with Core as shipped. Headings in degrees, for a
-mirror across the vertical axis:
+The user asked whether a controller at 90 or 270 degrees is mirrored as well, and
+that a source MCU at 90 ends at -90 because it is mirrored. That is correct, and
+it is what Core does. Reflecting a part across the vertical axis maps its frame
+rotation `r` to `-r` when the part is symmetric about its own local y axis, as an
+MCU is left to right. Checked numerically (reflect the placed footprint, then match
+it to a rotated copy): the mirrored MCU is at `-r` at every heading.
 
-| Source `r` | Geometric mirror `180 - r` (ADR-0010 general rule) | Core controller `-r` | World heading `r` |
-| --- | --- | --- | --- |
-| 0 | 180 | 0 | 0 |
-| 90 | 90 | **270** | 90 |
-| 180 | 0 | 180 | 180 |
-| 270 | 270 | **90** | 270 |
+| Source `r` | Mirrored MCU (reflection, and Core's controller rule `-r`) | ADR-0010 general rule `180 - r` |
+| --- | --- | --- |
+| 0 | 0 | 180 |
+| 90 | 270 (-90) | 90 |
+| 180 | 180 | 0 |
+| 270 | 90 (-270) | 270 |
 
-At 0 and 180 the controller exception deliberately keeps both halves on one
-heading (for example both MCUs pin-1 up). At 90 and 270 the geometric mirror and
-the world heading coincide, so the user's answer and "keep the world heading"
-agree there, and Core's `-r` turns the mirror 180 degrees away from both. The
-unit test at `core/src/mechanical/pair.rs:292` pins `-r` at all four headings.
-The single rule that satisfies the exception at 0/180 and the answer at 90/270
-is "a controller keeps its source heading `r`". This has not been run in the app
-and the interpretation is unconfirmed; no code was changed.
+So Core's controller rule is the true reflection, and `180 - r` adds a further
+half turn. `180 - r` suits parts whose facing direction is local +x (a TRRS jack
+or side reset button facing outward); it does not describe a part symmetric about
+local y. The unit test at `core/src/mechanical/pair.rs:292` pins `-r` and is
+consistent with the user's answer. No Core change is indicated.
+
+What is wrong is documentation wording: code comments, commit `40df01155` and
+ticket 12 say controllers "keep the world heading" or "share the same heading".
+That holds only at 0 and 180; at 90 and 270 the mirror is 180 degrees from the
+source in world terms, as a mirror image is. The ADR-0010 amendment should state
+the controller rule as the plain reflection `-r`, with no extra half turn, and say
+why. ADR-0010's own verification note (2026-10-10) already observes that
+`180 - r` without a flip turns a part rather than mirroring it; whether the general
+rule needs revisiting for other y-symmetric parts is a separate question for this
+review, not decided here.
 
 ## Acceptance criteria
 
@@ -82,5 +91,7 @@ the user approves them; if approved here, record them in a comment.
 - 2026-11-06: Added at the user's request after reviewing the 002 hand-off:
   "i dont think the ADRs were updated correctly".
 - 2026-11-06: The user answered "yes" to whether a controller at 90 and 270
-  degrees is mirrored as well. The consequence above (Core's `-r` differs from it
-  at 90 and 270) is for the user to confirm before any fix ticket exists.
+  degrees is mirrored as well, and asked whether a source MCU at 90 ends at -90.
+  It does. An earlier version of this ticket wrongly called Core's `-r` a defect
+  at 90 and 270, using `180 - r` as the true mirror; that was my error and is
+  corrected above. No fix ticket is needed.
