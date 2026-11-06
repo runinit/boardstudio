@@ -15,7 +15,7 @@ pub fn close_project_menu() {
         return;
     };
     let Some(menu) = document
-        .query_selector("details.m1-project-menu")
+        .query_selector("details[data-project-menu]")
         .ok()
         .flatten()
     else {

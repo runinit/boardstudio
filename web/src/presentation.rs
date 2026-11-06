@@ -8841,7 +8841,7 @@ fn Editor() -> Element {
                     onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
                     defs {
                         pattern { id: "m1-layout-grid-small", width: "{canvas_grid.spacing_mm}", height: "{canvas_grid.spacing_mm}", pattern_units: "userSpaceOnUse",
-                            circle { cx: "0", cy: "0", r: "{canvas_grid.radius_mm}", fill: "var(--wb-grid-large)", stroke: "none" }
+                            circle { cx: "0", cy: "0", r: "{canvas_grid.radius_mm}", fill: "var(--grid-large)", stroke: "none" }
                         }
                     }
                     rect { x: "{view_x}", y: "{view_y}", width: "{width}", height: "{height}", fill: "url(#m1-layout-grid-small)" }

@@ -1,5 +1,5 @@
 /* Layout owns these two strips; their controls stay outside the transformed canvas. */
-.m1-canvas-toolbar:has(> .layout-toolbar-strips), .layout-toolbar-strips { pointer-events: none; }
+.layout-toolbar-strips { pointer-events: none; }
 .layout-scope-strip, .layout-action-strip, .layout-menu-actions { pointer-events: auto; }
 .layout-toolbar-strips { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; min-width: 0; container-type: inline-size; }
 .layout-scope-strip, .layout-context-strip { position: relative; display: flex; align-items: center; justify-content: center; gap: 4px; max-width: 100%; box-sizing: border-box; padding: 4px; border-radius: var(--radius); background: var(--toolbar); color: var(--foreground); }

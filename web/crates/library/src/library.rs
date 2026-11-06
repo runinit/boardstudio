@@ -1357,8 +1357,8 @@ mod mounted_tests {
         use_context_provider(|| new_error);
         if show_library() {
             rsx! {
-                details { class: "m1-project-menu", open: true,
-                    summary { "Project" }
+                details { "data-project-menu": "", open: true,
+                    summary { role: "button", "Project" }
                     Library { project_menu }
                 }
             }
@@ -2050,6 +2050,7 @@ mod mounted_tests {
 
         let copy = by_role_name(&root, "button", "Save project copy…")
             .expect("the Project menu exposes Save project copy");
+        let trigger = by_role_name(&root, "button", "Project").expect("project menu trigger");
         assert_eq!(copy.text_content().unwrap().trim(), "Save project copy…");
         assert!(
             !copy
@@ -2078,6 +2079,11 @@ mod mounted_tests {
         assert!(
             !menu.has_attribute("open"),
             "starting a project copy closes the menu"
+        );
+        assert_eq!(
+            web_sys::window().unwrap().document().unwrap().active_element(),
+            Some(trigger.into()),
+            "closing the project menu returns focus to its trigger"
         );
         remove_test_root("project-copy-mounted-regression");
     }
