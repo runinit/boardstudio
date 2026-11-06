@@ -404,6 +404,10 @@ fn seed_missing_independent_parts(
             &definition,
             &reference,
             mapping,
+            crate::mirrored_half::derive::is_controller(
+                &document.definitions,
+                &source.definition_id,
+            ),
         );
         document.parts.push(target);
         if !already_registered {
@@ -631,13 +635,6 @@ pub(crate) fn prepare_transaction_with_ledger(
     let mut draft = accepted.clone();
     let mut changed =
         apply_canonical(&mut draft, accepted, board_contours, &canonical, identities)?;
-    let lifecycle_before_resolution = matches!(
-        canonical.operation,
-        EditOperation::SetMechanical {
-            configuration: None,
-            target: Some(crate::mechanical::MechanicalTarget::Instance { .. }),
-        }
-    );
 
     if let Some(keymap) = &draft.keymap {
         crate::keymap::validate(keymap)?;
@@ -645,20 +642,15 @@ pub(crate) fn prepare_transaction_with_ledger(
     crate::electrical::preserve_handoff(accepted, &mut draft);
     crate::matrix::layout::validate(&draft)?;
 
-    if lifecycle_before_resolution {
-        changed.extend(prepare_lifecycle_pairs(accepted, &mut draft, &canonical)?);
-    }
-
     let positions = operation_positions(&canonical.operation);
     let mut framed = initial_framed_constraints(&canonical);
+    crate::matrix::layout::resolve(&mut draft)?;
     changed.extend(crate::constraints::resolve_prepared(
         &mut draft, positions, &framed,
     )?);
     changed.extend(crate::matrix::layout::sync_components(&mut draft)?);
 
-    if !lifecycle_before_resolution {
-        changed.extend(prepare_lifecycle_pairs(accepted, &mut draft, &canonical)?);
-    }
+    changed.extend(prepare_lifecycle_pairs(accepted, &mut draft, &canonical)?);
 
     for addition in &canonical.matrix_additions {
         let mirrored =
@@ -669,6 +661,7 @@ pub(crate) fn prepare_transaction_with_ledger(
 
     framed = bind_deferred_constraints(&draft, &canonical, &framed)?;
     persist_retuned_constraints(accepted, &mut draft, &canonical, &framed)?;
+    crate::matrix::layout::resolve(&mut draft)?;
     changed.extend(crate::constraints::resolve_prepared(
         &mut draft, positions, &framed,
     )?);
@@ -684,6 +677,15 @@ pub(crate) fn prepare_transaction_with_ledger(
         operation_positions(&canonical.operation),
     )?);
     changed.extend(reconcile_pairs(accepted, &mut draft, &canonical)?);
+    // Ticket 29: a plain detach that moved its linked native partner
+    // refuses with the ticket-23 confirmation proposal instead of silently
+    // jumping geometry; the draft is discarded unchanged.
+    if let EditOperation::DetachMatrixAnchor { matrix_id } = &canonical.operation
+        && let Some(proposal) =
+            super::lifecycle::native_detach_proposal(accepted, &draft, matrix_id)
+    {
+        return Err(proposal);
+    }
     changed.extend(add_target_layout_memberships(
         &mut draft,
         &canonical.additions,
@@ -1003,11 +1005,6 @@ fn prepare_lifecycle_pairs(
             | EditOperation::AddMirrorOnlyPart { .. }
             | EditOperation::SetCompanionPlacement { .. }
             | EditOperation::ApplyMechanicalEdit { .. }
-            | EditOperation::SetMechanical {
-                configuration: Some(_),
-                target: Some(crate::mechanical::MechanicalTarget::Instance { .. }),
-                ..
-            }
             | EditOperation::CreateMirroredPair { .. }
             | EditOperation::CreateMirroredHalf { .. }
             | EditOperation::ReplaceDocument { .. }
@@ -1028,13 +1025,6 @@ fn prepare_lifecycle_pairs(
             return Err("The exact lifecycle pair is unavailable or ambiguous".into());
         }
     }
-    let pair_removed_by_operation = matches!(
-        &canonical.operation,
-        EditOperation::SetMechanical {
-            configuration: None,
-            target: Some(crate::mechanical::MechanicalTarget::Instance { .. }),
-        }
-    );
     let pair_ids: Vec<_> = accepted
         .hardware
         .as_ref()
@@ -1045,11 +1035,10 @@ fn prepare_lifecycle_pairs(
         .collect();
     let mut changed = Vec::new();
     for pair_id in pair_ids {
-        if !pair_removed_by_operation
-            && !document
-                .hardware
-                .as_ref()
-                .is_some_and(|hardware| hardware.pairs.iter().any(|pair| pair.id == pair_id))
+        if !document
+            .hardware
+            .as_ref()
+            .is_some_and(|hardware| hardware.pairs.iter().any(|pair| pair.id == pair_id))
         {
             continue;
         }
@@ -1103,6 +1092,25 @@ fn apply_canonical(
     ) {
         return Ok(Vec::new());
     }
+    // The confirmed native detach runs entirely in the lifecycle arm below;
+    // anything else (same-board links, unpaired matrices) keeps the shared
+    // apply path so its behavior is unchanged.
+    if let EditOperation::DetachMatrixAnchorConfirmed { matrix_id, .. } = &canonical.operation {
+        use crate::model::MirroredItemKind;
+        let paired = draft
+            .hardware
+            .as_ref()
+            .into_iter()
+            .flat_map(|hardware| &hardware.pairs)
+            .filter_map(|pair| pair.halves.as_ref())
+            .flat_map(|halves| &halves.correspondences)
+            .any(|record| {
+                record.kind == MirroredItemKind::Matrix && record.source_id == *matrix_id
+            });
+        if paired {
+            return Ok(Vec::new());
+        }
+    }
     if let EditOperation::SetCompanionPlacement {
         pair_id,
         targets,
@@ -1118,20 +1126,49 @@ fn apply_canonical(
         let pair_id = pair_for_instance(accepted, instance_id)?;
         return crate::mechanical::halves::unlink_pair(draft, &pair_id);
     }
-    if let EditOperation::SetMechanical {
-        configuration,
-        target: Some(target @ crate::mechanical::MechanicalTarget::Instance { .. }),
-    } = &canonical.operation
-    {
-        return crate::mechanical::edit::apply_instance_configuration(
-            draft,
-            board_contours,
-            target,
-            configuration.as_deref().cloned(),
-        );
-    }
-    let changed =
+    let mut changed =
         crate::apply_with_ledger(draft, board_contours, &canonical.operation, identities)?;
+    // Ticket 29 B4: removing a halves-pair source over an Omitted mirror
+    // orphans the mirror layout shell — its matrix is absent by design and
+    // its source is gone, so layout validation could never resolve it. Drop
+    // shells left naming only such mirrors here; the kernel retires the pair
+    // records. Anything else is untouched.
+    if let EditOperation::RemoveMatrix { id } = &canonical.operation {
+        let mut orphaned_mirrors = BTreeSet::new();
+        for pair in accepted
+            .hardware
+            .iter()
+            .flat_map(|hardware| &hardware.pairs)
+        {
+            let Some(halves) = pair.halves.as_ref() else {
+                continue;
+            };
+            for record in &halves.correspondences {
+                if record.kind == MirroredItemKind::Matrix && record.source_id == *id {
+                    let omitted = halves.exceptions.iter().any(|exception| {
+                        exception.kind == MirroredItemKind::Matrix
+                            && exception.mirror_id == record.mirror_id
+                            && exception.state == crate::model::MirroredExceptionState::Omitted
+                    });
+                    if omitted {
+                        orphaned_mirrors.insert(record.mirror_id.clone());
+                    }
+                }
+            }
+        }
+        if !orphaned_mirrors.is_empty() {
+            for layout in &mut draft.layouts {
+                layout
+                    .matrix_ids
+                    .retain(|matrix_id| !orphaned_mirrors.contains(matrix_id));
+            }
+            let before_layouts = draft.layouts.len();
+            draft.layouts.retain(|layout| !layout.matrix_ids.is_empty());
+            if draft.layouts.len() != before_layouts {
+                changed.push(id.clone());
+            }
+        }
+    }
     for addition in &canonical.hosted.circuits {
         for (member_id, pose) in &addition.member_poses {
             let member = draft
@@ -1525,13 +1562,37 @@ fn projection_for(
         .ok_or("The mirror matrix has no board owner")?;
     let mut parts = Vec::new();
     let mut locally_protected_mirror_parts = BTreeSet::new();
+    // Members introduced under a detached matrix have no mirror target yet;
+    // an explicit Rejoin adopts them. Any other missing correspondence stays
+    // a refusal.
+    let matrix_detached = halves
+        .correspondences
+        .iter()
+        .find(|record| {
+            record.kind == MirroredItemKind::Matrix
+                && record.source_id == source_matrix_id
+                && record.mirror_id == mirror_matrix_id
+        })
+        .is_some_and(|record| {
+            halves.overlay_of(record).is_some_and(|exception| {
+                matches!(
+                    exception.state,
+                    crate::model::MirroredExceptionState::Local
+                        | crate::model::MirroredExceptionState::Omitted
+                )
+            })
+        });
     for cell in source_matrix
         .cells
         .iter()
         .filter(|cell| cell.enabled && !cell.deleted)
     {
         let source_id = format!("matrix/{source_matrix_id}/r{}c{}", cell.row, cell.column);
-        let association = part_association(halves, &source_id)?;
+        let association = match part_association(halves, &source_id) {
+            Ok(association) => association,
+            Err(_) if matrix_detached => continue,
+            Err(error) => return Err(error),
+        };
         if association.mirror_id
             != format!("matrix/{mirror_matrix_id}/r{}c{}", cell.row, cell.column)
         {

@@ -358,11 +358,9 @@ mod selection_retention_tests {
             rotation: None,
             edge_gap: None,
             diode_direction: None,
-            row_offsets: vec![],
-            column_offsets: vec![],
-            column_staggers: vec![],
-            column_splays: vec![],
-            column_origins: vec![],
+            row_layout: vec![],
+            column_layout: vec![],
+            anchor: None,
             cells: vec![],
         };
         runtime.submit(fixed_commit(
@@ -410,6 +408,8 @@ mod selection_retention_tests {
 
         let mut disabled = before.accepted.as_ref().unwrap().document.matrices[0].clone();
         disabled.cells.push(MatrixCell {
+            shift: None,
+            bend: None,
             deleted: false,
             row: 0,
             column: 0,

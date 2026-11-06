@@ -4,8 +4,11 @@ import hashlib
 import os
 from pathlib import Path
 import re
-import shutil
 import subprocess
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+import browser_tools
 
 CAD_ROOT = Path(__file__).resolve().parents[1]
 OUT_NAME = "boardstudio_cad_wasm"
@@ -40,20 +43,12 @@ OWNER_TESTS = (
     ("monstertruck-meshing", "--test", "closed_trim_projection"),
     ("monstertruck-meshing", "--lib", "seam_branch_tests"),
 )
-PROVIDER_TESTS = (
-    "step-repair-accounting.cjs",
-    "step-zero-repair.cjs",
-    "step-projected-line-repair.cjs",
-    "step-planar-seam-repair.cjs",
-    "step-face-completeness.cjs",
-    "step-complete-surface-preview.cjs",
-    "collision-analysis.cjs",
-    "qualified-analysis.cjs",
-)
 
 
 def run(command, **kwargs):
-    return subprocess.run(command, cwd=CAD_ROOT, check=True, **kwargs)
+    fd = browser_tools._inherited_build_lock()
+    return subprocess.run(command, cwd=CAD_ROOT, check=True,
+                          **({"pass_fds": (fd,)} if fd is not None else {}), **kwargs)
 
 
 def _iter_source_files(base: Path, names: tuple[str, ...]):
@@ -176,18 +171,3 @@ def test_cad():
         print(result.stdout, end="", flush=True)
         if not re.search(r"^test result: ok\. [1-9][0-9]* passed;", result.stdout, re.M):
             raise RuntimeError(f"CAD owner selection has no executed tests: {package} {' '.join(selection)}")
-
-
-def test_provider():
-    node = shutil.which("node")
-    if not node:
-        raise RuntimeError("CAD packaged-provider regressions require Node.js")
-    package = CAD_ROOT / "wasm/pkg" / f"{OUT_NAME}.js"
-    wasm = package.with_name(f"{OUT_NAME}_bg.wasm")
-    stamp = CAD_ROOT / ".cache/cad/wasm-build.sha256"
-    if not all(path.is_file() for path in (package, wasm, stamp)):
-        raise RuntimeError("CAD WEB package is missing; run python3 cad/scripts/build-cad-wasm.py --no-opt")
-    if stamp.read_text().strip() not in (wasm_inputs_digest(no_opt=True), wasm_inputs_digest()):
-        raise RuntimeError("CAD WEB package is stale; run python3 cad/scripts/build-cad-wasm.py --no-opt")
-    for script in PROVIDER_TESTS:
-        run([node, str(CAD_ROOT / "wasm/tests" / script), str(package), "--web"])

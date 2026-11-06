@@ -180,6 +180,7 @@ fn part_definition(id: &str, kind: PartKind, generator: Option<PartGenerator>) -
 
 fn part(id: &str, definition_id: &str, keycap: Option<Vec2>) -> Part {
     Part {
+        anchor: None,
         keycap,
         outline: None,
         id: id.into(),

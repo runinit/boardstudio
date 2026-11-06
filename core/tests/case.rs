@@ -13,7 +13,9 @@ fn outline(id: &str) -> OutlineFeature {
     }
 }
 
-fn commit_outline(base_revision: u64, id: &str) -> CoreRequest {
+fn commit_case(base_revision: u64, id: &str) -> CoreRequest {
+    // Ticket 37: raw SetOutline is deleted; the history setup below uses the live
+    // typed case write instead.
     CoreRequest::Edit {
         id: format!("edit-{id}"),
         command: EditCommand {
@@ -21,8 +23,24 @@ fn commit_outline(base_revision: u64, id: &str) -> CoreRequest {
             transaction_id: format!("tx-{id}"),
             phase: EditPhase::Commit,
             target_ids: vec![],
-            operation: EditOperation::SetOutline {
-                feature: outline(id),
+            operation: EditOperation::SetCase {
+                body: CaseBody {
+                    features: None,
+                    openings: None,
+                    id: id.into(),
+                    name: id.into(),
+                    board_id: "board".into(),
+                    kind: CaseKind::Plate,
+                    thickness: 2.0,
+                    clearance: 0.0,
+                    material_id: None,
+                    z: None,
+                    wall_height: None,
+                    wall_thickness: None,
+                    mounts: None,
+                    pcb_source: None,
+                    gasket: None,
+                },
             },
         },
     }
@@ -85,11 +103,11 @@ fn case_preparation_uses_request_revision_and_preserves_document_and_history() {
         CoreReply::Scene { .. }
     ));
     assert!(matches!(
-        engine.handle(commit_outline(0, "first")),
+        engine.handle(commit_case(0, "first")),
         CoreReply::Scene { .. }
     ));
     assert!(matches!(
-        engine.handle(commit_outline(1, "second")),
+        engine.handle(commit_case(1, "second")),
         CoreReply::Scene { .. }
     ));
     assert!(matches!(

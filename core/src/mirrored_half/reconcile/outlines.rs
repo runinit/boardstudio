@@ -249,6 +249,7 @@ fn map_snapshot(
     part_associations: &BTreeMap<String, String>,
     matrix_associations: &BTreeMap<String, String>,
     matrix_owned_parts: &BTreeSet<String>,
+    controller_parts: &BTreeSet<String>,
 ) -> crate::model::OutlineSnapshot {
     let identity = |id: &str| {
         mapped_identity(
@@ -264,7 +265,8 @@ fn map_snapshot(
             .cloned()
             .unwrap_or_else(|| id.to_owned())
     };
-    let full_rule_part = |id: &str| !matrix_owned_parts.contains(id);
+    let full_rule_part =
+        |id: &str| !matrix_owned_parts.contains(id) && !controller_parts.contains(id);
     let renames = super::super::Renames {
         identity: &identity,
         part: &part,
@@ -277,6 +279,7 @@ fn map_snapshot(
     super::super::mirror_snapshot(snapshot, projection.mapping, &renames, &matrix_map)
 }
 
+#[allow(clippy::too_many_arguments)] // The two part-rule sets travel with the map they qualify.
 fn map_feature(
     feature: &OutlineFeature,
     mapping: crate::model::Pose2,
@@ -285,6 +288,7 @@ fn map_feature(
     associations: &BTreeMap<String, String>,
     part_associations: &BTreeMap<String, String>,
     matrix_owned_parts: &BTreeSet<String>,
+    controller_parts: &BTreeSet<String>,
 ) -> OutlineFeature {
     let identity = |id: &str| mapped_identity(source_board, mirror_board, id, associations);
     let part = |id: &str| {
@@ -293,7 +297,8 @@ fn map_feature(
             .cloned()
             .unwrap_or_else(|| id.to_owned())
     };
-    let full_rule_part = |id: &str| !matrix_owned_parts.contains(id);
+    let full_rule_part =
+        |id: &str| !matrix_owned_parts.contains(id) && !controller_parts.contains(id);
     let renames = super::super::Renames {
         identity: &identity,
         part: &part,
@@ -491,6 +496,7 @@ pub(super) fn reconcile(
         .find(|board| board.id == projection.source_board_id)
         .ok_or_else(|| "The selected source board is unavailable".to_owned())?;
     let matrix_owned_parts = super::super::matrix_owned_parts(document, &source_board.id);
+    let controller_parts = super::super::controller_parts(document, &source_board.id);
     for outline_id in &source_board.outline_ids {
         if !outline_map.contains_key(outline_id) && !retired_outline_ids.contains(outline_id) {
             return Err(format!(
@@ -547,6 +553,7 @@ pub(super) fn reconcile(
             &outline_map,
             &part_map,
             &matrix_owned_parts,
+            &controller_parts,
         );
         let target = staged
             .outline
@@ -652,6 +659,7 @@ pub(super) fn reconcile(
                     &part_map,
                     &matrix_map,
                     &matrix_owned_parts,
+                    &controller_parts,
                 ),
                 ownership: source_version.ownership,
             };

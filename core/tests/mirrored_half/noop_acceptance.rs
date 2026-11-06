@@ -69,7 +69,11 @@ fn prepared_same_value_commit_preserves_redo() {
         &initial,
         "parent19-noop-redo-change",
         &["synthetic-boundary"],
-        json!({"kind":"set-outline","feature":edited_feature}),
+        // Ticket 37: raw SetOutline is deleted; SetFeature is the live typed write.
+        json!({"kind":"apply-outline-edit","edit":{
+            "target":{"kind":"board","boardId":"left"},
+            "change":{"set-feature":{"feature":edited_feature}},
+            "seed":51, "reviewed": null}}),
     );
     assert_eq!(committed["kind"], "scene", "{committed}");
 
@@ -89,7 +93,10 @@ fn prepared_same_value_commit_preserves_redo() {
         &before_noop,
         "parent19-noop-redo-repeat",
         &["synthetic-boundary"],
-        json!({"kind":"set-outline","feature":baseline_feature}),
+        json!({"kind":"apply-outline-edit","edit":{
+            "target":{"kind":"board","boardId":"left"},
+            "change":{"set-feature":{"feature":baseline_feature}},
+            "seed":52, "reviewed": null}}),
     );
     assert_eq!(noop["kind"], "scene", "{noop}");
     assert!(

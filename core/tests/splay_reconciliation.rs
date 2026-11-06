@@ -7,7 +7,11 @@ fn matrix() -> Matrix {
         rows: 1,
         columns: 3,
         pitch: Vec2 { x: 20.0, y: 20.0 },
-        origin: Vec2 { x: 0.0, y: 0.0 },
+        // Ticket 11: create at a UI-reachable requested gap (R = 100 mm, so
+        // the stored gap is 100 mm with room for the splay to breathe). A
+        // negative requested gap stalls the minimum search at the coincident
+        // start, which the setup form never produces (gap >= 0).
+        origin: Vec2 { x: -59.5, y: 0.0 },
         definition_id: "switch".into(),
         part_ids: vec![],
         board_id: None,
@@ -16,11 +20,13 @@ fn matrix() -> Matrix {
         edge_gap: None,
 
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![0.0, 0.0, 0.0],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![
+            boardstudio_core::model::ColumnLayout::default(),
+            boardstudio_core::model::ColumnLayout::default(),
+            boardstudio_core::model::ColumnLayout::default(),
+        ],
+        anchor: None,
         cells: vec![],
     }
 }
@@ -65,8 +71,8 @@ fn open() -> CoreEngine {
     let request = serde_json::json!({"kind":"edit","id":"pair","command":{
     "baseRevision":0,"transactionId":"pair","phase":"commit","targetIds":[],
     "operation":{"kind":"create-mirrored-pair","matrix":source,
-        "left":{"id":"left-layout","name":"Left","boardId":"board","matrixId":"m","partIds":[]},
-        "right":{"id":"right-layout","name":"Right","boardId":"board","matrixId":"right","partIds":[],"mirrorLink":{"sourceId":"left-layout","axisX":0}}
+        "left":{"id":"left-layout","name":"Left","boardId":"board","matrixIds":["m"],"partIds":[]},
+        "right":{"id":"right-layout","name":"Right","boardId":"board","matrixIds":["right"],"partIds":[],"mirrorLink":{"sourceId":"left-layout","axisX":0}}
     }}});
     let (_, mut paired) =
         scene(serde_json::from_str(&engine.request(&request.to_string())).unwrap());
@@ -122,15 +128,15 @@ fn preview_and_commit_have_equal_matrix_projection_and_history_roundtrips() {
         snapshot
             .matrices
             .iter()
-            .all(|matrix| matrix.column_splays[1] == 0.0)
+            .all(|matrix| matrix.column_layout[1].splay == 0.0)
     );
     let (committed, doc) = scene(engine.handle(edit(0, EditPhase::Commit, change)));
     assert_eq!(preview.matrix_scenes, committed.matrix_scenes);
-    assert_eq!(doc.matrices[0].column_splays[1], 25.0);
+    assert_eq!(doc.matrices[0].column_layout[1].splay, 25.0);
     let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "u".into() }));
-    assert_eq!(undone.matrices[0].column_splays[1], 0.0);
+    assert_eq!(undone.matrices[0].column_layout[1].splay, 0.0);
     let (_, redone) = scene(engine.handle(CoreRequest::Redo { id: "r".into() }));
-    assert_eq!(redone.matrices[0].column_splays[1], 25.0);
+    assert_eq!(redone.matrices[0].column_layout[1].splay, 25.0);
 }
 
 #[test]
@@ -154,7 +160,7 @@ fn custom_origin_and_linked_following_change_are_preserved() {
         snapshot
             .matrices
             .iter()
-            .all(|matrix| matrix.column_splays[1] == 0.0)
+            .all(|matrix| matrix.column_layout[1].splay == 0.0)
     );
     let (committed, doc) = scene(engine.handle(edit(
         0,
@@ -164,12 +170,12 @@ fn custom_origin_and_linked_following_change_are_preserved() {
         },
     )));
     assert_eq!(
-        doc.matrices[0].column_origins[1],
-        Some(Vec2 { x: 3.0, y: 4.0 })
+        doc.matrices[0].column_layout[1].splay_origin,
+        Vec2 { x: 42.5, y: 4.0 }
     );
     assert_eq!(
-        doc.matrices[1].column_origins[1],
-        Some(Vec2 { x: 3.0, y: 4.0 })
+        doc.matrices[1].column_layout[1].splay_origin,
+        Vec2 { x: 42.5, y: 4.0 }
     );
     let left = committed
         .matrix_scenes
@@ -194,14 +200,20 @@ fn custom_origin_and_linked_following_change_are_preserved() {
         EditPhase::Commit,
         MatrixSplayChange::Origin { world: None },
     )));
-    assert_eq!(reset.matrices[0].column_origins[1], None);
+    assert_eq!(
+        reset.matrices[0].column_layout[1].splay_origin,
+        Vec2::default()
+    );
     let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "u".into() }));
     assert_eq!(
-        undone.matrices[0].column_origins[1],
-        Some(Vec2 { x: 3.0, y: 4.0 })
+        undone.matrices[0].column_layout[1].splay_origin,
+        Vec2 { x: 42.5, y: 4.0 }
     );
     let (_, redone) = scene(engine.handle(CoreRequest::Redo { id: "r".into() }));
-    assert_eq!(redone.matrices[0].column_origins[1], None);
+    assert_eq!(
+        redone.matrices[0].column_layout[1].splay_origin,
+        Vec2::default()
+    );
 }
 
 #[test]
@@ -220,23 +232,25 @@ fn editing_the_mirrored_half_updates_both_projections() {
         *matrix_id = "right".into();
     }
     let (committed, document) = scene(engine.handle(request));
+    // Ticket 11: the mirror-targeted world converts through the mirror frame,
+    // negating the delta, so the shared records carry the negated offset.
     assert!(
         document
             .matrices
             .iter()
-            .all(|matrix| matrix.column_origins[1] == Some(Vec2 { x: 7.0, y: -13.0 }))
+            .all(|matrix| matrix.column_layout[1].splay_origin == Vec2 { x: 46.5, y: -13.0 })
     );
     let left = &committed.matrix_scenes[0];
     let right = &committed.matrix_scenes[1];
     assert_eq!(left.columns[1].splay_origin, Vec2 { x: 7.0, y: -13.0 });
     assert_eq!(right.columns[1].splay_origin, Vec2 { x: -7.0, y: -13.0 });
     let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
-    assert!(
-        undone
-            .matrices
+    assert!(undone.matrices.iter().all(|matrix| {
+        matrix
+            .column_layout
             .iter()
-            .all(|matrix| matrix.column_origins.is_empty())
-    );
+            .all(|record| record.splay_origin == Vec2::default())
+    }));
     let (redone, _) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
     assert_eq!(redone.matrix_scenes, committed.matrix_scenes);
 }

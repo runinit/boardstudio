@@ -22,21 +22,6 @@ use super::inputs::{effective_document, effective_inputs};
 use super::{inferred_switch_family, is_switch_position};
 use std::collections::BTreeMap;
 
-mod replacement;
-
-/// Applies one instance's requested configuration through mechanical ownership rules.
-///
-/// Clearing a paired instance unlinks the pair and disables that instance's stack.
-/// The complete result is staged so a refusal leaves the document untouched.
-pub(crate) fn apply_instance_configuration(
-    document: &mut ProjectDoc,
-    board_contours: &[BoardContours],
-    target: &MechanicalTarget,
-    requested: Option<MechanicalConfiguration>,
-) -> Result<Vec<String>, String> {
-    replacement::apply_instance_configuration(document, board_contours, target, requested)
-}
-
 const GENERATED_PART_PREFIX: &str = "case-closure/";
 const GENERATED_DEFINITION_PREFIX: &str = "assembly-closure/definition/";
 const AUTO_CLOSURE_PREFIX: &str = "auto-closure/";

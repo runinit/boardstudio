@@ -287,15 +287,17 @@ impl CanvasNavigationState {
         location: PointerLocation,
         zoom: f64,
     ) -> Vec2 {
-        let base_width = (max_x - min_x).max(50.0);
-        let base_height = (max_y - min_y).max(50.0);
-        Vec2 {
-            x: location.world.x
-                - (min_x + max_x - base_width / zoom) * 0.5
-                - location.x_fraction * base_width / zoom,
-            y: location.world.y - (min_y + max_y + base_height / zoom) * 0.5
-                + location.y_fraction * base_height / zoom,
-        }
+        // Single copy of the anchor math lives in layout_camera so burst
+        // coalescing stays unit-testable on every target.
+        super::layout_camera::zoom_center_for_anchor(
+            (min_x, max_x, min_y, max_y),
+            super::layout_camera::WheelAnchor {
+                world: location.world,
+                x_fraction: location.x_fraction,
+                y_fraction: location.y_fraction,
+            },
+            zoom,
+        )
     }
 }
 

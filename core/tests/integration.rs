@@ -7,6 +7,7 @@
 
 #[path = "boundary_parity.rs"]
 mod boundary_parity;
+
 #[path = "case.rs"]
 mod case;
 #[path = "closure_generator_parameters.rs"]
@@ -47,6 +48,8 @@ mod keymap_workflow;
 mod kicad_integration;
 #[path = "legacy_archive_migration.rs"]
 mod legacy_archive_migration;
+#[path = "matrix_kernel.rs"]
+mod matrix_kernel;
 #[path = "mechanical_identity_monotonic.rs"]
 mod mechanical_identity_monotonic;
 #[path = "mechanical_integration.rs"]
@@ -109,5 +112,35 @@ mod matrix_placement;
 #[path = "matrix_companions.rs"]
 mod matrix_companions;
 
+#[path = "matrix_anchors.rs"]
+mod matrix_anchors;
+
+#[path = "end_to_end_acceptance.rs"]
+mod end_to_end_acceptance;
+
 #[path = "splay_companions.rs"]
 mod splay_companions;
+
+#[path = "native_matrix_exceptions.rs"]
+mod native_matrix_exceptions;
+
+#[path = "matrix_aggregate_anchors.rs"]
+mod matrix_aggregate_anchors;
+
+#[path = "matrix_aggregate_reflection.rs"]
+mod matrix_aggregate_reflection;
+
+#[path = "split_half_frame.rs"]
+mod split_half_frame;
+
+#[path = "split_adaptive_spacing.rs"]
+mod split_adaptive_spacing;
+
+#[path = "split_creation_gap.rs"]
+mod split_creation_gap;
+
+#[path = "split_half_frame_parts.rs"]
+mod split_half_frame_parts;
+
+#[path = "split_part_anchoring.rs"]
+mod split_part_anchoring;

@@ -1333,7 +1333,7 @@ mod tests {
 
     fn layout(id: &str, board_id: &str) -> crate::model::Layout {
         serde_json::from_value(json!({
-            "id": id, "name": id, "boardId": board_id, "matrixId": "l-matrix", "partIds": []
+            "id": id, "name": id, "boardId": board_id, "matrixIds": ["l-matrix"], "partIds": []
         }))
         .unwrap()
     }

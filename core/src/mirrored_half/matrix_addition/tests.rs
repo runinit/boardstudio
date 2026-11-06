@@ -664,9 +664,9 @@ fn a_matrix_also_linked_by_a_legacy_layout_mirror_link_is_refused() {
         &new_matrix("left-thumbs", "left", (10.0, 120.0), 2),
     );
     next.layouts = serde_json::from_value(json!([
-        {"id": "legacy-a", "name": "A", "boardId": "left", "matrixId": "left-thumbs",
+        {"id": "legacy-a", "name": "A", "boardId": "left", "matrixIds": ["left-thumbs"],
          "partIds": [], "mirrorLink": {"sourceId": "legacy-b", "axisX": 0}},
-        {"id": "legacy-b", "name": "B", "boardId": "left", "matrixId": "left-keys", "partIds": []}
+        {"id": "legacy-b", "name": "B", "boardId": "left", "matrixIds": ["left-keys"], "partIds": []}
     ]))
     .unwrap();
     let message = refusal(&next, &addition);
@@ -710,7 +710,7 @@ fn a_layout_of_the_new_matrix_is_mirrored_with_its_independent_parts() {
     );
     next.layouts = serde_json::from_value(json!([
         {"id": "left-thumbs-layout", "name": "Thumbs", "boardId": "left",
-         "matrixId": "left-thumbs", "partIds": []}
+         "matrixIds": ["left-thumbs"], "partIds": []}
     ]))
     .unwrap();
     let document = mirror_added_matrix(&next, &addition).unwrap().draft;
@@ -718,7 +718,7 @@ fn a_layout_of_the_new_matrix_is_mirrored_with_its_independent_parts() {
         .expect("the layout is linked");
     let layout = document.layouts.iter().find(|l| l.id == mirror).unwrap();
     assert_eq!(layout.board_id, "right");
-    assert_eq!(layout.matrix_id, "right-thumbs");
+    assert_eq!(layout.matrix_ids, ["right-thumbs"]);
     assert_eq!(layout.name, "Thumbs");
     assert!(layout.mirror_link.is_none());
 }
@@ -890,7 +890,7 @@ fn the_added_mirror_is_the_mirror_creation_derives_for_the_same_source() {
         let label = format!("map ({x}, {y}, {rotation}) {mode}");
         let mut request = new_matrix("left-thumbs", "left", (10.0, 120.0), 3);
         request["matrix"]["rotation"] = json!(12);
-        request["matrix"]["columnSplays"] = json!([0, 6, -3]);
+        request["matrix"]["columnLayout"] = json!([{}, {"splay": 6.0}, {"splay": -3.0}]);
         request["matrix"]["cells"][0]["offset"] = json!({"x": 0.5, "y": -0.25});
         request["matrix"]["cells"][0]["rotation"] = json!(4);
         request["matrix"]["cells"][0]["assemblies"]
@@ -1014,7 +1014,7 @@ fn a_layout_part_with_no_linked_mirror_refuses_rather_than_dropping_it() {
         .push("left/EXTRA".into());
     next.layouts = serde_json::from_value(json!([
         {"id": "thumbs-layout", "name": "Thumbs", "boardId": "left",
-         "matrixId": "left-thumbs", "partIds": ["left/EXTRA"]}
+         "matrixIds": ["left-thumbs"], "partIds": ["left/EXTRA"]}
     ]))
     .unwrap();
     let message = refusal(&next, &addition);

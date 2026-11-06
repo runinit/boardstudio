@@ -460,7 +460,7 @@
                 "lengthDatum": "overall",
                 "headProfile": "countersunk",
                 "id": "custom-test",
-                "thread": "M2 \u00d7 0.4",
+                "thread": "M2 × 0.4",
                 "screwLengths": [
                   8.0,
                   10.0,
@@ -507,7 +507,7 @@
             "profiles": []
           },
           "format": "boardstudio/v2",
-          "formatVersion": 6,
+          "formatVersion": 7,
           "id": "untitled",
           "name": "Untitled",
           "revision": 1,
@@ -1026,7 +1026,7 @@
                   "lengthDatum": "overall",
                   "headProfile": "countersunk",
                   "id": "custom-test",
-                  "thread": "M2 \u00d7 0.4",
+                  "thread": "M2 × 0.4",
                   "screwLengths": [
                     8.0,
                     10.0,
@@ -1115,7 +1115,7 @@
               ]
             },
             "format": "boardstudio/v2",
-            "formatVersion": 6,
+            "formatVersion": 7,
             "id": "untitled",
             "name": "Untitled",
             "revision": 1,
@@ -1196,7 +1196,7 @@
                 "lengthDatum": "under-head",
                 "headProfile": "flat",
                 "id": "custom-test",
-                "thread": "M2 \u00d7 0.4",
+                "thread": "M2 × 0.4",
                 "screwLengths": [
                   8.0,
                   10.0,
@@ -1243,7 +1243,7 @@
             "profiles": []
           },
           "format": "boardstudio/v2",
-          "formatVersion": 6,
+          "formatVersion": 7,
           "id": "untitled",
           "name": "Untitled",
           "revision": 1,
@@ -1480,7 +1480,7 @@
                 "lengthDatum": "under-head",
                 "headProfile": "flat",
                 "id": "custom-test",
-                "thread": "M2 \u00d7 0.4",
+                "thread": "M2 × 0.4",
                 "screwLengths": [
                   8.0,
                   10.0,
@@ -1564,7 +1564,7 @@
             "profiles": []
           },
           "format": "boardstudio/v2",
-          "formatVersion": 6,
+          "formatVersion": 7,
           "id": "untitled",
           "name": "Untitled",
           "revision": 1,
@@ -2102,7 +2102,7 @@
                 "lengthDatum": "under-head",
                 "headProfile": "flat",
                 "id": "custom-test",
-                "thread": "M2 \u00d7 0.4",
+                "thread": "M2 × 0.4",
                 "screwLengths": [
                   8.0,
                   10.0,
@@ -2249,7 +2249,7 @@
             "profiles": []
           },
           "format": "boardstudio/v2",
-          "formatVersion": 6,
+          "formatVersion": 7,
           "id": "untitled",
           "name": "Untitled",
           "revision": 1,
@@ -2797,11 +2797,43 @@
         "shellCount": 1,
         "cylindricalFaces": 8,
         "conicalFaces": 0,
-        "boundsMm": [[-7.502, -7.502, -4.25], [107.502, 77.502, 8.2]],
+        "boundsMm": [
+          [
+            -7.502,
+            -7.502,
+            -4.25
+          ],
+          [
+            107.502,
+            77.502,
+            8.2
+          ]
+        ],
         "materialProbes": [
-          {"pointMm": [10, 8, -2.75], "inside": true},
-          {"pointMm": [5, 8, -2.75], "inside": false},
-          {"pointMm": [5, 8, -4], "inside": true}
+          {
+            "pointMm": [
+              10,
+              8,
+              -2.75
+            ],
+            "inside": true
+          },
+          {
+            "pointMm": [
+              5,
+              8,
+              -2.75
+            ],
+            "inside": false
+          },
+          {
+            "pointMm": [
+              5,
+              8,
+              -4
+            ],
+            "inside": true
+          }
         ]
       }
     }

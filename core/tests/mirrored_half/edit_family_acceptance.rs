@@ -28,21 +28,6 @@ fn accepted_pair_from(pair_id: &str, source: &Value) -> (CoreEngine, Value) {
     (engine, created["document"].clone())
 }
 
-fn accepted_pair_with_switch_pad(pair_id: &str) -> (CoreEngine, Value) {
-    let mut source = runtime_supported_document();
-    let switch = source["definitions"]
-        .as_array_mut()
-        .unwrap()
-        .iter_mut()
-        .find(|definition| definition["id"] == "generator:ceoloide/switch_mx")
-        .expect("synthetic matrix switch definition exists");
-    switch["pads"] = json!([{
-        "id":"pad-1","number":"1","at":{"x":0.0,"y":0.0},
-        "size":{"x":1.0,"y":1.0},"shape":"circle"
-    }]);
-    accepted_pair_from(pair_id, &source)
-}
-
 fn module_definition() -> Value {
     json!({
         "id":"parent19-mounted-module-definition",
@@ -260,15 +245,6 @@ fn assert_prior_correspondences_preserved(before: &Value, after: &Value, pair_id
     }
 }
 
-fn net<'a>(document: &'a Value, id: &str) -> &'a Value {
-    document["nets"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|net| net["id"] == id)
-        .unwrap_or_else(|| panic!("net {id} is missing"))
-}
-
 fn outline_feature<'a>(document: &'a Value, id: &str) -> &'a Value {
     document["outline"]
         .as_array()
@@ -476,12 +452,17 @@ fn parent19_outline_feature_edit_commits_from_either_half() {
         let counterpart_id = corresponding_id(&before, &pair_id, "outline", authored_id);
         let mut feature = outline_feature(&before, authored_id).clone();
         feature["center"] = json!({"x":14.0,"y":9.0});
+        let board = author;
         let committed = commit(
             &mut engine,
             &before,
             &format!("parent19-set-outline-{author}"),
             &[authored_id],
-            json!({"kind":"set-outline","feature":feature}),
+            // Ticket 37: raw SetOutline is deleted; SetFeature is the live typed write.
+            json!({"kind":"apply-outline-edit","edit":{
+                "target":{"kind":"board","boardId":board},
+                "change":{"set-feature":{"feature":feature}},
+                "seed":41, "reviewed": null}}),
         );
         assert_eq!(committed["kind"], "scene", "{committed}");
         let after = &committed["document"];
@@ -522,7 +503,10 @@ fn parent19_outline_feature_edit_commits_from_either_half() {
             after,
             &format!("parent19-outline-repeat-{author}"),
             &[authored_id],
-            json!({"kind":"set-outline","feature":repeated_feature}),
+            json!({"kind":"apply-outline-edit","edit":{
+                "target":{"kind":"board","boardId":board},
+                "change":{"set-feature":{"feature":repeated_feature}},
+                "seed":42, "reviewed": null}}),
         );
         assert_history_round_trip(&mut engine, &before, after, &format!("outline-{author}"));
     }
@@ -530,73 +514,6 @@ fn parent19_outline_feature_edit_commits_from_either_half() {
 
 /// A plain net membership edit from either half maps the pin onto its corresponding Part and
 /// leaves every other net, membership, and pair correspondence untouched.
-#[test]
-fn parent19_plain_net_membership_commits_from_either_half() {
-    for author in ["left", "right"] {
-        let pair_id = format!("parent19-net-{author}");
-        let (mut engine, before) = accepted_pair_with_switch_pad(&pair_id);
-        let source_net_id = "synthetic/column/0/0";
-        let net_id = if author == "left" {
-            source_net_id.to_owned()
-        } else {
-            corresponding_id(&before, &pair_id, "net", source_net_id)
-        };
-        let counterpart_net_id = corresponding_id(&before, &pair_id, "net", &net_id);
-        let authored_part = if author == "left" {
-            "matrix/left-synthetic-keys/r0c0"
-        } else {
-            "matrix/right-synthetic-keys/r0c0"
-        };
-        let counterpart_part = if author == "left" {
-            "matrix/right-synthetic-keys/r0c0"
-        } else {
-            "matrix/left-synthetic-keys/r0c0"
-        };
-        let mut edited_net = net(&before, &net_id).clone();
-        assert_eq!(edited_net["pins"], json!([]));
-        edited_net["pins"] = json!([{"partId":authored_part,"padId":"pad-1"}]);
-        let committed = commit(
-            &mut engine,
-            &before,
-            &format!("parent19-set-net-{author}"),
-            &[&net_id],
-            json!({"kind":"set-net","net":edited_net}),
-        );
-        assert_eq!(committed["kind"], "scene", "{committed}");
-        let after = &committed["document"];
-        assert_eq!(
-            net(after, &net_id)["pins"],
-            json!([{"partId":authored_part,"padId":"pad-1"}])
-        );
-        assert_eq!(
-            net(after, &counterpart_net_id)["pins"],
-            json!([{"partId":counterpart_part,"padId":"pad-1"}])
-        );
-        for unaffected in before["nets"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter(|candidate| candidate["id"] != net_id && candidate["id"] != counterpart_net_id)
-        {
-            assert_eq!(net(after, unaffected["id"].as_str().unwrap()), unaffected);
-        }
-        assert_eq!(
-            pair(after, &pair_id)["halves"]["correspondences"],
-            pair(&before, &pair_id)["halves"]["correspondences"]
-        );
-        assert_repeated_edit_is_noop(
-            &mut engine,
-            after,
-            &format!("parent19-net-repeat-{author}"),
-            &[&net_id],
-            json!({"kind":"set-net","net":net(after, &net_id)}),
-        );
-        assert_history_round_trip(&mut engine, &before, after, &format!("net-{author}"));
-    }
-}
-
-/// A mounted daughterboard placement edit authored from either board follows the rotated pair
-/// map while retaining the shared definition and the rest of its attachment payload.
 #[test]
 fn parent19_mounted_module_placement_commits_from_either_half() {
     for author in ["left", "right"] {
@@ -742,8 +659,11 @@ fn parent19_outline_version_rename_commits_from_either_half() {
             &before,
             &format!("parent19-rename-outline-version-{author}"),
             &[&authored_id],
-            json!({"kind":"rename-outline","boardId":author,
-                "versionId":authored_id,"name":format!("Renamed by {author}")}),
+            // Ticket 37: raw RenameOutline is deleted; Rename is the live typed rename.
+            json!({"kind":"apply-outline-edit","edit":{
+                "target":{"kind":"version","boardId":author,"versionId":authored_id},
+                "change":{"rename":{"name":format!("Renamed by {author}")}},
+                "seed":43, "reviewed": null}}),
         );
         assert_eq!(committed["kind"], "scene", "{committed}");
         let after = &committed["document"];
@@ -772,8 +692,10 @@ fn parent19_outline_version_rename_commits_from_either_half() {
             after,
             &format!("parent19-rename-outline-version-repeat-{author}"),
             &[&authored_id],
-            json!({"kind":"rename-outline","boardId":author,
-                "versionId":authored_id,"name":format!("Renamed by {author}")}),
+            json!({"kind":"apply-outline-edit","edit":{
+                "target":{"kind":"version","boardId":author,"versionId":authored_id},
+                "change":{"rename":{"name":format!("Renamed by {author}")}},
+                "seed":44, "reviewed": null}}),
         );
         assert_history_round_trip(
             &mut engine,

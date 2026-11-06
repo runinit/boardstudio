@@ -2,6 +2,11 @@
 status: accepted
 ---
 
+> The ordered migrations below record earlier formats. For planned layout-parity
+> version 7, that migration policy is superseded by [ADR-0036](0036-matrices-follow-ergogen-point-layout.md)
+> and [ticket 13](../plans/ergogen-layout-parity/issues/13-format-reset-and-recovery.md#answer):
+> refuse older input without migration; preserve stored data until explicit deletion.
+
 # Version persisted documents and remove Ergogen identifiers
 
 Persisted documents had no format version. On 2026-10-05 the user chose to
@@ -50,3 +55,21 @@ cannot change accepted geometry, and reloading starts a new session in which the
 previous session's removed identities may be reused. An explicit `u64::MAX` counter
 is the exhausted sentinel and never allocates again. This compatible addition does
 not remove the earlier version 5 to 6 migration for framed constraints.
+
+## Amendment: layout-parity format reset (2026-10-23)
+
+The user accepted document **`formatVersion: 7`**, retaining the separate
+**`boardstudio/v2`** identifier, IndexedDB version 1 and existing archive metadata.
+Browser list/load, archive import and Core Open must apply controlled no-migration
+validation. Older/unversioned input is unsupported; newer versions need a compatible
+build, while malformed input fails validation. A constant-only bump or a version-stamp
+migration does not satisfy this policy.
+
+Incompatible saved projects and assets remain unchanged, with JSON-only raw download,
+fresh New project and guarded confirmed per-project deletion. There is no global data
+wipe, automatic conversion or legacy archive exporter. Failed input validation preserves
+current work/history; successful replacement starts a fresh editor session and follows
+the existing persist-before-publication and recovery rules. Detailed requirements and
+acceptance are in [ticket 13](../plans/ergogen-layout-parity/issues/13-format-reset-and-recovery.md#answer).
+This amendment records the planned contract, not a claim that the version-6 code has
+already switched to it.

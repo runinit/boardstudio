@@ -380,94 +380,6 @@ fn a_net_that_exists_only_because_of_an_omitted_part_is_removed_not_left_empty()
 }
 
 #[test]
-fn a_source_net_pin_edit_reaches_the_mirror_net_with_the_mirror_side_name() {
-    let document = applied(
-        &paired(),
-        &EditOperation::SetNet {
-            net: net(
-                "left-col0",
-                "LEFT_COL0",
-                vec![
-                    pin("matrix/left-keys/r0c0", "pad-1"),
-                    pin("left/U1", "P1"),
-                    pin("left/U1", "P3"),
-                ],
-            ),
-        },
-    );
-    let after = reconciled(&document);
-    let mirror = net_of(&after, "right-col0").unwrap();
-    assert_eq!(mirror.name, "RIGHT_COL0");
-    assert_eq!(
-        mirror.pins,
-        vec![
-            pin("matrix/right-keys/r0c0", "pad-1"),
-            pin("right/U1", "P1"),
-            pin("right/U1", "P3"),
-        ]
-    );
-    assert_eq!(after.parts, document.parts);
-}
-
-#[test]
-fn a_mirror_side_net_edit_reaches_the_source_then_the_mirror_exactly_once() {
-    let document = paired();
-    let mut edited = net_of(&document, "right-col0").unwrap().clone();
-    edited.pins.push(pin("right/U1", "P4"));
-    let source_edit = applied_canonical(&document, &EditOperation::SetNet { net: edited });
-    assert!(
-        net_of(&source_edit, "left-col0")
-            .unwrap()
-            .pins
-            .contains(&pin("left/U1", "P4"))
-    );
-    assert_eq!(
-        net_of(&source_edit, "right-col0"),
-        net_of(&document, "right-col0"),
-        "the mirror shows nothing until reconciled"
-    );
-    let once = reconciled(&source_edit);
-    let mirror = net_of(&once, "right-col0").unwrap();
-    assert_eq!(
-        mirror
-            .pins
-            .iter()
-            .filter(|p| **p == pin("right/U1", "P4"))
-            .count(),
-        1
-    );
-    assert_eq!(mirror.pins.len(), 3);
-    assert_eq!(reconciled(&once), once, "a second pass changes nothing");
-}
-
-#[test]
-fn a_local_part_keeps_its_own_pins_on_a_linked_net() {
-    let mut document = paired();
-    exception(&mut document, "right/J1", MirroredExceptionState::Local);
-    // The source drops J1 from the net; the Local mirror part keeps its own pin.
-    let document = applied(
-        &document,
-        &EditOperation::SetNet {
-            net: net(
-                "left-aux",
-                "LEFT_AUX",
-                vec![pin("left/U1", "P2"), pin("left/U1", "P3")],
-            ),
-        },
-    );
-    let after = reconciled(&document);
-    let pins = &net_of(&after, "right-aux").unwrap().pins;
-    assert_eq!(pins.len(), 3);
-    for expected in [
-        pin("right/U1", "P2"),
-        pin("right/U1", "P3"),
-        pin("right/J1", "pad-1"),
-    ] {
-        assert!(pins.contains(&expected), "{expected:?}");
-    }
-}
-
-#[test]
 fn a_mirror_net_returns_and_registers_on_the_mirror_board_when_it_is_not_private() {
     let mut document = paired();
     document.nets.retain(|net| net.id != "right-solo");
@@ -486,12 +398,9 @@ fn a_mirror_net_returns_and_registers_on_the_mirror_board_when_it_is_not_private
 
 #[test]
 fn reconciling_twice_is_the_same_as_once_for_every_edit() {
-    let edits = [
-        set_legend("matrix/left-keys/r0c0", "Z"),
-        EditOperation::SetNet {
-            net: net("left-solo", "LEFT_SOLO", vec![pin("left/J1", "pad-3")]),
-        },
-    ];
+    // Ticket 37: SetNet is deleted; the legend edit still drives a mirror
+    // projection so double-reconcile idempotence stays guarded.
+    let edits = [set_legend("matrix/left-keys/r0c0", "Z")];
     let mut document = paired();
     for edit in &edits {
         document = applied(&document, edit);
@@ -499,51 +408,6 @@ fn reconciling_twice_is_the_same_as_once_for_every_edit() {
     let once = reconciled(&document);
     assert_eq!(reconciled(&once), once);
     assert_ne!(once, document);
-}
-
-#[test]
-fn a_source_pin_removed_from_a_net_leaves_the_mirror_net() {
-    let document = applied(
-        &paired(),
-        &EditOperation::SetNet {
-            net: net(
-                "left-col0",
-                "LEFT_COL0",
-                vec![pin("matrix/left-keys/r0c0", "pad-1")],
-            ),
-        },
-    );
-    let after = reconciled(&document);
-    assert_eq!(
-        net_of(&after, "right-col0").unwrap().pins,
-        vec![pin("matrix/right-keys/r0c0", "pad-1")]
-    );
-}
-
-#[test]
-fn a_local_net_keeps_its_own_pins_across_a_source_edit() {
-    let mut document = paired();
-    exception_of(
-        &mut document,
-        MirroredItemKind::Net,
-        "right-col0",
-        MirroredExceptionState::Local,
-    );
-    let document = applied(
-        &document,
-        &EditOperation::SetNet {
-            net: net(
-                "left-col0",
-                "LEFT_COL0",
-                vec![pin("matrix/left-keys/r0c0", "pad-1")],
-            ),
-        },
-    );
-    let after = reconciled(&document);
-    assert_eq!(
-        net_of(&after, "right-col0"),
-        net_of(&document, "right-col0")
-    );
 }
 
 #[test]

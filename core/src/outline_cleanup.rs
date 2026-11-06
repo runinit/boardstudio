@@ -68,9 +68,12 @@ fn control(doc: &ProjectDoc, p: [f64; 2], envelopes: &[(&str, Shapes)]) -> Outli
     let part = owner(p, envelopes).and_then(|id| doc.parts.iter().find(|part| part.id == id));
     let at = Vec2 { x: p[0], y: p[1] };
     if let Some(part) = part {
-        let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
-        let dx = at.x - part.pose.at.x;
-        let dy = at.y - part.pose.at.y;
+        // Ticket 12: envelope points are world-space; relativize against the
+        // evaluated board pose so half-frame parts keep stable controls.
+        let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
+        let (sin, cos) = pose.rotation.to_radians().sin_cos();
+        let dx = at.x - pose.at.x;
+        let dy = at.y - pose.at.y;
         let x = dx * cos + dy * sin;
         OutlineControlPoint {
             at: Vec2 {
@@ -124,19 +127,19 @@ pub(super) fn bridge_metadata(
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
-    let matrix_ids =
-        doc.matrices
-            .iter()
-            .filter(|matrix| {
-                part_ids.iter().any(|id| {
-                    matrix.part_ids.contains(id)
-                        || doc.layouts.iter().any(|layout| {
-                            layout.matrix_id == matrix.id && layout.part_ids.contains(id)
-                        })
-                })
+    let matrix_ids = doc
+        .matrices
+        .iter()
+        .filter(|matrix| {
+            part_ids.iter().any(|id| {
+                matrix.part_ids.contains(id)
+                    || doc.layouts.iter().any(|layout| {
+                        layout.matrix_ids.contains(&matrix.id) && layout.part_ids.contains(id)
+                    })
             })
-            .map(|matrix| matrix.id.clone())
-            .collect();
+        })
+        .map(|matrix| matrix.id.clone())
+        .collect();
     OutlineBridge {
         id: authored
             .map(|id| format!("{feature}:bridge:{id}"))

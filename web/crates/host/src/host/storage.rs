@@ -364,6 +364,34 @@ impl BrowserStore {
         )))
     }
 
+    /// Permanently remove one unreadable record by key without comparing a
+    /// token. Only call after the explicit "permanently delete what we cannot
+    /// read" confirm: unlike [`Self::delete_unreadable`], this does not refuse
+    /// records whose value JSON cannot represent (those leave no token).
+    /// Skips every read and follow-up write; a small delete must succeed where
+    /// a full origin makes saves abort.
+    pub async fn delete_unreadable_by_key(
+        &self,
+        record: &UnreadableProject,
+    ) -> Result<(), PersistError> {
+        let database_name = self.database_name.clone();
+        let key = record.key.clone();
+        let (sender, receiver) = oneshot::channel();
+        let observed = self.observed.clone();
+        spawn_local(async move {
+            let result = delete_key_inner(&database_name, &key).await;
+            if result.is_ok()
+                && let Some(id) = key.as_string()
+            {
+                observed.borrow_mut().remove(&id);
+            }
+            let _ = sender.send(result);
+        });
+        receiver
+            .await
+            .map_err(|_| PersistError("unreadable project delete task was abandoned".into()))?
+    }
+
     pub async fn delete_unreadable(&self, record: &UnreadableProject) -> Result<(), PersistError> {
         let expected = record.token.as_ref().ok_or_else(|| {
             PersistError("This record cannot be safely compared; it was kept.".into())
@@ -435,6 +463,53 @@ impl BrowserStore {
         let expected = self.observed.borrow().get(&project_id).cloned();
         self.delete_project_expected(project_id, expected.as_ref())
             .await
+    }
+
+    /// Permanently remove one saved project by key without comparing a token.
+    /// Only call after an explicit user discard/delete confirm: unlike the
+    /// guarded deletes, this does not refuse when another tab changed the
+    /// record. Skips every read and follow-up write; a small delete must
+    /// succeed where a full origin makes saves abort. Deleting a missing key
+    /// is a no-op.
+    pub async fn delete_project_by_key(&self, project_id: String) -> Result<(), PersistError> {
+        let database_name = self.database_name.clone();
+        let active_key = self.active_key();
+        let key = JsValue::from_str(&project_id);
+        let (sender, receiver) = oneshot::channel();
+        let observed = self.observed.clone();
+        spawn_local(async move {
+            let result = delete_key_inner(&database_name, &key).await;
+            if result.is_ok() {
+                observed.borrow_mut().remove(&project_id);
+            }
+            if let Ok(window) = window()
+                && let Ok(Some(storage)) = window.local_storage()
+                && storage.get_item(&active_key).ok().flatten().as_deref()
+                    == Some(project_id.as_str())
+            {
+                let _ = storage.remove_item(&active_key);
+            }
+            let _ = sender.send(result);
+        });
+        receiver
+            .await
+            .map_err(|_| PersistError("project delete task was abandoned".into()))?
+    }
+
+    /// Store one raw record without validation, so tests can fabricate entries
+    /// the typed writers never produce (for example values JSON cannot
+    /// represent, which decode to unreadable records with no token).
+    #[cfg(any(test, feature = "test-support"))]
+    pub async fn put_raw_record_for_test(&self, value: JsValue) -> Result<(), PersistError> {
+        let database_name = self.database_name.clone();
+        let (sender, receiver) = oneshot::channel();
+        spawn_local(async move {
+            let result = put_raw_record_inner(&database_name, value).await;
+            let _ = sender.send(result);
+        });
+        receiver
+            .await
+            .map_err(|_| PersistError("raw record put task was abandoned".into()))?
     }
 
     pub async fn delete_project_expected(
@@ -676,6 +751,37 @@ async fn delete_record(
     result?;
     drop(on_success);
     Ok(())
+}
+
+/// Remove one project-store record without reading or comparing it. Deleting
+/// a missing key succeeds as a no-op.
+async fn delete_key_inner(database_name: &str, key: &JsValue) -> Result<(), PersistError> {
+    let database = open_database(database_name).await?;
+    let transaction = database
+        .transaction_with_str_and_mode(PROJECT_STORE, IdbTransactionMode::Readwrite)
+        .map_err(js_error)?;
+    let completion = transaction_completion(&transaction, Rc::new(RefCell::new(None)));
+    let store = transaction.object_store(PROJECT_STORE).map_err(js_error)?;
+    store.delete(key).map_err(js_error)?;
+    let result = completion.await;
+    database.close();
+    result
+}
+
+#[cfg(any(test, feature = "test-support"))]
+async fn put_raw_record_inner(database_name: &str, value: JsValue) -> Result<(), PersistError> {
+    let database = open_database(database_name).await?;
+    let transaction = database
+        .transaction_with_str_and_mode(PROJECT_STORE, IdbTransactionMode::Readwrite)
+        .map_err(js_error)?;
+    let completion = transaction_completion(&transaction, Rc::new(RefCell::new(None)));
+    let store = transaction.object_store(PROJECT_STORE).map_err(js_error)?;
+    let request = store.put(&value).map_err(js_error)?;
+    let result = request_result(request).await;
+    let committed = completion.await;
+    database.close();
+    result?;
+    committed
 }
 
 /// Decode a stored project, migrating older versions first. Returns whether it migrated.

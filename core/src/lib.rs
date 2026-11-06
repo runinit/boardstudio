@@ -29,8 +29,14 @@ mod script;
 mod validate;
 
 use geometry::{OutlineCache, outlines};
+pub use matrix::kernel as layout_kernel;
 use matrix::layout;
+pub use matrix::layout::evaluated_part_pose;
+pub use matrix::layout::half_offset;
 pub use matrix::layout::is_matrix_key;
+pub use matrix::layout::layout_half_offset;
+pub use matrix::layout::part_correspondence;
+pub use matrix::layout::proposed_creation_gap;
 use model::*;
 use std::collections::{BTreeMap, BTreeSet};
 use wasm_bindgen::prelude::*;
@@ -56,6 +62,28 @@ impl CoreEngine {
 
     // Worker transport keeps the Rust and TypeScript protocols identical.
     pub fn request(&mut self, json: &str) -> String {
+        let preflight = serde_json::from_str::<serde_json::Value>(json)
+            .map_err(|error| error.to_string())
+            .and_then(|value| {
+                let candidate = if value["kind"] == "open" {
+                    Some(&value["document"])
+                } else if value["kind"] == "edit"
+                    && value["command"]["operation"]["kind"] == "replace-document"
+                {
+                    Some(&value["command"]["operation"]["document"])
+                } else {
+                    None
+                };
+                candidate.map_or(Ok(()), migrate::require_current_value)
+            });
+        if let Err(message) = preflight {
+            return serde_json::to_string(&CoreReply::Error {
+                id: String::new(),
+                message,
+                revision: self.document.revision,
+            })
+            .expect("reply serializes");
+        }
         let reply = match serde_json::from_str::<CoreRequest>(json) {
             Ok(request) => self.handle(request),
             Err(error) => CoreReply::Error {
@@ -203,6 +231,29 @@ impl Default for CoreEngine {
 }
 
 impl CoreEngine {
+    /// Validate a typed Open candidate before retiring editor work, without changing Core.
+    pub fn validate_open(document: &ProjectDoc) -> Result<(), String> {
+        Self::prepare_open(document).map(|_| ())
+    }
+
+    fn prepare_open(document: &ProjectDoc) -> Result<(ProjectDoc, Vec<Finding>), String> {
+        if document.format != "boardstudio/v2" {
+            return Err("Unsupported document format".into());
+        }
+        migrate::require_current_version(document.format_version)?;
+        if document.revision == u64::MAX {
+            return Err("Document revision is exhausted".into());
+        }
+        if let Some(message) = validate::duplicate_top_level_identity(document) {
+            return Err(message);
+        }
+        let prepared = mirrored_half::prepare_open(document, &[])?;
+        if let Some(message) = validate::duplicate_top_level_identity(&prepared.0) {
+            return Err(message);
+        }
+        Ok(prepared)
+    }
+
     pub fn handle(&mut self, request: CoreRequest) -> CoreReply {
         match request {
             CoreRequest::ResolveModules {
@@ -240,26 +291,10 @@ impl CoreEngine {
                 Err(message) => self.error(id, &message),
             },
             CoreRequest::Open { id, document } => {
-                if document.format != "boardstudio/v2" {
-                    return self.error(id, "Unsupported document format");
-                }
-                if document.format_version != migrate::CURRENT_VERSION {
-                    return self.error(id, "Document must be migrated before it is opened");
-                }
-                if document.revision == u64::MAX {
-                    return self.error(id, "Document revision is exhausted");
-                }
-                if let Some(message) = validate::duplicate_top_level_identity(&document) {
-                    return self.error(id, &message);
-                }
-                let (document, repaired_findings) =
-                    match mirrored_half::prepare_open(&document, &[]) {
-                        Ok(prepared) => prepared,
-                        Err(message) => return self.error(id, &message),
-                    };
-                if let Some(message) = validate::duplicate_top_level_identity(&document) {
-                    return self.error(id, &message);
-                }
+                let (document, repaired_findings) = match Self::prepare_open(&document) {
+                    Ok(prepared) => prepared,
+                    Err(message) => return self.error(id, &message),
+                };
                 // A successful explicit Open starts a new document session. Failed
                 // opens (above) leave the previous session's reservations intact.
                 self.identity_ledger =
@@ -334,6 +369,25 @@ impl CoreEngine {
                 if base_revision != self.document.revision {
                     return self.error(id, "Stale base revision");
                 }
+                let mut projection_doc = self.document.clone();
+                let mut seen = BTreeSet::new();
+                for matrix in &matrices {
+                    if !seen.insert(&matrix.id) {
+                        return self.error(id, "Duplicate draft matrix identity");
+                    }
+                    if let Some(existing) = projection_doc
+                        .matrices
+                        .iter_mut()
+                        .find(|existing| existing.id == matrix.id)
+                    {
+                        *existing = matrix.clone();
+                    } else {
+                        projection_doc.matrices.push(matrix.clone());
+                    }
+                }
+                if let Err(message) = layout::refresh_existing(&mut projection_doc) {
+                    return self.error(id, &message);
+                }
                 let mut scenes = Vec::with_capacity(matrices.len());
                 for matrix in matrices {
                     if let Err(message) = matrix::valid_projection_matrix(&matrix) {
@@ -341,7 +395,7 @@ impl CoreEngine {
                     }
                     match matrix::project_matrix(
                         &matrix,
-                        &self.document.parts,
+                        &projection_doc,
                         matrix::ProjectionMode::Draft,
                     ) {
                         Ok(scene) => scenes.push(scene),
@@ -527,6 +581,7 @@ impl CoreEngine {
             && matches!(
                 &command.operation,
                 EditOperation::MoveParts { .. }
+                    | EditOperation::SetKeycapSize { .. }
                     | EditOperation::SetMatrix { .. }
                     | EditOperation::SetMatrixSplay { .. }
                     | EditOperation::SetMatrixPlacement { .. }
@@ -562,28 +617,22 @@ impl CoreEngine {
                 },
             );
         }
-        let next;
-        let changed;
+        let mut next;
+        let mut changed;
         if prepared_route {
             let accepted_contours;
-            let board_contours: &[BoardContours] = if matches!(
-                command.operation,
-                EditOperation::ApplyMechanicalEdit { .. }
-                    | EditOperation::SetMechanical {
-                        target: Some(mechanical::MechanicalTarget::Instance { .. }),
-                        ..
+            let board_contours: &[BoardContours] =
+                if matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. }) {
+                    if let Some(board_contours) = &prepared_mechanical_contours {
+                        board_contours
+                    } else {
+                        accepted_contours =
+                            geometry::board_contours(&self.document, &self.outline_cache).0;
+                        &accepted_contours
                     }
-            ) {
-                if let Some(board_contours) = &prepared_mechanical_contours {
-                    board_contours
                 } else {
-                    accepted_contours =
-                        geometry::board_contours(&self.document, &self.outline_cache).0;
-                    &accepted_contours
-                }
-            } else {
-                &[]
-            };
+                    &[]
+                };
             match mirrored_half::prepare_transaction_with_ledger(
                 &self.document,
                 board_contours,
@@ -625,7 +674,7 @@ impl CoreEngine {
             }
             let mut raw_changed = raw_changed;
             electrical::preserve_handoff(&self.document, &mut raw_next);
-            if let Err(message) = layout::validate(&raw_next) {
+            if let Err(message) = layout::resolve(&mut raw_next) {
                 return self.error(id, &message);
             }
             match constraints::resolve_edit(&mut raw_next, &command.operation) {
@@ -663,11 +712,54 @@ impl CoreEngine {
             next = raw_next;
             changed = raw_changed;
         }
+        if let Err(message) =
+            matrix::placement::validate_translation(&self.document.parts, &next, &command.operation)
+        {
+            return self.error(id, &message);
+        }
+        // Ticket 10: every committed edit that changed the document re-runs the
+        // adaptive spacing pass. It runs after resolve so the minimum sees the
+        // final geometry, and before the no-op check so a genuine edit that
+        // only moves the halves still publishes. Skipped when the edit changed
+        // nothing, so no-op commits stay no-ops. Same Undo entry: the spacing
+        // lands in `next` before the undo snapshot is pushed. Creation owns
+        // its own gap (ticket 11); the pass never re-spaces a new pair.
+        if command.phase == EditPhase::Commit
+            && next != self.document
+            && !matches!(
+                command.operation,
+                EditOperation::CreateMirroredPair { .. } | EditOperation::CreateMirroredHalf { .. }
+            )
+        {
+            let accepted = self.document.clone();
+            let mut adapted = match layout::adapt_spacing(&mut next, &accepted) {
+                Ok(adapted) => adapted,
+                Err(message) => return self.error(id, &message),
+            };
+            if !adapted.is_empty() {
+                if let Err(message) = layout::resolve(&mut next) {
+                    return self.error(id, &message);
+                }
+                changed.append(&mut adapted);
+                changed.sort();
+                changed.dedup();
+            }
+        }
         // Prepared edits can change document-level fields that have no entity ID. Use the
         // typed document as the no-op oracle rather than treating an empty changed-ID list as
         // proof that nothing changed. Preserve the legacy changed-ID policy outside this route.
         if command.phase == EditPhase::Commit
-            && ((prepared_route && next == self.document)
+            && (((prepared_route
+                || matches!(
+                    command.operation,
+                    EditOperation::SetMatrixPlacement { .. }
+                        | EditOperation::SetMatrixSplay { .. }
+                        | EditOperation::AddAnchoredMatrix { .. }
+                        | EditOperation::SetMatrixAnchor { .. }
+                        | EditOperation::DetachMatrixAnchor { .. }
+                        | EditOperation::MoveParts { .. }
+                ))
+                && next == self.document)
                 || (!prepared_route
                     && changed.is_empty()
                     && matches!(
@@ -774,19 +866,13 @@ impl CoreEngine {
 
     fn preview_prepared_edit(&self, id: String, command: EditCommand) -> CoreReply {
         let accepted_contours;
-        let board_contours: &[BoardContours] = if matches!(
-            command.operation,
-            EditOperation::ApplyMechanicalEdit { .. }
-                | EditOperation::SetMechanical {
-                    target: Some(mechanical::MechanicalTarget::Instance { .. }),
-                    ..
-                }
-        ) {
-            accepted_contours = geometry::board_contours(&self.document, &self.outline_cache).0;
-            &accepted_contours
-        } else {
-            &[]
-        };
+        let board_contours: &[BoardContours] =
+            if matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. }) {
+                accepted_contours = geometry::board_contours(&self.document, &self.outline_cache).0;
+                &accepted_contours
+            } else {
+                &[]
+            };
         let (draft, changed) = match mirrored_half::prepare_transaction_with_ledger(
             &self.document,
             board_contours,
@@ -796,6 +882,13 @@ impl CoreEngine {
             Ok(prepared) => prepared,
             Err(message) => return self.error(id, &message),
         };
+        if let Err(message) = matrix::placement::validate_translation(
+            &self.document.parts,
+            &draft,
+            &command.operation,
+        ) {
+            return self.error(id, &message);
+        }
         let (cache, contours, mut findings) = outlines(&draft, None, &changed);
         findings.extend(preview_electrical_loss_findings(&self.document, &draft));
         self.scene(
@@ -824,7 +917,11 @@ impl CoreEngine {
             &self.identity_ledger,
         )
         .and_then(|mut changed| {
-            layout::validate(&self.document)?;
+            // Preview must materialize the same dependant poses the commit
+            // path publishes: anchored matrices follow from the anchor key's
+            // edited pose, and `resolve` (which starts with `validate`)
+            // refreshes every dependant exactly as commit does.
+            layout::resolve(&mut self.document)?;
             changed.extend(constraints::resolve_edit(
                 &mut self.document,
                 &command.operation,
@@ -840,6 +937,11 @@ impl CoreEngine {
             changed.sort();
             changed.dedup();
             generators::introduced_error(&accepted, &self.document)?;
+            matrix::placement::validate_translation(
+                &before_parts,
+                &self.document,
+                &command.operation,
+            )?;
             Ok(changed)
         });
         let reply = match result {
@@ -922,6 +1024,10 @@ impl CoreEngine {
             cache,
             kind,
         } = input;
+        let matrix_order = match matrix::evaluation::order(doc) {
+            Ok(order) => order,
+            Err(message) => return self.error(id, &message),
+        };
         let mut findings = geom_findings.to_vec();
         let definition_ids: BTreeSet<_> =
             doc.definitions.iter().map(|def| def.id.as_str()).collect();
@@ -1112,17 +1218,19 @@ impl CoreEngine {
                 .iter()
                 .map(|part| Transform {
                     id: part.id.clone(),
-                    pose: part.pose,
+                    // Ticket 12: the canvas draws half-frame parts at their
+                    // evaluated board poses; storage stays within-half.
+                    pose: layout::evaluated_part_pose(doc, part),
                 })
                 .collect(),
-            matrix_scenes: doc
-                .matrices
+            matrix_scenes: matrix_order
                 .iter()
+                .map(|index| &doc.matrices[*index])
                 .filter_map(|matrix| {
                     if matrix::valid_matrix(matrix, doc).is_err() {
                         return None;
                     }
-                    matrix::project_matrix(matrix, &doc.parts, matrix::ProjectionMode::Actual)
+                    matrix::project_matrix(matrix, doc, matrix::ProjectionMode::Actual)
                         .map(|mut scene| {
                             scene.companions = matrix::scene_companions(matrix, doc);
                             scene
@@ -1296,6 +1404,7 @@ mod preview_backup_tests {
 
     fn part(id: &str) -> Part {
         Part {
+            anchor: None,
             keycap: None,
             outline: None,
             id: id.into(),
@@ -1327,12 +1436,12 @@ mod preview_backup_tests {
             rotation: None,
             edge_gap: None,
             diode_direction: None,
-            row_offsets: vec![],
-            column_offsets: vec![],
-            column_staggers: vec![],
-            column_splays: vec![],
-            column_origins: vec![],
+            row_layout: vec![],
+            column_layout: vec![],
+            anchor: None,
             cells: vec![MatrixCell {
+                shift: None,
+                bend: None,
                 deleted: false,
                 row: 0,
                 column: 0,
@@ -1355,7 +1464,7 @@ mod preview_backup_tests {
             id: "layout:main".into(),
             name: "Main".into(),
             board_id: "board:main".into(),
-            matrix_id: "main".into(),
+            matrix_ids: vec!["main".into()],
             part_ids: vec!["layout-component".into()],
             mirror_link: None,
         });
@@ -1417,10 +1526,6 @@ fn uses_prepared_transaction(document: &ProjectDoc, operation: &EditOperation) -
             | EditOperation::SetCompanionPlacement { .. }
             | EditOperation::SetHalfException { .. }
             | EditOperation::UnlinkHalves { .. }
-            | EditOperation::SetMechanical {
-                target: Some(mechanical::MechanicalTarget::Instance { .. }),
-                ..
-            }
     ) {
         return true;
     }
@@ -1446,10 +1551,7 @@ fn affects_outline(op: &EditOperation) -> bool {
             host_connector_definition: Some(_),
             ..
         } | EditOperation::MoveParts { .. }
-            | EditOperation::SetOutline { .. }
-            | EditOperation::CopyOutline { .. }
-            | EditOperation::SelectOutline { .. }
-            | EditOperation::RemoveOutline { .. }
+            | EditOperation::SetKeycapSize { .. }
             | EditOperation::AddPart { .. }
             | EditOperation::AddMirrorOnlyPart { .. }
             | EditOperation::RemoveParts { .. }
@@ -1465,6 +1567,13 @@ fn affects_outline(op: &EditOperation) -> bool {
             | EditOperation::CreateMirroredPair { .. }
             | EditOperation::CreateMirroredHalf { .. }
             | EditOperation::SetLayout { .. }
+            | EditOperation::SetSplitGap { .. }
+            | EditOperation::SetMirroredPart { .. }
+            | EditOperation::SetPartAnchor { .. }
+            | EditOperation::SetPartAnchorFollow { .. }
+            | EditOperation::DetachPartAnchor { .. }
+            | EditOperation::SetPartAnchorValues { .. }
+            | EditOperation::SetPartRotation { .. }
             | EditOperation::SetConstraint { .. }
             | EditOperation::RemoveConstraint { .. }
             | EditOperation::ReplaceDocument { .. }
@@ -1563,13 +1672,12 @@ fn add_part_placement(
                 part.id
             ));
         }
-        let mut matrices = document
-            .matrices
-            .iter()
-            .filter(|matrix| matrix.id == layout.matrix_id);
-        let matrix = matrices.next();
-        if matrix.is_none_or(|matrix| matrix.board_id.as_deref() != Some(layout.board_id.as_str()))
-            || matrices.next().is_some()
+        if layout.matrix_ids.is_empty()
+            || layout.matrix_ids.iter().any(|id| {
+                !document.matrices.iter().any(|matrix| {
+                    &matrix.id == id && matrix.board_id.as_ref() == Some(&layout.board_id)
+                })
+            })
         {
             return Err(format!(
                 "Layout {layout_id:?} has inconsistent matrix ownership"
@@ -1607,7 +1715,36 @@ fn add_part_placement(
             .part_ids
             .push(part.id.clone());
     }
-    document.parts.push(part.clone());
+    // Ticket 12: drops onto a stored-gap half arrive board-space; storage is
+    // half-frame, so convert at insertion. Rotations are frame-free.
+    let mut stored = part.clone();
+    // Ticket 13: an independent drop without an anchor takes the nearest key
+    // of its half, keeping the drop point upright. Members, companions and
+    // driven parts stay unanchored; a preset anchor is validated on use.
+    if stored.anchor.is_none()
+        && let Some(layout_id) = layout_id
+        && !matrix::layout::is_member_or_companion(document, &part.id)
+        && document
+            .constraint_driving_part(&part.id)
+            .ok()
+            .flatten()
+            .is_none()
+    {
+        stored.anchor = matrix::part_anchors::drop_anchor(document, layout_id, part.pose);
+    }
+    // A preset anchor is validated like a Pick: a stale key refuses instead
+    // of silently falling back to the stored pose.
+    if let Some(anchor) = stored.anchor.as_ref() {
+        matrix::part_anchors::validate_target(document, &stored, anchor)?;
+    }
+    if let Some(layout_id) = layout_id
+        && let Some(offset) = layout::layout_half_offset(document, layout_id)
+        && !layout::is_member_or_companion(document, &part.id)
+    {
+        stored.pose.at.x -= offset.x;
+        stored.pose.at.y -= offset.y;
+    }
+    document.parts.push(stored);
     Ok(vec![part.id.clone()])
 }
 
@@ -1630,7 +1767,7 @@ fn apply_with_ledger(
     op: &EditOperation,
     identities: &mechanical::edit::MechanicalIdentityLedger,
 ) -> Result<Vec<String>, String> {
-    match op {
+    let mut changed = match op {
         EditOperation::SetModuleDefinition { definition } => {
             modules::set_definition(doc, definition)
         }
@@ -1706,6 +1843,96 @@ fn apply_with_ledger(
         | EditOperation::SetKeycapBoard { .. }
         | EditOperation::SetMatrixKeycaps { .. }
         | EditOperation::SetKeycapKey { .. } => keycaps::apply_edit(doc, op),
+        EditOperation::SetKeycapSize {
+            sizes,
+            moves,
+            offsets,
+        } => {
+            // Validate every entry before writing anything: one atomic typed
+            // entry or nothing.
+            for (id, size) in sizes {
+                doc.parts
+                    .iter()
+                    .find(|part| &part.id == id)
+                    .ok_or_else(|| format!("Unknown key {id}"))?;
+                if !size.x.is_finite() || !size.y.is_finite() || size.x <= 0.0 || size.y <= 0.0 {
+                    return Err(format!("Keycap size for {id} must be positive and finite"));
+                }
+            }
+            for position in moves {
+                doc.parts
+                    .iter()
+                    .find(|part| part.id == position.id)
+                    .ok_or_else(|| format!("Unknown key {}", position.id))?;
+                if !position.at.x.is_finite() || !position.at.y.is_finite() {
+                    return Err(format!("Keycap pose for {} must be finite", position.id));
+                }
+            }
+            for cell in offsets {
+                doc.matrices
+                    .iter()
+                    .find(|matrix| matrix.id == cell.matrix_id)
+                    .ok_or_else(|| format!("Unknown matrix {}", cell.matrix_id))?;
+                if let Some(offset) = &cell.offset
+                    && (!offset.x.is_finite() || !offset.y.is_finite())
+                {
+                    return Err(format!(
+                        "Keycap cell offset for {} is not finite",
+                        cell.matrix_id
+                    ));
+                }
+            }
+            let mut changed = BTreeSet::new();
+            for (id, size) in sizes {
+                let part = doc
+                    .parts
+                    .iter_mut()
+                    .find(|part| &part.id == id)
+                    .expect("validated");
+                part.keycap = Some(*size);
+                changed.insert(id.clone());
+            }
+            for position in moves {
+                let part = doc
+                    .parts
+                    .iter_mut()
+                    .find(|part| part.id == position.id)
+                    .expect("validated");
+                part.pose.at = position.at;
+                changed.insert(position.id.clone());
+            }
+            for cell in offsets {
+                let matrix = doc
+                    .matrices
+                    .iter_mut()
+                    .find(|matrix| matrix.id == cell.matrix_id)
+                    .expect("validated");
+                if let Some(existing) = matrix
+                    .cells
+                    .iter_mut()
+                    .find(|candidate| candidate.row == cell.row && candidate.column == cell.column)
+                {
+                    existing.offset = cell.offset;
+                } else {
+                    matrix.cells.push(MatrixCell {
+                        shift: None,
+                        bend: None,
+                        deleted: false,
+                        row: cell.row,
+                        column: cell.column,
+                        enabled: true,
+                        definition_id: None,
+                        variant: None,
+                        offset: cell.offset,
+                        rotation: None,
+                        assemblies: vec![],
+                        assemblies_local: None,
+                    });
+                }
+                changed.insert(cell.matrix_id.clone());
+            }
+            Ok(changed.into_iter().collect())
+        }
         EditOperation::MoveParts { positions } => {
             let (mut changed, handled) = layout::move_keys(doc, positions)?;
             for position in positions {
@@ -1721,9 +1948,21 @@ fn apply_with_ledger(
                 if !position.at.x.is_finite() || !position.at.y.is_finite() {
                     return Err("Position must be finite".into());
                 }
+                // Ticket 12: pair parts cannot cross the split axis; the drag
+                // stops at it. The clamp is the identity off a mirrored half.
+                // Drags arrive board-space while storage is half-frame, so the
+                // retune delta measures against the evaluated pose.
+                let at = layout::clamp_part_to_half(doc, &position.id, position.at);
+                // Ticket 13: an anchored part re-solves Spread/Stagger from
+                // the clamped drop instead of writing the pose.
+                if doc.parts[index].anchor.is_some() {
+                    changed.extend(matrix::part_anchors::move_anchored(doc, &position.id, at)?);
+                    continue;
+                }
+                let current = layout::evaluated_part_pose(doc, &doc.parts[index]);
                 let delta = Vec2 {
-                    x: position.at.x - doc.parts[index].pose.at.x,
-                    y: position.at.y - doc.parts[index].pose.at.y,
+                    x: at.x - current.at.x,
+                    y: at.y - current.at.y,
                 };
                 if let Some(constraint) = doc
                     .constraints
@@ -1738,13 +1977,27 @@ fn apply_with_ledger(
                     changed.push(position.id.clone());
                     continue;
                 }
-                if let Some(linked) = layout::move_linked_component(doc, &position.id, position.at)?
-                {
+                // Ticket 12: a correspondence-mirrored part on a stored-gap
+                // pair writes both copies through, so either copy edits both.
+                if let Some(mirrored) = layout::move_pair_part(doc, &position.id, at)? {
+                    changed.extend(mirrored);
+                    continue;
+                }
+                if let Some(linked) = layout::move_linked_component(doc, &position.id, at)? {
                     changed.extend(linked);
                     continue;
                 }
+                // Ticket 12: the drop commits board-space; storage converts.
+                let stored = layout::stored_part_pose(
+                    doc,
+                    &position.id,
+                    Pose2 {
+                        at,
+                        rotation: doc.parts[index].pose.rotation,
+                    },
+                );
                 let part = &mut doc.parts[index];
-                part.pose.at = position.at;
+                part.pose.at = stored.at;
                 if doc
                     .matrices
                     .iter()
@@ -1756,39 +2009,26 @@ fn apply_with_ledger(
             }
             Ok(changed)
         }
-        EditOperation::SetOutline { feature } => {
-            let id = feature.id().to_string();
-            let current = doc
-                .board_outlines
-                .iter_mut()
-                .flat_map(|state| &mut state.versions)
-                .flat_map(|version| &mut version.geometry.features)
-                .find(|item| item.id() == id)
-                .or_else(|| doc.outline.iter_mut().find(|item| item.id() == id));
-            if let Some(current) = current {
-                *current = feature.clone();
-            } else {
-                doc.outline.push(feature.clone());
-            }
-            Ok(vec![id])
-        }
-        operation @ (EditOperation::CopyOutline { .. }
-        | EditOperation::SelectOutline { .. }
-        | EditOperation::RenameOutline { .. }
-        | EditOperation::RemoveOutline { .. }) => outline_versions::apply(doc, operation),
         EditOperation::AddPart { .. } | EditOperation::AddMirrorOnlyPart { .. } => match op {
             EditOperation::AddPart {
                 part,
                 board_id,
                 definition,
                 layout_id,
-            } => add_part_placement(
-                doc,
-                part,
-                board_id.as_deref(),
-                definition.as_ref(),
-                layout_id.as_deref(),
-            ),
+            } => {
+                let mut changed = add_part_placement(
+                    doc,
+                    part,
+                    board_id.as_deref(),
+                    definition.as_ref(),
+                    layout_id.as_deref(),
+                )?;
+                // Ticket 12: a part added to a stored-gap half mirrors by
+                // correspondence in the same Undo entry; legacy pairs mirror
+                // through the resolve sync. Mirror-only adds stay single.
+                changed.extend(layout::mirror_new_pair_part(doc, &part.id)?);
+                Ok(changed)
+            }
             EditOperation::AddMirrorOnlyPart {
                 part,
                 board_id,
@@ -1803,6 +2043,22 @@ fn apply_with_ledger(
             ),
             _ => unreachable!("the placement arm matches both Part addition operations"),
         },
+        EditOperation::SetMirroredPart { part_id, mirrored } => {
+            layout::set_part_mirrored(doc, part_id, *mirrored)
+        }
+        EditOperation::SetPartAnchor { part_id, anchor } => {
+            matrix::part_anchors::set_anchor(doc, part_id, anchor)
+        }
+        EditOperation::SetPartAnchorFollow { part_id, follow } => {
+            matrix::part_anchors::set_follow(doc, part_id, follow)
+        }
+        EditOperation::DetachPartAnchor { part_id } => matrix::part_anchors::detach(doc, part_id),
+        EditOperation::SetPartAnchorValues { part_id, change } => {
+            matrix::part_anchors::set_value(doc, part_id, change)
+        }
+        EditOperation::SetPartRotation { part_id, rotation } => {
+            layout::set_detached_part_rotation(doc, part_id, *rotation)
+        }
         EditOperation::RemoveMatrix { id } => {
             let ids = doc
                 .matrices
@@ -1811,21 +2067,43 @@ fn apply_with_ledger(
                 .ok_or("Matrix does not exist")?
                 .part_ids
                 .clone();
-            layout::remove_matrix(doc, id);
+            // Dependants keep their current world frame instead of dangling.
+            let mut detached = matrix::anchors::detach_dependants(doc, id)?;
+            // Ticket 21: linked partners follow the deletion or survive it
+            // complete; only defunct pair records retire.
+            let follow = layout::plan_linked_matrix_removal(doc, id, &mut detached)?;
+            for gone in std::iter::once(id.clone())
+                .chain(follow.matrices.clone())
+                .chain(follow.retired.clone())
+            {
+                layout::remove_matrix(doc, &gone);
+            }
+            let mut ids = ids;
+            ids.extend(follow.part_ids);
             let mut changed = apply(doc, &[], &EditOperation::RemoveParts { ids })?;
-            doc.matrices.retain(|matrix| matrix.id != *id);
-            let prefix = format!("matrix/{id}/net/");
-            let empty_owned: std::collections::BTreeSet<_> = doc
-                .nets
-                .iter()
-                .filter(|net| net.id.starts_with(&prefix) && net.pins.is_empty())
-                .map(|net| net.id.clone())
-                .collect();
+            changed.append(&mut detached);
+            doc.matrices.retain(|matrix| {
+                matrix.id != *id
+                    && !follow.matrices.contains(&matrix.id)
+                    && !follow.retired.contains(&matrix.id)
+            });
+            let mut empty_owned: std::collections::BTreeSet<_> = std::collections::BTreeSet::new();
+            for gone in std::iter::once(id.clone()).chain(follow.matrices.clone()) {
+                let prefix = format!("matrix/{gone}/net/");
+                empty_owned.extend(
+                    doc.nets
+                        .iter()
+                        .filter(|net| net.id.starts_with(&prefix) && net.pins.is_empty())
+                        .map(|net| net.id.clone()),
+                );
+            }
             doc.nets.retain(|net| !empty_owned.contains(&net.id));
             for board in &mut doc.boards {
                 board.net_ids.retain(|id| !empty_owned.contains(id));
             }
             changed.push(id.clone());
+            changed.extend(follow.matrices);
+            changed.extend(follow.retired);
             Ok(changed)
         }
         EditOperation::SetMatrixCellsEnabled { cells, enabled } => {
@@ -1877,6 +2155,9 @@ fn apply_with_ledger(
             // A linked refinement drops exactly the authored choices that required a
             // removed component, inside this same accepted edit, so the cleanup and the
             // removal share one Undo step and never retarget onto another component.
+            // Ticket 12: removing either copy of a mirrored part drops its Part
+            // correspondence, so no dangling record survives the removal.
+            layout::retire_part_correspondences(doc, &ids);
             let mut changed = ids;
             let cleanup = outline_versions::prune_removed_sources(doc, &changed);
             changed.extend(cleanup);
@@ -1884,54 +2165,6 @@ fn apply_with_ledger(
                 changed.extend(layout::sync(doc, &matrix_id)?);
             }
             Ok(changed)
-        }
-        EditOperation::SetNet { net } => {
-            if let Some(current) = doc.nets.iter_mut().find(|item| item.id == net.id) {
-                *current = net.clone();
-            } else {
-                doc.nets.push(net.clone());
-            }
-            if let Some(board) = doc.boards.first_mut()
-                && !board.net_ids.contains(&net.id)
-            {
-                board.net_ids.push(net.id.clone());
-            }
-            Ok(vec![net.id.clone()])
-        }
-        EditOperation::SetMechanical {
-            configuration,
-            target,
-        } => {
-            let configuration = configuration.as_deref().cloned();
-            match target {
-                None => doc.mechanical = configuration,
-                Some(mechanical::MechanicalTarget::Board { board_id }) => {
-                    if !doc.boards.iter().any(|board| board.id == *board_id) {
-                        return Err(format!("Board {board_id:?} is unavailable"));
-                    }
-                    if configuration
-                        .as_ref()
-                        .is_some_and(|configuration| configuration.board_id != *board_id)
-                    {
-                        return Err("The mechanical configuration belongs to another board.".into());
-                    }
-                    if configuration.is_some()
-                        || doc
-                            .mechanical
-                            .as_ref()
-                            .is_some_and(|current| current.board_id == *board_id)
-                    {
-                        doc.mechanical = configuration;
-                    }
-                }
-                Some(mechanical::MechanicalTarget::Instance { .. }) => {
-                    return Err(
-                        "A targeted instance SetMechanical operation must run through transaction preparation."
-                            .into(),
-                    );
-                }
-            }
-            Ok(vec![])
         }
         EditOperation::SetCase { body } => {
             if let Some(current) = doc.case_bodies.iter_mut().find(|item| item.id == body.id) {
@@ -1965,8 +2198,28 @@ fn apply_with_ledger(
                     doc.definitions.push(definition.clone());
                     changed.push(definition.id.clone());
                 }
+                // Ticket 21: an absent matrix has no independent storage
+                // state; refuse before any detach side effect.
+                layout::refuse_omitted_storage_edit(doc, &matrix.id, &[])?;
+                if let Some(previous) = doc
+                    .matrices
+                    .iter()
+                    .find(|item| item.id == matrix.id)
+                    .cloned()
+                {
+                    // Shrinking never retargets an anchor onto a new key at an old
+                    // coordinate: dependants of removed slots detach with their frame.
+                    changed.extend(matrix::anchors::detach_out_of_range(
+                        doc,
+                        &matrix.id,
+                        matrix.rows,
+                        matrix.columns,
+                    )?);
+                    matrix::anchors::check_anchored_frame_change(doc, &previous, matrix)?;
+                }
                 changed.extend(matrix::set_matrix(doc, matrix)?);
                 changed.extend(layout::sync(doc, &matrix.id)?);
+                layout::sync_member_pairs(doc, &matrix.id)?;
                 Ok(changed)
             },
         ),
@@ -1975,12 +2228,17 @@ fn apply_with_ledger(
             column,
             change,
         } => {
+            // Ticket 21: an absent matrix has no independent storage state.
+            layout::refuse_omitted_storage_edit(doc, matrix_id, &[])?;
             let current = doc
                 .matrices
                 .iter()
                 .find(|matrix| &matrix.id == matrix_id)
                 .ok_or("Matrix not found")?;
-            let matrix = matrix::splay::update(current, *column, change)?;
+            let matrix = matrix::splay::update(current, *column, change, doc)?;
+            if matrix == *current {
+                return Ok(Vec::new());
+            }
             // A splay reports every member it touched, not only those that moved.
             matrix::placement::carrying_authored_companions(
                 doc,
@@ -1993,13 +2251,15 @@ fn apply_with_ledger(
             )
         }
         EditOperation::SetMatrixPlacement { matrix_id, change } => {
+            // Ticket 21: an absent matrix has no independent storage state.
+            layout::refuse_omitted_storage_edit(doc, matrix_id, &[])?;
             let current = doc
                 .matrices
                 .iter()
                 .find(|matrix| &matrix.id == matrix_id)
                 .cloned()
                 .ok_or("Matrix not found")?;
-            let matrix = matrix::placement::update(&current, change)?;
+            let matrix = matrix::placement::update(&current, change, doc)?;
             // Setting the current value is a valid no-op.
             if matrix == current {
                 return Ok(Vec::new());
@@ -2015,6 +2275,35 @@ fn apply_with_ledger(
                 },
             )
         }
+        EditOperation::AddAnchoredMatrix { id, anchor } => {
+            matrix::placement::carrying_authored_companions(
+                doc,
+                matrix::placement::Reported::Moved,
+                |doc| matrix::anchors::add(doc, id, anchor),
+            )
+        }
+        EditOperation::SetMatrixAnchor { matrix_id, anchor } => {
+            matrix::placement::carrying_authored_companions(
+                doc,
+                matrix::placement::Reported::Moved,
+                |doc| matrix::anchors::set_anchor(doc, matrix_id, anchor),
+            )
+        }
+        EditOperation::DetachMatrixAnchor { matrix_id } => {
+            matrix::placement::carrying_authored_companions(
+                doc,
+                matrix::placement::Reported::Moved,
+                |doc| matrix::anchors::detach(doc, matrix_id),
+            )
+        }
+        EditOperation::DetachMatrixAnchorConfirmed {
+            matrix_id,
+            local_matrix_id,
+        } => matrix::placement::carrying_authored_companions(
+            doc,
+            matrix::placement::Reported::Moved,
+            |doc| matrix::anchors::detach_confirmed(doc, matrix_id, local_matrix_id),
+        ),
         EditOperation::CreateMirroredPair {
             left,
             right,
@@ -2028,8 +2317,9 @@ fn apply_with_ledger(
             if left.mirror_link.is_some()
                 || link.source_id != left.id
                 || left.id == right.id
-                || matrix.id != left.matrix_id
-                || left.matrix_id == right.matrix_id
+                || left.matrix_ids != [matrix.id.clone()]
+                || right.matrix_ids.len() != 1
+                || left.matrix_ids == right.matrix_ids
                 || matrix.board_id.as_ref() != Some(&left.board_id)
                 || left.board_id != right.board_id
                 || !left.part_ids.is_empty()
@@ -2039,26 +2329,50 @@ fn apply_with_ledger(
                     .layouts
                     .iter()
                     .any(|layout| layout.id == left.id || layout.id == right.id)
-                || doc
-                    .matrices
-                    .iter()
-                    .any(|item| item.id == left.matrix_id || item.id == right.matrix_id)
+                || doc.matrices.iter().any(|item| {
+                    left.matrix_ids.contains(&item.id) || right.matrix_ids.contains(&item.id)
+                })
             {
                 return Err(
                     "Mirrored pair requires two new layouts and distinct matrices on one board"
                         .into(),
                 );
             }
+            // New pairs store the half frame directly: the source origin is
+            // re-expressed half-local and the mirror reflects it, so a later
+            // Split gap change moves both halves without rewriting storage.
+            // Anchored matrices stay legacy (no stored gap); their first edit
+            // adopts only when an unanchored source matrix exists.
+            // Ticket 11: the conversion still uses the requested placement,
+            // while the stored gap is max(requested, 40 mm, minimum), so the
+            // halves widen symmetrically to the stored gap on evaluation.
+            let requested_gap = if matrix.anchor.is_none() {
+                let gap = layout::implied_gap(link.axis_x, matrix);
+                if !gap.is_finite() {
+                    return Err("Split gap must be finite".into());
+                }
+                Some(gap)
+            } else {
+                None
+            };
+            let stored_gap = match requested_gap {
+                Some(_) => Some(layout::proposed_creation_gap(doc, matrix, link.axis_x)?),
+                None => None,
+            };
+            let mut source_half = matrix.as_ref().clone();
+            if let Some(gap) = requested_gap {
+                source_half.origin.x -= link.axis_x - gap / 2.0;
+            }
             let mut changed = apply(
                 doc,
                 &[],
                 &EditOperation::SetMatrix {
-                    matrix: matrix.as_ref().clone(),
+                    matrix: source_half.clone(),
                     definitions: definitions.clone(),
                 },
             )?;
-            let mut target = matrix.as_ref().clone();
-            target.id = right.matrix_id.clone();
+            let mut target = source_half.clone();
+            target.id = right.matrix_ids[0].clone();
             target.name = Some(right.name.clone());
             for cell in &mut target.cells {
                 for assembly in &mut cell.assemblies {
@@ -2066,10 +2380,35 @@ fn apply_with_ledger(
                     assembly.rotation = assembly.rotation.map(|angle| -angle);
                 }
             }
-            let target =
-                layout::reflected(matrix, &target, layout::axis_mapping(link.axis_x), false)?;
+            let target = layout::reflected(
+                &source_half,
+                &target,
+                layout::axis_mapping(link.axis_x),
+                false,
+                stored_gap.is_some(),
+            )?;
             changed.extend(matrix::set_matrix(doc, &target)?);
-            doc.layouts.extend([left.clone(), right.clone()]);
+            let mut follower = right.clone();
+            let link = follower
+                .mirror_link
+                .as_mut()
+                .ok_or("A new mirrored pair must be linked")?;
+            link.split_gap = stored_gap;
+            link.correspondences.clear();
+            link.correspondences.push(MirroredCorrespondence {
+                kind: MirroredItemKind::Matrix,
+                source_id: matrix.id.clone(),
+                mirror_id: target.id.clone(),
+                companion_mode: None,
+                companion_tweak: None,
+            });
+            link.correspondences
+                .extend(layout::part_correspondences(layout::member_pairs(
+                    matrix,
+                    &target.id,
+                    Some(&target),
+                )));
+            doc.layouts.extend([left.clone(), follower]);
             layout::validate(doc)?;
             changed.extend([left.id.clone(), right.id.clone()]);
             Ok(changed)
@@ -2113,24 +2452,82 @@ fn apply_with_ledger(
             ),
         },
         EditOperation::SetLayout { layout: incoming } => {
+            let mut incoming = incoming.clone();
+            if incoming.mirror_link.is_some()
+                && doc
+                    .layouts
+                    .iter()
+                    .find(|layout| layout.id == incoming.id)
+                    .is_some_and(|layout| layout.mirror_link.is_none())
+            {
+                layout::populate_new_link(doc, &mut incoming)?;
+            }
+            let (old_gap, was_linked_target, source_layout_id) = {
+                let current = doc
+                    .layouts
+                    .iter()
+                    .find(|layout| layout.id == incoming.id)
+                    .ok_or("Layout does not exist")?;
+                if current.board_id != incoming.board_id
+                    || current.matrix_ids != incoming.matrix_ids
+                {
+                    return Err("Layout ownership cannot be reassigned".into());
+                }
+                let was_linked_target =
+                    current.mirror_link.is_some() && incoming.mirror_link.is_none();
+                let source_layout_id = was_linked_target
+                    .then(|| {
+                        current
+                            .mirror_link
+                            .as_ref()
+                            .map(|link| link.source_id.clone())
+                    })
+                    .flatten();
+                (
+                    current.mirror_link.as_ref().and_then(|link| link.split_gap),
+                    was_linked_target,
+                    source_layout_id,
+                )
+            };
+            // Half-frame gap transitions run before the record is replaced so
+            // the conversion still sees the previous gap: adding a gap adopts
+            // the board placement first, clearing one restores it.
+            let new_gap = incoming
+                .mirror_link
+                .as_ref()
+                .and_then(|link| link.split_gap);
+            match (old_gap, new_gap) {
+                (None, Some(_)) => {
+                    layout::adopt_half_frames(doc)?;
+                }
+                (Some(_), None) => {
+                    layout::unadopt_pair(doc, &incoming.id)?;
+                }
+                _ => {}
+            }
+            // Ticket 12: parts joining or leaving a stored-gap half reframe
+            // with it, preserving evaluated poses. The unlink transition
+            // skips leaving parts: unadopt above already restored them.
+            let unlinking = matches!((old_gap, new_gap), (Some(_), None));
+            if let Some(previous) = doc
+                .layouts
+                .iter()
+                .find(|layout| layout.id == incoming.id)
+                .cloned()
+            {
+                layout::reframe_moved_parts(doc, &previous, &incoming, unlinking)?;
+            }
             let current = doc
                 .layouts
                 .iter_mut()
                 .find(|layout| layout.id == incoming.id)
                 .ok_or("Layout does not exist")?;
-            if current.board_id != incoming.board_id || current.matrix_id != incoming.matrix_id {
-                return Err("Layout ownership cannot be reassigned".into());
-            }
-            let was_linked_target = current.mirror_link.is_some() && incoming.mirror_link.is_none();
-            let source_layout_id = was_linked_target
-                .then(|| {
-                    current
-                        .mirror_link
-                        .as_ref()
-                        .map(|link| link.source_id.clone())
-                })
-                .flatten();
+            let previous = current.clone();
             *current = incoming.clone();
+            // Ticket 21: run the same-board exception lifecycle (Local/Omitted
+            // transitions, Rejoin materialization) before resolve adopts the
+            // current source state.
+            let mut transitioned = layout::apply_exception_transitions(doc, &previous, &incoming)?;
             let mut detached = if was_linked_target {
                 layout::unlink_components(doc, &incoming.id)
             } else {
@@ -2140,16 +2537,78 @@ fn apply_with_ledger(
                 detached.extend(layout::unlink_components(doc, &source_layout_id));
             }
             layout::resolve(doc)?;
+            if !matches!((old_gap, new_gap), (Some(_), None)) {
+                transitioned.extend(layout::adopt_half_frames(doc)?);
+            }
+            transitioned.append(&mut detached);
             Ok([
-                vec![incoming.id.clone(), incoming.matrix_id.clone()],
-                detached,
+                [vec![incoming.id.clone()], incoming.matrix_ids.clone()].concat(),
+                transitioned,
             ]
             .concat())
+        }
+        EditOperation::SetSplitGap {
+            layout_id,
+            split_gap,
+        } => {
+            if !split_gap.is_finite() || *split_gap < 0.0 {
+                return Err("The Split gap must be a finite non-negative distance".into());
+            }
+            let paired = doc.layouts.iter().any(|layout| {
+                layout.id == *layout_id && layout.mirror_link.is_some()
+                    || layout
+                        .mirror_link
+                        .as_ref()
+                        .is_some_and(|link| link.source_id == *layout_id)
+            });
+            if !paired {
+                return Err(format!("Layout {layout_id} is not part of a mirrored pair"));
+            }
+            // A legacy board-coordinate pair adopts the half frame first, so
+            // the gap change itself moves the halves without rewriting them.
+            let mut changed = layout::adopt_half_frames(doc)?;
+            changed.extend(layout::set_pair_gap(doc, layout_id, *split_gap)?);
+            layout::resolve(doc)?;
+            let root = doc
+                .layouts
+                .iter()
+                .find(|layout| layout.id == *layout_id)
+                .and_then(|layout| {
+                    layout
+                        .mirror_link
+                        .as_ref()
+                        .map(|link| link.source_id.clone())
+                })
+                .unwrap_or(layout_id.clone());
+            for layout in doc.layouts.iter() {
+                let in_pair = layout.id == root
+                    || layout
+                        .mirror_link
+                        .as_ref()
+                        .is_some_and(|link| link.source_id == root);
+                if in_pair {
+                    changed.push(layout.id.clone());
+                    for matrix_id in &layout.matrix_ids {
+                        changed.push(matrix_id.clone());
+                        if let Some(matrix) =
+                            doc.matrices.iter().find(|matrix| matrix.id == *matrix_id)
+                        {
+                            changed.extend(matrix.part_ids.iter().cloned());
+                        }
+                    }
+                }
+            }
+            changed.sort();
+            changed.dedup();
+            Ok(changed)
         }
         EditOperation::ConvertOffsetConstraint { constraint_id, to } => {
             constraints::convert_offset(doc, constraint_id, *to)
         }
         EditOperation::SetConstraint { constraint } => {
+            if let Some(reason) = matrix::anchors::constraining_refusal(doc, constraint) {
+                return Err(reason);
+            }
             if let Some(current) = doc
                 .constraints
                 .iter_mut()
@@ -2181,9 +2640,7 @@ fn apply_with_ledger(
             if document.format != "boardstudio/v2" {
                 return Err("Unsupported document format".into());
             }
-            if document.format_version != migrate::CURRENT_VERSION {
-                return Err("Document must be migrated before it replaces the open one".into());
-            }
+            migrate::require_current_version(document.format_version)?;
             let accepted = doc.clone();
             let mut changed = changed_ids(doc, document);
             let mut prepared = document.as_ref().clone();
@@ -2202,7 +2659,31 @@ fn apply_with_ledger(
             changed.dedup();
             Ok(changed)
         }
+    }?;
+    // The first committed geometry edit adopts the half frame: legacy
+    // board-coordinate pairs store their implied Split gap and re-express
+    // unanchored origins as half-frame values, preserving every world pose.
+    // SetLayout and SetSplitGap manage their own gap transitions;
+    // CreateMirroredPair stores the frame directly; parts adopt with 12.
+    if matches!(
+        op,
+        EditOperation::SetMatrix { .. }
+            | EditOperation::SetMatrixSplay { .. }
+            | EditOperation::SetMatrixPlacement { .. }
+            | EditOperation::AddAnchoredMatrix { .. }
+            | EditOperation::SetMatrixAnchor { .. }
+            | EditOperation::DetachMatrixAnchor { .. }
+            | EditOperation::DetachMatrixAnchorConfirmed { .. }
+            | EditOperation::RemoveMatrix { .. }
+            | EditOperation::SetMatrixCellsEnabled { .. }
+            | EditOperation::RemoveMatrixCells { .. }
+            | EditOperation::RemoveMatrixRow { .. }
+            | EditOperation::RemoveMatrixColumn { .. }
+            | EditOperation::RemoveSelectedMatrixCells { .. }
+    ) {
+        changed.extend(layout::adopt_half_frames(doc)?);
     }
+    Ok(changed)
 }
 
 fn changed_ids(a: &ProjectDoc, b: &ProjectDoc) -> Vec<String> {
@@ -2350,6 +2831,7 @@ mod preview_electrical_loss_tests {
     fn document() -> ProjectDoc {
         let mut document = ProjectDoc::empty("project", "Test");
         document.parts.push(Part {
+            anchor: None,
             keycap: None,
             outline: None,
             id: "part:one".into(),
@@ -2744,15 +3226,11 @@ mod mechanical_edit_engine_tests {
         document.mechanical = Some(configuration("board"));
         let before = document.clone();
 
+        // Ticket 37: raw SetMechanical is deleted; Disable is the live typed clear.
         apply(
             &mut document,
             &[],
-            &EditOperation::SetMechanical {
-                configuration: None,
-                target: Some(MechanicalTarget::Board {
-                    board_id: "other".into(),
-                }),
-            },
+            &edit_op("other", MechanicalChange::Disable, false),
         )
         .expect("clearing another board is an unchanged explicit target");
         assert_eq!(
@@ -2763,12 +3241,7 @@ mod mechanical_edit_engine_tests {
         apply(
             &mut document,
             &[],
-            &EditOperation::SetMechanical {
-                configuration: None,
-                target: Some(MechanicalTarget::Board {
-                    board_id: "board".into(),
-                }),
-            },
+            &edit_op("board", MechanicalChange::Disable, false),
         )
         .expect("clearing the slot's own board removes its configuration");
         assert!(document.mechanical.is_none());
@@ -2780,19 +3253,24 @@ mod mechanical_edit_engine_tests {
         document.boards.push(board());
         let before = document.clone();
 
+        // Ticket 37: raw SetMechanical is deleted; an instance-targeted typed
+        // edit through raw apply must not activate instance configuration.
         let refusal = apply(
             &mut document,
             &[],
-            &EditOperation::SetMechanical {
-                configuration: Some(Box::new(configuration("board"))),
-                target: Some(MechanicalTarget::Instance {
-                    instance_id: "physical-half".into(),
+            &EditOperation::ApplyMechanicalEdit {
+                edit: Box::new(MechanicalEdit {
+                    target: MechanicalTarget::Instance {
+                        instance_id: "physical-half".into(),
+                    },
+                    change: MechanicalChange::Disable,
+                    mounting_hole: None,
                 }),
             },
         )
-        .expect_err("the private preparation connection must not activate raw apply");
+        .expect_err("a missing instance stays refused through raw apply");
 
-        assert!(refusal.contains("must run through transaction preparation"));
+        assert!(refusal.contains("Physical instances are unavailable"));
         assert_eq!(document, before);
     }
 
@@ -2800,35 +3278,32 @@ mod mechanical_edit_engine_tests {
     fn explicit_board_set_mechanical_keeps_board_slot_semantics() {
         let mut document = ProjectDoc::empty("doc", "Fixture");
         document.boards.push(board());
-        document.mechanical = Some(configuration("board"));
-        let mut replacement = configuration("board");
-        replacement.wall_thickness = 3.0;
-
+        let mut other = board();
+        other.id = "other".into();
+        document.boards.push(other);
+        // Ticket 37: raw SetMechanical is deleted; Enable/Disable are the live
+        // typed board-slot writes.
         apply(
             &mut document,
             &[],
-            &EditOperation::SetMechanical {
-                configuration: Some(Box::new(replacement.clone())),
-                target: Some(MechanicalTarget::Board {
-                    board_id: "board".into(),
-                }),
-            },
+            &edit_op("board", MechanicalChange::Enable, false),
         )
         .expect("an explicit Board target uses the existing board slot");
-        assert_eq!(document.mechanical, Some(replacement));
+        assert_eq!(
+            document
+                .mechanical
+                .as_ref()
+                .map(|item| item.board_id.as_str()),
+            Some("board")
+        );
 
         let before = document.clone();
-        let mismatch = apply(
+        apply(
             &mut document,
             &[],
-            &EditOperation::SetMechanical {
-                configuration: Some(Box::new(configuration("other"))),
-                target: Some(MechanicalTarget::Board {
-                    board_id: "board".into(),
-                }),
-            },
-        );
-        assert!(mismatch.is_err());
+            &edit_op("other", MechanicalChange::Disable, false),
+        )
+        .expect("disabling another board leaves this slot alone");
         assert_eq!(
             document, before,
             "a target mismatch leaves the document alone"
@@ -2837,12 +3312,9 @@ mod mechanical_edit_engine_tests {
         apply(
             &mut document,
             &[],
-            &EditOperation::SetMechanical {
-                configuration: None,
-                target: None,
-            },
+            &edit_op("board", MechanicalChange::Disable, false),
         )
-        .expect("an omitted target retains legacy board-slot clearing");
+        .expect("disabling the slot's own board clears its configuration");
         assert!(document.mechanical.is_none());
     }
 

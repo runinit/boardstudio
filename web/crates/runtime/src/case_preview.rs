@@ -225,6 +225,7 @@ mod native_preview_pick_tests {
         let mut document = ProjectDoc::empty("doc", "Sofle");
         document.revision = 12;
         document.parts.push(Part {
+            anchor: None,
             keycap: None,
             outline: None,
             id: "left/U1".into(),
@@ -313,6 +314,7 @@ mod native_preview_pick_tests {
         );
         let mut duplicate_reference = document.clone();
         duplicate_reference.parts.push(Part {
+            anchor: None,
             id: "left/other".into(),
             ..duplicate_reference.parts[0].clone()
         });

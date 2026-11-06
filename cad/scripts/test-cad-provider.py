@@ -1,6 +1,46 @@
 #!/usr/bin/env python3
-"""Run required regressions against the current packaged WEB provider without compiling it."""
-from cad_build import test_provider
+"""Run required packaged provider regressions and browser controls."""
+import importlib.util
+import os
+from pathlib import Path
+import sys
+import unittest
+from unittest.mock import patch
 
-if __name__ == "__main__":
-    test_provider()
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
+import browser_tools
+
+CONTROLS = (
+    'test_batch_failures_and_later_suite',
+    'test_broken_stdout_fails_before_later_statement',
+    'test_fixture_and_corrupt_wasm_initialization_order',
+    'test_driver_rejects_invalid_startup',
+)
+
+
+def run_checks(driver):
+    with patch.dict(os.environ, {'CAD_PROVIDER_PAGES_DRIVER': str(driver)}):
+        path = Path(__file__).with_name('test-provider-pages.py')
+        spec = importlib.util.spec_from_file_location('provider_controls', path)
+        controls = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(controls)
+        controls.pages.run(driver=driver)
+        suite = unittest.TestSuite(controls.ProviderPagesBrowserTests(name) for name in CONTROLS)
+        result = unittest.TextTestRunner(verbosity=2).run(suite)
+        if (not result.wasSuccessful() or result.skipped or result.expectedFailures
+                or result.testsRun != len(CONTROLS)):
+            raise RuntimeError('required provider browser controls failed or were skipped')
+
+
+def run():
+    driver = browser_tools._build_harness('cad-provider-pages')
+    if not driver.is_file():
+        raise RuntimeError(f'provider browser driver missing: {driver}')
+    run_checks(driver)
+
+
+if __name__ == '__main__':
+    try:
+        run()
+    except (OSError, ValueError, RuntimeError, browser_tools.MissingBrowserTool) as error:
+        sys.exit(str(error))

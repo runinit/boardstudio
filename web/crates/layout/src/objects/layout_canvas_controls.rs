@@ -2,7 +2,9 @@
 use super::matrix_transform_controller::MatrixTransformInspectorMount;
 use super::matrix_transform_inspector::NumericTransformField;
 use super::{LayoutTransformMenuMount, LayoutTransformTool};
-use crate::matrix_transform_operation::{MatrixTransformField, MatrixTransformFields};
+use crate::matrix_transform_operation::{
+    MatrixTransformField, MatrixTransformFields, column_angle,
+};
 use dioxus::prelude::*;
 
 #[component]
@@ -24,6 +26,7 @@ pub fn LayoutCanvasControls(
             stagger,
             offset,
             splay_angle,
+            rotation,
             splay_origin,
             ..
         } => {
@@ -50,7 +53,7 @@ pub fn LayoutCanvasControls(
                     MatrixTransformField::ColumnSplay,
                     "Splay",
                     "°",
-                    *splay_angle,
+                    column_angle(*splay_angle, *rotation, &(mount.splay_affect)()),
                 ),
             ];
             if tools.active_tool == Some(LayoutTransformTool::Origin) {

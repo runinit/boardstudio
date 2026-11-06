@@ -84,7 +84,10 @@ pub(crate) fn nominal_fit(
             let Some(profile) = definition.mechanical_profile.as_ref() else {
                 continue;
             };
-            let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
+            // Ticket 12: hardware volumes follow the evaluated board pose of
+            // half-frame parts.
+            let pose = crate::matrix::layout::evaluated_part_pose(document, part);
+            let (sin, cos) = pose.rotation.to_radians().sin_cos();
             for volume in profile.clearance_volumes.iter().flatten() {
                 if volume.points.len() < 3
                     || !volume.z.is_finite()
@@ -108,8 +111,8 @@ pub(crate) fn nominal_fit(
                                 point.x
                             };
                             Vec2 {
-                                x: part.pose.at.x + x * cos - point.y * sin,
-                                y: part.pose.at.y + x * sin + point.y * cos,
+                                x: pose.at.x + x * cos - point.y * sin,
+                                y: pose.at.y + x * sin + point.y * cos,
                             }
                         })
                         .collect(),

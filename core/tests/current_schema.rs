@@ -118,8 +118,7 @@ fn unknown_mirrored_item_kinds_and_exception_states_are_refused() {
     );
 }
 
-/// Open reads only the current format. Older documents must be migrated first, and newer
-/// documents are refused rather than read as the current version.
+/// Direct Open reads only the current format and never offers a conversion.
 #[test]
 fn open_refuses_documents_that_are_not_at_the_current_version() {
     use boardstudio_core::CoreEngine;
@@ -134,7 +133,14 @@ fn open_refuses_documents_that_are_not_at_the_current_version() {
             document,
         }) {
             CoreReply::Error { message, .. } => {
-                assert!(message.contains("migrated"), "version {version}: {message}");
+                assert!(message.contains(&version.to_string()), "{message}");
+                assert!(message.contains(&CURRENT_VERSION.to_string()), "{message}");
+                let explanation = if version < CURRENT_VERSION {
+                    "No conversion is available"
+                } else {
+                    "compatible newer build"
+                };
+                assert!(message.contains(explanation), "{message}");
             }
             other => panic!("version {version} must be refused: {other:?}"),
         }

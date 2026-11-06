@@ -6,8 +6,8 @@ use super::*;
 use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SessionEpoch};
 use boardstudio_core::model::{
     Board, Constraint, ConstraintEndpoint, ConstraintRelation, Layout, LayoutMirrorLink, Matrix,
-    MatrixCell, MatrixScene, MatrixSceneCell, PartDefinition, PartKind, PartOutline, Pose2,
-    ProjectDoc, Readiness, SceneDelta, Side,
+    MatrixCell, MatrixScene, MatrixSceneCell, MirroredCorrespondence, MirroredItemKind,
+    PartDefinition, PartKind, PartOutline, Pose2, ProjectDoc, Readiness, SceneDelta, Side, Vec2,
 };
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use std::cell::RefCell;
@@ -65,6 +65,7 @@ fn fixture_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
                 rotation: 0.0,
             },
             side: Side::Front,
+            anchor: None,
             locked: Some(false),
             properties: None,
             generator_parameters: None,
@@ -74,7 +75,7 @@ fn fixture_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
         id: "source-layout".into(),
         name: "Left half".into(),
         board_id: "board".into(),
-        matrix_id: "matrix".into(),
+        matrix_ids: vec!["matrix".into()],
         part_ids: vec!["selected-part".into()],
         mirror_link: None,
     });
@@ -82,11 +83,21 @@ fn fixture_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
         id: "paired-layout".into(),
         name: "Right half".into(),
         board_id: "board".into(),
-        matrix_id: "paired-matrix".into(),
+        matrix_ids: vec!["paired-matrix".into()],
         part_ids: vec![],
         mirror_link: Some(LayoutMirrorLink {
+            correspondences: vec![MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::Matrix,
+                source_id: "matrix".into(),
+                mirror_id: "paired-matrix".into(),
+            }],
+            exceptions: vec![],
             source_id: "source-layout".into(),
             axis_x: 0.0,
+            split_gap: None,
+            spacing: None,
         }),
     });
     configure(&mut document);
@@ -186,13 +197,13 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: vec![
             MatrixCell {
+                shift: None,
+                bend: None,
                 deleted: false,
                 row: 0,
                 column: 0,
@@ -205,6 +216,8 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
                 assemblies_local: None,
             },
             MatrixCell {
+                shift: None,
+                bend: None,
                 deleted: false,
                 row: 0,
                 column: 1,
@@ -217,6 +230,8 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
                 assemblies_local: None,
             },
             MatrixCell {
+                shift: None,
+                bend: None,
                 deleted: true,
                 row: 0,
                 column: 2,
@@ -238,6 +253,14 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
             companions: vec![],
             cells: vec![
                 MatrixSceneCell {
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
+                    row_shift: Vec2::default(),
+                    key_shift: Vec2::default(),
+                    row_bend: 0.0,
+                    key_bend: 0.0,
+                    cumulative_shift: Vec2::default(),
+                    cumulative_bend: 0.0,
                     row: 0,
                     column: 0,
                     enabled: true,
@@ -248,6 +271,14 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
                     },
                 },
                 MatrixSceneCell {
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
+                    row_shift: Vec2::default(),
+                    key_shift: Vec2::default(),
+                    row_bend: 0.0,
+                    key_bend: 0.0,
+                    cumulative_shift: Vec2::default(),
+                    cumulative_bend: 0.0,
                     row: 0,
                     column: 1,
                     enabled: false,
@@ -302,12 +333,12 @@ fn companion_placement_projection_normalizes_layout_selections() {
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
             deleted: false,
             row: 0,
             column: 0,
@@ -392,6 +423,14 @@ fn companion_placement_projection_normalizes_layout_selections() {
     scene.matrix_scenes.push(MatrixScene {
         matrix_id: "component-matrix".into(),
         cells: vec![MatrixSceneCell {
+            shift_frame: Default::default(),
+            offset_frame: Default::default(),
+            row_shift: Vec2::default(),
+            key_shift: Vec2::default(),
+            row_bend: 0.0,
+            key_bend: 0.0,
+            cumulative_shift: Vec2::default(),
+            cumulative_bend: 0.0,
             row: 0,
             column: 0,
             enabled: true,
@@ -1017,9 +1056,9 @@ fn mounted_component_inspector_host() -> Element {
     *probe.render_generation.borrow_mut() = Some(render_generation);
     let workspace = use_signal(|| "Layout");
     let selection_kind = use_signal(objects::LayoutSelectionKind::default);
-    let inspector_tab = use_signal(super::layout_workspace::LayoutInspectorTab::default);
     let inspect_open = use_signal(|| true);
     let mut selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
+    let inspector_tab = use_signal(super::layout_workspace::LayoutInspectorTab::default);
     let mut show_component = use_signal(|| true);
     let anchor_scope = use_signal(|| None::<Scope>);
     let scope_generation = use_signal(|| 1u64);
@@ -1060,6 +1099,7 @@ fn mounted_component_inspector_host() -> Element {
     if selected_context.peek().clone() != next_context {
         selected_context.set(next_context.clone());
     }
+    super::layout_workspace::use_contextual_inspector_tab_reset(selected_context, inspector_tab);
     *probe.adapter_context.borrow_mut() = selected_context.peek().clone();
     let owner_key =
         layout_component_inspector_owner_key(&model, workspace(), next_context.as_ref());
@@ -1138,12 +1178,12 @@ fn runtime_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
                 rotation: None,
                 edge_gap: None,
                 diode_direction: None,
-                row_offsets: vec![],
-                column_offsets: vec![],
-                column_staggers: vec![],
-                column_splays: vec![],
-                column_origins: vec![],
+                row_layout: vec![],
+                column_layout: vec![],
+                anchor: None,
                 cells: vec![MatrixCell {
+                    shift: None,
+                    bend: None,
                     deleted: false,
                     row: 0,
                     column: 0,
@@ -1225,6 +1265,9 @@ async fn mounted_runtime_probe(
         document,
     });
     crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    runtime.model().accepted.expect(
+        "the mounted Inspector fixture must be accepted by Session/Core Open before selection",
+    );
     runtime.submit(boardstudio_application::Event::SelectParts {
         operation_id: runtime.operation(),
         part_ids: selected_parts.iter().map(|id| (*id).into()).collect(),
@@ -1280,7 +1323,12 @@ async fn mounted_probe_configured(
 }
 
 async fn mounted_group_probe(root_id: &'static str) -> (MountedProbe, web_sys::Element) {
-    mounted_runtime_probe(root_id, |_| {}, &["selected-part", "source-part"]).await
+    mounted_runtime_probe(
+        root_id,
+        |document| document.layouts[0].part_ids.clear(),
+        &["selected-part", "source-part"],
+    )
+    .await
 }
 
 async fn settle_component_inspector(root_id: &str, mut generation: Signal<u64>) {
@@ -1524,6 +1572,241 @@ async fn mounted_mirrored_half_actions_work_from_either_board_and_undo() {
     root.remove();
 }
 
+/// Ticket 12: the source layout and its mirror partner with a stored gap,
+/// plus a mirrored controller pair. The partner pose is the half-frame
+/// reflection of the source pose (stored x negates).
+fn configure_gapped_part_mirror(document: &mut ProjectDoc) {
+    let link = document
+        .layouts
+        .iter_mut()
+        .find(|layout| layout.id == "paired-layout")
+        .expect("mirror layout")
+        .mirror_link
+        .as_mut()
+        .expect("mirror link");
+    link.axis_x = 40.0;
+    link.split_gap = Some(40.0);
+    link.correspondences.push(MirroredCorrespondence {
+        companion_mode: None,
+        companion_tweak: None,
+        kind: MirroredItemKind::Part,
+        source_id: "selected-part".into(),
+        mirror_id: "selected-part-mirror".into(),
+    });
+    document.parts.push(Part {
+        keycap: None,
+        outline: None,
+        id: "selected-part-mirror".into(),
+        definition_id: "component-definition".into(),
+        reference: "U3".into(),
+        pose: Pose2 {
+            at: Vec2 { x: -4.0, y: 3.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        anchor: None,
+        locked: Some(false),
+        properties: None,
+        generator_parameters: None,
+    });
+    document.boards[0]
+        .part_ids
+        .push("selected-part-mirror".into());
+    document
+        .layouts
+        .iter_mut()
+        .find(|layout| layout.id == "paired-layout")
+        .expect("mirror layout")
+        .part_ids
+        .push("selected-part-mirror".into());
+}
+
+/// Ticket 12: the "Mirror on both halves" toggle dispatches SetMirroredPart
+/// each way — off removes the partner, on recreates it — with one Undo entry
+/// per flip.
+#[wasm_bindgen_test]
+async fn mounted_part_mirror_toggle_mirrors_and_unmirrors_with_undo() {
+    use boardstudio_web_ui_shared::test_wait::wait_until_step;
+
+    async fn settled_part_mirror(probe: &MountedProbe, expected: Option<bool>) -> bool {
+        accept_pending(probe).await;
+        accept_pending_ready(probe)
+            && probe
+                .projection
+                .borrow()
+                .as_ref()
+                .and_then(|projection| projection.part_mirror)
+                == expected
+    }
+
+    let (probe, root) = mounted_runtime_probe(
+        "layout-part-mirror-toggle-test-root",
+        configure_gapped_part_mirror,
+        &["selected-part"],
+    )
+    .await;
+    settle_mounted_component_inspector(&probe).await;
+
+    fn part_mirror(probe: &MountedProbe) -> Option<bool> {
+        probe
+            .projection
+            .borrow()
+            .as_ref()
+            .and_then(|projection| projection.part_mirror)
+    }
+
+    fn accepted_part_records(probe: &MountedProbe) -> Vec<MirroredCorrespondence> {
+        probe
+            .runtime
+            .model()
+            .accepted
+            .as_ref()
+            .expect("fixture snapshot")
+            .document
+            .layouts
+            .iter()
+            .filter_map(|layout| layout.mirror_link.as_ref())
+            .flat_map(|link| link.correspondences.clone())
+            .filter(|record| record.kind == MirroredItemKind::Part)
+            .collect()
+    }
+
+    fn toggle_part_mirror(root_id: &str, mirrored: bool) {
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id(root_id)
+            .expect("inspector root");
+        let checkbox =
+            by_role_name(&root, "checkbox", "Mirror on both halves").expect("part mirror toggle");
+        assert_eq!(
+            checkbox.get_attribute("aria-checked").as_deref(),
+            Some(if mirrored { "false" } else { "true" }),
+        );
+        checkbox.click();
+    }
+
+    // The independent part shows the ticket-12 toggle instead of the member
+    // exception buttons — checked while its Part correspondence is live.
+    wait_until("the part mirror toggle mounts checked", || {
+        probe.refresh();
+        part_mirror(&probe) == Some(true)
+    })
+    .await;
+    click_component_inspector(probe.root_id, "button", "Mirrored half");
+    assert!(
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!(
+                "#{} #component-inspector-mirrored-half-local",
+                probe.root_id
+            ))
+            .unwrap()
+            .is_none(),
+        "independent parts use the toggle, not the member exception buttons"
+    );
+
+    // Off: the partner and its record go away together, in one Undo entry.
+    let revision = accepted_revision(&probe);
+    toggle_part_mirror(probe.root_id, false);
+    assert!(matches!(
+        probe.last_action.borrow().as_ref(),
+        Some(LayoutComponentInspectorAction::SetPartMirrored {
+            part_id,
+            mirrored: false,
+            ..
+        }) if part_id == "selected-part"
+    ));
+    wait_until_step("unmirroring is accepted", async || {
+        accept_pending(&probe).await;
+        accept_pending_ready(&probe)
+            && accepted_part_records(&probe).is_empty()
+            && part_mirror(&probe) == Some(false)
+    })
+    .await;
+    assert!(
+        accepted_revision(&probe) > revision,
+        "the toggle off commits one Undo entry"
+    );
+    assert!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .as_ref()
+            .expect("fixture snapshot")
+            .document
+            .parts
+            .iter()
+            .all(|part| part.id != "selected-part-mirror"),
+        "the partner part is removed with its record"
+    );
+
+    // On: the partner returns at the reflected pose, in one Undo entry.
+    let revision = accepted_revision(&probe);
+    toggle_part_mirror(probe.root_id, true);
+    assert!(matches!(
+        probe.last_action.borrow().as_ref(),
+        Some(LayoutComponentInspectorAction::SetPartMirrored {
+            part_id,
+            mirrored: true,
+            ..
+        }) if part_id == "selected-part"
+    ));
+    wait_until_step("remirroring is accepted", async || {
+        accept_pending(&probe).await;
+        accept_pending_ready(&probe) && part_mirror(&probe) == Some(true)
+    })
+    .await;
+    assert!(
+        accepted_revision(&probe) > revision,
+        "the toggle on commits one Undo entry"
+    );
+    let records = accepted_part_records(&probe);
+    assert_eq!(records.len(), 1);
+    let partner = probe
+        .runtime
+        .model()
+        .accepted
+        .as_ref()
+        .expect("fixture snapshot")
+        .document
+        .parts
+        .iter()
+        .find(|part| part.id == records[0].mirror_id)
+        .expect("the partner part returns with its record")
+        .clone();
+    assert_eq!(partner.pose.at, Vec2 { x: -4.0, y: 3.0 });
+
+    // One Undo entry each way: undo unmirrors, undo again remirrors.
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    wait_until_step("undo unmirrors the part", async || {
+        settled_part_mirror(&probe, Some(false)).await
+    })
+    .await;
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    wait_until_step("undo remirrors the part", async || {
+        settled_part_mirror(&probe, Some(true)).await
+    })
+    .await;
+    root.remove();
+}
+
+/// Whether the mounted Inspector has settled on the latest accepted revision.
+fn accept_pending_ready(probe: &MountedProbe) -> bool {
+    probe.pending_edits.borrow().as_ref().is_none_or(|edits| {
+        use super::layout_component_edits::InspectorField;
+        !edits.peek().is_pending(&InspectorField::PartMirror)
+    })
+}
+
 /// The position of a fixture part in the accepted document.
 fn accepted_position(probe: &MountedProbe, part_id: &str) -> Vec2 {
     probe
@@ -1574,7 +1857,7 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                 id: "component-layout".into(),
                 name: "Component half".into(),
                 board_id: "board".into(),
-                matrix_id: "component-matrix".into(),
+                matrix_ids: vec!["component-matrix".into()],
                 part_ids: vec![],
                 mirror_link: None,
             });
@@ -1582,11 +1865,21 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                 id: "component-mirror-layout".into(),
                 name: "Component mirror".into(),
                 board_id: "board".into(),
-                matrix_id: "component-paired-matrix".into(),
+                matrix_ids: vec!["component-paired-matrix".into()],
                 part_ids: vec![],
                 mirror_link: Some(LayoutMirrorLink {
+                    correspondences: vec![MirroredCorrespondence {
+                        companion_mode: None,
+                        companion_tweak: None,
+                        kind: MirroredItemKind::Matrix,
+                        source_id: "component-matrix".into(),
+                        mirror_id: "component-paired-matrix".into(),
+                    }],
+                    exceptions: vec![],
                     source_id: "component-layout".into(),
                     axis_x: 0.0,
+                    split_gap: None,
+                    spacing: None,
                 }),
             });
             document.matrices.clear();
@@ -1604,12 +1897,12 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                 rotation: None,
                 edge_gap: None,
                 diode_direction: None,
-                row_offsets: vec![],
-                column_offsets: vec![],
-                column_staggers: vec![],
-                column_splays: vec![],
-                column_origins: vec![],
+                row_layout: vec![],
+                column_layout: vec![],
+                anchor: None,
                 cells: vec![MatrixCell {
+                    shift: None,
+                    bend: None,
                     deleted: false,
                     row: 0,
                     column: 0,
@@ -1636,12 +1929,12 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                 rotation: None,
                 edge_gap: None,
                 diode_direction: None,
-                row_offsets: vec![],
-                column_offsets: vec![],
-                column_staggers: vec![],
-                column_splays: vec![],
-                column_origins: vec![],
+                row_layout: vec![],
+                column_layout: vec![],
+                anchor: None,
                 cells: vec![MatrixCell {
+                    shift: None,
+                    bend: None,
                     deleted: false,
                     row: 0,
                     column: 0,
@@ -1721,7 +2014,11 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
 
 #[wasm_bindgen_test]
 async fn mounted_component_inspector_production_handler_rejects_selection_aba_and_unmount() {
-    let (probe, root) = mounted_probe("layout-component-inspector-aba-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-inspector-aba-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     let old_projection = probe.projection.borrow().clone().unwrap();
     let old_action = *probe.action.borrow().as_ref().unwrap();
@@ -1896,7 +2193,11 @@ async fn mounted_component_margin_enter_commits_and_escape_restores_the_accepted
 #[wasm_bindgen_test]
 async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur_uses_latest_owner()
 {
-    let (probe, root) = mounted_probe("layout-component-inspector-refresh-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-inspector-refresh-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     let input = |label: &str| position_input(probe.root_id, label);
     let type_value = |field: &web_sys::HtmlInputElement, value: &str| {
@@ -2061,6 +2362,8 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
     let (probe, root) = mounted_probe_configured(
         "layout-component-position-queued-xy-test-root",
         |document| {
+            // This test isolates queued edits from linked-half frame adoption.
+            document.layouts[0].part_ids.clear();
             let part = document
                 .parts
                 .iter_mut()
@@ -2135,9 +2438,79 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
 }
 
 #[wasm_bindgen_test]
+async fn mounted_linked_queued_xy_edits_preserve_board_position_across_adoption_and_undo() {
+    let (probe, root) =
+        mounted_probe_configured("layout-component-linked-queued-xy-test-root", |document| {
+            document.matrices[0].origin.x = -30.0;
+            document.matrices[1].origin.x = 30.0;
+            document.parts[0].pose.at = Vec2 { x: -50.0, y: 3.0 };
+        })
+        .await;
+    settle_mounted_component_inspector(&probe).await;
+    let x = position_input(probe.root_id, "X mm");
+    let y = position_input(probe.root_id, "Y mm");
+    let (entered, release) =
+        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+    try_commit_position(&x, "-40");
+    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    entered.await.expect("the X edit reached Core");
+    try_commit_position(&y, "8");
+    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    release.send(()).expect("release the held X reply");
+    accept_pending(&probe).await;
+
+    let board_position = || {
+        let model = probe.runtime.model();
+        let document = &model.accepted.as_ref().unwrap().document;
+        let part = document
+            .parts
+            .iter()
+            .find(|part| part.id == "selected-part")
+            .unwrap();
+        boardstudio_core::evaluated_part_pose(document, part).at
+    };
+    let model = probe.runtime.model();
+    let document = &model.accepted.as_ref().unwrap().document;
+    assert!(
+        document.layouts[1]
+            .mirror_link
+            .as_ref()
+            .unwrap()
+            .split_gap
+            .is_some(),
+        "X edit adopts the half frame"
+    );
+    assert_ne!(
+        document.parts[0].pose.at.x,
+        board_position().x,
+        "adoption gives the part a nonzero half offset"
+    );
+    assert_eq!(
+        board_position(),
+        Vec2 { x: -40.0, y: 8.0 },
+        "queued Y preserves the accepted board-space X"
+    );
+
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    accept_pending(&probe).await;
+    assert_eq!(
+        board_position(),
+        Vec2 { x: -40.0, y: 3.0 },
+        "one Undo removes only Y"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
 async fn mounted_component_inspector_view_unmount_retires_held_field_observation_and_remount_refreshes()
  {
-    let (probe, root) = mounted_probe("layout-component-position-unmount-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-position-unmount-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     let (entered, release) =
         crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
@@ -2187,7 +2560,11 @@ async fn mounted_component_inspector_view_unmount_retires_held_field_observation
 
 #[wasm_bindgen_test]
 async fn mounted_edit_retires_when_the_part_becomes_locked_before_execution() {
-    let (probe, root) = mounted_probe("layout-component-position-retire-test-root").await;
+    let (probe, root) =
+        mounted_probe_configured("layout-component-position-retire-test-root", |document| {
+            document.layouts[0].part_ids.clear();
+        })
+        .await;
     settle_mounted_component_inspector(&probe).await;
     // Hold the lock edit's Core reply so the position edit queues behind it.
     let (entered, release) =
@@ -2478,12 +2855,12 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
             rotation: None,
             edge_gap: None,
             diode_direction: None,
-            row_offsets: vec![],
-            column_offsets: vec![],
-            column_staggers: vec![],
-            column_splays: vec![0.0],
-            column_origins: vec![],
+            row_layout: vec![],
+            column_layout: vec![boardstudio_core::model::ColumnLayout::default()],
+            anchor: None,
             cells: vec![MatrixCell {
+                shift: None,
+                bend: None,
                 deleted: false,
                 row: 0,
                 column: 0,
@@ -2491,7 +2868,7 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
                 definition_id: None,
                 variant: None,
                 offset: None,
-                rotation: None,
+                rotation: Some(30.0),
                 assemblies: vec![],
                 assemblies_local: None,
             }],
@@ -2525,6 +2902,23 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
         "the fixture's board order and key flags"
     );
     let root_id = probe.root_id;
+
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("fixture snapshot")
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == KEY)
+            .expect("the source key is accepted")
+            .pose
+            .rotation,
+        30.0,
+        "the accepted source key must retain its authored 30 degree heading before conversion"
+    );
 
     // First render: the saved part-offset constraint.
     assert_eq!(
@@ -2599,14 +2993,14 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
     root.remove();
 }
 
-// ---- Matrix Relations tab (ticket 09): the real Layout Inspector over a real Session ----
+// ---- Matrix Relationships section: the real Layout Inspector over a real Session ----
 
 mod matrix_relations_panel {
     use super::super::layout_workspace;
     use super::super::*;
     use super::{
-        click_component_inspector, component_inspector_control, settle_component_inspector,
-        wait_until,
+        by_role_name, click_component_inspector, component_inspector_control,
+        settle_component_inspector, wait_until,
     };
     use boardstudio_application::{Event, Session};
     use boardstudio_core::CoreEngine;
@@ -2853,6 +3247,9 @@ mod matrix_relations_panel {
                 on_pick_splay_origin: EventHandler::new(|()| {}),
                 splay_origin_pick_pending: false,
                 on_cancel_splay_origin_pick: EventHandler::new(|()| {}),
+                on_pick_anchor: EventHandler::new(|()| {}),
+                anchor_pick_pending: false,
+                on_cancel_anchor_pick: EventHandler::new(|()| {}),
                 inspector_tab: state.inspector_tab(),
                 matrix_relations: matrix_context_relations(&model, selected.as_ref()),
                 relation_target: {
@@ -2863,6 +3260,7 @@ mod matrix_relations_panel {
                 on_select_context: EventHandler::new(move |request: objects::TreeSelectRequest| {
                     selection::submit_context(&select_runtime, &select_adapter, request.into());
                 }),
+                on_navigate_anchor_part: EventHandler::new(|_| {}),
                 outline_inspector: None,
                 findings_return_available: false,
                 on_findings_return: EventHandler::new(|()| {}),
@@ -2995,7 +3393,8 @@ mod matrix_relations_panel {
             Some(matrix_json(
                 2,
                 3,
-                json!({ "columnOffsets": [{ "x": 0.0, "y": 0.0 }, { "x": 1.5, "y": 2.0 }] }),
+                json!({ "columnLayout": [{"offset": {"x": 0.0, "y": 0.0}}, {"offset": {"x": 1.5, "y": 2.0}}]
+}),
             )),
         )
         .await;
@@ -3007,7 +3406,7 @@ mod matrix_relations_panel {
         probe.click("button", "Reset offsets: Column offset");
         probe.land().await;
         assert_eq!(
-            probe.matrix().column_offsets[1],
+            probe.matrix().column_layout[1].offset,
             Vec2 { x: 0.0, y: 0.0 },
             "Reset lands through SetMatrixPlacement"
         );
@@ -3021,7 +3420,10 @@ mod matrix_relations_panel {
             operation_id: probe.runtime.operation(),
         });
         probe.land().await;
-        assert_eq!(probe.matrix().column_offsets[1], Vec2 { x: 1.5, y: 2.0 });
+        assert_eq!(
+            probe.matrix().column_layout[1].offset,
+            Vec2 { x: 1.5, y: 2.0 }
+        );
         assert!(
             probe.exists("[data-relation-departure='Column offset']"),
             "Undo restores the departure: {}",
@@ -3031,11 +3433,109 @@ mod matrix_relations_panel {
         probe.click("button", "Convert to stagger: Column offset");
         probe.land().await;
         let matrix = probe.matrix();
-        assert_eq!(matrix.column_staggers[1], 2.0);
-        assert_eq!(matrix.column_offsets[1], Vec2 { x: 1.5, y: 0.0 });
+        assert_eq!(matrix.column_layout[1].stagger, 2.0);
+        assert_eq!(matrix.column_layout[1].offset, Vec2 { x: 1.5, y: 0.0 });
         assert!(
             probe.text().contains("2 mm from Column 1, cumulative 2 mm"),
             "Structure shows the new stagger: {}",
+            probe.text()
+        );
+        root.remove();
+    }
+
+    /// A splayed column keeps its Column offset departure, but Convert is
+    /// disabled with the Core-owned reason wired through `aria-describedby`.
+    /// Rendering the refusal writes nothing.
+    #[wasm_bindgen_test]
+    async fn a_blocked_convert_in_relations_names_the_core_reason() {
+        let (probe, root) = mount(
+            "relations-blocked-convert-test",
+            base(),
+            Some(matrix_json(
+                2,
+                3,
+                json!({ "columnLayout": [{"offset": {"x": 0.0, "y": 0.0}}, {"offset": {"x": 1.5, "y": 2.0}, "splay": 10.0}]
+}),
+            )),
+        )
+        .await;
+        let before = probe
+            .runtime
+            .model()
+            .accepted
+            .expect("accepted document")
+            .document
+            .revision;
+        probe.select(column_ctx(1));
+        probe.land().await;
+        probe.open_relations_tab().await;
+        assert!(
+            probe.exists("[data-relation-departure='Column offset']"),
+            "the departure is listed: {}",
+            probe.text()
+        );
+        let button = by_role_name(&root, "button", "Convert to stagger: Column offset")
+            .expect("Convert is mounted");
+        assert!(
+            button.has_attribute("disabled"),
+            "splay blocks Convert in Relations too"
+        );
+        let reason_id = button
+            .get_attribute("aria-describedby")
+            .expect("described reason");
+        let reason = root
+            .query_selector(&format!("#{reason_id}"))
+            .unwrap()
+            .expect("the Core reason is shown");
+        assert_eq!(
+            reason.text_content().as_deref(),
+            Some("Converting requires zero Splay, Column rotation and carried Bend")
+        );
+        assert_eq!(
+            button.get_attribute("aria-describedby").as_deref(),
+            reason.get_attribute("id").as_deref(),
+            "the refusal is programmatically named"
+        );
+        assert!(
+            button
+                .get_attribute("aria-describedby")
+                .as_deref()
+                .is_some_and(|id| !id.is_empty()),
+            "the description reference is not empty"
+        );
+        assert_eq!(
+            probe
+                .runtime
+                .model()
+                .accepted
+                .expect("accepted document")
+                .document
+                .revision,
+            before,
+            "rendering a refusal writes nothing, so no Undo entry"
+        );
+        root.remove();
+    }
+
+    /// The `tie` offset constraint wins over its companion's attachment to its
+    /// key: Core derives the Constrained mode, and Relations names that
+    /// precedence in text.
+    #[wasm_bindgen_test]
+    async fn a_won_constraint_names_its_priority_over_the_key_attachment() {
+        let (document, _) = constrained_companion_document();
+        let (probe, root) = mount("relations-precedence-test", document, None).await;
+        probe.select(matrix_ctx());
+        probe.land().await;
+        probe.open_relations_tab().await;
+        let row = root
+            .query_selector("[data-relation-constraint='tie']")
+            .unwrap()
+            .expect("the constraint is listed");
+        assert!(
+            row.text_content()
+                .unwrap_or_default()
+                .contains("Takes priority over the attachment to its key."),
+            "Core-owned precedence is explained: {}",
             probe.text()
         );
         root.remove();

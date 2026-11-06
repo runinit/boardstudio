@@ -8,6 +8,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
@@ -15,6 +16,23 @@ SCRIPT = Path(__file__).with_name("serve-web.py")
 
 
 class ServeWebTests(unittest.TestCase):
+    def test_startup_retries_response_timeout(self):
+        for test in (self.test_root_subpath_headers_and_wasm_mime,
+                     self.test_subpath_only_build_redirects_root):
+            with self.subTest(test=test.__name__):
+                real_urlopen = urlopen
+                first_request = True
+
+                def timeout_once(*args, **kwargs):
+                    nonlocal first_request
+                    if first_request:
+                        first_request = False
+                        raise TimeoutError("response timed out")
+                    return real_urlopen(*args, **kwargs)
+
+                with mock.patch(f"{__name__}.urlopen", side_effect=timeout_once):
+                    test()
+
     def test_root_subpath_headers_and_wasm_mime(self):
         with tempfile.TemporaryDirectory() as directory:
             build = Path(directory)
@@ -39,7 +57,7 @@ class ServeWebTests(unittest.TestCase):
                     try:
                         response = urlopen(f"http://127.0.0.1:{port}/", timeout=0.2)
                         break
-                    except (URLError, ConnectionError):
+                    except (URLError, ConnectionError, TimeoutError):
                         if process.poll() is not None:
                             self.fail(process.stderr.read().decode())
                         time.sleep(0.025)
@@ -76,7 +94,7 @@ class ServeWebTests(unittest.TestCase):
                     try:
                         response = urlopen(f"http://127.0.0.1:{port}/", timeout=0.2)
                         break
-                    except (URLError, ConnectionError):
+                    except (URLError, ConnectionError, TimeoutError):
                         if process.poll() is not None:
                             self.fail(process.stderr.read().decode())
                         time.sleep(0.025)

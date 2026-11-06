@@ -649,7 +649,7 @@ mod tests {
         };
         let link = right.mirror_link.as_ref().unwrap();
         assert_eq!(link.source_id, left.id);
-        assert_ne!(left.matrix_id, right.matrix_id);
+        assert_ne!(left.matrix_ids, right.matrix_ids);
         assert!(matrix.origin.x < link.axis_x);
         let gap = 2.0 * (link.axis_x - matrix.origin.x) - (matrix.pitch.x - 1.0);
         assert!((gap - 40.0).abs() < 1e-9);

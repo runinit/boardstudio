@@ -1183,7 +1183,7 @@ fn AssemblyDraftFields(
             }
             fieldset { class: "grid gap-2",
                 legend { "Place assembly" }
-                div { class: "grid grid-cols-2 gap-2",
+                div { class: "grid grid-cols-[repeat(auto-fit,minmax(min(100%,190px),1fr))] gap-2",
                     EditorNumberField {
                         label: "X (mm)",
                         step: "0.1",
@@ -1479,6 +1479,7 @@ fn AssemblyMemberFields(
                         rotation: 0.0,
                     },
                     side: member.side.clone(),
+                    anchor: None,
                     locked: None,
                     properties: None,
                     generator_parameters: Some(std::mem::take(&mut generator_parameters)),

@@ -1509,6 +1509,8 @@ fn local_transition_fixture() -> Result<(ProjectDoc, MembershipContext), String>
         (0..2)
             .flat_map(|row| {
                 (0..4).map(move |column| MatrixCell {
+                    shift: None,
+                    bend: None,
                     deleted: false,
                     row,
                     column,
@@ -1740,6 +1742,8 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
     expanded.columns = 5;
     for row in 0..2 {
         expanded.cells.push(MatrixCell {
+            shift: None,
+            bend: None,
             deleted: false,
             row,
             column: 4,
@@ -2171,7 +2175,7 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
             id: format!("{half}-layout"),
             name: "Controls".into(),
             board_id: format!("{half}-board"),
-            matrix_id: format!("{half}-matrix"),
+            matrix_ids: vec![format!("{half}-matrix")],
             part_ids: vec![format!("{half}-screen"), format!("{half}-encoder")],
             mirror_link: None,
         });
@@ -2283,6 +2287,10 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
         &target.definition_id,
         &target.reference,
         context.mapping,
+        crate::mirrored_half::derive::is_controller(
+            &rejoined.draft.definitions,
+            &source.definition_id,
+        ),
     );
     assert_eq!(target, &expected);
     assert!(rejoined.context.pair_right.exceptions.is_empty());
@@ -2692,7 +2700,7 @@ fn circuit_lifecycle_fixture() -> (ProjectDoc, MembershipContext) {
         id: "independent-layout".into(),
         name: "Independent".into(),
         board_id: "mirror-board".into(),
-        matrix_id: "mirror-matrix".into(),
+        matrix_ids: vec!["mirror-matrix".into()],
         part_ids: vec!["mirror-screen".into()],
         mirror_link: None,
     });
@@ -4022,7 +4030,9 @@ fn pad_world(document: &ProjectDoc, part_id: &str, pad_id: &str) -> Vec2 {
         .find(|d| d.id == part.definition_id)
         .unwrap();
     let pad = definition.pads.iter().find(|p| p.id == pad_id).unwrap();
-    crate::outline_controls::world(pad.at, part)
+    // Ticket 12: pad world positions evaluate half-frame parts at board.
+    let pose = crate::matrix::layout::evaluated_part_pose(document, part);
+    crate::outline_controls::world(pad.at, &pose, part.side.clone())
 }
 
 fn mirror_electrical(document: &ProjectDoc) -> &ElectricalBoardConfiguration {
@@ -4120,6 +4130,10 @@ fn electrical_copper_fixture() -> (ProjectDoc, MembershipContext) {
             &target.definition_id,
             &target.reference,
             context.mapping,
+            crate::mirrored_half::derive::is_controller(
+                &document.definitions,
+                &source.definition_id,
+            ),
         );
     }
     let nets: [(&str, &[(&str, &str)]); 3] = [
@@ -4952,6 +4966,10 @@ fn independent_part_exception_intents_keep_exact_matrix_owners_and_children() {
                 &mirror.definition_id,
                 &mirror.reference,
                 fixture_context.mapping,
+                crate::mirrored_half::derive::is_controller(
+                    &edited_source.definitions,
+                    &source.definition_id,
+                ),
             )
         );
         assert_eq!(edited.draft.matrices, matrices_before);
@@ -5008,6 +5026,10 @@ fn independent_part_exception_intents_keep_exact_matrix_owners_and_children() {
                 &mirror.definition_id,
                 &mirror.reference,
                 fixture_context.mapping,
+                crate::mirrored_half::derive::is_controller(
+                    &rejoined.draft.definitions,
+                    &source.definition_id,
+                ),
             )
         );
         assert_eq!(rejoined.draft.matrices, matrices_before);
@@ -5544,7 +5566,7 @@ fn replacement_retirement_fixture() -> ProjectDoc {
     document.layouts.push(
         serde_json::from_value(json!({
             "id":"source-layout","name":"Source","boardId":"source-board",
-            "matrixId":"source-matrix","partIds":[]
+            "matrixIds": ["source-matrix"],"partIds":[]
         }))
         .unwrap(),
     );

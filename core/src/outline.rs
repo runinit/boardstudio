@@ -2,7 +2,7 @@
 use super::{
     FeatureShape, MAX_ARC_SEGMENTS, MAX_CHORD_ERROR_MM, Path, SCALE, Shapes, cleanup, rect, snap,
 };
-use crate::model::{CornerStyle, OutlineSettings, PartKind, ProjectDoc, Vec2};
+use crate::model::{CornerStyle, OutlineSettings, PartKind, Pose2, ProjectDoc, Vec2};
 use boardstudio_contracts::{path_contains, path_signed_area};
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
@@ -251,6 +251,17 @@ pub(super) fn envelope(
     let mut notices = vec![];
     let mut fallback_definitions = BTreeSet::new();
     let mut envelopes = vec![];
+    // Ticket 12: envelopes read the evaluated board pose, so half-frame
+    // parts outline where the canvas draws them.
+    let poses: BTreeMap<&str, Pose2> = selected
+        .iter()
+        .map(|p| {
+            (
+                p.id.as_str(),
+                crate::matrix::layout::evaluated_part_pose(doc, p),
+            )
+        })
+        .collect();
     for p in &selected {
         let d = defs
             .get(&p.definition_id)
@@ -291,12 +302,13 @@ pub(super) fn envelope(
                 p.reference
             ));
         }
-        let (sin, cos) = p.pose.rotation.to_radians().sin_cos();
+        let pose = poses.get(p.id.as_str()).copied().unwrap_or(p.pose);
+        let (sin, cos) = pose.rotation.to_radians().sin_cos();
         for q in &mut path {
             let [x, y] = *q;
             *q = [
-                snap(p.pose.at.x + x * cos - y * sin),
-                snap(p.pose.at.y + x * sin + y * cos),
+                snap(pose.at.x + x * cos - y * sin),
+                snap(pose.at.y + x * sin + y * cos),
             ];
         }
         if path_signed_area(&path) < 0.0 {

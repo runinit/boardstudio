@@ -1,9 +1,13 @@
 //! Private form for matrix, row, column, and cell-local transform properties.
 use crate::matrix_transform_operation::{
-    MatrixTransformField, MatrixTransformFields, MatrixTransformValue,
+    MatrixTransformField, MatrixTransformFields, MatrixTransformValue, column_angle,
 };
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{MatrixSplayAffect, Mirror, Vec2};
+use boardstudio_core::model::{
+    AggregateAnchor, AggregateMethod, AnchorPart, Follow, MatrixAnchor, MatrixSplayAffect, Mirror,
+    Vec2,
+};
+use boardstudio_web_ui_model::state::{FieldPreview, FieldPreviewSource, FieldPreviewState};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
@@ -114,6 +118,12 @@ pub struct MatrixTransformProjection {
 pub struct MatrixTransformInspectorProps {
     pub mount: MatrixTransformInspectorMount,
     pub on_pick_splay_origin: EventHandler<()>,
+    pub on_pick_anchor: EventHandler<()>,
+    pub anchor_pick_pending: bool,
+    pub on_cancel_anchor_pick: EventHandler<()>,
+    /// Navigate to an aggregate anchor part's key. The handler selects the
+    /// part key without writing, so the revision and history stay unchanged.
+    pub on_navigate_anchor_part: EventHandler<TreeContext>,
 }
 
 #[component]
@@ -154,6 +164,8 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             rotation,
             mirror,
             mirror_y_locked,
+            rotation_followed,
+            anchor,
         } => (
             "Position & orientation",
             rsx! {
@@ -202,9 +214,15 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         value: *rotation,
                         request_sequence,
                         editable: props.mount.editable,
+                        disabled: !rotation_followed,
                         feedback: props.mount.feedback.clone(),
                         on_edit,
                         splay_affect,
+                    }
+                    if !rotation_followed {
+                        p { class: "text-xs text-muted-foreground", role: "note",
+                            "Rotation is not followed, so turning it changes nothing."
+                        }
                     }
                 }
                 MirrorTransformField {
@@ -219,12 +237,111 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     on_edit,
                     splay_affect,
                 }
+                h3 { class: "text-xs font-semibold", "Anchor" }
+                if let Some(anchor) = anchor {
+                    if anchor.aggregate.is_some() {
+                        AggregateAnchorSection {
+                            owner: owner.clone(), snapshot_token, revision,
+                            anchor: anchor.clone(),
+                            request_sequence, editable: props.mount.editable,
+                            feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+                            on_navigate_anchor_part: props.on_navigate_anchor_part,
+                            mount: props.mount.clone(),
+                            aggregate_pick_pending: props.anchor_pick_pending,
+                            on_pick_anchor: props.on_pick_anchor,
+                            on_cancel_anchor_pick: props.on_cancel_anchor_pick,
+                        }
+                    } else {
+                        p { "data-anchor-target": "true", class: "text-xs text-muted-foreground",
+                            "Anchored to {anchor.matrix_id} · row {anchor.row} · column {anchor.column}"
+                        }
+                    }
+                    p { "data-anchor-follow": "true", class: "text-xs text-muted-foreground", "{follows_label(&anchor.follow)}" }
+                    FollowTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        anchor: anchor.clone(),
+                        request_sequence, editable: props.mount.editable,
+                        feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+                    }
+                    DetachAnchorButton {
+                        owner: owner.clone(), snapshot_token, revision,
+                        request_sequence, editable: props.mount.editable,
+                        detach_pending: props.mount.one_shot_disabled(MatrixTransformField::MatrixDetach),
+                        confirm_pending: props.mount.one_shot_disabled(MatrixTransformField::MatrixDetachConfirm),
+                        feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+                    }
+                    if anchor.aggregate.is_none() {
+                        PickAnchorButton {
+                            editable: props.mount.editable,
+                            pending: props.anchor_pick_pending,
+                            on_pick_anchor: props.on_pick_anchor,
+                            on_cancel_anchor_pick: props.on_cancel_anchor_pick,
+                        }
+                    }
+                    if let Some(message) = props.mount.feedback.iter().rev().find(|item| {
+                        item.owner == owner
+                            && item.field == MatrixTransformField::MatrixAnchorPick
+                            && item.message.is_some()
+                    }).and_then(|item| item.message.clone()) {
+                        p { role: "alert", class: "text-xs text-destructive", "{message}" }
+                    }
+                } else {
+                    p { class: "text-xs text-muted-foreground", "No anchor. The matrix places itself." }
+                }
             },
         ),
-        MatrixTransformFields::Row { row, offset } => (
+        MatrixTransformFields::Row {
+            row,
+            offset,
+            shift,
+            bend,
+            padding,
+            pitch,
+        } => (
             "Position & rotation",
             rsx! {
-                div { class: "grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-3",
+                h3 { class: "text-xs font-semibold", "Carried" }
+                p { class: "text-xs text-muted-foreground", "Moves or turns this row and later rows." }
+                div { class: "grid min-w-0 gap-3",
+                    NumericTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        field: MatrixTransformField::RowShiftX, label: "Shift X", unit: "mm",
+                        draft: props.mount.numeric_field(MatrixTransformField::RowShiftX).0, failure: props.mount.numeric_field(MatrixTransformField::RowShiftX).1,
+                        value: shift.x, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        on_edit, splay_affect,
+                    }
+                    NumericTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        field: MatrixTransformField::RowShiftY, label: "Shift Y", unit: "mm",
+                        draft: props.mount.numeric_field(MatrixTransformField::RowShiftY).0, failure: props.mount.numeric_field(MatrixTransformField::RowShiftY).1,
+                        value: shift.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        on_edit, splay_affect,
+                    }
+                    NumericTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        field: MatrixTransformField::RowBend, label: "Bend", unit: "°",
+                        draft: props.mount.numeric_field(MatrixTransformField::RowBend).0, failure: props.mount.numeric_field(MatrixTransformField::RowBend).1,
+                        value: *bend, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        on_edit, splay_affect,
+                    }
+                    if *row == 0 {
+                        p { class: "text-xs text-muted-foreground", role: "note",
+                            "Padding starts at row 1. Row 0 sits at the column base."
+                        }
+                    } else {
+                        NumericTransformField {
+                            owner: owner.clone(), snapshot_token, revision,
+                            field: MatrixTransformField::RowPadding, label: "Padding", unit: "mm",
+                            draft: props.mount.numeric_field(MatrixTransformField::RowPadding).0, failure: props.mount.numeric_field(MatrixTransformField::RowPadding).1,
+                            value: padding.unwrap_or(*pitch), request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                            on_edit, splay_affect,
+                            badge: padding.is_none().then(|| "pitch".to_owned()),
+                        }
+                    }
+                }
+                h3 { class: "text-xs font-semibold", "This row only" }
+                p { class: "text-xs text-muted-foreground", "Nothing else moves." }
+                div { class: "grid min-w-0 gap-3",
                     NumericTransformField {
                         owner: owner.clone(),
                         snapshot_token,
@@ -280,7 +397,10 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             column,
             offset,
             stagger,
+            spread,
+            pitch,
             splay_angle,
+            rotation,
             splay_origin,
             custom_origin,
             convert,
@@ -298,6 +418,22 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                                 class: "data-[open=true]:overflow-visible",
                                 hidden: !transform_open(),
                                 inert: (!transform_open()).then_some(""),
+                    h3 { class: "text-xs font-semibold", "Carried" }
+                    p { class: "text-xs text-muted-foreground", "Moves or turns this column and the columns after it." }
+                    if *column == 0 {
+                        p { class: "text-xs text-muted-foreground", role: "note",
+                            "Spread starts at column 1. Column 0 steps by pitch."
+                        }
+                    } else {
+                        NumericTransformField {
+                            owner: owner.clone(), snapshot_token, revision,
+                            field: MatrixTransformField::ColumnSpread, label: "Spread", unit: "mm",
+                            draft: props.mount.numeric_field(MatrixTransformField::ColumnSpread).0, failure: props.mount.numeric_field(MatrixTransformField::ColumnSpread).1,
+                            value: spread.unwrap_or(*pitch), request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                            on_edit, splay_affect,
+                            badge: spread.is_none().then(|| "pitch".to_owned()),
+                        }
+                    }
                                 NumericTransformField {
                                     owner: owner.clone(),
                                     snapshot_token,
@@ -314,40 +450,6 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                                     on_edit,
                                     splay_affect,
                                 }
-                                div { class: "grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-3",
-                                    NumericTransformField {
-                                        owner: owner.clone(),
-                                        snapshot_token,
-                                        revision,
-                                        field: MatrixTransformField::ColumnOffsetX,
-                                        label: "Offset X",
-                                        unit: "mm",
-                                        draft: props.mount.numeric_field(MatrixTransformField::ColumnOffsetX).0,
-                                        failure: props.mount.numeric_field(MatrixTransformField::ColumnOffsetX).1,
-                                        value: offset.x,
-                                        request_sequence,
-                                        editable: props.mount.editable,
-                                        feedback: props.mount.feedback.clone(),
-                                        on_edit,
-                                        splay_affect,
-                                    }
-                                    NumericTransformField {
-                                        owner: owner.clone(),
-                                        snapshot_token,
-                                        revision,
-                                        field: MatrixTransformField::ColumnOffsetY,
-                                        label: "Offset Y",
-                                        unit: "mm",
-                                        draft: props.mount.numeric_field(MatrixTransformField::ColumnOffsetY).0,
-                                        failure: props.mount.numeric_field(MatrixTransformField::ColumnOffsetY).1,
-                                        value: offset.y,
-                                        request_sequence,
-                                        editable: props.mount.editable,
-                                        feedback: props.mount.feedback.clone(),
-                                        on_edit,
-                                        splay_affect,
-                                    }
-                                }
                                 NumericTransformField {
                                     owner: owner.clone(),
                                     snapshot_token,
@@ -357,7 +459,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                                     unit: "°",
                                     draft: props.mount.numeric_field(MatrixTransformField::ColumnSplay).0,
                                     failure: props.mount.numeric_field(MatrixTransformField::ColumnSplay).1,
-                                    value: *splay_angle,
+                                    value: column_angle(*splay_angle, *rotation, &splay_affect()),
                                     request_sequence,
                                     editable: props.mount.editable,
                                     feedback: props.mount.feedback.clone(),
@@ -408,6 +510,42 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                                                 }
                                             }
                                         }
+                                    }
+                                }
+                                h3 { class: "text-xs font-semibold", "This column only" }
+                                p { class: "text-xs text-muted-foreground", "Nothing else moves." }
+                                div { class: "grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-3",
+                                    NumericTransformField {
+                                        owner: owner.clone(),
+                                        snapshot_token,
+                                        revision,
+                                        field: MatrixTransformField::ColumnOffsetX,
+                                        label: "Offset X",
+                                        unit: "mm",
+                                        draft: props.mount.numeric_field(MatrixTransformField::ColumnOffsetX).0,
+                                        failure: props.mount.numeric_field(MatrixTransformField::ColumnOffsetX).1,
+                                        value: offset.x,
+                                        request_sequence,
+                                        editable: props.mount.editable,
+                                        feedback: props.mount.feedback.clone(),
+                                        on_edit,
+                                        splay_affect,
+                                    }
+                                    NumericTransformField {
+                                        owner: owner.clone(),
+                                        snapshot_token,
+                                        revision,
+                                        field: MatrixTransformField::ColumnOffsetY,
+                                        label: "Offset Y",
+                                        unit: "mm",
+                                        draft: props.mount.numeric_field(MatrixTransformField::ColumnOffsetY).0,
+                                        failure: props.mount.numeric_field(MatrixTransformField::ColumnOffsetY).1,
+                                        value: offset.y,
+                                        request_sequence,
+                                        editable: props.mount.editable,
+                                        feedback: props.mount.feedback.clone(),
+                                        on_edit,
+                                        splay_affect,
                                     }
                                 }
                                 OriginModeTransformField {
@@ -527,6 +665,9 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             assemblies_local,
             offset,
             rotation,
+            shift,
+            bend,
+            half_exception,
         } => (
             "Key properties",
             rsx! {
@@ -550,6 +691,38 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                             on_edit,
                             splay_affect,
                         }
+                if let Some(exception) = half_exception {
+                    OmitTransformField {
+                        owner: owner.clone(), snapshot_token, revision, omitted: exception.omitted,
+                        request_sequence, editable: props.mount.editable,
+                        feedback: props.mount.feedback.clone(), on_edit, splay_affect,
+                    }
+                }
+                h3 { class: "text-xs font-semibold", "Carried" }
+                p { class: "text-xs text-muted-foreground", "Moves or turns this key and the keys above it." }
+                div { class: "grid min-w-0 gap-3",
+                    NumericTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        field: MatrixTransformField::KeyShiftX, label: "Shift X", unit: "mm",
+                        draft: props.mount.numeric_field(MatrixTransformField::KeyShiftX).0, failure: props.mount.numeric_field(MatrixTransformField::KeyShiftX).1,
+                        value: shift.x, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        on_edit, splay_affect,
+                    }
+                    NumericTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        field: MatrixTransformField::KeyShiftY, label: "Shift Y", unit: "mm",
+                        draft: props.mount.numeric_field(MatrixTransformField::KeyShiftY).0, failure: props.mount.numeric_field(MatrixTransformField::KeyShiftY).1,
+                        value: shift.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        on_edit, splay_affect,
+                    }
+                    NumericTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        field: MatrixTransformField::KeyBend, label: "Bend", unit: "°",
+                        draft: props.mount.numeric_field(MatrixTransformField::KeyBend).0, failure: props.mount.numeric_field(MatrixTransformField::KeyBend).1,
+                        value: *bend, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        on_edit, splay_affect,
+                    }
+                }
                         div { class: "grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-3",
                             NumericTransformField {
                                 owner: owner.clone(),
@@ -663,6 +836,15 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         }
                     }
                 }
+                ResetTransformButton {
+                    label: "Add anchored matrix", owner: owner.clone(), snapshot_token, revision,
+                    field: MatrixTransformField::KeyAddAnchoredMatrix,
+                    pending_disabled: props.mount.one_shot_disabled(MatrixTransformField::KeyAddAnchoredMatrix),
+                    baseline: MatrixTransformValue::Text(String::new()),
+                    value: MatrixTransformValue::Text(String::new()),
+                    request_sequence, editable: props.mount.editable,
+                    feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+                }
                 span { class: "m-0 text-xs leading-normal text-muted-foreground", "Key {row}, {column}" }
             },
         ),
@@ -728,6 +910,9 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     on_edit,
                 }
             }
+            if let Some(announcement) = (props.mount.change_status)().filter(|announcement| announcement.owner == projection.owner) {
+                p { "data-matrix-change-status": "true", class: "text-xs text-muted-foreground", role: "status", "{announcement.message}" }
+            }
         }
     }
 }
@@ -791,8 +976,15 @@ pub(super) struct NumericTransformFieldProps {
     splay_affect: Signal<MatrixSplayAffect>,
     draft: Signal<String>,
     failure: Signal<Option<String>>,
+    /// Hard unavailability with its own explained reason, e.g. a rotation the
+    /// anchor does not follow. Unlike `editable`, this disables the input.
+    #[props(default)]
+    disabled: bool,
     #[props(default)]
     display_precision: Option<usize>,
+    /// A muted badge beside the value, e.g. the pitch a default step follows.
+    #[props(default)]
+    badge: Option<String>,
 }
 
 #[component]
@@ -820,11 +1012,15 @@ pub(super) fn NumericTransformField(props: NumericTransformFieldProps) -> Elemen
     let mut dirty_effect = dirty;
     let mut error_effect = error;
     let mut observed_owner = use_signal(|| props.owner.clone());
+    let field_affect =
+        (props.field == MatrixTransformField::ColumnSplay).then(|| (props.splay_affect)());
+    let mut observed_affect = use_signal(|| field_affect.clone());
     use_effect(use_reactive(
-        (&accepted_value, &draft(), &props.owner),
-        move |(value, current_draft, owner)| {
-            if *observed_owner.peek() != owner {
+        (&accepted_value, &draft(), &props.owner, &field_affect),
+        move |(value, current_draft, owner, affect)| {
+            if *observed_owner.peek() != owner || *observed_affect.peek() != affect {
                 observed_owner.set(owner);
+                observed_affect.set(affect);
                 draft_effect.set(display(value));
                 baseline_effect.set(value);
                 dirty_effect.set(false);
@@ -916,6 +1112,57 @@ pub(super) fn NumericTransformField(props: NumericTransformFieldProps) -> Elemen
     };
     let current = draft();
     let error_message = error();
+    let badge = props.badge.clone();
+    let inherited_pitch = badge.is_some();
+    // Ticket 16: hovering or focusing this number field previews, in amber,
+    // the keys a change to it would move. The preview is transient view
+    // state: it never writes, and it clears on leave, blur, unmount or
+    // selection change. Contexts are optional so unit harnesses without an
+    // Editor root simply show no preview.
+    let field = props.field;
+    let preview_context = props.owner.context.clone();
+    let affect_signal = props.splay_affect;
+    let preview = try_use_context::<FieldPreview>();
+    let preview_source = try_use_context::<Option<FieldPreviewSource>>().flatten();
+    let shown = use_hook(|| std::rc::Rc::new(std::cell::RefCell::new(Vec::<String>::new())));
+    let show_preview = {
+        let shown = shown.clone();
+        move || {
+            let (Some(target), Some(source)) = (preview, preview_source.clone()) else {
+                return;
+            };
+            let Some(facts) = crate::matrix_relations::field_preview(
+                &source.document,
+                &source.scene.matrix_scenes,
+                &preview_context,
+                field,
+                affect_signal(),
+            ) else {
+                return;
+            };
+            *shown.borrow_mut() = facts.parts.clone();
+            target.show(FieldPreviewState {
+                parts: facts.parts,
+                hint: facts.hint,
+            });
+        }
+    };
+    let release_preview = {
+        let shown = shown.clone();
+        move || {
+            if let Some(target) = preview {
+                target.release(&shown.borrow());
+            }
+        }
+    };
+    use_drop({
+        let shown = shown.clone();
+        move || {
+            if let Some(target) = preview {
+                target.release(&shown.borrow());
+            }
+        }
+    });
     rsx! {
         {
             let input_id = format!("layout-number-{}", dioxus::core::current_scope_id().0);
@@ -931,12 +1178,13 @@ pub(super) fn NumericTransformField(props: NumericTransformFieldProps) -> Elemen
                 Field { class: "grid min-w-0 content-start gap-[5px] text-xs text-muted-foreground", invalid: error_message.is_some(),
                     FieldLabel { html_for: input_id.clone(), "{props.label}" }
                     InputGroup { class: "max-[760px]:h-control-touch",
-                        InputGroupInput { class: "max-[760px]:h-control-touch",
+                        InputGroupInput { class: if inherited_pitch { "max-[760px]:h-control-touch italic text-muted-foreground" } else { "max-[760px]:h-control-touch" },
                             id: input_id,
                             r#type: InputType::Number,
                             step: "any",
                             value: current,
                             readonly: !props.editable,
+                            disabled: props.disabled,
                             aria_label: props.label,
                             aria_invalid: error_message.is_some(),
                             aria_describedby: described_by,
@@ -949,9 +1197,13 @@ pub(super) fn NumericTransformField(props: NumericTransformFieldProps) -> Elemen
                                 error.set(None);
                             },
                             attributes: vec![
+                                dioxus::events::onpointerenter({ let show = show_preview.clone(); move |_| show() }),
+                                dioxus::events::onpointerleave({ let release = release_preview.clone(); move |_| release() }),
+                                dioxus::events::onfocus({ let show = show_preview.clone(); move |_| show() }),
                                 dioxus::events::onblur({
                                     let mut commit = commit.clone();
-                                    move |_| commit()
+                                    let release = release_preview.clone();
+                                    move |_| { commit(); release(); }
                                 }),
                                 dioxus::events::onkeydown({
                                     let mut commit = commit.clone();
@@ -987,6 +1239,9 @@ pub(super) fn NumericTransformField(props: NumericTransformFieldProps) -> Elemen
                     }
                 }
             }
+        }
+        if let Some(badge) = badge {
+            small { "data-pitch-badge": "true", class: "mt-0.5 inline-block rounded-sm bg-muted px-1.5 text-xs italic text-muted-foreground", "{badge}" }
         }
     }
 }
@@ -1332,6 +1587,73 @@ fn EnabledTransformField(props: EnabledTransformFieldProps) -> Element {
         if let Some(message) = error.as_deref() {
             FieldError { "{message}"  }
         }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct OmitTransformFieldProps {
+    owner: MatrixTransformInspectorOwner,
+    snapshot_token: SnapshotToken,
+    revision: u64,
+    omitted: bool,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    feedback: Vec<MatrixTransformFeedback>,
+    on_edit: EventHandler<MatrixTransformRequest>,
+    splay_affect: Signal<MatrixSplayAffect>,
+}
+
+/// Ticket 34: per-key Omit/Rejoin for a mirrored key. Omitting hides the key
+/// from the matrix surface but keeps its logical pose; clearing the omission
+/// rejoins the key. One Undo entry either way.
+#[component]
+fn OmitTransformField(props: OmitTransformFieldProps) -> Element {
+    let mut submitted = use_signal(|| None::<u64>);
+    let error = props
+        .feedback
+        .iter()
+        .rev()
+        .find(|item| {
+            item.owner == props.owner
+                && item.field == MatrixTransformField::KeyOmit
+                && submitted() == Some(item.request_id)
+                && item.message.is_some()
+        })
+        .and_then(|item| item.message.clone());
+    let disabled = !props.editable;
+    let mut sequence = props.request_sequence;
+    let owner = props.owner.clone();
+    let current = props.omitted;
+    let token = props.snapshot_token;
+    let revision = props.revision;
+    let on_edit = props.on_edit;
+    let affect = props.splay_affect;
+    rsx! {
+        Label { html_for: "matrix-key-omit",
+            Checkbox {
+                id: "matrix-key-omit", aria_label: "Omit from mirror",
+                checked: Some(if current { CheckboxState::Checked } else { CheckboxState::Unchecked }), disabled,
+                on_checked_change: move |next| {
+                    let Some(id) = sequence().checked_add(1) else { return; };
+                    sequence.set(id);
+                    submitted.set(Some(id));
+                    on_edit.call(MatrixTransformRequest {
+                        owner: owner.clone(), request_id: id, snapshot_token: token, revision,
+                        field: MatrixTransformField::KeyOmit,
+                        baseline: MatrixTransformValue::Bool(current),
+                        value: MatrixTransformValue::Bool(next == CheckboxState::Checked),
+                        splay_affect: affect(),
+                        draft: None, failure: None, submitted_text: None,
+            one_shot: false,
+                    });
+                },
+            }
+            " Omit from mirror"
+        }
+        p { class: "text-xs text-muted-foreground",
+            "Hides the key from the matrix surface but keeps its logical pose, in one Undo entry. Clearing the omission rejoins the key."
+        }
+        if let Some(message) = error.as_deref() { FieldError { "{message}" } }
     }
 }
 
@@ -1708,6 +2030,608 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
                 FieldError { "{message}"  }
             }
         }
+}
+
+/// Parse Core's detach proposal ("Detaching {m} would move its linked partner
+/// {p}; make {p} Local ...") into the required Local matrix. Anything else is
+/// shown verbatim without a Confirm action.
+fn detach_proposal(message: &str, matrix_id: &str) -> Option<String> {
+    // The transform layer prefixes Core refusals ("The transform change was
+    // refused: ..."), so the proposal marker is searched, not anchored.
+    let marker = format!("Detaching {matrix_id} would move its linked partner ");
+    let at = message.find(&marker)?;
+    let (partner, tail) = message[at + marker.len()..].split_once(';')?;
+    if tail.trim_start() == format!("make {partner} Local to keep its pose and confirm the detach")
+    {
+        Some(partner.to_owned())
+    } else {
+        None
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct DetachAnchorButtonProps {
+    owner: MatrixTransformInspectorOwner,
+    snapshot_token: SnapshotToken,
+    revision: u64,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    detach_pending: Signal<bool>,
+    confirm_pending: Signal<bool>,
+    feedback: Vec<MatrixTransformFeedback>,
+    splay_affect: Signal<MatrixSplayAffect>,
+    on_edit: EventHandler<MatrixTransformRequest>,
+}
+
+/// Detach an anchored matrix. A plain click clears the anchor in one atomic
+/// Core intent. When Core refuses because the detach would move the linked
+/// partner, the refusal names the required Local exception and the button
+/// offers Confirm/Cancel in place: Confirm applies the detach and the
+/// exception atomically, Cancel leaves the whole edit unchanged. A stale
+/// confirmation is refused by Core and surfaces as an error, never a silent
+/// change.
+#[component]
+fn DetachAnchorButton(props: DetachAnchorButtonProps) -> Element {
+    let mut submitted = use_signal(|| None::<(MatrixTransformField, u64)>);
+    let mut sequence = props.request_sequence;
+    let owner = props.owner.clone();
+    let matrix_id = props.owner.matrix_id.clone();
+    let token = props.snapshot_token;
+    let revision = props.revision;
+    let on_edit = props.on_edit;
+    let affect = props.splay_affect;
+    let mut send = move |field: MatrixTransformField,
+                         baseline: MatrixTransformValue,
+                         value: MatrixTransformValue| {
+        let Some(id) = sequence().checked_add(1) else {
+            return;
+        };
+        sequence.set(id);
+        submitted.set(Some((field, id)));
+        on_edit.call(MatrixTransformRequest::one_shot(
+            owner.clone(),
+            (token, revision),
+            id,
+            (field, baseline, value),
+            affect(),
+        ));
+    };
+    let error = props
+        .feedback
+        .iter()
+        .rev()
+        .find(|item| {
+            let Some((field, request_id)) = submitted() else {
+                return false;
+            };
+            item.owner == props.owner
+                && item.field == field
+                && request_id == item.request_id
+                && item.message.is_some()
+        })
+        .and_then(|item| item.message.clone());
+    let proposal = error
+        .as_deref()
+        .and_then(|message| detach_proposal(message, &matrix_id));
+    let busy = (props.detach_pending)() || (props.confirm_pending)();
+    rsx! {
+        if let Some(partner) = proposal.as_deref() {
+            div { "data-detach-confirm": "true", class: "grid gap-2",
+                p { class: "text-xs text-destructive", role: "alert", "{error.as_deref().unwrap_or_default()}" }
+                p { class: "text-xs text-muted-foreground",
+                    "Confirming clears both anchors and keeps every pose in one Undo entry."
+                }
+                Button {
+                    button_type: "button", variant: ButtonVariant::Secondary,
+                    disabled: !props.editable || busy,
+                    onclick: {
+                        let partner = partner.to_owned();
+                        let mut send = send.clone();
+                        move |_| send(
+                            MatrixTransformField::MatrixDetachConfirm,
+                            MatrixTransformValue::Text(String::new()),
+                            MatrixTransformValue::Text(partner.clone()),
+                        )
+                    },
+                    "Confirm detach"
+                }
+                Button {
+                    button_type: "button", variant: ButtonVariant::Secondary,
+                    onclick: move |_| submitted.set(None),
+                    "Cancel"
+                }
+            }
+        } else {
+            Button {
+                button_type: "button", variant: ButtonVariant::Secondary,
+                disabled: !props.editable || busy,
+                onclick: move |_| send(
+                    MatrixTransformField::MatrixDetach,
+                    MatrixTransformValue::Bool(false),
+                    MatrixTransformValue::Bool(true),
+                ),
+                "Detach"
+            }
+            if let Some(message) = error.as_deref() {
+                FieldError { "{message}" }
+            }
+        }
+    }
+}
+
+/// Retarget the anchor by picking a key on the canvas. Arming the pick is a
+/// presentation concern (the Inspector only fires `on_pick_anchor`); the
+/// canvas hit funnels into `MatrixTransformInspectorMount::pick_matrix_anchor`
+/// with the picked key identity and Core validates the target.
+#[derive(Props, Clone, PartialEq)]
+struct PickAnchorButtonProps {
+    editable: bool,
+    pending: bool,
+    on_pick_anchor: EventHandler<()>,
+    on_cancel_anchor_pick: EventHandler<()>,
+}
+
+#[component]
+fn PickAnchorButton(props: PickAnchorButtonProps) -> Element {
+    rsx! {
+        if props.pending {
+            p { class: "text-xs text-muted-foreground",
+                "Click a key on the canvas to retarget the anchor."
+            }
+            Button {
+                button_type: "button", variant: ButtonVariant::Secondary,
+                onclick: move |_| props.on_cancel_anchor_pick.call(()),
+                "Cancel anchor pick"
+            }
+        } else {
+            Button {
+                button_type: "button", variant: ButtonVariant::Secondary,
+                disabled: !props.editable,
+                onclick: move |_| props.on_pick_anchor.call(()),
+                "Pick anchor"
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct AggregateAnchorSectionProps {
+    owner: MatrixTransformInspectorOwner,
+    snapshot_token: SnapshotToken,
+    revision: u64,
+    anchor: MatrixAnchor,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    feedback: Vec<MatrixTransformFeedback>,
+    splay_affect: Signal<MatrixSplayAffect>,
+    on_edit: EventHandler<MatrixTransformRequest>,
+    on_navigate_anchor_part: EventHandler<TreeContext>,
+    mount: MatrixTransformInspectorMount,
+    aggregate_pick_pending: bool,
+    on_pick_anchor: EventHandler<()>,
+    on_cancel_anchor_pick: EventHandler<()>,
+}
+
+/// The aggregate arm of the Anchor section: the Core-admitted method over N
+/// single-key parts, displayed from Core-published values only. Each part
+/// renders as a link that navigates to the part key without writing; the
+/// revision and history stay unchanged.
+#[component]
+fn AggregateAnchorSection(props: AggregateAnchorSectionProps) -> Element {
+    let Some(aggregate) = props.anchor.aggregate.clone() else {
+        return rsx! {};
+    };
+    let method = match aggregate.method {
+        AggregateMethod::Average => "Average",
+        AggregateMethod::Intersect => "Intersection",
+    };
+    let count = aggregate.parts.len();
+    let noun = if count == 1 { "key" } else { "keys" };
+    let current_method = aggregate.method;
+    let is_average = matches!(current_method, AggregateMethod::Average);
+    let method_choice = use_memo(use_reactive((&is_average,), |(average,)| {
+        Some(if average { "average" } else { "intersect" }.to_owned())
+    }));
+    let submitted = use_signal(|| None::<(MatrixTransformField, u64)>);
+    let mut submitted_effect = submitted;
+    let observed = use_signal(|| (current_method, aggregate.parts.clone()));
+    let mut observed_effect = observed;
+    use_effect(use_reactive(
+        (&current_method, &aggregate.parts),
+        move |(method, parts)| {
+            if observed_effect() != (method, parts.clone()) {
+                observed_effect.set((method, parts.clone()));
+                submitted_effect.set(None);
+            }
+        },
+    ));
+    let error_for = |field: MatrixTransformField| {
+        props
+            .feedback
+            .iter()
+            .rev()
+            .find(|item| {
+                props.owner == item.owner
+                    && submitted() == Some((field, item.request_id))
+                    && item.message.is_some()
+            })
+            .and_then(|item| item.message.clone())
+    };
+    let error = error_for(MatrixTransformField::MatrixAnchorMethod);
+    let parts_error = error_for(MatrixTransformField::MatrixAnchorParts);
+    let parts: Vec<(TreeContext, String, String)> = aggregate
+        .parts
+        .iter()
+        .map(|part| {
+            (
+                TreeContext::Key {
+                    matrix_id: part.matrix_id.clone(),
+                    row: part.row,
+                    column: part.column,
+                },
+                format!(
+                    "{} · row {} · column {}",
+                    part.matrix_id, part.row, part.column
+                ),
+                format!("{}-{}-{}", part.matrix_id, part.row, part.column),
+            )
+        })
+        .collect();
+    let sequence = props.request_sequence;
+    let owner = props.owner.clone();
+    let token = props.snapshot_token;
+    let revision = props.revision;
+    let on_edit = props.on_edit;
+    let affect = props.splay_affect;
+    let editable = props.editable;
+    rsx! {
+        p { "data-anchor-target": "true", class: "text-xs text-muted-foreground",
+            "{method} of {count} {noun}"
+        }
+        Field {
+          FieldLabel { html_for: "matrix-anchor-method", "Method" }
+          Select::<String> {
+            id: "matrix-anchor-method", aria_label: "Method",
+            value: Some(method_choice.into()),
+            disabled: !editable,
+            on_value_change: {
+                let owner = owner.clone();
+                let mut sequence = sequence;
+                let mut submitted = submitted;
+                move |choice: Option<String>| {
+                    let Some(choice) = choice else { return; };
+                    let next = if choice == "intersect" {
+                        AggregateMethod::Intersect
+                    } else {
+                        AggregateMethod::Average
+                    };
+                    if next == current_method {
+                        return;
+                    }
+                    let Some(request_id) = sequence().checked_add(1) else {
+                        return;
+                    };
+                    sequence.set(request_id);
+                    submitted.set(Some((MatrixTransformField::MatrixAnchorMethod, request_id)));
+                    on_edit.call(MatrixTransformRequest {
+                        owner: owner.clone(),
+                        request_id,
+                        snapshot_token: token,
+                        revision,
+                        field: MatrixTransformField::MatrixAnchorMethod,
+                        baseline: MatrixTransformValue::AnchorMethod(current_method),
+                        value: MatrixTransformValue::AnchorMethod(next),
+                        splay_affect: affect(),
+                        draft: None,
+                        failure: None,
+                        submitted_text: None,
+                        one_shot: false,
+                    });
+                }
+            },
+            SelectOption::<String> { index: 0usize, value: "average".to_owned(), text_value: "Average", "Average" }
+            SelectOption::<String> { index: 1usize, value: "intersect".to_owned(), text_value: "Intersection", "Intersection" }
+          }
+        }
+        if let Some(message) = error.as_deref() {
+            FieldError { "{message}" }
+        }
+        ul { class: "grid gap-2",
+            for (index, (context, label, key)) in parts.iter().enumerate() {
+                li { key: "{key}",
+                    Button {
+                        button_type: "button", variant: ButtonVariant::Secondary,
+                        onclick: {
+                            let context = context.clone();
+                            let on_navigate = props.on_navigate_anchor_part;
+                            move |_| on_navigate.call(context.clone())
+                        },
+                        "{label}"
+                    }
+                    Button {
+                        button_type: "button", variant: ButtonVariant::Secondary,
+                        aria_label: format!("Remove {label}"),
+                        disabled: !editable || parts.len() <= 1,
+                        onclick: {
+                            let owner = owner.clone();
+                            let mut sequence = sequence;
+                            let mut submitted = submitted;
+                            let mut next_parts = aggregate.parts.clone();
+                            next_parts.remove(index);
+                            let baseline_parts = aggregate.parts.clone();
+                            move |_| {
+                                let Some(request_id) = sequence().checked_add(1) else {
+                                    return;
+                                };
+                                sequence.set(request_id);
+                                submitted.set(Some((MatrixTransformField::MatrixAnchorParts, request_id)));
+                                on_edit.call(MatrixTransformRequest {
+                                    owner: owner.clone(),
+                                    request_id,
+                                    snapshot_token: token,
+                                    revision,
+                                    field: MatrixTransformField::MatrixAnchorParts,
+                                    baseline: MatrixTransformValue::AnchorParts(baseline_parts.clone()),
+                                    value: MatrixTransformValue::AnchorParts(next_parts.clone()),
+                                    splay_affect: affect(),
+                                    draft: None,
+                                    failure: None,
+                                    submitted_text: None,
+                                    one_shot: false,
+                                });
+                            }
+                        },
+                        "Remove"
+                    }
+                }
+            }
+        }
+        if let Some(message) = parts_error.as_deref() {
+            FieldError { "{message}" }
+        }
+        AggregateMultiPick {
+            owner: owner.clone(), snapshot_token: token, revision,
+            aggregate: aggregate.clone(),
+            request_sequence: sequence, editable,
+            splay_affect: affect, on_edit,
+            mount: props.mount.clone(),
+            armed: props.aggregate_pick_pending,
+            on_pick_anchor: props.on_pick_anchor,
+            on_cancel_anchor_pick: props.on_cancel_anchor_pick,
+            submitted,
+        }
+    }
+}
+
+/// The canvas multi-Pick for aggregate parts, reusing the ticket-23 armed-pick
+/// pattern: arming is presentation state, the draft lives on the mount, and
+/// committing writes one `SetMatrixAnchor` Core intent. Cancelling or Esc
+/// drops the draft with nothing written.
+#[derive(Props, Clone, PartialEq)]
+struct AggregateMultiPickProps {
+    owner: MatrixTransformInspectorOwner,
+    snapshot_token: SnapshotToken,
+    revision: u64,
+    aggregate: AggregateAnchor,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    splay_affect: Signal<MatrixSplayAffect>,
+    on_edit: EventHandler<MatrixTransformRequest>,
+    mount: MatrixTransformInspectorMount,
+    armed: bool,
+    on_pick_anchor: EventHandler<()>,
+    on_cancel_anchor_pick: EventHandler<()>,
+    submitted: Signal<Option<(MatrixTransformField, u64)>>,
+}
+
+#[component]
+fn AggregateMultiPick(props: AggregateMultiPickProps) -> Element {
+    let draft_parts = props
+        .mount
+        .aggregate_pick_draft
+        .read()
+        .clone()
+        .filter(|(draft_owner, _)| *draft_owner == props.owner)
+        .map(|(_, parts)| parts)
+        .unwrap_or_default();
+    let fresh_parts: Vec<AnchorPart> = draft_parts
+        .into_iter()
+        .filter(|part| !props.aggregate.parts.contains(part))
+        .collect();
+    if !props.armed {
+        return rsx! {
+            Button {
+                button_type: "button", variant: ButtonVariant::Secondary,
+                disabled: !props.editable,
+                onclick: move |_| props.on_pick_anchor.call(()),
+                "Pick parts"
+            }
+        };
+    }
+    let count = fresh_parts.len();
+    let noun = if count == 1 { "part" } else { "parts" };
+    rsx! {
+        p { "data-anchor-pick-note": "true", class: "text-xs text-muted-foreground",
+            "Click keys on the canvas to add parts."
+        }
+        if count > 0 {
+            p { "data-anchor-pick-note": "true", class: "text-xs text-muted-foreground",
+                "{count} picked"
+            }
+            Button {
+                button_type: "button", variant: ButtonVariant::Secondary,
+                disabled: !props.editable,
+                onclick: {
+                    let owner = props.owner.clone();
+                    let on_edit = props.on_edit;
+                    let mut sequence = props.request_sequence;
+                    let mut submitted = props.submitted;
+                    let affect = props.splay_affect;
+                    let token = props.snapshot_token;
+                    let revision = props.revision;
+                    let mount = props.mount.clone();
+                    let aggregate = props.aggregate.clone();
+                    move |_| {
+                        let mut next_parts = aggregate.parts.clone();
+                        next_parts.extend(fresh_parts.clone());
+                        let Some(request_id) = sequence().checked_add(1) else {
+                            return;
+                        };
+                        sequence.set(request_id);
+                        submitted.set(Some((MatrixTransformField::MatrixAnchorParts, request_id)));
+                        on_edit.call(MatrixTransformRequest {
+                            owner: owner.clone(),
+                            request_id,
+                            snapshot_token: token,
+                            revision,
+                            field: MatrixTransformField::MatrixAnchorParts,
+                            baseline: MatrixTransformValue::AnchorParts(aggregate.parts.clone()),
+                            value: MatrixTransformValue::AnchorParts(next_parts),
+                            splay_affect: affect(),
+                            draft: None,
+                            failure: None,
+                            submitted_text: None,
+                            one_shot: false,
+                        });
+                        mount.clear_aggregate_pick();
+                    }
+                },
+                "Add {count} {noun}"
+            }
+        }
+        Button {
+            button_type: "button", variant: ButtonVariant::Secondary,
+            onclick: {
+                let mount = props.mount.clone();
+                let on_cancel = props.on_cancel_anchor_pick;
+                move |_| {
+                    mount.clear_aggregate_pick();
+                    on_cancel.call(());
+                }
+            },
+            "Cancel anchor pick"
+        }
+    }
+}
+
+/// The Follow subset an anchor carries, in the Inspector's words.
+fn follows_label(follow: &Follow) -> String {
+    let mut kept = Vec::new();
+    if follow.x {
+        kept.push("X");
+    }
+    if follow.y {
+        kept.push("Y");
+    }
+    if follow.rotation {
+        kept.push("rotation");
+    }
+    match kept.as_slice() {
+        [] => "Follows nothing".to_owned(),
+        [only] => format!("Follows {only}"),
+        [first, second] => format!("Follows {first} and {second}"),
+        _ => format!("Follows {}, {} and {}", kept[0], kept[1], kept[2]),
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct FollowTransformFieldProps {
+    owner: MatrixTransformInspectorOwner,
+    snapshot_token: SnapshotToken,
+    revision: u64,
+    anchor: MatrixAnchor,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    feedback: Vec<MatrixTransformFeedback>,
+    splay_affect: Signal<MatrixSplayAffect>,
+    on_edit: EventHandler<MatrixTransformRequest>,
+}
+
+/// The anchor's Follow subset as three toggles. Each toggle submits its own
+/// field in one atomic Core intent; a newer accepted anchor retires the
+/// pending error display.
+#[component]
+fn FollowTransformField(props: FollowTransformFieldProps) -> Element {
+    let mut submitted = use_signal(|| None::<(MatrixTransformField, u64)>);
+    let current_follow = props.anchor.follow;
+    let observed_follow = use_signal(|| current_follow);
+    let mut submitted_effect = submitted;
+    let mut observed_effect = observed_follow;
+    use_effect(use_reactive((&current_follow,), move |(follow,)| {
+        if observed_effect() != follow {
+            observed_effect.set(follow);
+            submitted_effect.set(None);
+        }
+    }));
+    let error = props
+        .feedback
+        .iter()
+        .rev()
+        .find(|item| {
+            let Some((field, request_id)) = submitted() else {
+                return false;
+            };
+            item.owner == props.owner
+                && item.field == field
+                && request_id == item.request_id
+                && item.message.is_some()
+        })
+        .and_then(|item| item.message.clone());
+    let mut sequence = props.request_sequence;
+    let owner = props.owner.clone();
+    let token = props.snapshot_token;
+    let revision = props.revision;
+    let on_edit = props.on_edit;
+    let affect = props.splay_affect;
+    let send = move |field: MatrixTransformField, baseline: bool, value: bool| {
+        if baseline == value {
+            return;
+        }
+        let Some(id) = sequence().checked_add(1) else {
+            return;
+        };
+        sequence.set(id);
+        submitted.set(Some((field, id)));
+        on_edit.call(MatrixTransformRequest {
+            owner: owner.clone(),
+            request_id: id,
+            snapshot_token: token,
+            revision,
+            field,
+            baseline: MatrixTransformValue::Bool(baseline),
+            value: MatrixTransformValue::Bool(value),
+            splay_affect: affect(),
+            draft: None,
+            failure: None,
+            submitted_text: None,
+            one_shot: false,
+        });
+    };
+    let toggle = move |(field, label, current): (MatrixTransformField, &'static str, bool)| {
+        let mut send = send.clone();
+        rsx! {
+            Label { html_for: format!("matrix-anchor-{}", label.replace(' ', "-")),
+                Checkbox {
+                    id: format!("matrix-anchor-{}", label.replace(' ', "-")),
+                    checked: Some(if current { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                    disabled: !props.editable,
+                    aria_label: label,
+                    on_checked_change: move |next| send(field, current, next == CheckboxState::Checked),
+                }
+                "{label}"
+            }
+        }
+    };
+    rsx! {
+        div { class: "flex flex-wrap gap-3",
+            {toggle((MatrixTransformField::MatrixFollowX, "Follow X", current_follow.x))}
+            {toggle((MatrixTransformField::MatrixFollowY, "Follow Y", current_follow.y))}
+            {toggle((MatrixTransformField::MatrixFollowRotation, "Follow rotation", current_follow.rotation))}
+        }
+        if let Some(message) = error.as_deref() {
+            FieldError { "{message}" }
+        }
+    }
 }
 
 fn mirror_value(value: Option<Mirror>) -> &'static str {

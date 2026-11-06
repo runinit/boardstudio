@@ -249,27 +249,98 @@ sharing and may be a local feature or an omission on that half.
 
 ### Matrix layout
 
+**Layout**:
+A group of one or more matrices on one board, together with the independent components placed
+among them. Matrix anchors stay inside one layout, and linked halves on one board mirror whole
+layouts.
+_Avoid_: zone, matrix (when the whole group is meant)
+
 **Column stagger**:
 The vertical step of a matrix column from the previous column, in matrix
 coordinates. The first column steps from the matrix origin. The column and every
 later column inherit it.
 _Avoid_: column offset (when the inherited step is meant)
 
+**Column spread**:
+The horizontal step of a matrix column from the previous column. The column and every later
+column inherit it.
+_Avoid_: column offset (when the inherited step is meant)
+
 **Column offset**:
-An independent adjustment of one column only. Later columns do not inherit it.
-_Avoid_: stagger (when the independent adjustment is meant)
+An independent adjustment of one column only. Later columns do not inherit it, and it does not
+move the column's splay origin.
+_Avoid_: stagger, spread, shift (when the independent adjustment is meant)
+
+**Splay origin**:
+The point a column's splay turns about, measured from the column's base: its first key's
+position after spread and stagger.
+_Avoid_: pivot (in user-facing text)
+
+**Column rotation**:
+A turn of one column about its splay origin. No later column inherits it.
+_Avoid_: splay (when only this column turns), bend
+
+**Matrix pitch**:
+A matrix's key unit. Key and keycap size are the pitch minus the edge gap. Columns and rows with
+no spread or padding of their own step by one pitch, and snapping steps in fractions of it.
+_Avoid_: spacing (when the step between particular keys is meant)
+
+**Row padding**:
+The step from one row of a matrix column to the next.
+_Avoid_: row offset, pitch (when a single row's step is meant)
+
+**Matrix anchor**:
+A key of another matrix in the same layout whose final pose a matrix's frame follows, such as
+a thumb cluster following the main matrix — or the average or intersection of several such
+keys, whose combined pose the frame follows instead. The matrix may follow the target's X, Y
+and rotation, or only some of them.
+_Avoid_: parent, reference (unqualified)
+
+**Part anchor**:
+A key of a matrix in the part's own layout that an independent part follows. Spread,
+Stagger and Splay carry in the anchor frame; Offset and Rotation apply for the part alone.
+The part may follow the target's X, Y and rotation, or only some of them (Follow). A dropped
+part anchors to the nearest key of its half and keeps the drop point, upright; Detach clears
+the anchor and places the part from the half origin.
+_Avoid_: parent, reference (unqualified)
 
 **Row offset**:
 An independent adjustment of one matrix row only.
+_Avoid_: shift (when the independent adjustment is meant)
 
 **Key local offset**:
 An adjustment of one key within its matrix. The key's attached companions move
 with it.
+_Avoid_: shift (when the independent adjustment is meant)
+
+**Local key**:
+A counterpart of a linked key with an explicit exception giving it an independent world
+pose. Shared matrix layout changes do not move it, and neighbouring keys remain linked.
+_Avoid_: key local offset (when the linked-half exception is meant)
+
+**Local matrix**:
+A counterpart of a linked matrix with its own independently editable layout and dimensions.
+Making it Local keeps its pose and removes its inherited anchor; it may be explicitly
+anchored again.
+
+**Shift**:
+A move of one row (row shift) or one key (key shift) that carries to every later row of its
+column, along the key's heading.
+_Avoid_: offset (when the carried move is meant), nudge
+
+**Bend**:
+A turn of one row (row bend) or one key (key bend) that carries to every later row of its
+column. The later rows swing about it, so the column curves.
+_Avoid_: rotate, rotation (when the carried turn is meant), curve
+
+**Key rotation**:
+A turn of one key about its centre. No other key inherits it.
+_Avoid_: bend
 
 **Structural relationship**:
-Placement a selection inherits from its matrix (pitch, offsets, stagger, splay,
-matrix frame) and from key assemblies. It is read from the accepted document;
-there is no separate relationship record.
+Placement a selection inherits from matrix steps, carried transforms, independent
+adjustments, its matrix frame and anchors, and key assemblies. It is read from the
+accepted document; there is no separate relationship record.
 
 **Explicit constraint**:
 A separately authored placement relationship from a source part to a target part.
@@ -288,7 +359,36 @@ source part's own axes. Turning the source swings the target around it, as a fol
 companion moves with its key.
 _Avoid_: attach constraint (an attached companion is one that follows its key)
 
+**Split gap**:
+The stored editable distance between the two halves of a split board, measured key-edge to key-edge. It defaults from projected key envelopes at creation and never moves on its own: the adaptive pass widens the Current spacing around it instead, and narrowing back stops at the stored floor.
+_Avoid_: spacing (when the stored half distance is meant)
+
+**Current spacing**:
+The evaluated key-edge distance between the two halves. It never goes below the Split gap: it widens when the halves need the space and narrows back toward the stored floor.
+_Avoid_: Split gap (when the evaluated half distance is meant)
+
+**Half frame**:
+Each half's own placement frame for its matrices, positioned from the split axis by half the Split gap. A matrix origin on a stored-gap half is a within-half value; changing the gap moves both halves symmetrically without rewriting it.
+_Avoid_: board coordinates (when a stored-gap half's within-half placement is meant)
+
+**Half-frame part**:
+An independent Part on a stored-gap half, stored in that half's frame and evaluated at board-space through the half offset. Spacing changes never rewrite it; drags, constraints and spacing all work board-space.
+_Avoid_: board-space part (when a stored-gap half's within-half stored pose is meant)
+
+**Mirrored part**:
+A half-frame part with a Part correspondence on the mirror link. Either copy edits both; the partner realizes the reflected half-frame pose on every sync.
+_Avoid_: linked part (when the correspondence-mirrored half-frame pair is meant)
+
+**Local part**:
+A half-frame part with no Part correspondence, pinned local by the substitute flag so the default mirror never claims it. Removing the pin re-mirrors it at the reflected pose. A local part's overhang past the split axis still counts in the split minimum.
+_Avoid_: mirror-only part (when a pinned unmirrored half-frame part is meant)
+
 ### Editing
+
+**Format reset**:
+A project-format change that refuses older project data instead of converting it.
+It does not delete existing saved projects; starting fresh creates a separate project.
+_Avoid_: factory reset (when the format compatibility change is meant)
 
 **Editor session**:
 One opening of a project for editing. Reopening the same project starts a new

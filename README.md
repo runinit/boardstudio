@@ -16,7 +16,7 @@ whole column.
 ## Development
 
 Install the Rust version in `rust-toolchain.toml`, `wasm-pack` 0.15.0, Dioxus CLI
-0.7.10 and Python 3.11+. Node is not needed to build or run the app; it is required for the `tooling` check step and the browser drag smoke (the Browser tests paragraph covers the `NODE_PATH` detail). KiCad CLI 10 is required for PCB integration checks. Browser tests require
+0.7.10 and Python 3.11+. The default checks use the Rust browser harness and do not require Node or Playwright. KiCad CLI 10 is required for PCB integration checks. Browser tests require
 Chrome/Chromium and its compatible ChromeDriver.
 
 ```sh
@@ -54,9 +54,11 @@ from the watched development loop. Development uses an online server; use the
 production preview to test offline behavior.
 
 The normal Dioxus service worker supports offline use and application updates.
-React, its deployment handoff and rollback tooling are retired. Version 1 projects migrate to document format version 2 when loaded; current
-projects save locally and round-trip through `.boardstudio` exports. Existing user files are never erased by
-build or cleanup commands.
+React, its deployment handoff and rollback tooling are retired. This integration lane reads
+document format 7 only; older projects are retained but cannot be converted by this build.
+Current projects save locally and round-trip through `.boardstudio` exports. Existing user
+files are never erased by build or cleanup commands. Do not promote this lane to user-data
+stores before the layout-parity acceptance gate.
 
 ## Local project safety
 
@@ -78,6 +80,16 @@ python3 scripts/check.py build   # checked web build without wasm-opt
 python3 scripts/check.py browser # mounted browser tests and browser smoke checks
 python3 scripts/check.py         # the full pre-PR check
 ```
+
+A single Core Rust test runs with `cargo test -p boardstudio_core --test integration <filter>`.
+
+**Optional Node/npm execution check.** On Linux, install `strace` and run
+`python3 scripts/verify-no-node.py -- COMMAND [ARG ...]` around the command to check.
+The verifier first runs its own PATH and absolute-path positive controls, then traces
+the command and descendants. It fails on attempts to execute a pathname named `node`
+or `npm`, on command failure, or if tracing cannot be verified. It observes only the
+traced process tree: renamed or embedded runtimes and the GitHub Actions runtime are
+outside its scope. It does not change CI or replace the required verification checks.
 
 **Routine loop.** `quick` takes the files changed against `main` (plus untracked files; or name
 them with `--files`) and runs the documentation checks, rustfmt and Clippy, WASM page compilation,
@@ -124,8 +136,7 @@ presentation code. Browser setup installs the locked wasm-bindgen runner before 
 The browser step opens the packaged page and runs a trusted mouse-drag smoke over
 Part, Column, Stagger and Ctrl+Offset. It checks live preview, pointer capture, saved document state
 and exact Undo. Its success receipt and failure log are kept under `web/target/test-results/drag-browser/`.
-CI installs the pinned `playwright-core` runner; local browser checks need it on `NODE_PATH` and a
-Chrome or Chromium executable available as `CHROME_BIN`.
+Browser checks use the Rust harness and a Chrome or Chromium executable available as `CHROME_BIN`.
 
 **Verification receipts.** Add `--receipt PATH` to any check invocation to write a JSON receipt at
 `PATH` and a reviewer summary at `PATH.md`, both derived only from the output that invocation

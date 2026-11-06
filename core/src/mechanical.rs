@@ -695,6 +695,10 @@ fn collect_part_geometry(
             );
             continue;
         }
+        // Ticket 12: case prep reads half-frame parts at their evaluated
+        // board pose; storage stays within-half. The borrow extends the
+        // owned shadow only while a half-frame offset applies.
+        let part: &Part = &crate::matrix::layout::evaluated_part(document, part);
         let profile = config
             .profiles
             .iter()
@@ -1655,6 +1659,10 @@ fn finalize_assembly(
             .iter()
             .filter(|part| board.is_some_and(|board| board.part_ids.contains(&part.id)))
         {
+            // Ticket 12: mounting holes follow the evaluated board pose of
+            // half-frame parts. The borrow extends the owned shadow only
+            // while a half-frame offset applies.
+            let part: &Part = &crate::matrix::layout::evaluated_part(document, part);
             let Some(definition) = document
                 .definitions
                 .iter()

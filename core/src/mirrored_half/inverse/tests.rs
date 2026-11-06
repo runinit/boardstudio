@@ -129,11 +129,11 @@ fn native_layout_fixture() -> ProjectDoc {
         .push("left/GONE".into());
     document.layouts = vec![
         serde_json::from_value(json!({"id":"left-layout","name":"Source layout",
-            "boardId":"left","matrixId":"left-keys",
+            "boardId":"left","matrixIds": ["left-keys"],
             "partIds":["left/U1","left/GONE","left/HEADER"]}))
         .unwrap(),
         serde_json::from_value(json!({"id":"right-layout","name":"Mirror layout",
-            "boardId":"right","matrixId":"right-keys",
+            "boardId":"right","matrixIds": ["right-keys"],
             "partIds":["right/U1","right/HEADER","right/FREE"]}))
         .unwrap(),
     ];
@@ -1085,9 +1085,9 @@ fn pair_creation_mechanical_lifecycle_half_creation_and_replace_are_passed_throu
         (
             op(json!({"kind":"create-mirrored-pair",
                 "left":{"id":"left-layout","name":"Left","boardId":"left",
-                    "matrixId":"left-matrix","partIds":[]},
+                    "matrixIds": ["left-matrix"],"partIds":[]},
                 "right":{"id":"right-layout","name":"Right","boardId":"left",
-                    "matrixId":"right-matrix","partIds":[],
+                    "matrixIds": ["right-matrix"],"partIds":[],
                     "mirrorLink":{"sourceId":"left-layout","axisX":100.0}},
                 "matrix":{"id":"left-matrix","rows":0,"columns":0,
                     "pitch":{"x":19.0,"y":19.0},"origin":{"x":0.0,"y":0.0},
@@ -1132,24 +1132,6 @@ fn pair_creation_mechanical_lifecycle_half_creation_and_replace_are_passed_throu
 }
 
 #[test]
-fn targeted_raw_set_mechanical_is_delegated_without_inverse_mapping() {
-    let document = fixture();
-    let operation = EditOperation::SetMechanical {
-        configuration: None,
-        target: Some(crate::mechanical::MechanicalTarget::Instance {
-            instance_id: "left".into(),
-        }),
-    };
-    let canonical = canonicalize(&document, &operation)
-        .expect("the explicit target delegates to the mechanical replacement lifecycle");
-    assert_eq!(
-        canonical.coverage,
-        Coverage::Delegated(SET_MECHANICAL_TARGETED)
-    );
-    assert_eq!(canonical.operation, operation);
-}
-
-#[test]
 fn set_layout_on_native_mirror_maps_linked_members_and_preserves_hidden_and_local_members() {
     let document = native_layout_fixture();
     let request = EditOperation::SetLayout {
@@ -1166,7 +1148,7 @@ fn set_layout_on_native_mirror_maps_linked_members_and_preserves_hidden_and_loca
     };
     assert_eq!(layout.id, "left-layout");
     assert_eq!(layout.board_id, "left");
-    assert_eq!(layout.matrix_id, "left-keys");
+    assert_eq!(layout.matrix_ids, ["left-keys"]);
     assert_eq!(layout.part_ids, ["left/U1", "left/HEADER", "left/GONE"]);
 }
 
@@ -1283,10 +1265,10 @@ fn source_local_and_legacy_only_layout_requests_keep_their_authored_targets() {
     add_empty_local_matrix(&mut legacy_document, "legacy-target-matrix");
     legacy_document.layouts = vec![
         serde_json::from_value(json!({"id":"legacy-source","name":"Legacy source",
-            "boardId":"right","matrixId":"legacy-source-matrix","partIds":[]}))
+            "boardId":"right","matrixIds": ["legacy-source-matrix"],"partIds":[]}))
         .unwrap(),
         serde_json::from_value(json!({"id":"legacy-mirror","name":"Legacy mirror",
-            "boardId":"right","matrixId":"legacy-target-matrix","partIds":[],
+            "boardId":"right","matrixIds": ["legacy-target-matrix"],"partIds":[],
             "mirrorLink":{"sourceId":"legacy-source","axisX":100.0}}))
         .unwrap(),
     ];
@@ -1317,7 +1299,7 @@ fn native_layout_refuses_unrepresentable_name_local_membership_and_legacy_overla
     ));
 
     let mut reassigned = document.layouts[1].clone();
-    reassigned.matrix_id = "left-keys".into();
+    reassigned.matrix_ids = vec!["left-keys".into()];
     assert!(matches!(
         canonicalize(&document, &EditOperation::SetLayout { layout: reassigned }),
         Err(Refusal::Request(message)) if message.contains("ownership")
@@ -1352,7 +1334,7 @@ fn native_layout_refuses_unrepresentable_name_local_membership_and_legacy_overla
     add_empty_local_matrix(&mut new_overlap, "new-legacy-peer-matrix");
     new_overlap.layouts.push(
         serde_json::from_value(json!({"id":"new-legacy-peer","name":"New legacy peer",
-            "boardId":"right","matrixId":"new-legacy-peer-matrix","partIds":[]}))
+            "boardId":"right","matrixIds": ["new-legacy-peer-matrix"],"partIds":[]}))
         .unwrap(),
     );
     let mut new_legacy_link = new_overlap.layouts[2].clone();
@@ -1417,7 +1399,7 @@ fn native_layout_refuses_unrepresentable_name_local_membership_and_legacy_overla
     add_empty_local_matrix(&mut overlap, "right-local-matrix");
     overlap.layouts.push(
         serde_json::from_value(json!({"id":"legacy-peer","name":"Legacy peer",
-            "boardId":"right","matrixId":"right-local-matrix","partIds":[],
+            "boardId":"right","matrixIds": ["right-local-matrix"],"partIds":[],
             "mirrorLink":{"sourceId":"right-layout","axisX":100.0}}))
         .unwrap(),
     );
@@ -1459,7 +1441,7 @@ fn native_layout_refuses_unrepresentable_name_local_membership_and_legacy_overla
     direct_overlap.layouts.push(
         serde_json::from_value(json!({"id":"native-legacy-source",
             "name":"Native legacy source","boardId":"right",
-            "matrixId":"native-legacy-source-matrix","partIds":[]}))
+            "matrixIds": ["native-legacy-source-matrix"],"partIds":[]}))
         .unwrap(),
     );
     let native_mirror = direct_overlap
@@ -1559,17 +1541,23 @@ fn set_outline_on_a_linked_mirror_maps_feature_geometry_and_identity_back_to_sou
         .unwrap()
         .correspondences
         .push(serde_json::from_value(corr("outline", "left/cutout", "right/cutout")).unwrap());
-    let request = json!({"kind": "set-outline", "feature": {"kind": "polygon", "id": "right/cutout",
-        "anchorPartId": null, "points": [{"x": 3, "y": 9}, {"x": 3, "y": 6}, {"x": 7, "y": 6}],
-        "operation": "subtract"}});
+    let request = json!({"kind": "apply-outline-edit", "edit": {
+        "target": {"kind": "board", "boardId": "right"},
+        "change": {"set-feature": {"feature": {"kind": "polygon", "id": "right/cutout",
+            "anchorPartId": null, "points": [{"x": 3, "y": 9}, {"x": 3, "y": 6}, {"x": 7, "y": 6}],
+            "operation": "subtract"}}},
+        "seed": 5, "reviewed": null}});
     let translated =
         canonical(&document, &request).expect("a linked mirror outline edit translates");
     assert_eq!(translated.coverage, Coverage::Translated);
     assert_close(
         &serde_json::to_value(translated.operation).unwrap(),
-        &json!({"kind": "set-outline", "feature": {"kind": "polygon", "id": "left/cutout",
-            "points": [{"x": 193, "y": 6}, {"x": 197, "y": 6}, {"x": 197, "y": 9}],
-            "operation": "subtract"}}),
+        &json!({"kind": "apply-outline-edit", "edit": {
+            "target": {"kind": "board", "boardId": "left"},
+            "change": {"set-feature": {"feature": {"kind": "polygon", "id": "left/cutout",
+                "points": [{"x": 193, "y": 6}, {"x": 197, "y": 6}, {"x": 197, "y": 9}],
+                "operation": "subtract"}}},
+            "seed": 5}}),
         "operation",
     );
 }
@@ -1882,78 +1870,6 @@ fn legacy_matrix_membership_without_board_id_uses_matrix_frame_rule() {
         value["edit"]["change"]["add-feature"]["feature"]["points"],
         json!([{"x": -12.0, "y": 14.0}, {"x": -8.0, "y": 10.0}, {"x": -4.0, "y": 6.0}])
     );
-}
-
-#[test]
-fn outline_local_exception_runs_as_written_and_omission_is_refused() {
-    let mut document = fixture();
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .correspondences
-        .extend([
-            serde_json::from_value(corr("outline", "left/local", "right/local")).unwrap(),
-            serde_json::from_value(corr("outline", "left/omitted", "right/omitted")).unwrap(),
-        ]);
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .exceptions
-        .extend([
-            serde_json::from_value(
-                json!({"kind": "outline", "mirrorId": "right/local", "state": "local"}),
-            )
-            .unwrap(),
-            serde_json::from_value(
-                json!({"kind": "outline", "mirrorId": "right/omitted", "state": "omitted"}),
-            )
-            .unwrap(),
-        ]);
-    let local = json!({"kind": "set-outline", "feature": {"kind": "polygon", "id": "right/local", "points": [], "operation": "add"}});
-    expect_operation(&document, local.clone(), local);
-    let omitted = json!({"kind": "set-outline", "feature": {"kind": "polygon", "id": "right/omitted", "points": [], "operation": "add"}});
-    assert!(refusal(&document, omitted).contains("omitted"));
-}
-
-#[test]
-fn legacy_outline_version_commands_map_linked_versions_and_keep_their_other_inputs() {
-    let mut document = rotated_fixture();
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .correspondences
-        .extend([
-            serde_json::from_value(corr("outline-version", "left-fixed", "right-fixed")).unwrap(),
-            serde_json::from_value(corr("outline-version", "left-linked", "right-linked")).unwrap(),
-        ]);
-    let cases = [
-        (
-            json!({"kind": "select-outline", "boardId": "right", "versionId": "right-fixed"}),
-            json!({"kind": "select-outline", "boardId": "left", "versionId": "left-fixed"}),
-        ),
-        (
-            json!({"kind": "rename-outline", "boardId": "right", "versionId": "right-linked", "name": "Name"}),
-            json!({"kind": "rename-outline", "boardId": "left", "versionId": "left-linked", "name": "Name"}),
-        ),
-        (
-            json!({"kind": "remove-outline", "boardId": "right", "versionId": "right-fixed"}),
-            json!({"kind": "remove-outline", "boardId": "left", "versionId": "left-fixed"}),
-        ),
-        (
-            json!({"kind": "copy-outline", "boardId": "right", "versionId": "right-new", "name": "Copy",
-            "edit": {"contour": 1, "points": [{"x": 80, "y": -25}, {"x": 70, "y": -20}, {"x": 65, "y": -18}]},
-            "feature": {"kind": "polygon", "id": "right/feature", "points": [{"x": 80, "y": -25}, {"x": 70, "y": -20}, {"x": 65, "y": -18}], "operation": "subtract"}}),
-            json!({"kind": "copy-outline", "boardId": "left", "versionId": "left-new", "name": "Copy",
-            "edit": {"contour": 1, "points": [{"x": -12, "y": 35}, {"x": -10, "y": 30}, {"x": -5, "y": 20}]},
-            "feature": {"kind": "polygon", "id": "left/feature", "points": [{"x": -12, "y": 35}, {"x": -10, "y": 30}, {"x": -5, "y": 20}], "operation": "subtract"}}),
-        ),
-    ];
-    for (request, expected) in cases {
-        expect_operation(&document, request, expected);
-    }
 }
 
 #[test]
@@ -2391,6 +2307,41 @@ fn a_part_added_on_the_mirror_board_becomes_a_source_addition_with_its_mirror_pl
 }
 
 #[test]
+fn a_controller_added_on_the_mirror_lands_on_the_source_without_the_half_turn() {
+    // A controller definition in the document switches the AddPart inverse to the reflected
+    // heading. The axis map sends (x, y) to (200 - x, y): the authored mirror pose (230, 12)
+    // at heading 30 lands on the source (-30, 12) at heading -30 = 330, not 150.
+    let mut document = fixture();
+    document.definitions.push(
+        serde_json::from_value(json!({
+            "id": "mcu", "name": "MCU", "kind": "controller",
+            "courtyard": [{"x":-5,"y":-4},{"x":5,"y":-4},{"x":5,"y":4},{"x":-5,"y":4}],
+            "pads": []
+        }))
+        .unwrap(),
+    );
+    let request = json!({"kind": "add-part", "boardId": "right", "part": {
+        "id": "right/MCU", "definitionId": "mcu", "reference": "right-MCU",
+        "pose": {"at": {"x": 230, "y": 12}, "rotation": 30}, "side": "front"}});
+    let result = canonical(&document, &request).unwrap();
+    let EditOperation::AddPart { part, .. } = result.operation else {
+        panic!("an addition is expected");
+    };
+    assert_close(
+        &serde_json::to_value(part.pose).unwrap(),
+        &json!({"at": {"x": -30, "y": 12}, "rotation": 330}),
+        "pose",
+    );
+    assert_eq!(result.additions[0].source_id, "left/MCU");
+    assert_eq!(result.additions[0].mirror_id, "right/MCU");
+    // The controller rule is its own inverse: the source addition reflects back to exactly
+    // what was authored on the mirror, (200 - -30, 12) at (0 - 330) mod 360 = 30.
+    assert_eq!(200.0 - part.pose.at.x, 230.0);
+    assert_eq!(part.pose.at.y, 12.0);
+    assert_eq!((0.0 - part.pose.rotation).rem_euclid(360.0), 30.0);
+}
+
+#[test]
 fn a_rotated_pair_map_places_and_turns_an_added_part_back_on_the_source() {
     let request = json!({"kind": "add-part", "boardId": "right", "part": {
         "id": "right/LED", "definitionId": "u", "reference": "right-D9",
@@ -2691,7 +2642,7 @@ fn a_mirror_matrix_payload_becomes_the_source_matrix_through_the_inverse_pair_ma
         "partIds": [
             "matrix/left-keys/r0c0", "matrix/left-keys/r0c0/diode", "matrix/left-keys/r0c1"],
         "cells": [
-            {"row": 0, "column": 0, "enabled": true, "offset": {"x": 1, "y": 2}, "rotation": -5,
+            {"row": 0, "column": 0, "enabled": true, "offset": {"x": 1, "y": 2}, "rotation": 5,
              "assemblies": [
                 {"id": "diode", "definitionId": "d", "offset": {"x": 8, "y": -3}, "rotation": 80}]},
             {"row": 0, "column": 1, "enabled": false}
@@ -2720,7 +2671,7 @@ fn companion_matrix(document: &ProjectDoc, assembly_definition: &str, rotation: 
     translated_matrix(
         document,
         mirror_payload(json!({
-        "columnSplays": [0, 15],
+        "columnLayout": [{"splay": 0}, {"splay": 15}],
         "cells": [
             {"row": 0, "column": 0, "enabled": true, "rotation": 20, "assemblies": [
                 {"id": "diode", "definitionId": assembly_definition,
@@ -2774,11 +2725,11 @@ fn a_duplicate_position_companion_keeps_the_mirror_values_as_the_source_values()
 #[test]
 fn a_stabiliser_recovers_its_source_turn_from_its_keys_world_heading() {
     let matrix = companion_matrix(&fixture(), "kicad:marbastlib/STAB_MX_2u", -60.0);
-    // Cell 0: key heading is the source cell turn -20; the turn is -60 + 0 - 2(-20) = -20.
+    // Cell 0: stored Key rotation copies unchanged; the source heading is +20, so -60 - 2(20) = -100.
     assert_close(
         &matrix["cells"][0]["assemblies"][0],
         &json!({"id": "diode", "definitionId": "kicad:marbastlib/STAB_MX_2u",
-                "offset": {"x": 8, "y": -3}, "rotation": -20}),
+                "offset": {"x": 8, "y": -3}, "rotation": -100}),
         "cell 0",
     );
     // Cell 1: key heading is the column splay 15; the turn is 10 + 0 - 30 = -20.
@@ -2956,9 +2907,9 @@ fn matrix_definitions_travel_with_the_translated_request_unchanged() {
 
 fn with_legacy_link(mut document: ProjectDoc) -> ProjectDoc {
     document.layouts = serde_json::from_value(json!([
-        {"id": "legacy-a", "name": "A", "boardId": "left", "matrixId": "left-keys",
+        {"id": "legacy-a", "name": "A", "boardId": "left", "matrixIds": ["left-keys"],
          "partIds": [], "mirrorLink": {"sourceId": "legacy-b", "axisX": 0}},
-        {"id": "legacy-b", "name": "B", "boardId": "left", "matrixId": "right-keys", "partIds": []}
+        {"id": "legacy-b", "name": "B", "boardId": "left", "matrixIds": ["right-keys"], "partIds": []}
     ]))
     .unwrap();
     document
@@ -3156,8 +3107,8 @@ fn source_half() -> ProjectDoc {
     ]);
     let matrices = json!([{"id": "left-keys", "name": "Keys", "rows": 2, "columns": 3,
             "pitch": {"x": 19, "y": 21}, "origin": {"x": 4, "y": 9}, "rotation": 12,
-            "columnSplays": [0, 6, -3], "columnStaggers": [0, 3, -2],
-            "definitionId": switch, "boardId": "left", "partIds": [], "cells": cells}]);
+            "columnLayout": [{"splay": 0, "stagger": 0}, {"splay": 6, "stagger": 3}, {"splay": -3, "stagger": -2}],
+"definitionId": switch, "boardId": "left", "partIds": [], "cells": cells}]);
     let hardware = json!({"topology": "split", "transport": "wired",
             "instances": [{"id": "left", "name": "Left", "boardId": "left", "half": "left",
                 "role": "central", "flipped": false, "controllerPartId": "left/U1",

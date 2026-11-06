@@ -104,7 +104,7 @@ This section and the same fixture's `qualificationV2` section are the v2 wire
 contract. The v2 producer, the Host/Runtime consumer and both fixture checks are
 integrated: the WASM provider emits `analysisMesh`, `sourceQualification` and the
 opaque handle, the worker authenticates them against its own request, and
-`cad/wasm/tests/qualified-analysis.cjs` plus the worker, Runtime and page checks
+`cad/wasm/tests/qualified-analysis.mjs` plus the worker, Runtime and page checks
 exercise the qualified query. The CAD replacement map records delivery in its
 010 and 014 outcomes; 014 cites `01680d84`. Existing exact-key v1 checks remain
 required for v1 payloads. This section is a wire contract, not a preview-admission gate.

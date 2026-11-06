@@ -30,13 +30,11 @@ pub fn payload() -> Vec<u8> {
 
 pub fn matrix() -> Value {
     json!({
-        "id": "matrix", "rows": 3, "columns": 3, "definitionId": "switch",
-        "origin": { "x": 7, "y": -3 }, "pitch": { "x": 19, "y": 19 },
-        "partIds": ["matrix/matrix/r0c0", "matrix/matrix/r0c1", "matrix/matrix/r0c2", "matrix/matrix/r2c0", "matrix/matrix/r2c1", "matrix/matrix/r2c2"],
-        "cells": (0..3).map(|column| json!({ "row": 1, "column": column, "enabled": false })).collect::<Vec<_>>(),
-        "columnStaggers": [0, 2, -1],
-        "columnOrigins": [null, { "x": 4, "y": -20 }],
-        "columnSplays": [0, 15, -8],
+            "id": "matrix", "rows": 3, "columns": 3, "definitionId": "switch",
+            "origin": { "x": 7, "y": -3 }, "pitch": { "x": 19, "y": 19 },
+            "partIds": ["matrix/matrix/r0c0", "matrix/matrix/r0c1", "matrix/matrix/r0c2", "matrix/matrix/r2c0", "matrix/matrix/r2c1", "matrix/matrix/r2c2"],
+            "cells": (0..3).map(|column| json!({ "row": 1, "column": column, "enabled": false })).collect::<Vec<_>>(),
+            "columnLayout": [{"stagger": 0, "splay": 0}, {"stagger": 2, "splayOrigin": {"x": -15, "y": -22}, "splay": 15}, {"stagger": -1, "splay": -8}],
     })
 }
 
@@ -840,8 +838,8 @@ pub fn core_requests() -> Vec<Value> {
     requests.push(json!({ "id": "mechanical-undo", "kind": "undo" }));
     requests.extend(outline_requests());
     // One-shot conversion crosses the seam last, so earlier requests keep their
-    // revisions. Column 1 pivots on a custom origin, so the conversion is exact;
-    // column 2 is splayed about its default origin, so Core refuses it.
+    // revisions. Column 0 has zero Splay, Column rotation and carried Bend, as
+    // spec §6 requires for conversion; column 2 stays splayed for the refusal.
     let placement = |id: &str, base: u64, phase: &str, change: Value| {
         json!({
             "id": id, "kind": "edit",
@@ -854,10 +852,10 @@ pub fn core_requests() -> Vec<Value> {
         "convert-offset-1",
         42,
         "commit",
-        json!({ "kind": "column-offset", "column": 1, "value": { "x": 0, "y": 3 } }),
+        json!({ "kind": "column-offset", "column": 0, "value": { "x": 0, "y": 3 } }),
     ));
-    requests.push(placement("convert-preview", 43, "preview", convert(1)));
-    requests.push(placement("convert-commit", 43, "commit", convert(1)));
+    requests.push(placement("convert-preview", 43, "preview", convert(0)));
+    requests.push(placement("convert-commit", 43, "commit", convert(0)));
     requests.push(placement(
         "convert-offset-2",
         44,
@@ -2269,6 +2267,175 @@ fn position(replies: &[Value], id: &str) -> usize {
 }
 
 fn check_core(replies: &[Value]) {
+    // These scenario outcomes must hold before transcript.json compaction or blessing.
+    let requests = core_requests();
+    assert_eq!(requests.len(), 67, "retain every existing primary scenario");
+    assert_eq!(replies.len(), requests.len());
+    let mut revision = 0;
+    for (request, reply) in requests.iter().zip(replies) {
+        let id = request["id"].as_str().unwrap();
+        assert_eq!(reply["id"], id);
+        let refusal = match id {
+            "invalid-draft" => Some("invalid matrix dimensions"),
+            "stale-draft" => Some("Stale base revision"),
+            "convert-refused" => {
+                Some("Converting requires zero Splay, Column rotation and carried Bend")
+            }
+            "mirrored-half-new-board" | "mirrored-half-reuse-board" => {
+                Some("Physical instance \"board\" is unavailable.")
+            }
+            _ => None,
+        };
+        let kind = if let Some(reason) = refusal {
+            assert_eq!(reply["message"], reason, "{id}");
+            "error"
+        } else {
+            match request["kind"].as_str().unwrap() {
+                "edit" if request["command"]["phase"] == "preview" => "preview",
+                "edit" => {
+                    assert_eq!(request["command"]["phase"], "commit");
+                    if !matches!(
+                        id,
+                        "mechanical-closure-repeat"
+                            | "outline-corners-repeat"
+                            | "outline-rename-repeat"
+                    ) {
+                        revision += 1;
+                    }
+                    "scene"
+                }
+                "undo" | "redo" => {
+                    revision += 1;
+                    "scene"
+                }
+                "open" | "snapshot" => "scene",
+                "project-matrices" => "matrix-projections",
+                other => panic!("declare the intended outcome of {other}: {id}"),
+            }
+        };
+        assert_eq!(reply["kind"], kind, "{id}: {reply}");
+        let actual_revision = reply
+            .get("scene")
+            .map_or(&reply["revision"], |scene| &scene["revision"]);
+        assert_eq!(*actual_revision, revision, "{id}: revision/history intent");
+    }
+
+    let initial = &replies[0]["document"];
+    let committed = &replies[6]["document"];
+    for index in [4, 6] {
+        assert_eq!(
+            replies[index]["scene"]["transforms"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|part| &part["id"])
+                .collect::<Vec<_>>(),
+            initial["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|part| &part["id"])
+                .collect::<Vec<_>>(),
+            "preview/commit retain every visible member identity",
+        );
+        assert_eq!(
+            replies[index]["scene"]["changedIds"],
+            json!(["matrix", "matrix/matrix/r0c0"])
+        );
+        for transform in replies[index]["scene"]["transforms"].as_array().unwrap() {
+            let original = initial["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|part| part["id"] == transform["id"])
+                .unwrap();
+            if transform["id"] == "matrix/matrix/r0c0" {
+                assert_eq!(transform["pose"]["at"], json!({"x":10.0,"y":12.0}));
+                assert_eq!(transform["pose"]["rotation"], original["pose"]["rotation"]);
+            } else {
+                assert_eq!(
+                    transform["pose"], original["pose"],
+                    "unselected key stays still"
+                );
+            }
+        }
+    }
+    assert_eq!(replies[5]["document"], *initial, "preview must not publish");
+    assert_eq!(
+        committed["matrices"][0]["partIds"],
+        initial["matrices"][0]["partIds"]
+    );
+    let moved = committed["matrices"][0]["cells"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|cell| cell["row"] == 0 && cell["column"] == 0)
+        .unwrap();
+    assert_eq!(moved["offset"], json!({"x":3.0,"y":15.0}));
+    for (index, expected) in [(8, initial), (9, committed)] {
+        let mut actual = replies[index]["document"].clone();
+        actual["revision"] = expected["revision"].clone();
+        assert_eq!(actual, *expected, "history restores all authored state");
+    }
+    let before_origin = &replies[9]["document"];
+    let held = &replies[12]["document"];
+    for index in [11, 12] {
+        let matrix_scene = &replies[index]["scene"]["matrixScenes"][0];
+        let original_cells = replies[9]["scene"]["matrixScenes"][0]["cells"]
+            .as_array()
+            .unwrap();
+        let cells = matrix_scene["cells"].as_array().unwrap();
+        assert_eq!(cells.len(), original_cells.len());
+        for (cell, original) in cells.iter().zip(original_cells) {
+            assert_eq!(cell["memberId"], original["memberId"]);
+            assert_eq!(cell["enabled"], original["enabled"]);
+            for axis in ["x", "y"] {
+                assert!(
+                    (cell["pose"]["at"][axis].as_f64().unwrap()
+                        - original["pose"]["at"][axis].as_f64().unwrap())
+                    .abs()
+                        < 1e-9,
+                    "hold includes logical disabled keys"
+                );
+            }
+            assert_eq!(cell["pose"]["rotation"], original["pose"]["rotation"]);
+        }
+        assert_eq!(
+            matrix_scene["columns"][1]["splayOrigin"],
+            json!({"x":5.0,"y":-12.0})
+        );
+        for transform in replies[index]["scene"]["transforms"].as_array().unwrap() {
+            let original = before_origin["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|part| part["id"] == transform["id"])
+                .unwrap();
+            for axis in ["x", "y"] {
+                assert!(
+                    (transform["pose"]["at"][axis].as_f64().unwrap()
+                        - original["pose"]["at"][axis].as_f64().unwrap())
+                    .abs()
+                        < 1e-9,
+                    "origin hold: {} {axis}",
+                    transform["id"]
+                );
+            }
+            assert_eq!(transform["pose"]["rotation"], original["pose"]["rotation"]);
+        }
+    }
+    assert_eq!(
+        held["matrices"][0]["cells"],
+        before_origin["matrices"][0]["cells"]
+    );
+    let mut allowed = before_origin["matrices"][0].clone();
+    for field in ["spread", "stagger", "splayOrigin"] {
+        allowed["columnLayout"][1][field] = held["matrices"][0]["columnLayout"][1][field].clone();
+    }
+    assert_eq!(
+        held["matrices"][0], allowed,
+        "hold writes only this step and relative origin when Column rotation is zero"
+    );
     assert_eq!(
         replies[0]["scene"]["matrixScenes"][0]["cells"]
             .as_array()
@@ -2323,6 +2490,7 @@ fn check_core(replies: &[Value]) {
         replies[5]["scene"]["matrixScenes"]
     );
     assert_eq!(replies[7]["kind"], "error");
+    assert_eq!(replies[7]["message"], "Stale base revision");
     assert_eq!(
         replies[13]["document"]["hardware"]["boards"][0]["keyBindings"]["matrix/matrix/r0c0"],
         "&kp A"
@@ -2350,6 +2518,41 @@ fn check_core(replies: &[Value]) {
         "mode": { "constrained": { "constraintId": "sensor-key", "sourcePartId": "matrix/matrix/r0c0" } },
         "partId": "matrix/matrix/r0c0/sensor"
     })));
+
+    // Guard scenario intent before compaction or blessing can hide a refusal cascade.
+    for (id, kind, revision) in [
+        ("convert-offset-1", "scene", 43),
+        ("convert-preview", "preview", 43),
+        ("convert-commit", "scene", 44),
+        ("convert-offset-2", "scene", 45),
+    ] {
+        let reply = &replies[position(replies, id)];
+        assert_eq!(reply["kind"], kind, "{id}: {reply}");
+        assert_eq!(reply["scene"]["revision"], revision, "{id}: {reply}");
+    }
+    let converted = &replies[position(replies, "convert-commit")]["document"]["matrices"][0];
+    assert_eq!(converted["columnLayout"][0]["stagger"], 3.0);
+    assert!(converted["columnLayout"][0].get("offset").is_none());
+    assert_eq!(converted["columnLayout"][1]["stagger"], -1.0);
+    for (id, message) in [
+        (
+            "convert-refused",
+            "Converting requires zero Splay, Column rotation and carried Bend",
+        ),
+        (
+            "mirrored-half-new-board",
+            "Physical instance \"board\" is unavailable.",
+        ),
+        (
+            "mirrored-half-reuse-board",
+            "Physical instance \"board\" is unavailable.",
+        ),
+    ] {
+        let reply = &replies[position(replies, id)];
+        assert_eq!(reply["kind"], "error", "{id}: {reply}");
+        assert_eq!(reply["message"], message, "{id}: {reply}");
+        assert_eq!(reply["revision"], 45, "{id}: {reply}");
+    }
 
     // The mechanical edit reports its configuration owner, the added closure
     // mounts and the generated clearance it projects, then a no-op keeps the

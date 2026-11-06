@@ -30,6 +30,7 @@ mod tree_projection_tests;
 thread_local! {
     static TREE_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
+mod add_matrix_surface;
 mod keycap_resize;
 mod keycap_size;
 mod keycap_size_controller;
@@ -46,10 +47,12 @@ mod matrix_inspector_controller;
 mod matrix_placement_controller;
 mod matrix_setup;
 mod matrix_setup_controller;
+mod matrix_setup_fields;
 mod matrix_transform_controller;
 mod matrix_transform_inspector;
 mod mirrored_pair;
 mod mirrored_pair_controller;
+pub use add_matrix_surface::{AddMatrixMode, AddMatrixSurface};
 pub use board_setup_controller::{BoardSetupMount, use_board_setup};
 use boardstudio_web_ui_model::tree;
 pub use existing_half::{ExistingHalfMount, ExistingHalfSetup};
@@ -65,10 +68,11 @@ pub use layout_toolbar::{
     LayoutSnapSettings, TreeCellAnchor, context_for_selection_kind, gesture_snap_inputs,
     layout_canvas_grid_style, snap_label as layout_snap_label,
 };
+pub use layout_transform_toolbar::LayoutPartToolOverlay;
 pub use layout_transform_toolbar::LayoutTransformToolOverlay;
 pub use layout_transform_toolbar::{
-    LayoutTransformMenuMount, LayoutTransformRuntime, LayoutTransformSvg, LayoutTransformTool,
-    ToolActivation, activate_transform_tool,
+    AnchorPickOwner, LayoutAnchorPickOverlay, LayoutTransformMenuMount, LayoutTransformRuntime,
+    LayoutTransformSvg, LayoutTransformTool, ToolActivation, activate_transform_tool,
 };
 pub use matrix_departure_actions::DepartureControl;
 pub use matrix_inspector::MatrixInspector;
@@ -185,7 +189,6 @@ pub fn Objects(
     on_open_geometry_scripts: EventHandler<()>,
     board_setup: Option<BoardSetupMount>,
     matrix_setup: Option<MatrixSetupMount>,
-    mirrored_pair: Option<MirroredPairMount>,
     pair_created: Option<Signal<Option<MirroredPairCreated>>>,
     on_place_component: Option<EventHandler<super::part_placement::ComponentPlacementAction>>,
     layout_target: Option<Signal<Option<String>>>,
@@ -351,7 +354,9 @@ pub fn Objects(
         document
             .layouts
             .iter()
-            .find(|layout| layout.board_id == board_id && layout.matrix_id == matrix_id)
+            .find(|layout| {
+                layout.board_id == board_id && layout.matrix_ids.iter().any(|id| *id == matrix_id)
+            })
             .map(|layout| layout.id.clone())
     });
     let layout_target_for_effect = layout_target;
@@ -409,7 +414,6 @@ pub fn Objects(
                             on_select,
                             on_open_geometry_scripts,
                             matrix_setup,
-                            mirrored_pair,
                             matrix_inspector,
                             existing_half,
                             snapshot: AcceptedSource(snapshot.clone()),
@@ -718,7 +722,6 @@ fn AddObjectEntry(
     on_select: EventHandler<TreeSelectRequest>,
     on_open_geometry_scripts: EventHandler<()>,
     matrix_setup: Option<MatrixSetupMount>,
-    mirrored_pair: Option<MirroredPairMount>,
     matrix_inspector: Option<MatrixInspectorMount>,
     existing_half: ExistingHalfMount,
     snapshot: AcceptedSource,
@@ -734,9 +737,6 @@ fn AddObjectEntry(
     let mut geometry_open = use_signal(|| true);
     let snapshot = snapshot.0;
     let open_menu = menu_open();
-    let mirrored_open = mirrored_pair
-        .as_ref()
-        .map(|mount| (mount.can_open, mount.on_open));
     let matrix_open = matrix_setup
         .as_ref()
         .map(|mount| (mount.can_open, mount.on_open));
@@ -843,23 +843,6 @@ fn AddObjectEntry(
                                              }
                                         }
                                     }
-                                    if let Some((can_open, on_open)) = mirrored_open {
-                                        Item { class: "p-0",
-                                            Button { variant: ButtonVariant::Secondary,
-    button_type: "button",
-    disabled: !can_open,
-    onclick: move |_| {
-                                            menu_open.set(false);
-                                            on_open.call(());
-                                        },
-    class: "w-full justify-start whitespace-normal h-auto min-h-control",
-
-                                                "Mirrored pair…"
-                                                small { "Create linked left and right halves" }
-
-                                             }
-                                        }
-                                    }
                                     if let Some((can_open, on_open)) = matrix_open {
                                         Item { class: "p-0",
                                             Button { variant: ButtonVariant::Secondary,
@@ -872,7 +855,7 @@ fn AddObjectEntry(
     class: "w-full justify-start whitespace-normal h-auto min-h-control",
 
                                                 "Matrix…"
-                                                small { "Rows, columns & key assemblies" }
+                                                small { "Single or mirrored-pair rows, columns & key assemblies" }
 
                                              }
                                         }

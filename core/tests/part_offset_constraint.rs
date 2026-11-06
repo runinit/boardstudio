@@ -34,6 +34,8 @@ fn edit(
 
 fn matrix() -> Matrix {
     let cell = |column: u32| MatrixCell {
+        shift: None,
+        bend: None,
         deleted: false,
         row: 0,
         column,
@@ -65,11 +67,13 @@ fn matrix() -> Matrix {
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![0.0, 0.0, 0.0],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![
+            boardstudio_core::model::ColumnLayout::default(),
+            boardstudio_core::model::ColumnLayout::default(),
+            boardstudio_core::model::ColumnLayout::default(),
+        ],
+        anchor: None,
         cells: vec![cell(0), cell(1), cell(2)],
     }
 }
@@ -79,6 +83,22 @@ fn part<'a>(doc: &'a ProjectDoc, id: &str) -> &'a Part {
         .iter()
         .find(|part| part.id == id)
         .unwrap_or_else(|| panic!("missing part {id}"))
+}
+
+/// Board-space pose of a part from the scene snapshot: independent parts on a
+/// stored-gap half evaluate through the half offset, so behavior assertions
+/// read transforms, not storage.
+fn snap(engine: &mut CoreEngine) -> (SceneDelta, ProjectDoc) {
+    scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }))
+}
+
+fn epose(scene: &SceneDelta, id: &str) -> Pose2 {
+    scene
+        .transforms
+        .iter()
+        .find(|transform| transform.id == id)
+        .unwrap_or_else(|| panic!("missing transform {id}"))
+        .pose
 }
 
 /// The companion's pose in its key's frame: where the key's own turn leaves it.
@@ -654,6 +674,7 @@ fn mirrored_pair_with_held_left_component(
         vias: vec![],
     });
     doc.parts.push(Part {
+        anchor: None,
         id: "left-part".into(),
         definition_id: "diode".into(),
         reference: "D1".into(),
@@ -687,12 +708,12 @@ fn mirrored_pair_with_held_left_component(
         rotation: Some(left_rotation),
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![0.0],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![boardstudio_core::model::ColumnLayout::default()],
+        anchor: None,
         cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
             deleted: false,
             row: 0,
             column: 0,
@@ -709,7 +730,7 @@ fn mirrored_pair_with_held_left_component(
         id: id.into(),
         name: id.into(),
         board_id: "board".into(),
-        matrix_id: matrix_id.into(),
+        matrix_ids: vec![matrix_id.into()],
         part_ids,
         mirror_link,
     };
@@ -723,8 +744,12 @@ fn mirrored_pair_with_held_left_component(
                 "right-matrix",
                 vec![],
                 Some(LayoutMirrorLink {
+                    correspondences: vec![],
+                    exceptions: vec![],
                     source_id: "left-layout".into(),
                     axis_x: 10.0,
+                    split_gap: None,
+                    spacing: None,
                 }),
             ),
             matrix: Box::new(left),
@@ -766,12 +791,13 @@ fn dragging_the_mirrored_half_retunes_a_held_part_offset_in_its_own_key_frame() 
         left_key.rotation
     );
     let right = "right-layout::mirror::left-part";
-    let start = part(&before, right).pose.at;
+    let (before_scene, _) = snap(&mut engine);
+    let start = epose(&before_scene, right).at;
     let requested = Vec2 {
         x: start.x + 3.0,
         y: start.y,
     };
-    let (_, after) = edit(
+    let (after_scene, after) = edit(
         &mut engine,
         &before,
         EditOperation::MoveParts {
@@ -786,14 +812,10 @@ fn dragging_the_mirrored_half_retunes_a_held_part_offset_in_its_own_key_frame() 
         x: 2.0 * 10.0 - requested.x,
         y: requested.y,
     };
-    let landed = part(&after, "left-part").pose.at;
-    assert!(
-        (landed.x - mirrored.x).abs() < 1e-9 && (landed.y - mirrored.y).abs() < 1e-9,
-        "left component at {landed:?}, expected the mirror {mirrored:?}"
-    );
+    let landed = epose(&after_scene, "left-part").at;
     // The left component's world move, rotated into the left key's frame at 30 degrees:
     // (dx cos 30 + dy sin 30, -dx sin 30 + dy cos 30).
-    let left_start = part(&before, "left-part").pose.at;
+    let left_start = epose(&before_scene, "left-part").at;
     let (dx, dy) = (mirrored.x - left_start.x, mirrored.y - left_start.y);
     let (c, s) = (30.0_f64.to_radians().cos(), 30.0_f64.to_radians().sin());
     let Some(Constraint::PartOffset { offset, .. }) = after
@@ -808,6 +830,14 @@ fn dragging_the_mirrored_half_retunes_a_held_part_offset_in_its_own_key_frame() 
             && (offset.y - (-4.0 - dx * s + dy * c)).abs() < 1e-9,
         "offset {offset:?} is not the mirrored drag in the key's axes"
     );
+    // Ticket 10: the halves sit spaced, so the landed pose is the key plus the
+    // retuned offset. It coincided with the mirror of the request while the
+    // key stood at the origin.
+    assert!(
+        (landed.x - (left_key.at.x + offset.x * c - offset.y * s)).abs() < 1e-9
+            && (landed.y - (left_key.at.y + offset.x * s + offset.y * c)).abs() < 1e-9,
+        "left component at {landed:?}, expected the key plus {offset:?}"
+    );
 }
 
 #[test]
@@ -820,12 +850,13 @@ fn dragging_the_mirrored_half_retunes_a_held_board_offset_on_the_board_axes() {
         left_key.rotation
     );
     let right = "right-layout::mirror::left-part";
-    let start = part(&before, right).pose.at;
+    let (before_scene, _) = snap(&mut engine);
+    let start = epose(&before_scene, right).at;
     let requested = Vec2 {
         x: start.x + 3.0,
         y: start.y,
     };
-    let (_, after) = edit(
+    let (after_scene, after) = edit(
         &mut engine,
         &before,
         EditOperation::MoveParts {
@@ -835,17 +866,7 @@ fn dragging_the_mirrored_half_retunes_a_held_board_offset_on_the_board_axes() {
             }],
         },
     );
-    // Dragging the mirror 3 mm along +X moves the left component 3 mm along -X.
-    let left_start = part(&before, "left-part").pose.at;
-    let landed = part(&after, "left-part").pose.at;
-    assert!(
-        (landed.x - (left_start.x - 3.0)).abs() < 1e-9 && (landed.y - left_start.y).abs() < 1e-9,
-        "left component at {landed:?}, expected {:?}",
-        Vec2 {
-            x: left_start.x - 3.0,
-            y: left_start.y
-        }
-    );
+    let landed = epose(&after_scene, "left-part").at;
     let Some(Constraint::Offset { offset, .. }) = after
         .constraints
         .iter()
@@ -858,11 +879,23 @@ fn dragging_the_mirrored_half_retunes_a_held_board_offset_on_the_board_axes() {
         (offset.x - -2.0).abs() < 1e-9 && (offset.y - -4.0).abs() < 1e-9,
         "offset {offset:?} is not the mirrored drag on the board's axes"
     );
+    // Ticket 10: the halves sit spaced, so the landed pose is the key plus the
+    // retuned offset. It moved 3 mm along -X only while the key stood at the
+    // origin.
+    assert!(
+        (landed.x - (left_key.at.x + offset.x)).abs() < 1e-9
+            && (landed.y - (left_key.at.y + offset.y)).abs() < 1e-9,
+        "left component at {landed:?}, expected the key plus {offset:?}"
+    );
 }
 
 /// Holding the right mirror to its own key with a turn of 10 degrees settles that mirror at
 /// -20 degrees (its key is at -30), so the left component is back-solved to 180 - (-20) = 200
 /// degrees. Its key stands at 30, so its constraint must now store a turn of 170.
+///
+/// The mirror is a genuine independent part, so it keeps ADR-0010's half turn; the stored
+/// heading is normalized to `[0, 360)` by the shared mirror-heading helper, i.e. 340 for
+/// -20, matching the long-standing `derive::pose` convention.
 #[test]
 fn a_held_mirror_turns_the_held_left_component_and_retunes_its_stored_turn() {
     for axes in [OffsetAxes::Board, OffsetAxes::Part] {
@@ -885,7 +918,11 @@ fn a_held_mirror_turns_the_held_left_component_and_retunes_its_stored_turn() {
         let right = part(&after, "right-layout::mirror::left-part")
             .pose
             .rotation;
-        assert!((right - -20.0).abs() < 1e-9, "{axes:?}: right turn {right}");
+        // Modulo a full turn: the shared helper stores -20 normalized as 340.
+        assert!(
+            (right - -20.0).rem_euclid(360.0) < 1e-9,
+            "{axes:?}: right turn {right}"
+        );
         let left = part(&after, "left-part").pose.rotation;
         assert!((left - 200.0).abs() < 1e-9, "{axes:?}: left turn {left}");
         let Some(Constraint::Offset { rotation, .. } | Constraint::PartOffset { rotation, .. }) =

@@ -270,6 +270,8 @@ pub fn prepare_matrix(
                 });
             }
             cells.push(MatrixCell {
+                shift: None,
+                bend: None,
                 deleted: false,
                 row,
                 column,
@@ -301,11 +303,9 @@ pub fn prepare_matrix(
         rotation: None,
         edge_gap: Some(Vec2 { x: 1.0, y: 1.0 }),
         diode_direction: None,
-        row_offsets: Vec::new(),
-        column_offsets: Vec::new(),
-        column_staggers: Vec::new(),
-        column_splays: Vec::new(),
-        column_origins: Vec::new(),
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells,
     };
     let mut definitions = vec![switch, diode];

@@ -3,13 +3,18 @@
 
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
+SPEC = importlib.util.spec_from_file_location("measure_cad", ROOT / "cad/scripts/measure-cad.py")
+PERF = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(PERF)
 
 
 def unpack(archive, destination):
@@ -25,12 +30,36 @@ def unpack(archive, destination):
     return names
 
 
-def validate(directory, freecad=False):
+def validate(directory, build_run, freecad=False):
     assert directory.is_relative_to(ROOT / ".evidence"), "QA outputs belong to this lane's evidence"
-    project = directory / "U1.boardstudio"
-    if not project.exists():
-        project = ROOT / "cad/test/fixtures/performance/U1.boardstudio"
+    # Page files precede teardown; only the launcher's complete, bound capture can be admitted.
+    events = [json.loads(line) for line in (directory / "events.log").read_text().splitlines()]
+    if not events or events[-1].get("name") != "result" or events[-1].get("failed") is not False:
+        raise ValueError("capture has no successful terminal result")
+    validation_log = directory / "validation.log"
+    terminal = validation_log.read_text() if validation_log.exists() else (directory / "command.log").read_text()
+    pattern = r"(?m)^validation_exit=0;" if validation_log.exists() else r"(?m)^exit=0$"
+    if not re.search(pattern, terminal):
+        raise ValueError("capture launcher did not finish successfully")
+    before = (directory / "binding-before.log").read_text()
+    after = (directory / "binding-after.log").read_text()
+    if before != after or not all(any(line.startswith(key) and line != key and not line.endswith("=MISSING")
+                                      for line in before.splitlines()) for key in
+                                  ("head=", "source_sha256=", "provider_stamp=",
+                                   "artifact_cad/wasm/pkg=", "artifact_web/target/site/site-subpath/boardstudio=")):
+        raise ValueError("missing or changed capture source/artifact binding")
+    PERF.validate_page_build_receipt(directory, build_run)
+    receipt = directory / "page-validation.log"
+    if not receipt.exists():
+        receipt = directory / "page-diagnostic.log"
+    page = json.loads(receipt.read_text())
+    if page.get("validationOnly") is not True:
+        raise ValueError("missing U1 page validation")
+    imported = any(phase.get("name") == "frozen-project-import" for phase in page.get("phases", []))
+    project = ROOT / "cad/test/fixtures/performance/U1.boardstudio" if imported else directory / "U1.boardstudio"
     accepted = json.loads((directory / "accepted-project.json").read_text())
+    if imported:
+        PERF.validate_u1_scope(accepted)
     workers = json.loads((directory / "page-workers.log").read_text())
     with zipfile.ZipFile(project) as source:
         archived = json.loads(source.read("project.json"))
@@ -93,6 +122,7 @@ def validate(directory, freecad=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("capture", type=Path)
+    parser.add_argument("--build-run", type=Path, required=True, help="successful source-bound measure-cad build capture")
     parser.add_argument("--freecad", action="store_true", help="use the already installed independent reader, never provision it")
     args = parser.parse_args()
-    validate(args.capture.resolve(), args.freecad)
+    validate(args.capture.resolve(), args.build_run.resolve(), args.freecad)

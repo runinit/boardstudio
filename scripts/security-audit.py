@@ -18,6 +18,12 @@ UPSTREAM_REVISION = "ca1e234d333d184894d1838cd67451a871f33ba1"
 UPSTREAM_ARCHIVE_SHA256 = "91e7fb669c7eaa07328128cc7168bb8a8ffc03f01b872cc8a50793e5b5068f30"
 REGISTRY_ARCHIVE_SHA256 = "1a98d30140e3296250832bbaaff83b27dcd6fa3cc70fb6f1f3e5c9c0023b5317"
 PATCHED_ADVISORIES = ("RUSTSEC-2026-0196", "RUSTSEC-2026-0197")
+# Accepted pending-upstream-fix (reviewed 2026-10-28): RUSTSEC-2026-0386 flags
+# tokio 1.53.1 `AsyncFd` constructors as unsound. 1.53.1 is the newest tokio
+# compatible with this tree (`cargo update -p tokio` locks nothing newer), so
+# no patched release exists to take, and first-party code never calls the
+# affected API. Revisit on the next lockfile bump.
+ACCEPTED_ADVISORIES = ("RUSTSEC-2026-0386",)
 CGMATH_MANIFESTS = (
     "Cargo.toml",
     "cad/wasm/Cargo.toml",
@@ -97,7 +103,7 @@ def main():
             audit_input.flush()
             command = ["cargo", "audit", "--file", audit_input.name, "--deny", "unsound"]
             print(f"Verified cgmath-next source; ignoring its renamed upstream advisories {', '.join(PATCHED_ADVISORIES)}.", flush=True)
-            for advisory in PATCHED_ADVISORIES:
+            for advisory in (*PATCHED_ADVISORIES, *ACCEPTED_ADVISORIES):
                 command.extend(["--ignore", advisory])
             failed |= subprocess.run(command, cwd=ROOT).returncode != 0
     raise SystemExit(1 if failed else 0)

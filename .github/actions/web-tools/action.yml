@@ -1,5 +1,5 @@
 name: Web build tools
-description: Install pinned web build tools and the headless browser test client.
+description: Install pinned web build tools.
 runs:
   using: composite
   steps:
@@ -19,8 +19,6 @@ runs:
         fetch https://github.com/DioxusLabs/dioxus/releases/download/v0.7.10/dx-x86_64-unknown-linux-gnu.tar.gz \
           4363e4ed2a3f1eb7f4d38d2d59aed59ce43271c44c16b425e92c89a64761fbe7 dx.tar.gz
         tar -xzf "$tools/dx.tar.gz" -C "$tools/bin" dx
-        npm install --prefix "$tools/node" --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.62.1
         echo "$tools/bin" >> "$GITHUB_PATH"
-        echo "NODE_PATH=$tools/node/node_modules" >> "$GITHUB_ENV"
         "$tools/bin/wasm-pack" --version
         "$tools/bin/dx" --version

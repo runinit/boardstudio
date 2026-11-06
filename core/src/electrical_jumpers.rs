@@ -257,6 +257,7 @@ mod tests {
                     rotation: 0.0,
                 },
                 side,
+                anchor: None,
                 locked: None,
                 keycap: None,
                 outline: None,

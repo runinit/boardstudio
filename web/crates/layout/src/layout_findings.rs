@@ -257,6 +257,7 @@ mod tests {
         Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: id.into(),
             definition_id: "definition".into(),
             reference: id.to_uppercase(),

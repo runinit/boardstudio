@@ -134,10 +134,14 @@ fn resize_resolver(
         }) else {
             return Resolution::Unchanged;
         };
+        // Ticket 33: the resize commits as one typed keycap-size edit, never a
+        // document replacement.
         Resolution::submit(
             plan.target_ids,
-            EditOperation::ReplaceDocument {
-                document: Box::new(plan.document),
+            EditOperation::SetKeycapSize {
+                sizes: plan.sizes,
+                moves: plan.moves,
+                offsets: plan.offsets,
             },
         )
     })

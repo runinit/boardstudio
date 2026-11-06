@@ -1,6 +1,6 @@
 //! Browser coverage for the mounted canvas composition and form ownership.
 use super::*;
-use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+use boardstudio_web_ui_shared::test_role::by_role_name;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 
@@ -99,18 +99,6 @@ fn composition() -> Element {
                 parts_query: Signal::new(String::new()),
                 on_browse_parts: EventHandler::default(),
                 matrix_setup: None,
-                mirrored_pair: Some(MirroredPairMount {
-                    form: Some(current()),
-                    placement: None,
-                    can_open: true,
-                    owns_canvas: false,
-                    on_open: EventHandler::default(),
-                    on_cancel: EventHandler::default(),
-                    on_preview: EventHandler::default(),
-                    on_move: EventHandler::default(),
-                    on_commit: EventHandler::default(),
-                    on_created: EventHandler::default(),
-                }),
                 existing_half: super::super::ExistingHalfMount {
                     projection: None,
                     visible: false,
@@ -212,7 +200,7 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
     document.body().unwrap().append_child(&root).unwrap();
     dioxus_web::launch::launch_virtual_dom(
         VirtualDom::new(composition),
-        dioxus_web::Config::new().rootnode(root.into()),
+        dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     rendered().await;
 
@@ -231,53 +219,40 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
         .unwrap()
         .length()
         == 1;
-    let paired_fields = [
-        ("textbox", "Left layout name"),
-        ("textbox", "Right layout name"),
-        ("spinbutton", "Rows per half"),
-        ("spinbutton", "Columns per half"),
-    ]
-    .into_iter()
-    .all(|(role, name)| {
-        control(role, name)
-            .closest("[role='group'][aria-label='Mirrored pair dimensions']")
-            .unwrap()
-            .is_some()
-    });
-    control("button", "Key assembly").click();
-    wait_until("the real mirrored-pair assembly choices open", || {
-        let root = document
-            .get_element_by_id("mirror-overlay-test-root")
-            .unwrap();
-        by_role_name(&root, "listbox", "Key assembly").is_some()
-    })
-    .await;
-    let choices = control("listbox", "Key assembly");
-    let assembly_options = choices.text_content().unwrap();
-    let escape_options = web_sys::KeyboardEventInit::new();
-    escape_options.set_bubbles(true);
-    escape_options.set_key("Escape");
-    document
-        .active_element()
+    let paired_fields = ["Left layout name", "Right layout name"]
+        .into_iter()
+        .all(|name| {
+            control("textbox", name)
+                .closest("[role='group'][aria-label='Mirrored pair dimensions']")
+                .unwrap()
+                .is_some()
+        });
+    let shared_sliders = ["Rows per half", "Columns per half"]
+        .into_iter()
+        .all(|name| by_role_name(&root, "slider", name).is_some());
+    let shared_assembly = ["New matrix assembly", "Switch mounting", "Key lighting"]
+        .into_iter()
+        .all(|name| by_role_name(&root, "group", name).is_some());
+    let shared_preview = root
+        .query_selector("[role='img'][aria-label='3 rows by 5 columns matrix preview']")
         .unwrap()
-        .dispatch_event(
-            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape_options)
-                .unwrap(),
-        )
-        .unwrap();
-    wait_until("the mirrored-pair choice popup returns focus", || {
-        control("button", "Key assembly")
-            .get_attribute("aria-expanded")
-            .as_deref()
-            == Some("false")
-            && document.active_element() == Some(control("button", "Key assembly").into())
-    })
-    .await;
+        .is_some();
+    let assembly_options = control("group", "Switch mounting").text_content().unwrap();
     set_input("textbox", "Left layout name", "Kept left draft");
     rendered().await;
-    set_input("spinbutton", "Rows per half", "4");
-    rendered().await;
-    set_input("spinbutton", "Columns per half", "6");
+    for name in ["Rows per half", "Columns per half"] {
+        let options = web_sys::KeyboardEventInit::new();
+        options.set_bubbles(true);
+        options.set_key("ArrowRight");
+        control("slider", name)
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &options)
+                    .unwrap(),
+            )
+            .unwrap();
+        rendered().await;
+    }
+    set_input("spinbutton", "Gap between key edges (mm)", "24");
     rendered().await;
     control("button", "Preview placement").click();
     rendered().await;
@@ -291,7 +266,10 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
         .dyn_into::<web_sys::HtmlInputElement>()
         .unwrap()
         .value();
-    let retained_rows = control("spinbutton", "Rows per half")
+    let retained_rows = control("slider", "Rows per half")
+        .get_attribute("aria-valuenow")
+        .unwrap();
+    let retained_gap = control("spinbutton", "Gap between key edges (mm)")
         .dyn_into::<web_sys::HtmlInputElement>()
         .unwrap()
         .value();
@@ -328,16 +306,28 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
     );
     assert!(
         paired_fields,
-        "the four name and dimension controls must remain mounted in the explicit paired field group"
+        "the left and right layout name controls must remain mounted in the paired field group"
     );
-    assert!(assembly_options.contains("MX Solder"));
-    assert!(assembly_options.contains("MX Hotswap"));
-    assert!(assembly_options.contains("MX Hotswap RGB"));
+    assert!(
+        shared_sliders,
+        "pair mode must reuse the shared rows/columns sliders"
+    );
+    assert!(
+        shared_assembly,
+        "pair mode must reuse the shared assembly toggle groups"
+    );
+    assert!(
+        shared_preview,
+        "pair mode must reuse the shared SVG matrix preview"
+    );
+    assert!(assembly_options.contains("Solder"));
+    assert!(assembly_options.contains("Hotswap"));
     assert_eq!(preview_owner, "1:11:19");
-    assert_eq!(preview_values, "Kept left draft|4|6|40");
+    assert_eq!(preview_values, "Kept left draft|4|6|24");
+    assert_eq!(retained_rows, "4");
     assert_eq!(
-        (retained_left.as_str(), retained_rows.as_str()),
-        ("Kept left draft", "4")
+        (retained_left.as_str(), retained_gap.as_str()),
+        ("Kept left draft", "24")
     );
     assert!(
         hidden_after_escape,

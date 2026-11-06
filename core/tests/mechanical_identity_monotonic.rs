@@ -772,6 +772,7 @@ fn failed_open_keeps_reservations_and_successful_open_starts_a_new_session() {
     // A failed explicit Open must not reset the document session.
     let mut duplicate = unibody();
     let part = Part {
+        anchor: None,
         keycap: None,
         outline: None,
         id: "dup".into(),

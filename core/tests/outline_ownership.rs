@@ -64,14 +64,23 @@ fn two_versions() -> (CoreEngine, serde_json::Value) {
         &mut engine,
         opened.revision,
         serde_json::json!({
-            "kind": "copy-outline", "boardId": "main", "versionId": "refined", "name": "Linked refinement"
+            // Ticket 37: raw CopyOutline is deleted; Copy is the live typed copy.
+            "kind": "apply-outline-edit", "edit": {
+                "target": {"kind": "board", "boardId": "main"},
+                "change": {"copy": {"version_id": "refined", "name": "Linked refinement"}},
+                "seed": 1, "reviewed": null
+            }
         }),
     );
     edit(
         &mut engine,
         first.revision,
         serde_json::json!({
-            "kind": "copy-outline", "boardId": "main", "versionId": "edited", "name": "Edited outline"
+            "kind": "apply-outline-edit", "edit": {
+                "target": {"kind": "board", "boardId": "main"},
+                "change": {"copy": {"version_id": "edited", "name": "Edited outline"}},
+                "seed": 2, "reviewed": null
+            }
         }),
     );
     let saved = serde_json::to_value(document(&mut engine)).unwrap();
@@ -121,7 +130,10 @@ fn a_legacy_project_reopens_with_its_generated_outline_versions_selection_and_id
     let generated = edit(
         &mut engine,
         opened.revision,
-        serde_json::json!({"kind": "select-outline", "boardId": "main", "versionId": null}),
+        // Ticket 37: raw SelectOutline is deleted; Activate is the live typed select.
+        serde_json::json!({"kind": "apply-outline-edit", "edit": {
+            "target": {"kind": "board", "boardId": "main"},
+            "change": "activate", "seed": 3, "reviewed": null}}),
     );
     assert!(
         generated.board_readiness[0].outline,
@@ -143,7 +155,9 @@ fn a_legacy_project_reopens_with_its_generated_outline_versions_selection_and_id
     let fixed = edit(
         &mut engine,
         moved.revision,
-        serde_json::json!({"kind": "select-outline", "boardId": "main", "versionId": "edited"}),
+        serde_json::json!({"kind": "apply-outline-edit", "edit": {
+            "target": {"kind": "version", "boardId": "main", "versionId": "edited"},
+            "change": "activate", "seed": 4, "reviewed": null}}),
     );
     assert_eq!(
         fixed.board_contours, opened.board_contours,
@@ -255,7 +269,11 @@ fn origin_provenance_does_not_make_an_edited_copy_follow_its_source_version_or_c
         &mut engine,
         opened.revision,
         serde_json::json!({
-            "kind": "copy-outline", "boardId": "main", "versionId": "copy", "name": "Edited copy"
+            "kind": "apply-outline-edit", "edit": {
+                "target": {"kind": "board", "boardId": "main"},
+                "change": {"copy": {"version_id": "copy", "name": "Edited copy"}},
+                "seed": 5, "reviewed": null
+            }
         }),
     );
     assert_eq!(copied.board_contours, opened.board_contours);
@@ -285,7 +303,11 @@ fn origin_provenance_does_not_make_an_edited_copy_follow_its_source_version_or_c
     let source_edited = edit(
         &mut engine,
         copied.revision,
-        serde_json::json!({ "kind": "set-outline", "feature": feature }),
+        // Ticket 37: raw SetOutline is deleted; SetFeature on the version is live.
+        serde_json::json!({ "kind": "apply-outline-edit", "edit": {
+            "target": {"kind": "version", "boardId": "main", "versionId": "refined"},
+            "change": {"set-feature": {"feature": feature}},
+            "seed": 6, "reviewed": null } }),
     );
     let after = serde_json::to_value(document(&mut engine)).unwrap();
     assert_ne!(
@@ -303,7 +325,9 @@ fn origin_provenance_does_not_make_an_edited_copy_follow_its_source_version_or_c
     let generated = edit(
         &mut engine,
         source_edited.revision,
-        serde_json::json!({ "kind": "select-outline", "boardId": "main", "versionId": null }),
+        serde_json::json!({ "kind": "apply-outline-edit", "edit": {
+            "target": {"kind": "board", "boardId": "main"},
+            "change": "activate", "seed": 7, "reviewed": null } }),
     );
     let moved = edit(
         &mut engine,
@@ -320,7 +344,9 @@ fn origin_provenance_does_not_make_an_edited_copy_follow_its_source_version_or_c
     let fixed = edit(
         &mut engine,
         moved.revision,
-        serde_json::json!({ "kind": "select-outline", "boardId": "main", "versionId": "copy" }),
+        serde_json::json!({ "kind": "apply-outline-edit", "edit": {
+            "target": {"kind": "version", "boardId": "main", "versionId": "copy"},
+            "change": "activate", "seed": 8, "reviewed": null } }),
     );
     assert_eq!(
         fixed.board_contours, opened.board_contours,
@@ -410,7 +436,12 @@ fn copy(engine: &mut CoreEngine, revision: u64, version_id: &str) -> CoreReply {
             phase: EditPhase::Commit,
             target_ids: vec![],
             operation: serde_json::from_value(serde_json::json!({
-                "kind": "copy-outline", "boardId": "main", "versionId": version_id, "name": version_id
+                // Ticket 37: raw CopyOutline is deleted; Copy is the live typed copy.
+                "kind": "apply-outline-edit", "edit": {
+                    "target": {"kind": "board", "boardId": "main"},
+                    "change": {"copy": {"version_id": version_id, "name": version_id}},
+                    "seed": 9, "reviewed": null
+                }
             }))
             .expect("outline command contract"),
         },
@@ -428,7 +459,11 @@ fn a_removed_version_identity_cannot_be_reused_so_a_pending_edit_can_never_reach
         &mut engine,
         opened.revision,
         serde_json::json!({
-            "kind": "copy-outline", "boardId": "main", "versionId": "refined", "name": "Refined"
+            "kind": "apply-outline-edit", "edit": {
+                "target": {"kind": "board", "boardId": "main"},
+                "change": {"copy": {"version_id": "refined", "name": "Refined"}},
+                "seed": 11, "reviewed": null
+            }
         }),
     );
     let feature_id = document(&mut engine).board_outlines[0].versions[0]
@@ -447,12 +482,17 @@ fn a_removed_version_identity_cannot_be_reused_so_a_pending_edit_can_never_reach
     let named = edit(
         &mut engine,
         first.revision,
-        serde_json::json!({ "kind": "set-outline", "feature": feature }),
+        serde_json::json!({ "kind": "apply-outline-edit", "edit": {
+            "target": {"kind": "version", "boardId": "main", "versionId": "refined"},
+            "change": {"set-feature": {"feature": feature}},
+            "seed": 12, "reviewed": null } }),
     );
     let removed = edit(
         &mut engine,
         named.revision,
-        serde_json::json!({ "kind": "remove-outline", "boardId": "main", "versionId": "refined" }),
+        serde_json::json!({ "kind": "apply-outline-edit", "edit": {
+            "target": {"kind": "version", "boardId": "main", "versionId": "refined"},
+            "change": "delete", "seed": 13, "reviewed": null } }),
     );
     let after = serde_json::to_value(document(&mut engine)).unwrap();
     assert_eq!(
@@ -494,87 +534,59 @@ fn a_removed_version_identity_cannot_be_reused_so_a_pending_edit_can_never_reach
 
 #[test]
 fn a_new_version_identity_cannot_collide_with_another_persisted_outline_namespace() {
+    // Ticket 37: raw SetOutline is deleted. The authored generated state below is
+    // setup, not behavior: hand-edit the snapshotted document the same way the
+    // fixed-copy suite persists invalid inactive geometry, then reopen.
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(CoreRequest::Open {
+    scene(engine.handle(CoreRequest::Open {
         id: "open".into(),
         document: fixture(),
     }));
-    // A top-level authored feature already owns one identity.
-    let authored = edit(
-        &mut engine,
-        opened.revision,
-        serde_json::json!({
-            "kind": "set-outline",
-            "feature": {
-                "kind": "polygon", "id": "saved-shape",
-                "points": [
-                    { "x": 0.5, "y": 0.5 }, { "x": 2.5, "y": 0.5 }, { "x": 1.5, "y": 2.5 }
-                ],
-                "operation": "subtract"
-            }
-        }),
-    );
-    // Give the generated outline an authored connection and a protected gap; both are
-    // persisted identities beside version IDs.
-    let mut generated = document(&mut engine)
-        .outline
-        .iter()
-        .find(|feature| matches!(feature, OutlineFeature::PartEnvelope { .. }))
-        .expect("the generated outline")
-        .clone();
-    let OutlineFeature::PartEnvelope {
-        connections,
-        settings,
-        part_ids,
-        ..
-    } = &mut generated
-    else {
-        unreachable!()
-    };
-    connections.push(OutlineConnection {
-        id: "connection-identity".into(),
-        width: 2.0,
-        points: vec![
-            OutlineControlPoint {
-                at: Vec2 { x: 1.0, y: 2.0 },
-                part_id: part_ids.first().cloned(),
-            },
-            OutlineControlPoint {
-                at: Vec2 { x: 3.0, y: 4.0 },
-                part_id: None,
-            },
+    let mut authored = serde_json::to_value(document(&mut engine)).unwrap();
+    let outline = authored["outline"]
+        .as_array_mut()
+        .expect("generated outline");
+    outline.push(serde_json::json!({
+        "kind": "polygon", "id": "saved-shape",
+        "points": [
+            { "x": 0.5, "y": 0.5 }, { "x": 2.5, "y": 0.5 }, { "x": 1.5, "y": 2.5 }
         ],
-    });
-    settings.repair = Some(OutlineRepairSettings {
-        keep_gaps: vec![ProtectedOutlineGap {
-            id: "gap-identity".into(),
-            points: vec![
-                OutlineControlPoint {
-                    at: Vec2 { x: 1.0, y: 2.0 },
-                    part_id: part_ids.first().cloned(),
-                },
-                OutlineControlPoint {
-                    at: Vec2 { x: 4.0, y: 2.0 },
-                    part_id: None,
-                },
-                OutlineControlPoint {
-                    at: Vec2 { x: 1.0, y: 5.0 },
-                    part_id: None,
-                },
-            ],
-        }],
-        ..OutlineRepairSettings::default()
-    });
-    let generated = edit(
-        &mut engine,
-        authored.revision,
-        serde_json::json!({ "kind": "set-outline", "feature": generated }),
-    );
+        "operation": "subtract"
+    }));
+    let envelope = outline
+        .iter_mut()
+        .find(|feature| feature.get("partIds").is_some())
+        .expect("the generated outline");
+    envelope["connections"] = serde_json::json!([{
+        "id": "connection-identity", "width": 2.0, "points": [
+            { "at": { "x": 1.0, "y": 2.0 }, "partId": envelope["partIds"][0].clone() },
+            { "at": { "x": 3.0, "y": 4.0 }, "partId": null }
+        ]
+    }]);
+    envelope["settings"]["repair"] = serde_json::json!({"keepGaps": [{
+        "id": "gap-identity", "points": [
+            { "at": { "x": 1.0, "y": 2.0 }, "partId": envelope["partIds"][0].clone() },
+            { "at": { "x": 4.0, "y": 2.0 }, "partId": null },
+            { "at": { "x": 1.0, "y": 5.0 }, "partId": null }
+        ]
+    }]});
+    let mut engine = CoreEngine::new();
+    let opened = scene(engine.handle(CoreRequest::Open {
+        id: "authored-identities".into(),
+        document: serde_json::from_value(authored).unwrap(),
+    }));
+    // The reopened document carries the authored connection and protected gap as
+    // persisted identities beside version IDs.
+    let generated = opened;
     let copied = edit(
         &mut engine,
         generated.revision,
         serde_json::json!({
-            "kind": "copy-outline", "boardId": "main", "versionId": "first", "name": "First"
+            "kind": "apply-outline-edit", "edit": {
+                "target": {"kind": "board", "boardId": "main"},
+                "change": {"copy": {"version_id": "first", "name": "First"}},
+                "seed": 14, "reviewed": null
+            }
         }),
     );
     let accepted = document(&mut engine);

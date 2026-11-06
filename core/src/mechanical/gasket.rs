@@ -177,11 +177,17 @@ fn region_id(document: &ProjectDoc, board_id: &str, ring: &Contour, index: usize
         .filter(|layout| layout.board_id == board_id)
         .find(|layout| {
             document.parts.iter().any(|part| {
+                // Ticket 12: containment tests the evaluated board pose, so a
+                // half-frame part attributes its ring to its own half.
                 (layout.part_ids.contains(&part.id)
-                    || part
-                        .id
-                        .starts_with(&format!("matrix/{}/", layout.matrix_id)))
-                    && inside_outline(part.pose.at, std::slice::from_ref(ring))
+                    || layout
+                        .matrix_ids
+                        .iter()
+                        .any(|id| part.id.starts_with(&format!("matrix/{id}/"))))
+                    && inside_outline(
+                        crate::matrix::layout::evaluated_part_pose(document, part).at,
+                        std::slice::from_ref(ring),
+                    )
             })
         })
         .map_or_else(|| format!("outline-{index}"), |layout| layout.id.clone())

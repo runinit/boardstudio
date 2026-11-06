@@ -5,7 +5,7 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '../..');
 const DATABASE = 'boardstudio-m1-boardstudio';
 
-module.exports = async function validatePage(page, origin, output, operation) {
+module.exports = async function validatePage(page, origin, output, operation, validation) {
   page.setDefaultTimeout(60000);
   const errors = [];
   const phases = [];
@@ -115,7 +115,9 @@ module.exports = async function validatePage(page, origin, output, operation) {
       const archive = path.join(ROOT, 'cad/test/fixtures/performance/U1.boardstudio');
       assert(fs.existsSync(archive), 'freeze and commit the ordinary U1 project first');
       mark('frozen-project-import');
-      await page.locator('input.m1-project-file-input').first().setInputFiles(archive);
+      const input = page.locator('input.m1-project-file-input:not(:disabled)').first();
+      await input.waitFor({ state: 'attached' });
+      await input.setInputFiles(archive);
       await page.getByRole('button', { name: 'Open Case workspace', exact: true }).waitFor();
       await saved();
       mark('accepted-editor-ready');
@@ -125,8 +127,19 @@ module.exports = async function validatePage(page, origin, output, operation) {
       if (await guide.isVisible()) await guide.click();
     }
     await page.getByRole('status').filter({ hasText: 'Exact case geometry ready.' }).waitFor();
+    if (validation) await page.waitForFunction(() => document.fonts.status === 'loaded' && !matchMedia('(pointer: coarse)').matches && !matchMedia('(prefers-color-scheme: dark)').matches);
     await saved();
     const accepted = await document();
+    if (operation === 'page') {
+      const scope = JSON.parse(fs.readFileSync(path.join(ROOT, 'cad/test/fixtures/performance/U1-scope.json')));
+      assert.equal(accepted.id, scope.projectId);
+      assert.equal(accepted.formatVersion, scope.formatVersion);
+      assert.equal(accepted.revision, scope.revision);
+      assert.equal(accepted.boards.length, 1);
+      assert.equal(accepted.boards[0].id, scope.boardId);
+      assert.deepEqual(accepted.boards[0].outlineIds, [scope.outlineId]);
+      assert.deepEqual(accepted.outline.map(outline => outline.id), [scope.outlineId]);
+    }
     assert.equal(accepted.matrices.length, 1);
     assert.equal(accepted.matrices[0].rows, 2);
     assert.equal(accepted.matrices[0].columns, 2);
@@ -139,6 +152,7 @@ module.exports = async function validatePage(page, origin, output, operation) {
     await page.waitForFunction(before => window.__u1.drawCalls > before, frameBefore);
     await page.evaluate(() => window.__u1Gl.finish());
     mark('accepted-Case-frame-after-camera-and-WebGL-finish');
+    if (validation) fs.writeFileSync(path.join(output, 'page-layout.json'), JSON.stringify(await page.evaluate(fs.readFileSync(path.join(__dirname, 'u1-layout.js'), 'utf8')), null, 2) + '\n');
     const viewer = page.getByRole('img', { name: /^Interactive 3D Case preview/ });
     const box = await viewer.boundingBox();
     assert(box && box.width > 0 && box.height > 0);

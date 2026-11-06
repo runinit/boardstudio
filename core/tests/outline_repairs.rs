@@ -139,7 +139,19 @@ fn two_matrix_component_outline(second_x: f64, second_y: f64) -> ProjectDoc {
         y: second_y,
     };
     document.matrices[0].pitch.x = second_x;
-    document.matrices[0].column_staggers = vec![0.0, second_y];
+    {
+        let values = vec![0.0, second_y];
+        let count = values.len().max(document.matrices[0].column_layout.len());
+        document.matrices[0]
+            .column_layout
+            .resize_with(count, Default::default);
+        for record in &mut document.matrices[0].column_layout {
+            record.stagger = 0.0;
+        }
+        for (record, value) in document.matrices[0].column_layout.iter_mut().zip(values) {
+            record.stagger = value;
+        }
+    }
     if let OutlineFeature::PartEnvelope {
         part_ids,
         margin,

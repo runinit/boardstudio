@@ -12,6 +12,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import browser_tools
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
@@ -33,7 +34,8 @@ def route_site(output: Path, route: str) -> Path:
 
 def run(command: list[str], *, cwd: Path = ROOT, env: dict[str, str] | None = None) -> None:
     print("$ " + " ".join(command), flush=True)
-    subprocess.run(command, cwd=cwd, env=env, check=True)
+    fd = browser_tools._inherited_build_lock()
+    subprocess.run(command, cwd=cwd, env=env, check=True, **({"pass_fds": (fd,)} if fd is not None else {}))
 
 
 def provider_commands(fast: bool = False) -> list[tuple[list[str], Path]]:

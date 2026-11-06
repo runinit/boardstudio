@@ -765,6 +765,8 @@ pub fn Library(
     let query = search_query();
     cards.retain(|(document, _)| matches_project_search(document, &query));
     let no_search_matches = cards.is_empty() && !query.trim().is_empty();
+    let storage_readiness = runtime.storage_readiness();
+    let import_disabled = !matches!(storage_readiness, Ok(true));
     let import = runtime.clone();
     let menu_import = import.clone();
     let menu_save_copy = runtime.clone();
@@ -821,6 +823,9 @@ pub fn Library(
                     super::ThemePicker {}
                 }
             }
+            if let Err(error) = &storage_readiness {
+                p { role: "alert", class: "text-sm text-destructive", "{error}" }
+            }
             if project_menu {
                     div { class: "flex flex-none gap-2 pt-0.5 px-5 pb-3.5 [&_svg]:size-[17px] [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5] max-[760px]:pt-0 max-[760px]:px-3.5 max-[760px]:pb-2.5 max-[760px]:[&_button]:min-h-11 [#m1-project-menu-dropdown[data-page=settings]_&]:hidden",
                         Button { variant: ButtonVariant::Secondary, button_type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu_top(),
@@ -837,12 +842,12 @@ pub fn Library(
                             }
                         }
                         div { class: "max-[760px]:min-h-11",
-                          Button { variant: ButtonVariant::Secondary, onclick: move |_| {
+                          Button { variant: ButtonVariant::Secondary, disabled: import_disabled, onclick: move |_| {
                               if let Some(input) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id("library-menu-file")).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) { input.click(); }
                           },
                             svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M2 6V4h6l2 2h8v3M2 6v11h14l2-8H5l-3 8" } }
                             "Open project…" }
-                            input { id: "library-menu-file", hidden: true, class: "hidden", r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
+                            input { id: "library-menu-file", hidden: true, class: "hidden", r#type: "file", accept: ".boardstudio", disabled: import_disabled, onchange: move |event: FormEvent| {
                                 let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
                                 let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
                                 super::close_project_menu();
@@ -946,10 +951,10 @@ pub fn Library(
                             h2 { "Import project" }
                             p { "Bring in a keyboard file from your computer." }
                             div { class: "w-full mt-auto",
-                                Button { variant: ButtonVariant::Default, class: "w-full", onclick: move |_| {
+                                Button { variant: ButtonVariant::Default, class: "w-full", disabled: import_disabled, onclick: move |_| {
                                     if let Some(input) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id("library-import-file")).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) { input.click(); }
                                 }, "Import project" }
-                                input { id: "library-import-file", hidden: true, class: "hidden", r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
+                                input { id: "library-import-file", hidden: true, class: "hidden", r#type: "file", accept: ".boardstudio", disabled: import_disabled, onchange: move |event: FormEvent| {
                                     let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
                                     let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
                                     super::close_project_menu();
@@ -1054,8 +1059,8 @@ pub fn Library(
                             let runtime = runtime.clone();
                             let key = record.key.clone();
                             move |_| runtime.download_raw_project(key.clone())
-                        }, "Download raw saved data" }
-                        Button { variant: ButtonVariant::Destructive, button_type: "button", disabled: record.token.is_none(),
+                        }, "Download raw saved data (JSON only)" }
+                        Button { variant: ButtonVariant::Destructive, button_type: "button",
                             aria_haspopup: "dialog", aria_controls: "library-unreadable-delete",
                             aria_expanded: pending_unreadable().as_ref().is_some_and(|pending| pending.key == record.key),
                             onclick: move |_| {
@@ -1269,7 +1274,7 @@ pub fn Library(
                 },
                 AlertDialogTitle { "Delete unreadable keyboard?" }
                 AlertDialogDescription {
-                    if let Some(record) = pending_unreadable() { "Permanently delete {record.label}? " }
+                    if let Some(record) = pending_unreadable() { "Permanently delete what we cannot read for saved keyboard {record.label}? " }
                     "Download its raw saved data first if you want to keep it. This cannot be undone."
                 }
                 if !unreadable_delete_error().is_empty() {
@@ -1286,7 +1291,7 @@ pub fn Library(
                             let runtime = unreadable_delete_runtime.clone();
                             let mounted = unreadable_delete_mounted.clone();
                             spawn_local(async move {
-                                let result = runtime.store.delete_unreadable(&record).await;
+                                let result = runtime.store.delete_unreadable_by_key(&record).await;
                                 if !mounted.get() { return; }
                                 match result {
                                     Ok(()) => { pending_unreadable.set(None); retry += 1; focus_library_search(); }
@@ -1629,12 +1634,16 @@ mod mounted_tests {
                 root.text_content()
                     .unwrap_or_default()
                     .contains("Healthy saved keyboard")
-                    && by_role_name(&root, "button", "Download raw saved data").is_some()
+                    && by_role_name(&root, "button", "Download raw saved data (JSON only)")
+                        .is_some()
                     && by_role_name(&root, "button", "Delete unreadable keyboard…").is_some()
             },
         )
         .await;
-        for name in ["Download raw saved data", "Delete unreadable keyboard…"] {
+        for name in [
+            "Download raw saved data (JSON only)",
+            "Delete unreadable keyboard…",
+        ] {
             let action = by_role_name(&root, "button", name).expect("recovery action is named");
             assert!(
                 !action
@@ -1652,6 +1661,10 @@ mod mounted_tests {
         })
         .await;
         let dialog = by_role_name(&root, "alertdialog", "Delete unreadable keyboard?").unwrap();
+        assert!(
+            dialog.text_content().unwrap().contains(&future.id),
+            "delete confirmation must name its target"
+        );
         click(&dialog, "Cancel");
         wait_until("Cancel keeps the unreadable record", || {
             !delete_dialog_open(&root)
@@ -1693,6 +1706,89 @@ mod mounted_tests {
         );
         clean_saved_projects(&runtime, &[&healthy.id]).await;
         remove_test_root("partial-list-mounted-regression");
+    }
+
+    /// Quota-recovery RED: an unreadable record with no comparable token must
+    /// stay deletable behind the explicit "permanently delete what we cannot
+    /// read" confirm, and the delete must use the token-independent by-key
+    /// path instead of the guarded delete that refuses tokenless records.
+    #[wasm_bindgen_test]
+    async fn tokenless_unreadable_record_stays_deletable_by_explicit_confirm() {
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let healthy = ProjectDoc::empty("tokenless-healthy", "Healthy board");
+        runtime
+            .store
+            .save_document(&healthy, &Default::default())
+            .await
+            .unwrap();
+        let raw = js_sys::Object::new();
+        js_sys::Reflect::set(
+            &raw,
+            &"id".into(),
+            &wasm_bindgen::JsValue::from_str("tokenless-unreadable"),
+        )
+        .unwrap();
+        let huge = js_sys::BigInt::new(&wasm_bindgen::JsValue::from_str(
+            "1267650600228229401496703205376",
+        ))
+        .unwrap();
+        js_sys::Reflect::set(&raw, &"marker".into(), &huge).unwrap();
+        runtime
+            .store
+            .put_raw_record_for_test(raw.into())
+            .await
+            .unwrap();
+        let (session, core) = accepted(healthy.clone());
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let root = mount_menu(runtime.clone(), "tokenless-unreadable-mounted-regression");
+        wait_until(
+            "tokenless unreadable record renders with a delete action",
+            || by_role_name(&root, "button", "Delete unreadable keyboard…").is_some(),
+        )
+        .await;
+        let button = by_role_name(&root, "button", "Delete unreadable keyboard…").unwrap();
+        assert!(
+            button.get_attribute("disabled").is_none(),
+            "records we cannot read stay deletable without a token"
+        );
+        click(&root, "Delete unreadable keyboard…");
+        wait_until("tokenless deletion exposes an Alert Dialog", || {
+            by_role_name(&root, "alertdialog", "Delete unreadable keyboard?").is_some()
+        })
+        .await;
+        let dialog = by_role_name(&root, "alertdialog", "Delete unreadable keyboard?").unwrap();
+        let message = dialog.text_content().unwrap();
+        assert!(
+            message
+                .to_lowercase()
+                .contains("permanently delete what we cannot read")
+        );
+        assert!(
+            message.contains("tokenless-unreadable"),
+            "delete confirmation must name its target"
+        );
+        click(&dialog, "Delete unreadable keyboard");
+        wait_until_step("tokenless unreadable record is deleted", async || {
+            runtime
+                .store
+                .list_projects()
+                .await
+                .unwrap()
+                .unreadable
+                .is_empty()
+        })
+        .await;
+        assert_eq!(
+            runtime
+                .store
+                .load_document(healthy.id.clone())
+                .await
+                .unwrap()
+                .unwrap(),
+            healthy
+        );
+        clean_saved_projects(&runtime, &[&healthy.id]).await;
+        remove_test_root("tokenless-unreadable-mounted-regression");
     }
 
     #[wasm_bindgen_test]
@@ -1946,6 +2042,54 @@ mod mounted_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         root
+    }
+
+    #[wasm_bindgen_test]
+    async fn import_waits_for_storage_initialization() {
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        crate::runtime::project_name_test_support::set_storage_initializing(&runtime, true);
+        let root = mount_library(runtime.clone(), "import-readiness", false);
+        wait_until("import button renders", || {
+            by_role_name(&root, "button", "Import project").is_some()
+        })
+        .await;
+        let input = by_role_name(&root, "button", "Import project").unwrap();
+        assert!(
+            input.has_attribute("disabled"),
+            "import must be disabled while storage initializes"
+        );
+        crate::runtime::project_name_test_support::set_storage_initializing(&runtime, false);
+        wait_until(
+            "import becomes enabled after storage initialization",
+            || !input.has_attribute("disabled"),
+        )
+        .await;
+        crate::runtime::project_name_test_support::fail_storage_initialization(
+            &runtime,
+            "injected failure",
+        );
+        runtime.report("another status");
+        wait_until(
+            "storage failure remains visible and import is disabled",
+            || {
+                input.has_attribute("disabled")
+                    && root
+                        .text_content()
+                        .is_some_and(|text| text.contains("injected failure"))
+            },
+        )
+        .await;
+        root.remove();
+        let menu = mount_menu(runtime, "import-readiness-menu");
+        wait_until("menu import renders disabled after storage failure", || {
+            by_role_name(&menu, "button", "Open project…")
+                .is_some_and(|button| button.has_attribute("disabled"))
+                && menu
+                    .text_content()
+                    .is_some_and(|text| text.contains("injected failure"))
+        })
+        .await;
+        menu.remove();
     }
 
     #[wasm_bindgen_test]

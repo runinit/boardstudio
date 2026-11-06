@@ -25,7 +25,7 @@ pub(crate) mod setup_guide {
     pub use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest};
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", test))]
 pub(crate) mod demo_projects;
 #[cfg(target_arch = "wasm32")]
 pub mod library;

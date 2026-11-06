@@ -166,6 +166,7 @@
           "row": 0,
           "column": 1,
           "enabled": true,
+          "rotation": 27.0,
           "definitionId": "synthetic/switch",
           "assembliesLocal": true,
           "assemblies": []
@@ -178,8 +179,10 @@
       "id": "matrix-layout",
       "name": "Synthetic keys",
       "boardId": "main",
-      "matrixId": "matrix",
-      "partIds": []
+      "partIds": [],
+      "matrixIds": [
+        "matrix"
+      ]
     }
   ],
   "nets": [],
@@ -227,5 +230,6 @@
   "materials": [],
   "assets": [],
   "scripts": [],
-  "constraints": []
+  "constraints": [],
+  "formatVersion": 7
 }

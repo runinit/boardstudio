@@ -140,6 +140,7 @@ mod tests {
             generator: None,
         });
         document.parts.push(Part {
+            anchor: None,
             id: "key".into(),
             definition_id: "key".into(),
             reference: "SW1".into(),

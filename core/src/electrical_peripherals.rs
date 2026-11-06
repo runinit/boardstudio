@@ -242,6 +242,7 @@ mod tests {
             mechanical_profile: None,
         });
         d.parts.push(Part {
+            anchor: None,
             id: "p1".into(),
             definition_id: "peripheral".into(),
             reference: "J1".into(),
