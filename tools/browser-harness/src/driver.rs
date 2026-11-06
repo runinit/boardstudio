@@ -1016,18 +1016,33 @@ pub async fn create_new_keyboard(page: &Page) -> Result<()> {
     let readiness = async {
         loop {
             check_app_panic(page).await?;
-            let state = eval(page, r#"(() => {
-  const landing = document.querySelector('#m1-library-landing-content');
-  const failure = [...(landing?.querySelectorAll('[role="alert"].m1-status') || [])]
-    .map(node => node.textContent.trim())
-    .find(text => text.startsWith('Storage could not be initialized safely.'));
-  return { failure: failure || '', ready: landing?.querySelector('.m1-library-import-action')?.getAttribute('aria-disabled') === 'false' };
-})()"#).await?;
-            if let Some(failure) = state["failure"].as_str().filter(|text| !text.is_empty()) {
+            let failure = eval(
+                page,
+                r#"[...document.querySelectorAll('[role="alert"]')]
+  .map(node => node.textContent.trim())
+  .find(text => text.startsWith('Storage could not be initialized safely.')) || ''"#,
+            )
+            .await?;
+            if let Some(failure) = failure.as_str().filter(|text| !text.is_empty()) {
                 return Err(Error(failure.to_owned()));
             }
-            if state["ready"] == Value::Bool(true) {
-                return Ok(());
+            match find_role(page, None, "button", "Import project")
+                .await?
+                .as_slice()
+            {
+                [button]
+                    if is_visible(page, button.0).await?
+                        && !is_disabled_button(page, button.0).await? =>
+                {
+                    return Ok(())
+                }
+                [] | [_] => {}
+                many => {
+                    return Err(Error(format!(
+                        "ambiguous role lookup: button \"Import project\" matched {} nodes",
+                        many.len()
+                    )))
+                }
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
         }

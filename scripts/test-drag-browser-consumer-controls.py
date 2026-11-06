@@ -4,6 +4,7 @@
 Build the drag-smoke binary and supply the pinned browser via CHROME_BIN.
 """
 
+import hashlib
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -24,7 +25,7 @@ BROWSER_TMP.mkdir(parents=True, exist_ok=True)
 BUTTONS = '<section id="m1-library-landing-content">' + "".join(
     f"<button>{name}</button>"
     for name in ("Create new keyboard", "Split keyboard", "Continue to layout")
-) + '<label class="m1-library-import-action" aria-disabled="false">Import project<input type="file"></label></section>'
+) + '<button type="button">Import project</button></section>'
 FIXTURE = '''<div role="slider" tabindex="0" aria-label="Rows" aria-valuenow="10"></div>
 <script>
 const slider = document.querySelector('[role=slider]');
@@ -36,31 +37,35 @@ with tempfile.TemporaryDirectory(prefix="bs-", dir=BROWSER_TMP) as directory:
     base = Path(directory)
     controls = (
         ("storage-ready", '''<script>addEventListener('DOMContentLoaded', () => {
-          const importAction = document.querySelector('.m1-library-import-action');
-          importAction.setAttribute('aria-disabled', 'true');
-          const read = importAction.getAttribute.bind(importAction);
+          const importAction = [...document.querySelectorAll('button')].find(b => b.textContent === 'Import project');
+          importAction.disabled = true;
+          const descriptor = Object.getOwnPropertyDescriptor(HTMLButtonElement.prototype, 'disabled');
+          const read = descriptor.get.bind(importAction);
           // Release only after a second disabled observation in the driver's polling loop.
           let observed = false, nextPoll = false;
-          importAction.getAttribute = name => {
-            const value = read(name);
-            if (name === 'aria-disabled' && value === 'true') {
-              if (!observed) { observed = true; queueMicrotask(() => { nextPoll = true; }); }
-              else if (nextPoll) queueMicrotask(() => importAction.setAttribute('aria-disabled', 'false'));
-            }
-            return value;
-          };
+          Object.defineProperty(importAction, 'disabled', {
+            get() {
+              const value = read();
+              if (value) {
+                if (!observed) { observed = true; queueMicrotask(() => { nextPoll = true; }); }
+                else if (nextPoll) queueMicrotask(() => importAction.removeAttribute('disabled'));
+              }
+              return value;
+            },
+            set(value) { descriptor.set.call(importAction, value); }
+          });
           const split = [...document.querySelectorAll('button')].find(b => b.textContent === 'Split keyboard');
           const next = [...document.querySelectorAll('button')].find(b => b.textContent === 'Continue to layout');
           split.remove(); next.remove();
           document.querySelector('button').addEventListener('click', e => {
-            if (!e.isTrusted || read('aria-disabled') !== 'false')
+            if (!e.isTrusted || read())
               throw new Error('create clicked before storage ready');
             importAction.parentNode.append(split, next);
           });
         });</script>''', "slider Rows did not reach 10"),
         ("storage-failure", '''<script>addEventListener('DOMContentLoaded', () => {
-          document.querySelector('.m1-library-import-action').setAttribute('aria-disabled', 'true');
-          const alert = document.createElement('p'); alert.className = 'm1-status';
+          [...document.querySelectorAll('button')].find(b => b.textContent === 'Import project').disabled = true;
+          const alert = document.createElement('p');
           alert.setAttribute('role', 'alert');
           alert.textContent = 'Storage could not be initialized safely. Reload this page to retry. lock rejected';
           document.querySelector('#m1-library-landing-content').prepend(alert);
@@ -86,6 +91,7 @@ with tempfile.TemporaryDirectory(prefix="bs-", dir=BROWSER_TMP) as directory:
             BOARDSTUDIO_DRAG_SOURCE_HEAD="control",
             BOARDSTUDIO_DRAG_SOURCE_SHA256="control",
             BOARDSTUDIO_DRAG_BUILD_SHA256="control",
+            BOARDSTUDIO_DRAG_INDEX_SHA256=hashlib.sha256(page.read_bytes()).hexdigest(),
             BOARDSTUDIO_DRAG_REPO_ROOT=str(ROOT),
         )
         result = subprocess.run([str(BINARY)], env=env, text=True, capture_output=True, timeout=90)
@@ -125,7 +131,7 @@ with tempfile.TemporaryDirectory(prefix="bs-", dir=BROWSER_TMP) as directory:
         server.server_close()
     output = result.stdout + result.stderr
     print(f"cleanup: exit {result.returncode}, receipt exists {receipt.exists()}\n{output}", flush=True)
-    if result.returncode == 0 or receipt.exists() or "cannot remove browser profile" not in output:
+    if result.returncode == 0 or receipt.exists() or "browser directory ownership changed" not in output:
         raise SystemExit("cleanup control failed")
     env.pop("TMPDIR")
 
