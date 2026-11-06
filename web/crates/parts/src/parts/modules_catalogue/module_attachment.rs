@@ -355,7 +355,7 @@ pub fn ModuleAttachment(
     };
 
     rsx! {
-        section { class: "m1-module-attach", "aria-label": "Attach module to PCB",
+        section { "aria-label": "Attach module to PCB",
             Button { class: "w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 disabled: pending() || pending_edits.is_pending(&AttachKey::Attach) || !can_attach,
                 onclick: attach,

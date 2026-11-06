@@ -37,7 +37,8 @@ fn fixture() -> Element {
     rsx! {
         Button { onclick: move |_| mounted.toggle(), "Mount or unmount layers" }
         if mounted() {
-            div { class: "m1-object-layer-dock", CanvasLayers {
+            div { id: "m1-objects-panel",
+            div { CanvasLayers {
                 initially_open: false,
                 trigger_label: "Canvas visibility",
                 trigger_id: "layers-016",
@@ -52,7 +53,7 @@ fn fixture() -> Element {
                     ),
                 ],
             } }
-            div { class: "m1-object-layer-dock", LayerPanel {
+            div { LayerPanel {
                 initially_open: true,
                 trigger_label: "Layer notes",
                 trigger_id: "layer-notes-016",
@@ -60,7 +61,7 @@ fn fixture() -> Element {
                 RetainedDraft {}
             } }
             fieldset { disabled: true,
-                div { class: "m1-object-layer-dock", LayerPanel {
+                div { LayerPanel {
                     initially_open: true,
                     trigger_label: "Disabled layers",
                     trigger_id: "disabled-layers-016",
@@ -73,6 +74,7 @@ fn fixture() -> Element {
                         on_toggle: move |_| disabled_calls += 1,
                     }
                 } }
+            }
             }
         }
         Button { "After layers" }

@@ -39,7 +39,7 @@ pub fn use_docked_layers(content: Element) -> Element {
 #[component]
 pub fn LayerDockOutlet() -> Element {
     let LayerDock(slot) = use_context();
-    rsx! { div { class: "m1-layer-dock", {slot.read().as_ref().map(|(_, content)| content.clone())} } }
+    rsx! { div { class: "empty:hidden", {slot.read().as_ref().map(|(_, content)| content.clone())} } }
 }
 
 #[cfg(test)]
@@ -82,6 +82,15 @@ mod tests {
                 .is_some()
         })
         .await;
+        let outlet = root.query_selector("aside > div").unwrap().unwrap();
+        assert!(
+            outlet
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class == "empty:hidden"),
+            "an empty outlet must hide without a legacy selector"
+        );
         assert!(
             root.query_selector("section #layer-dock-toggle")
                 .unwrap()
@@ -107,6 +116,10 @@ mod tests {
             root.query_selector("#layer-dock-toggle").unwrap().is_none()
         })
         .await;
+        assert!(
+            outlet.matches(":empty").unwrap(),
+            "unmounted outlet is empty"
+        );
         root.remove();
     }
 }
