@@ -137,7 +137,7 @@ README describes a service worker for offline use and updates), exported-geometr
 inferred; no cached artifact or project was captured), and the A8 controller-heading
 documentation reconciliation, which keeps the findings in the comment above. Acceptance
 bullets 1-6 are not met as written (no red-capable reproduction exists); this ticket closes
-because its premise, a defect in the integrated build, is withdrawn by the reporter. A1 stays
-open until [003](003-resolve-mcu-orientation.md) is re-scoped by the user: it may reduce to
-the A8 documentation reconciliation and a current-build original-scenario check, and no
-Core or renderer change is indicated.
+because its premise, a defect in the integrated build, is withdrawn by the reporter. 003 was then closed
+`wontfix` by the user as not applicable (2026-11-06); no Core or renderer change is indicated.
+The A8 controller-heading reconciliation and a current-build original-scenario check were not
+carried out.
