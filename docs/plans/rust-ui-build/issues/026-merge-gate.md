@@ -1,6 +1,6 @@
 # 026: Merge gate and single merge
 
-Status: claimed
+Status: resolved
 Owner: lane/026-merge-gate
 Type: build
 Blocked by: [024: Delete the old layer](024-delete-the-old-layer.md), [025: Rewrite DESIGN.md for the new structure](025-rewrite-design-md.md)
@@ -17,14 +17,77 @@ The migration branch passes the gate and is merged to `dev` once.
 - [ ] The user has reviewed every Workspace in both Themes and both Appearances at desktop (above 1150px), mid (981 to 1150px) and narrow (980px and below) widths, with screenshots
 - [ ] One two-axis code review (Standards and Spec) of the whole branch is done and its findings resolved or recorded
 - [ ] `dev` was merged into the branch before the merge; the single merge to `dev` is done and nothing is pushed without the user's say-so
-- [ ] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
+- [x] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
 
 ## Current
 
-Gate run on `lane/026-merge-gate`, based on `36bca9c6a7`; **not resolved or
-ready to merge**. The table records the literal result, not a waiver. Logs and
-receipts are local to this worktree under `.evidence/026/`; browser captures are
-under `web/target/test-results/026/`.
+See [Outcome](#outcome) for the scoped resolution, evidence and open gates.
+
+## Outcome
+
+**Scoped resolution:** the requested agent implementation and evidence scope is
+complete; this is not full acceptance or permission to merge to `dev`. Logs and
+receipts are local to `lane/026-merge-gate` under `.evidence/026/`.
+
+| Gate or step | Result | Evidence |
+| --- | --- | --- |
+| Registry | **PASS**: the exact 20 previously unregistered scripts were declared opt-in with their ticket owners, not registered. `python3 scripts/test-check.py`: 64/64 | `finalizer-registry-red.log`, `finalizer-registry-green.log`; commit `31f17dd56` |
+| Old CSS strict | **PASS**, 0 legacy selectors / 0 variables | `finalizer-old-css.log` |
+| `python3 scripts/check.py quick` | **PASS** after the fixes below: 2,411 native tests passed, 126/126 page tests passed, browser crates and CAD checks passed; the quick plan excludes drag-smoke and is not the full default gate | `finalizer-quick-final.log`, `finalizer-quick-final.json.md` |
+| `python3 scripts/check.py build` | **PASS**, checked packaged site | `finalizer-build.log`, `finalizer-build.json.md` |
+| `python3 scripts/check.py browser --only host runtime ui-model ui-shared keycaps library keymap catalogue case parts pcb layout --keep-going` | **PASS**, all 12 presentation crates (14 launches); deliberately partial, no drag-smoke, packaged page or separate provider gate | `finalizer-crates.log`, `finalizer-crates.json.md` |
+| Full default / full browser | **OPEN**, not rerun or claimed green; prior pre-merge results are below. The focused browser evidence is not a waiver of missing coverage. | `full-final.log`, `browser.log` (historical) |
+
+The first quick run exposed an owned merge-reconciliation compile error in the
+toolbar example; `ec108844` supplies the existing optional field, with expected
+RED in `finalizer-quick.log` and focused GREEN in `finalizer-toolbar-green.log`.
+The next quick run exposed concurrent page fixtures selecting another
+Inspector's tab; `31c71643` isolates the short-lived fixture, adds a selector
+precondition and retains the focus assertion. Diagnostic RED and combined-page
+126/126 GREEN are in `finalizer-page-diagnostic.log` and
+`finalizer-page-fixed.log`; the full quick rerun then passed.
+
+Review-finding fixes are recorded in `0c2fb2bac` through `a33df1d77` (findings
+1–8, including the selection-role disclosure); the local record does not
+contain the two-axis review receipts or an approval of the subsequent merge and
+reconciliation, so the whole-branch review checkbox remains open. `dev` was
+merged into this lane at `c79de4708`; follow-on reconciliation commits are
+`8a6a2b1f0`, `c67c30dfd`, `382ee33c8`, `1478c26af`, `ec108844` and
+`31c71643`. The single merge *to* `dev` remains open.
+
+The research verdict in the main checkout's untracked
+`docs/research/2026-11-06-drag-smoke-and-tooling-registry.md` defers drag-smoke
+from this scoped evidence set, not its unique gesture → save → Undo coverage.
+The recorded merged-tree signature (`run4-verified-drag.log`) is:
+
+> timed out waiting for slider Rows to receive focus: document.activeElement === document.querySelector('[role="slider"][aria-label="Rows"]'); drag browser smoke saw 1 browser handler error(s): WebSocket protocol reset without closing handshake
+
+The `.m1-save-state` save selector is also dead on the merged tree; the
+WebSocket reset is shutdown noise, not the cause. No drag harness was changed
+for this deferral. The registry is not stale; these are agent-browser migration
+debt and are explicitly opt-in pending retirement.
+
+### OPEN — user-gated work and follow-ups
+
+- **LIVE human review:** the user elected live review, not approval by automated
+  screenshots. Serve the checked site with
+  `python3 scripts/serve-web.py web/target/site 4173` or use the dev server at
+  `127.0.0.1:8080`. Review every Workspace × both Themes × both Appearances ×
+  desktop/mid/narrow, capturing screenshots as the review record. Detailed
+  instructions and viewport sizes follow below. The expected 72 agent captures
+  under `web/target/test-results/026/` are backup only; this worktree currently
+  contains 24 PNGs, so the 72-image backup could not be verified here.
+- **One merge to `dev`:** only after user approval; not performed here, and no
+  origin push is authorized by this scoped resolution.
+- **Follow-ups to file (not created):** a drag-smoke rewrite for the merged tree
+  and an agent-browser retirement ticket to port unique coverage or delete the
+  20 opt-in scripts per owner.
+
+### Earlier pre-merge evidence (historical)
+
+The following gate run was based on `36bca9c6a7`, before the later review-fix
+commits and dev merge. Its results are retained literally, not as current green
+claims or waivers. Browser captures are under `web/target/test-results/026/`.
 
 | Step | Result | Evidence | Classification |
 | --- | --- | --- | --- |
@@ -64,6 +127,5 @@ docks (including the narrow Sheet tabs), controls and labels, selected/disabled
 states, menus and dialogs, overflow/clipping, focus visibility and touch-target
 spacing. Scroll long inspectors and open representative controls; record defects,
 the exact combination and screenshot path. The user must explicitly approve or
-report the results; none is claimed here. The two-axis branch review, its fixes,
-the subsequent `dev` merge, final resolution and single merge remain coordinator/
-user-gated and have not been performed.
+report the results; none is claimed here. Scoped resolution does not close the
+whole-branch review, human review or single merge to `dev`.
