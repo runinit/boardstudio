@@ -1,6 +1,7 @@
 # 025: Rewrite DESIGN.md for the new structure
 
-Status: ready-for-agent
+Status: claimed
+Owner: lane/025-rewrite-design-md (.worktrees/lane-025-rewrite-design-md)
 Type: build
 Blocked by: [024: Delete the old layer](024-delete-the-old-layer.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
