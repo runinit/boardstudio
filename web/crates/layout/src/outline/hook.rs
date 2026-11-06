@@ -1155,7 +1155,12 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         let base_height = (base_max_y - base_min_y).max(50.0);
         let (surface_width, surface_height) = web_sys::window()
             .and_then(|window| window.document())
-            .and_then(|document| document.query_selector("svg.m1-canvas").ok().flatten())
+            .and_then(|document| {
+                document
+                    .query_selector("[role='group'][aria-label^='Keyboard layout;'], [role='group'][aria-label^='Matrix placement canvas.']")
+                    .ok()
+                    .flatten()
+            })
             .map(|surface| {
                 let bounds = surface.get_bounding_client_rect();
                 (bounds.width().max(1.0), bounds.height().max(1.0))

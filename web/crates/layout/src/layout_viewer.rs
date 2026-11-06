@@ -329,11 +329,11 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
         return rsx! {
             div {
                 if preview_error.is_some() {
-                    Alert { class: "m1-layout-viewer-status", variant: AlertVariant::Destructive,
+                    Alert { class: "m-0 px-3 py-2 first:pt-28", variant: AlertVariant::Destructive,
                         AlertDescription { "{message}" }
                     }
                 } else {
-                    div { role: "status", class: "m1-layout-viewer-status",
+                    div { role: "status", class: "m-0 px-3 py-2 first:pt-28",
                         Callout { variant: CalloutVariant::Info,
                             if runtime.layout_preview_pending() || request.is_some() { Spinner {} }
                             "{message}"
@@ -345,14 +345,14 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
                     .as_ref()
                     .and_then(|fit| fit.preview_blocker_message())
                 {
-                    div { role: "status", class: "m1-layout-viewer-status", Callout { variant: CalloutVariant::Warning, "{blocker}" } }
+                    div { role: "status", class: "m-0 px-3 py-2 first:pt-28", Callout { variant: CalloutVariant::Warning, "{blocker}" } }
                 } else if keycaps_preview_pending() {
-                    div { role: "status", class: "m1-layout-viewer-status",
+                    div { role: "status", class: "m-0 px-3 py-2 first:pt-28",
                         Callout { variant: CalloutVariant::Info, Spinner {} "Generating keycap CAD…" }
                     }
                 }
                 if let Some(error) = keycaps_preview_error() {
-                    Alert { class: "m1-layout-viewer-status", variant: AlertVariant::Destructive,
+                    Alert { class: "m-0 px-3 py-2 first:pt-28", variant: AlertVariant::Destructive,
                         AlertDescription { "Keycap preview failed: {error}" }
                     }
                     Button {
@@ -408,20 +408,20 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
     });
 
     rsx! {
-        div { class: "m1-layout-canonical-viewer",
+        div { class: "flex min-h-0 flex-1 flex-col",
             if let Some(blocker) = props
                 .keycaps_fit
                 .as_ref()
                 .and_then(|fit| fit.preview_blocker_message())
             {
-                div { role: "status", class: "m1-layout-viewer-status", Callout { variant: CalloutVariant::Warning, "{blocker}" } }
+                div { role: "status", class: "m-0 px-3 py-2 first:pt-28", Callout { variant: CalloutVariant::Warning, "{blocker}" } }
             } else if keycaps_preview_pending() {
-                div { role: "status", class: "m1-layout-viewer-status",
+                div { role: "status", class: "m-0 px-3 py-2 first:pt-28",
                     Callout { variant: CalloutVariant::Info, Spinner {} "Generating keycap CAD…" }
                 }
             }
             if let Some(error) = keycaps_preview_error() {
-                Alert { class: "m1-layout-viewer-status", variant: AlertVariant::Destructive,
+                Alert { class: "m-0 px-3 py-2 first:pt-28", variant: AlertVariant::Destructive,
                     AlertDescription { "Keycap preview failed: {error}" }
                     Button {
                         variant: ButtonVariant::Secondary,
@@ -441,6 +441,7 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
                     }
                 }
             }
+            div { class: "flex min-h-0 flex-1 [&>div]:relative [&>div]:flex [&>div]:min-h-0 [&>div]:min-w-0 [&>div]:flex-1 [&>div]:flex-col [&>div>div:has(>canvas)]:relative [&>div>div:has(>canvas)]:flex [&>div>div:has(>canvas)]:min-h-[160px] [&>div>div:has(>canvas)]:min-w-0 [&>div>div:has(>canvas)]:flex-1 [&_canvas]:min-h-0 [&_canvas]:min-w-0 [&_canvas]:flex-1 [&_canvas]:border-0",
             CaseSharedViewer {
                 scene: None,
                 preview: None,
@@ -457,6 +458,7 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
                 mechanical_settings: None,
                 inline_case_controls: false,
                 focus_request,
+            }
             }
         }
     }

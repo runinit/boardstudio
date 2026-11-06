@@ -1,8 +1,8 @@
-# 024 sub-lane C — run 4 outcome (pre-merge checkpoint)
+# 024 sub-lane C — run 4 outcome
 
 Initial HEAD `5e0abdce8` on `lane/024c-rest-migrate` was clean; run-1 base is `64763a3`. Four grouped commits migrate PCB wiring/inspectors, PCB/keycap/keymap SVG scenes, Parts/controller previews and shared docks, and the Library/project browser to existing Theme tokens and utilities. No CSS or ticket was edited, no API was widened, no test-name baseline was changed, and no push or main-checkout operation was made. Run 4 does not add per-class utility assertions or run mutation checks. The controller-preview ancestor styling now uses the carousel's existing accessible attribute rather than the legacy dotted class.
 
-**Outstanding functional dependencies, not needs-home styling rules:** (1) `.m1-inspector-body` must remain until merging the parent, whose `layout_findings_state.rs` changes the focus fallback to `#m1-inspector-panel-content > div`; then remove it and reverify. (2) the Library test host retains `m1-project-menu` because `ui-shared::project_menu::close_project_menu` uses `details.m1-project-menu` to close and restore focus. Changing that production selector is outside this lane's ui-shared class-only brief and needs coordinated semantic-selector migration; deleting only the class would silently break the close/focus path. (3) `web/src/presentation/layout_layers_tests.rs` has a now-vacuous `.m1-layers` absence query and needs a role/name replacement by the owner of that file. These are not evidence that arbitrary legacy identifiers are styling classes.
+**Remaining: one actual legacy class and one dotted functional query**, both for the same `m1-project-menu` dependency. The Library test host retains the class because `ui-shared::project_menu::close_project_menu` queries `details.m1-project-menu` to close and restore focus. Changing that production selector is outside this lane's ui-shared class-only brief and needs coordinated semantic-selector migration; deleting only the class would silently break the close/focus path. The former `.m1-inspector-body` class was removed after the parent changed the Layout focus fallback to `#m1-inspector-panel-content > div`. `web/src/presentation/layout_layers_tests.rs` has a now-vacuous `.m1-layers` absence query; its other legacy finding selectors are the known paired sibling-A page-test blocker described below. These are not evidence that arbitrary legacy identifiers are styling classes.
 
 `web/assets/imported-modules.json` is an ignored build copy of the tracked `catalogue/modules/imported-modules.json`, not a UI snapshot. `scripts/build-web.py` copies it; `parts/modules_catalogue.rs` deserializes ModuleDefinition records. Its `board-outline` and `board-outline-missing` strings are diagnostic codes, not runtime CSS classes; the data is unchanged. Other unchanged counts below are board/document/operation IDs, input/list IDs, transaction IDs, cache keys, or prefix checks; they must not be renamed as styling.
 
@@ -50,7 +50,8 @@ Distinct raw quoted-start or dotted `m1-` / `board-` names per file; **not class
 | `web/crates/ui-shared/src/canvas_layers.rs` | 6 | 0 |
 | `web/crates/ui-shared/src/footprint_graphics.rs` | 6 | 0 |
 | `web/crates/ui-shared/src/layer_dock.rs` | 1 | 0 |
-| `web/crates/ui-shared/src/panels.rs` | 5 | 5 |
+| `web/crates/ui-shared/src/panels.rs` | 5 | 4 |
+| `web/crates/ui-shared/src/project_menu.rs` | 1 | 1 |
 | `web/crates/ui-shared/src/panels_resize_tests.rs` | 6 | 0 |
 | `web/crates/ui-shared/src/panels_scroll_tests.rs` | 6 | 0 |
 | `web/tests/matrix_setup_operation.rs` | 1 | 1 |
@@ -64,3 +65,13 @@ Distinct raw quoted-start or dotted `m1-` / `board-` names per file; **not class
 - `python3 scripts/check.py browser --only ui-shared parts pcb case keymap keycaps library --keep-going`: 409 passed (`run4-browser.log`); partial browser gate only.
 - `python3 scripts/run-wasm-tests.py --files` on case, keycaps, keymap, layout, Parts, PCB, setup workspace modules and layout layers: 16 passed (`run4-page.log`).
 - `cargo fmt --all -- --check` and `git diff --check` passed. No full gate, mutation, visual equivalence review, or tooling probe was run; integrator owns those gates. Theme/viewport visual equivalence is not proven by mounted interaction tests.
+
+## Parent merge and affected re-verification
+
+Merged `lane/024-delete-the-old-layer` at `4b2087a329e7df0a479d50ba21d224c7dcff96bc` in this worktree; no conflicts. Its Layout focus fallback no longer selects the old Inspector class, which was removed in the merge.
+
+- `cargo check --locked -p boardstudio-web --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web`: passed (`run4-merge-check.log`).
+- `cargo test --locked --lib -p boardstudio-web-ui-shared -p boardstudio-web-layout`: 97 passed, 1 ignored (`run4-merge-native.log`).
+- `python3 scripts/check.py browser --only ui-shared layout --keep-going`: 247 passed, including the generated layout-test-css step (`run4-merge-browser.log`).
+- `python3 scripts/run-wasm-tests.py --files` on Layout layers and workspace plus Parts, PCB, Keymap, Keycaps and Case workspace modules: **14 passed, 1 failed** (`run4-merge-page.log`). `paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_before_commit` times out because sibling B removed `.m1-layout-findings` and `.m1-layout-finding` while the page test still queries them at `web/src/presentation/layout_layers_tests.rs:184,324`. Parent outcome identifies sibling A as the owner of the matching accessible-selector change. This is an integration blocker, not a passing page gate; the now-vacuous `.m1-layers` absence assertion in that file also needs a role/name replacement.
+- Post-merge `cargo fmt --all -- --check` and `git diff --check` passed. The one full build was **before** the merge, per the run budget; the integrator must rebuild the integrated tree and rerun the page gate after sibling A lands. No visual/theme/viewport equivalence, mutation, full gate, or independent review is claimed.

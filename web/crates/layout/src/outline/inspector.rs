@@ -132,7 +132,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                     if perimeter_open() {
                         if let Some(perimeter) = perimeter.as_ref() {
                             section {
-                                class: "m1-outline-inspector m1-outline-point-editor",
+                                class: "min-h-0 border-b border-border px-4 py-3.5 [&>p]:my-2 [&>p]:text-muted-foreground",
                                 "aria-label": "Perimeter",
                                 onkeydown: {
                                     let mut selected_context = projection.selected_context;
@@ -204,8 +204,8 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                         });
                                     }
                                 },
-                                div { class: "m1-outline-inspector-heading",
-                                    h2 { "Perimeter" }
+                                div { class: "flex items-center justify-between gap-2",
+                                    h2 { class: "m-0 text-[16px]! font-semibold!", "Perimeter" }
                                     Button {
                                         variant: ButtonVariant::Secondary,
                                         button_type: "button",
@@ -221,8 +221,8 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                         "The first point change creates and activates a fixed copy. Generated stays available."
                                     }
                                 }
-                                h3 { class: "m1-outline-point-heading", "Point {point_index + 1} of {point_count}" }
-                                div { class: "m1-outline-coordinate-fields",
+                                h3 { class: "mt-4 mb-2 text-[13px] font-semibold", "Point {point_index + 1} of {point_count}" }
+                                div { class: "grid gap-2.5",
                                     OutlineCoordinate {
                                         key: format!("{:?}:{:?}:{point_index}:x", action_context.scope, perimeter.target),
                                         label: format!("Point {} X mm", point_index + 1),
@@ -294,9 +294,8 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                         },
                                     }
                                 }
-                                div { class: "m1-outline-point-actions",
+                                div { class: "my-3 flex flex-wrap gap-2",
                                     Button { variant: ButtonVariant::Secondary,
-    class: "m1-outline-insert-point",
     button_type: "button",
     disabled: !enabled,
     aria_label: "Insert after {point_index + 1}",
@@ -319,7 +318,6 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
 
                                      }
                                     Button { variant: ButtonVariant::Secondary,
-    class: "m1-outline-remove-point",
     button_type: "button",
     disabled: !enabled || point_count <= 3,
     aria_label: "Remove point {point_index + 1}",
@@ -340,11 +338,11 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                      }
                                 }
                                 div {
-                                    class: "m1-outline-point-list",
+                                    class: "max-h-[220px] overflow-auto border border-border",
                                     role: "group",
                                     aria_label: "Outline points",
                                     div {
-                                        class: "m1-outline-point-columns",
+                                        class: "sticky top-0 grid grid-cols-[54px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 bg-card px-2 py-1.5 text-xs font-semibold text-muted-foreground",
                                         aria_hidden: "true",
                                         span { "Point" }
                                         span { "X · mm" }
@@ -384,7 +382,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                             }
                         }
                     } else {
-                        section { class: "m1-outline-inspector", "aria-label": "Board outline",
+                        section { class: "border-b border-border px-4 py-3.5 [&>p]:my-2 [&>p]:text-muted-foreground", "aria-label": "Board outline",
                         onkeydown: move |event: KeyboardEvent| {
                             if event.key().to_string() == " " {
                                 event.stop_propagation();
@@ -393,15 +391,15 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                 }
                             }
                         },
-                            div { class: "m1-outline-inspector-heading",
-                                h2 { "Board outline" }
-                                span { class: "m1-outline-board-name", "{projection.board_name}" }
+                            div { class: "flex items-center justify-between gap-2",
+                                h2 { class: "m-0 text-[16px]! font-semibold!", "Board outline" }
+                                span { class: "text-muted-foreground text-xs", "{projection.board_name}" }
                             }
                             p { "{ownership_summary(active_ownership)}" }
                             p { "{projection.contours.len()} accepted contours" }
                             if let Some((view_box, paths)) = contour_view {
                                 svg {
-                                    class: "m1-outline-preview",
+                                    class: "my-3 block h-[150px] w-full border border-border bg-canvas",
                                     role: "img",
                                     "aria-label": "Accepted active board outline",
                                     view_box: "{view_box}",
@@ -409,14 +407,14 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                         for (index, (points, hole)) in paths.iter().enumerate() {
                                             polygon {
                                                 key: "outline-preview-{index}",
-                                                class: if *hole { "m1-outline is-hole" } else { "m1-outline" },
+                                                class: if *hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" },
                                                 points: "{points}",
                                             }
                                         }
                                     }
                                 }
                             }
-                            div { class: "m1-outline-settings",
+                            div { class: "grid gap-3 mt-3 text-foreground",
                                 {
                                     let control_label = "Active outline".to_owned();
                                     let control_aria_label = "Active outline".to_owned();
@@ -444,7 +442,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
             });
             rsx! {
 
-                                        Field { class: "m1-outline-field",
+                                        Field { class: "grid gap-[5px] text-xs text-muted-foreground",
                                             FieldLabel { html_for: control_id.clone(), "{control_label}" }
                                             if control_choices.len() > 12 {
                                                 Combobox::<String> {
@@ -492,7 +490,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                             dioxus::core::current_scope_id().0,
                                         );
                                         rsx! {
-                                            Field { class: "m1-outline-field",
+                                            Field { class: "grid gap-[5px] text-xs text-muted-foreground",
                                                 FieldLabel { html_for: control_input_id.clone(),
                                                     span { "Version name" }
                                                 }
@@ -538,12 +536,11 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                         }
                                     }
                                     if let Some(message) = name_failure.as_ref() {
-                                            FieldError { class: "m1-inline-error", "{message}" }
+                                            FieldError { "{message}" }
                                     }
                                 }
                                 if let Some(problem) = active_problem.as_ref() {
                                     div {
-                                        class: "m1-outline-problem",
                                         "data-finding-id": "{problem.problem_finding_id.clone().unwrap_or_default()}",
                                         "data-ownership": "{active_ownership.label()}",
                                             Alert { variant: AlertVariant::Destructive,
@@ -557,7 +554,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                             }
                                         }
                                         if problem.problem_selectable {
-                                            p { class: "m1-outline-problem-hint",
+                                            p {
                                                 "Select the located finding on the canvas to inspect it."
                                             }
                                         }
@@ -567,7 +564,6 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     }
                                 for blocked in blocked_alternatives.iter() {
                                         div {
-                                        class: "m1-outline-alternative-problem",
                                         "data-finding-id": "{blocked.problem_finding_id.clone().unwrap_or_default()}",
                                         "data-ownership": "{blocked.ownership.label()}",
                                             Callout { variant: CalloutVariant::Info,
@@ -577,7 +573,6 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                 }
                                 if !projection.has_generated && projection.active_version_id.is_none() {
                                     Button { variant: ButtonVariant::Secondary,
-    class: "m1-outline-action",
     disabled: !one_shot_enabled,
     onclick: {
                                     let action_context = action_context.clone();
@@ -619,7 +614,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
             });
             rsx! {
 
-                                            Field { class: "m1-outline-field",
+                                            Field { class: "grid gap-[5px] text-xs text-muted-foreground",
                                                 FieldLabel { html_for: control_id.clone(), "{control_label}" }
                                                 Select::<String> {
                                                     id: control_id,
@@ -681,16 +676,16 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     }
                                     if projection.active_version_id.is_none() && !projection.gaps.is_empty() {
                                         fieldset {
-                                            class: "m1-outline-controls",
+                                            class: "m-0 grid min-w-0 gap-[9px] border border-border p-2.5 text-foreground [&_legend]:px-1 [&_legend]:font-semibold [&>p]:m-0 [&>p]:text-xs [&>p]:text-muted-foreground",
                                             disabled: !enabled,
                                             legend { "Gap repair" }
                                             p {
                                                 "Keep gap preserves an intentional recess and follows its source components."
                                             }
                                             for (index, gap) in projection.gaps.iter().enumerate() {
-                                                div { class: "m1-outline-gap-row",
+                                                div { class: "flex items-center justify-between gap-2",
                                                     Button { variant: ButtonVariant::Secondary,
-    class: "m1-outline-gap-focus",
+    class: "flex-1 text-left",
     button_type: "button",
     aria_label: "Show gap {index + 1}",
     disabled: !enabled,
@@ -710,7 +705,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                             format!("Keep gap {}", index + 1).replace(' ', "-"),
                                                         );
                                                         rsx! {
-                                                            Label { html_for: check_id.clone(), class: "m1-outline-field m1-outline-gap",
+                                                            Label { html_for: check_id.clone(), class: "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-[5px] text-xs text-foreground",
                                                                 Checkbox {
                                                                     id: check_id.clone(),
                                                                     aria_label: "Keep gap {index + 1}",
@@ -745,7 +740,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                             }
                                         }
                                     }
-                                    fieldset { class: "m1-outline-controls", disabled: !enabled,
+                                    fieldset { class: "m-0 grid min-w-0 gap-[9px] border border-border p-2.5 text-foreground [&_legend]:px-1 [&_legend]:font-semibold [&>p]:m-0 [&>p]:text-xs [&>p]:text-muted-foreground", disabled: !enabled,
                                         legend { "Advanced cleanup and clearance" }
                                         if envelope_editable {
                                             {
@@ -755,7 +750,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                     ("Automatic gap cleanup").replace(' ', "-"),
                                                 );
                                                 rsx! {
-                                                    Label { html_for: check_id.clone(), class: "m1-outline-field m1-outline-gap",
+                                                    Label { html_for: check_id.clone(), class: "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-[5px] text-xs text-foreground",
                                                         Checkbox {
                                                             id: check_id.clone(),
                                                             aria_label: "Automatic gap cleanup",
@@ -828,7 +823,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                         if projection.active_version_id.is_none() {
                                             for (index, gap) in projection.repair.keep_gaps.iter().enumerate() {
                                                 Button { variant: ButtonVariant::Secondary,
-    class: "m1-outline-remove-gap",
+    class: "min-h-8 justify-self-start",
     aria_label: "Remove protected gap {index + 1}",
     disabled: !one_shot_enabled,
     onclick: {
@@ -847,7 +842,6 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                             }
                             if projection.perimeter.as_ref().is_some_and(|perimeter| perimeter.points.len() >= 3) {
                                 Button { variant: ButtonVariant::Secondary,
-    class: "m1-outline-action",
     button_type: "button",
     disabled: !enabled,
     onclick: move |_| {
@@ -860,12 +854,12 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                  }
                             }
                             section {
-                                class: "m1-outline-manual",
+                                class: "mt-4 grid gap-2 border-t border-border pt-3 [&_h3]:m-0 [&_h3]:text-xs [&>p]:m-0 [&>p]:text-xs [&>p]:text-muted-foreground",
                                 "aria-label": "Manual geometry",
                                 h3 { "Manual geometry" }
                                 if !projection.geometry_features.is_empty() {
                                     div {
-                                        class: "m1-outline-feature-list",
+                                        class: "grid gap-1.5 [&_h4]:mt-1.5 [&_h4]:mb-0 [&_h4]:text-xs",
                                         role: "group",
                                         aria_label: "Saved outline geometry",
                                         h4 { "Saved geometry" }
@@ -889,7 +883,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                     OutlineFeature::PartEnvelope { .. } => "Generated perimeter",
                                                 };
                                                 rsx! {
-                                                    div { class: "m1-outline-feature-row", key: "outline-feature-{feature_id}",
+                                                    div { class: "flex items-center gap-1.5 [&>button:first-child]:flex-1 [&>button:first-child]:text-left", key: "outline-feature-{feature_id}",
                                                         ToggleGroup {
                                                             aria_label: "Geometry selection",
                                                             pressed: Some(
@@ -925,7 +919,6 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                         if let Some(version_id) = active_version.as_ref().filter(|_| index > 0) {
                                                             Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    class: "m1-outline-remove-feature",
     disabled: !one_shot_enabled,
     aria_label: "Remove {feature_name} {index + 1}",
     onclick: {
@@ -952,10 +945,10 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                 {
                                     if let OutlineFeature::Rect { center, size, anchor_part_id, .. } = feature {
                                         fieldset {
-                                            class: "m1-outline-feature-editor",
+                                            class: "m-0 grid min-w-0 gap-2 border border-border p-2 [&_legend]:px-1 [&_legend]:text-xs [&_legend]:text-muted-foreground [&_h4]:mt-1.5 [&_h4]:mb-0 [&_h4]:text-xs",
                                             disabled: !enabled,
                                             legend { "Selected rectangle" }
-                                            div { class: "m1-outline-coordinate-fields",
+                                            div { class: "grid gap-2.5",
                                                 OutlineCoordinate {
                                                     key: "rectangle-{feature.id()}-center-x",
                                                     label: "Rectangle center X mm",
@@ -1139,13 +1132,13 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                 }
                                 if !projection.connections.is_empty() {
                                     div {
-                                        class: "m1-outline-connection-list",
+                                        class: "grid gap-1.5 [&_h4]:mt-1.5 [&_h4]:mb-0 [&_h4]:text-xs",
                                         role: "group",
                                         aria_label: "Outline connections",
                                         h4 { "Connections" }
                                         for (index, connection) in projection.connections.iter().enumerate() {
                                             div {
-                                                class: "m1-outline-feature-row",
+                                                class: "flex items-center gap-1.5 [&>button:first-child]:flex-1 [&>button:first-child]:text-left",
                                                 key: "outline-connection-{connection.id}",
                                                 ToggleGroup {
                                                     aria_label: "Geometry selection",
@@ -1167,7 +1160,6 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                 if let Some(before) = projection.connection_feature.as_ref() {
                                                     Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    class: "m1-outline-remove-feature",
     disabled: !one_shot_enabled,
     aria_label: "Remove connection {index + 1}",
     onclick: {
@@ -1236,7 +1228,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                     let world = connection_point_world(point, &projection.outline_parts);
                                                     rsx! {
                                                         h4 { "Connection point {index + 1} of {connection.points.len()}" }
-                                                        div { class: "m1-outline-coordinate-fields",
+                                                        div { class: "grid gap-2.5",
                                                             OutlineCoordinate {
                                                                 key: "connection-{connection.id}-{index}-x",
                                                                 label: format!("Point {} X mm", index + 1),
@@ -1336,7 +1328,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
             });
             rsx! {
 
-                                                                Field { class: "m1-outline-field",
+                                                                Field { class: "grid gap-[5px] text-xs text-muted-foreground",
                                                                     FieldLabel { html_for: control_id.clone(), "{control_label}" }
                                                                     Combobox::<String> {
                                                                         id: control_id,
@@ -1358,7 +1350,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                                 }
                                                             }
                                                         }
-                                                        div { class: "m1-outline-point-actions",
+                                                        div { class: "my-3 flex flex-wrap gap-2",
                                                             Button { variant: ButtonVariant::Secondary,
     button_type: "button",
     disabled: !one_shot_enabled || index + 1 == connection.points.len(),
@@ -1417,7 +1409,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                              }
                                                         }
                                                         div {
-                                                            class: "m1-outline-point-list",
+                                                            class: "max-h-[220px] overflow-auto border border-border",
                                                             role: "group",
                                                             aria_label: "Connection points",
                                                             for (index, control) in connection.points.iter().enumerate() {
@@ -1458,7 +1450,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                         "Click the canvas to add points. Enter finishes; Escape cancels."
                                      } }
                                     p { "{drawing_points.read().len()} points" }
-                                    div { class: "m1-outline-actions",
+                                    div { class: "mt-3 flex flex-wrap gap-2 [&_button]:min-h-9",
                                         Button { variant: ButtonVariant::Secondary,
     button_type: "button",
     disabled: drawing_points.read().is_empty(),
@@ -1512,7 +1504,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                          }
                                     }
                                 } else {
-                                    div { class: "m1-outline-actions",
+                                    div { class: "mt-3 flex flex-wrap gap-2 [&_button]:min-h-9",
                                         Button { variant: ButtonVariant::Secondary,
     button_type: "button",
     disabled: !one_shot_enabled,
@@ -1541,7 +1533,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     }
                                 }
                             }
-                            div { class: "m1-outline-actions",
+                            div { class: "mt-3 flex flex-wrap gap-2 [&_button]:min-h-9",
                                 Button {
                                     variant: ButtonVariant::Secondary,
                                     button_type: "button",
@@ -1553,7 +1545,6 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     Button {
                                         variant: ButtonVariant::Secondary,
                                         button_type: "button",
-                                        class: "m1-outline-freeze",
                                         disabled: !projection.enabled || projection.one_shot_pending,
                                         onclick: move |_| freeze_handler.call(freeze.clone()),
 
@@ -1565,7 +1556,6 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     Button {
                                         variant: ButtonVariant::Secondary,
                                         button_type: "button",
-                                        class: "m1-outline-refine",
                                         disabled: !projection.enabled || projection.one_shot_pending,
                                         onclick: move |_| refine_handler.call(refine.clone()),
 

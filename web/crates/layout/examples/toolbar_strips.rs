@@ -42,8 +42,8 @@ fn fixture() -> Element {
             svg { role: "img", "aria-label": "Layout drawing", style: "width:100%;height:620px;display:block", onclick: move |_| canvas_clicks += 1,
                 rect { width: "100%", height: "100%", fill: "var(--canvas)" }
             }
-            div { class: "m1-layout-toolbar-region",
-            div { class: "m1-canvas-toolbar",
+            div { class: "pointer-events-none absolute inset-0 z-12",
+            div { class: "pointer-events-none absolute top-3 right-3 left-3 z-13 max-w-[calc(100%-16px)]",
             LayoutCommandPill {
                 command_label: "Layout commands", menu_owner_key: "fixture", open_menu,
                 selection_kind: kind(), snap_settings: settings(), transform,

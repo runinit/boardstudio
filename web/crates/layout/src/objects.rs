@@ -386,7 +386,7 @@ pub fn Objects(
         .unwrap_or_else(|| board_name.to_owned());
     let selection_count = model.selected_part_ids.len();
     rsx! {
-                aside { class: "m1-objects", "aria-label": "Objects",
+                aside { class: "relative flex min-h-0 min-w-0 flex-1 flex-col bg-card [&>header]:hidden", "aria-label": "Objects",
                     onkeydown: move |event: KeyboardEvent| {
                         if event.key() == Key::Character(" ".to_owned()) {
                             // These dock controls keep native Space activation instead of starting canvas pan.
@@ -422,7 +422,7 @@ pub fn Objects(
                         }
                     }
                     if let Some(error) = placement_error {
-                        Alert { class: "m1-parts-placement-error",
+                        Alert {
         variant: AlertVariant::Destructive,AlertDescription {  "{error}"  } }
                     }
                     if !add_menu_open() && !existing_half_active {
@@ -454,7 +454,7 @@ pub fn Objects(
         });
         rsx! {
 
-                                Field { class: "m1-object-grouping",
+                                Field { class: "flex items-center gap-2 px-3 py-2.5 text-xs text-muted-foreground",
                                     FieldLabel { html_for: control_id.clone(), "{control_label}" }
                                     Select::<String> {
                                         id: control_id,
@@ -475,14 +475,14 @@ pub fn Objects(
                                 }
                             }
                         }
-                        div { class: "m1-object-navigation",
+                        div { class: "grid gap-[7px] border-b border-border px-2.5 py-[9px] empty:hidden",
                             if !pcb_workspace && !instances.is_empty() && case_workspace {
                                 div {
-                                    class: "m1-instance-selection",
+                                    class: "grid gap-1 text-muted-foreground text-xs",
                                     role: "group",
                                     "aria-label": "Physical instance",
                                     span { "Physical instance" }
-                                    div { class: "m1-instance-choices",
+                                    div { class: "flex flex-wrap gap-1 [&_button]:min-h-11 [&_button]:text-left [&_button]:break-words",
                                         for instance in &instances {
                                             {
                                                 let id = instance.id.clone();
@@ -514,11 +514,11 @@ pub fn Objects(
                                 }
                             }
                         }
-                        div { class: "m1-object-tree",
+                        div { class: "flex min-h-0 flex-1 flex-col",
                             div {
                                 role: "tree",
                                 "aria-label": "CAD structure",
-                                class: "m1-component-list m1-object-tree-list",
+                                class: "grid min-h-0 flex-1 content-start gap-0 overflow-auto overscroll-contain px-0 py-1",
                                 for item in items.iter().cloned() {
                                     {
                                         let selected = item
@@ -562,7 +562,7 @@ pub fn Objects(
                                         rsx! {
                                             div {
                                                 key: "{item.id}",
-                                                class: "m1-tree-row",
+                                                class: "flex min-h-10 min-w-0 items-center gap-0.5 pr-2",
                                                 style: "padding-left: {8 + item.level * 14}px",
                                                 role: "treeitem",
                                                 "aria-labelledby": "{tree_item_id}",
@@ -592,12 +592,12 @@ pub fn Objects(
                                                         TooltipContent { "{tooltip_label}" }
                                                     }
                                                 } else {
-                                                    span { class: "m1-tree-spacer", "aria-hidden": "true" }
+                                                    span { class: "grid h-6 min-h-6 w-5 shrink-0 place-items-center border-0 bg-transparent p-0 text-muted-foreground", "aria-hidden": "true" }
 
                                                 }
                                                 Button { variant: ButtonVariant::Secondary,
     id: "{tree_item_id}",
-    class: if selected { "m1-component selected" } else { "m1-component" },
+    class: if selected { "flex min-h-8 min-w-0 flex-1 items-center justify-start gap-[9px] rounded-[3px] border-primary bg-selection px-[5px] text-left text-selection-foreground [&_span]:text-selection-foreground" } else { "flex min-h-8 min-w-0 flex-1 items-center justify-start gap-[9px] rounded-[3px] border-transparent bg-transparent px-[5px] text-left hover:bg-accent" },
     onclick: move |_| {
                                                     if let Some(context) = select_item.context.clone() {
                                                         if let Some(scope) = click_scope.clone() {
@@ -666,12 +666,12 @@ pub fn Objects(
                                                     }
                                                 },
 
-                                                    span { class: "m1-tree-glyph", {tree_glyph(item.kind)} }
-                                                    span { class: if pcb_workspace { "m1-tree-label m1-pcb-part-reference" } else { "m1-tree-label" },
+                                                    span { class: "block size-[17px] shrink-0 text-muted-foreground [&_svg]:block [&_svg]:size-[17px]", {tree_glyph(item.kind)} }
+                                                    span { class: if pcb_workspace { "min-w-0 shrink-0 overflow-visible text-sm font-[650] leading-normal text-foreground" } else { "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm leading-normal text-foreground" },
                                                         "{item.label}"
                                                     }
                                                     if let Some(detail) = item.detail {
-                                                        span { class: "m1-object-kind", "{detail}" }
+                                                        span { class: "ml-auto min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-xs text-muted-foreground", "{detail}" }
                                                     }
 
                                                  }
@@ -682,7 +682,7 @@ pub fn Objects(
                             }
                         }
                         if pcb_workspace {
-                            footer { class: "m1-pcb-object-footer",
+                            footer { class: "flex shrink-0 flex-col gap-[5px] border-t border-border px-5 py-4 text-xs [&_span]:text-muted-foreground",
                                 strong { "{pcb_title}" }
                                 span { "{board_name} / PCB" }
                                 span {
@@ -767,19 +767,19 @@ fn AddObjectEntry(
         });
     rsx! {
             if show_trigger || open_menu {
-                div { class: if show_trigger { "m1-layout-add-object" } else { "m1-layout-add-object is-menu-only" },
+                div { class: if show_trigger { "relative shrink-0 border-b border-border px-2.5 py-2 [&>button]:min-h-[38px] [&>button]:w-full" } else { "relative shrink-0" },
                     if show_trigger {
                         Button {
                             variant: ButtonVariant::Secondary,
                             button_type: "button",
                             id: "m1-add-object-trigger",
                             aria_label: "Add object",
-                            class: "m1-layout-add-trigger max-[760px]:min-h-control-touch!",
+                            class: "max-[760px]:min-h-control-touch!",
                             aria_expanded: open_menu,
                             onclick: move |_| menu_open.set(!menu_open()),
 
                             svg {
-                                class: "m1-add-icon",
+                                class: "size-4 fill-none stroke-current stroke-[1.8] [stroke-linecap:round]",
                                 "aria-hidden": "true",
                                 view_box: "0 0 16 16",
                                 path { d: "M8 3v10M3 8h10" }
@@ -792,7 +792,7 @@ fn AddObjectEntry(
                         section {
                             role: "region",
                             aria_label: "Add",
-                            class: "m1-layout-add-menu",
+                            class: "relative mt-3 grid max-h-[calc(100dvh-168px)] gap-1.5 overflow-y-auto overscroll-contain bg-card [&_h3]:mb-[5px] [&_h3]:text-xs [&_button]:min-h-9 [&_button]:w-full [&_button]:text-left [&_small]:text-muted-foreground",
                             onkeydown: move |event: KeyboardEvent| {
                                 if event.key() == Key::Escape {
                                     event.prevent_default();
@@ -804,7 +804,6 @@ fn AddObjectEntry(
 
                             Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    class: "m1-add-back",
     onclick: move |_| { menu_open.set(false); focus_add_object(); },
                                 "← Back to objects"
                              }
@@ -815,7 +814,7 @@ fn AddObjectEntry(
                                     .iter()
                                     .find(|board| board.id == scope.board_id)
                                 {
-                                    strong { class: "m1-add-to-board-heading", "Add to {board.name}" }
+                                    strong { class: "text-muted-foreground text-sm font-medium", "Add to {board.name}" }
                                 }
                             }
                             Collapsible {

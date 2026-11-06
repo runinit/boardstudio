@@ -175,6 +175,62 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
+    async fn snap_dock_keeps_its_touch_target_without_legacy_classes() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+        let document = web_sys::window().unwrap().document().unwrap();
+        let stylesheet = document.create_element("style").unwrap();
+        stylesheet.set_text_content(Some(&format!(
+            "{}\n{}",
+            include_str!("../../../../assets/m1.css"),
+            include_str!("../../../../assets/tailwind.css")
+        )));
+        document.head().unwrap().append_child(&stylesheet).unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(snap_dock_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("snap trigger", || {
+            by_role_name(&root, "button", "Snap").is_some()
+        })
+        .await;
+        let trigger = by_role_name(&root, "button", "Snap").unwrap();
+        let dock = trigger.parent_element().unwrap();
+        let classes = dock.get_attribute("class").unwrap_or_default();
+        dock.set_attribute(
+            "class",
+            &classes
+                .split_whitespace()
+                .filter(|class| !class.starts_with("m1-"))
+                .collect::<Vec<_>>()
+                .join(" "),
+        )
+        .unwrap();
+        let window = web_sys::window().unwrap();
+        let button_style = window.get_computed_style(&trigger).unwrap().unwrap();
+        assert_eq!(
+            button_style.get_property_value("min-height").unwrap(),
+            "44px"
+        );
+        assert_eq!(
+            button_style.get_property_value("padding-left").unwrap(),
+            "12px"
+        );
+        assert_eq!(
+            window
+                .get_computed_style(&dock)
+                .unwrap()
+                .unwrap()
+                .get_property_value("border-top-width")
+                .unwrap(),
+            "1px"
+        );
+        stylesheet.remove();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn snap_dock_uses_the_new_disclosure_and_keeps_options_accessible() {
         use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
         let document = web_sys::window().unwrap().document().unwrap();
@@ -885,9 +941,10 @@ pub fn LayoutCommandPill(
                         .get_element_by_id("m1-layout-command-pill")
                         .is_some_and(|pill| pill.contains(Some(target)))
                         || listener_document
-                            .query_selector(".m1-layout-snap-dock")
-                            .ok()
-                            .flatten()
+                            .get_element_by_id("m1-layout-snap-trigger")
+                            .and_then(|trigger| {
+                                trigger.closest("[data-slot='collapsible']").ok().flatten()
+                            })
                             .is_some_and(|dock| dock.contains(Some(target)))
                 });
                 if !inside {
@@ -1076,7 +1133,7 @@ fn LayoutSelectionIcon(kind: LayoutSelectionKind) -> Element {
         ),
     };
     rsx! {
-        svg { class: "m1-layout-command-trigger-icon", view_box: "0 0 20 20", "aria-hidden": "true",
+        svg { class: "block size-[22px]! shrink-0 fill-none stroke-current stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]", view_box: "0 0 20 20", "aria-hidden": "true",
             rect { x, y, width, height, rx: radius }
             path { d: path }
         }
@@ -1093,10 +1150,11 @@ pub fn LayoutSnapDock(
     let mut snap_open = use_signal(|| false);
     rsx! {
         Collapsible {
-            class: "m1-layout-snap-dock",
+            class: "relative left-0 w-full min-w-0 flex-none border-t border-border bg-card p-0",
             open: Some(snap_open()), on_open_change: move |open| snap_open.set(open),
             CollapsibleTrigger {
                 id: "m1-layout-snap-trigger", aria_label: "Snap",
+                class: "flex w-full min-h-control-touch items-center justify-start gap-2 rounded-none border-0 bg-transparent px-3 py-2.5 text-left text-foreground hover:bg-accent",
                 attributes: vec![dioxus::events::onkeydown(move |event: KeyboardEvent| {
                     // Space must activate the button, not the Layout window's pan shortcut.
                     if event.key().to_string() == " " {
@@ -1104,8 +1162,8 @@ pub fn LayoutSnapDock(
                         if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
                     }
                 })],
-                svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M5 3v8a5 5 0 0 0 10 0V3h-4v7a1 1 0 0 1-2 0V3ZM5 6h4M11 6h4" } }
-                span { "Snap" } small { "{snap_label(settings.snap_fraction)}" }
+                svg { class: "size-[18px] fill-none stroke-current stroke-[1.5]", view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M5 3v8a5 5 0 0 0 10 0V3h-4v7a1 1 0 0 1-2 0V3ZM5 6h4M11 6h4" } }
+                span { "Snap" } small { class: "ml-auto text-muted-foreground", "{snap_label(settings.snap_fraction)}" }
             }
             CollapsibleContent { LayoutSnapOptions { settings, on_snap_intent } }
         }
