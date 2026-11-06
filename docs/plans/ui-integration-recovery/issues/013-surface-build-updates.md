@@ -16,6 +16,11 @@ The Decisions and original Comments remain authoritative and unchanged.
 
 - [018: Notify the editor when a build is waiting](018-notify-waiting-build.md):
   unblocked detection-to-notification slice; does not alone complete Refresh.
+- [019: Adopt the waiting build through protected Refresh](019-adopt-build-safely.md):
+  blocked by 018; complete action, work/cache safety and real adoption evidence.
+
+Both children must complete before this umbrella can close. Neither changes
+the scope or blockers of 010/011.
 
 ## What to build
 
@@ -85,3 +90,6 @@ so.
 
 - 2026-11-06: Documentation planning made this a coordination umbrella with
   specification 017. No implementation or acceptance completion is claimed.
+
+- 2026-11-06: Published children 018 (unblocked) and 019 (blocked by 018).
+  All original choices and assumptions remain; open questions are in 017.
