@@ -214,7 +214,7 @@ fn fixture() -> Element {
         output { role: "status", aria_label: "Last request", "{last}" }
         output { role: "status", aria_label: "Accepted plate thickness", "{values().plate_thickness}" }
         output { role: "status", aria_label: "Selected layer", "{selected}" }
-        div { class: "m1-inspector-body",
+        div { class: "flex-1 min-w-0 min-h-0 overflow-auto overscroll-contain bg-card max-[760px]:overflow-visible max-[760px]:overscroll-auto",
         MechanicalSettings {
             identity, request_sequence: sequence, values: Some(values()),
             profiles: Rc::from([MechanicalProfileChoice {
