@@ -17,7 +17,7 @@ neither is deferred to a separate cleanup ticket.
 
 | Ticket | Status | Blocked by | Delivers |
 | --- | --- | --- | --- |
-| [002: Diagnose MCU rotation](issues/002-diagnose-mcu-rotation.md) | needs-info | none | Actual reproduction, minimized fixture and demonstrated cause |
+| [002: Diagnose MCU rotation](issues/002-diagnose-mcu-rotation.md) | resolved | none | Actual reproduction, minimized fixture and demonstrated cause |
 | [003: Resolve the diagnosed MCU symptom](issues/003-resolve-mcu-orientation.md) | ready-for-agent | 002 | Evidence-backed correction and original-scenario verification |
 | [004: Restore placement and Relationships](issues/004-restore-placement-relationships.md) | ready-for-agent | none | Facts beside fields, navigation/highlighting and meaningful split-focus proof |
 | [005: Restore nonduplicated scope actions](issues/005-restore-scope-actions.md) | ready-for-agent | none | Matrix/Row/Column actions and guidance transitions without competing popups |
@@ -48,6 +48,10 @@ that chain open.
 - MCU rotation (A1) remains an unresolved user-observed symptom. The heading fix
   is already present; diagnosis requires a real reproduction. Source-present
   engine work is integrated but has no new browser acceptance from this plan.
+- 002 (2026-11-06): the user attributes the observed MCU orientation to a stale cached
+  build, not the integrated candidate; no defect was reproduced and no Core or renderer
+  change is indicated. A1 remains open until 003 is re-scoped. See
+  [002](issues/002-diagnose-mcu-rotation.md#answer).
 - The source recheck adds explicit requirements for a real split-focus fixture,
   closing the scope hint when selection arrives, and reload verification after
   drag/save/Undo. Existing harnesses are starting points, not completed proof.

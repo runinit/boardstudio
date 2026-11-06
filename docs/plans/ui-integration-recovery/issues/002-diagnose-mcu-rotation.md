@@ -1,6 +1,6 @@
 # 002: Diagnose MCU rotation
 
-Status: needs-info
+Status: resolved
 Type: research
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -116,3 +116,28 @@ verified outcome. Keep the original audit and parent specification unchanged.
   source). The spare server on 4291 and the browser session were stopped. The parent spec,
   audit, other checkouts and the live preview were not modified. 003 must not start from this
   ticket.
+
+- 2026-11-06 (user report, recorded by the research agent): the user opened the 026
+  live-review build served on port 4291 and reports that the orientation they saw earlier came
+  from a cached, wrong (stale) version of the app they had loaded, not from the current
+  candidate. This is the user's finding; it was **not** reproduced or inspected by an agent:
+  the stale artifact was never captured, so its build identity and whether it predates
+  `40df01155` are unknown. No stored/evaluated/rendered pose comparison of that artifact exists.
+
+## Answer
+
+The reported MCU orientation is attributed, by the user, to a stale cached build of the app,
+not to a defect in the integrated candidate. Supporting observation: a fresh mirrored pair in
+the 026 build renders `U1` and `U1_M` at `rotate(0)` with identical text matrices
+(comment of 2026-11-06 above; local log
+`.evidence/ui-integration-recovery/002-synthetic-control.log`).
+
+Not established, and left to later tickets or the user: why the stale version was served (the
+README describes a service worker for offline use and updates), exported-geometry impact (none
+inferred; no cached artifact or project was captured), and the A8 controller-heading
+documentation reconciliation, which keeps the findings in the comment above. Acceptance
+bullets 1-6 are not met as written (no red-capable reproduction exists); this ticket closes
+because its premise, a defect in the integrated build, is withdrawn by the reporter. A1 stays
+open until [003](003-resolve-mcu-orientation.md) is re-scoped by the user: it may reduce to
+the A8 documentation reconciliation and a current-build original-scenario check, and no
+Core or renderer change is indicated.
