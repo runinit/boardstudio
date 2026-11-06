@@ -382,7 +382,7 @@ pub(super) fn SelectedKeysActions() -> Element {
         });
     rsx! {
         section {
-            class: "m1-layout-component-inspector",
+            class: "grid content-start gap-3 min-w-0 px-4 pt-3 pb-5 text-foreground",
             aria_label: "Selected keys across matrices",
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == " " {
@@ -392,7 +392,7 @@ pub(super) fn SelectedKeysActions() -> Element {
                     }
                 }
             },
-            h3 { "{count} keys across {matrix_count} matrices" }
+            h3 { class: "m-0", "{count} keys across {matrix_count} matrices" }
             div {
                 Button {
                     variant: ButtonVariant::Secondary,
