@@ -1,6 +1,6 @@
 # 013: Make a stale or updated build visible to the user
 
-Status: ready-for-human
+Status: ready-for-agent
 Type: build
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -25,26 +25,32 @@ Facts at the time of writing, to re-verify during implementation:
 - It is not established that this was the cause of the user's stale version; 002
   never captured it.
 
-## Decisions needed from the user before building
+## Decisions
 
-- What should the user see: the running build's identity (version and time), an
-  "update available" prompt, or both, and where (Project menu, Settings, the
-  status area)?
-- Should adopting an update be a reload the user chooses, with a warning when
-  unsaved or pending edits exist? This keeps ADR-0022's continuity decision and
-  needs no change to it, unless the user decides otherwise.
+Answered by the user on 2026-11-06: show an **"Update Available" notification with
+a refresh button**. Not answered, so these are the working assumptions; the user
+can overrule any of them:
+
+- The notification appears when a newer worker is installed and waiting. It does
+  not interrupt editing and uses the existing Toast pattern, persisting until
+  dismissed or adopted.
+- The refresh button reloads the app to adopt the update. If a save is pending or
+  an edit is unsaved, the user is told before the reload and can cancel, so
+  nothing is lost (this is what keeps ADR-0022's continuity decision intact).
+- Showing the running build's identity (version and time) is a small addition,
+  not requested; include it only where it is nearly free, for example in the
+  notification text, and say so in the ticket.
 
 ## Acceptance criteria
 
-- [ ] The user's answers to the decisions above are recorded here.
-- [ ] A user can read the running build's identity from the interface, and it
-  matches the release manifest version served.
+- [ ] The notification and its refresh button behave as in Decisions; any
+  working assumption the implementation changes is recorded here.
 - [ ] When a newer worker is installed and waiting, the interface says so without
   interrupting editing, and offers a way to adopt it. Adopting never discards
   pending edits or breaks an open editor's assets (ADR-0022).
 - [ ] RED/GREEN evidence at the real boundary: a mounted or packaged-browser
   scenario that serves an old build, then a new one, and asserts the waiting-update
-  signal and the adopted identity. Source presence or a changed label is not
+  notification, the refresh action and that the new build is then running. Source presence or a changed label is not
   evidence.
 - [ ] Reduced-motion and keyboard access for the new control, using the shared
   controls and the existing Toast or status patterns where they fit.
@@ -62,3 +68,6 @@ so.
 
 - 2026-11-06: Added at the user's request ("we should add this feature") after
   002 closed on a stale cached build.
+- 2026-11-06: The user chose an "Update Available" notification with a refresh
+  button. Status moved from `ready-for-human` to `ready-for-agent`; the pending-edits
+  behavior and build identity are working assumptions, listed under Decisions.
