@@ -14,6 +14,9 @@ choices into source-grounded behavior and test requirements. Child completion
 does not close this umbrella until every acceptance criterion below has evidence.
 The Decisions and original Comments remain authoritative and unchanged.
 
+- [018: Notify the editor when a build is waiting](018-notify-waiting-build.md):
+  unblocked detection-to-notification slice; does not alone complete Refresh.
+
 ## What to build
 
 Let a user tell which build they are running and learn that a newer one is
