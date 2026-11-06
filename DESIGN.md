@@ -84,12 +84,11 @@ shared between Themes. First-paint timing has not been verified.
 
 - **Primary action:** `primary` marks primary actions, paired with
   `primary-foreground`; hover treatments retain that pairing.
-- **Selection surface:** `selected` and `selected-foreground` mark the header
-  workspace and some catalog rows; shadcn aliases them to its quiet `accent`.
+- **Selection surface:** `selected` and `selected-foreground` mark selected
+  workspaces, catalog and tree rows, and objects; shadcn aliases them to its quiet `accent`.
   The default Toggle Group uses a `background` fill for its active item. Focus
   keeps a Theme-colored ring. The separate `selection` and
-  `selection-foreground` roles style text highlights (orange in shadcn), but
-  some existing tree rows, setup controls and 2D geometry also use them. Input
+  `selection-foreground` roles style text highlights (orange in shadcn). Input
   and Combobox text highlights use `primary` instead.
 
 ### Secondary
