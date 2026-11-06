@@ -7,18 +7,17 @@ pub use boardstudio_web_catalogue::bundled::{
     prepare_physical_setup_proposal, prepare_physical_setup_resources, reversible_layout,
 };
 use boardstudio_web_catalogue::catalogue;
+use boardstudio_web_ui_shared::choice_field::ChoiceField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonSize, ButtonVariant},
     callout::Callout,
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
-    combobox::{Combobox, ComboboxOption},
-    field::{Field, FieldLabel},
+    field::Field,
     input::InputType,
     input_group::{InputGroup, InputGroupInput},
     item::{Item, ItemGroup, ItemSize},
     label::Label,
-    select::{Select, SelectOption},
     spinner::Spinner,
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
 };
@@ -75,36 +74,9 @@ fn PartsChoiceField(
     #[props(default)] disabled: bool,
     on_value_change: EventHandler<String>,
 ) -> Element {
-    let id = format!("parts-choice-{}", dioxus::core::current_scope_id().0);
-    let current = use_memo(use_reactive((&value,), |(value,)| Some(value)));
-    let choose = move |next: Option<String>| {
-        if let Some(next) = next {
-            on_value_change.call(next);
-        }
-    };
     rsx! {
-        Field {
-            if options.len() > 12 {
-                Label { class: "flex-col items-stretch gap-3", "{label}"
-                Combobox::<String> {
-                    class: "max-[960px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch",
-                    aria_label: aria_label.clone(), list_aria_label: aria_label,
-                    value: Some(current.into()), disabled, on_value_change: choose,
-                    for (index, (value, text)) in options.into_iter().enumerate() {
-                        ComboboxOption::<String> { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index, value, text_value: text.clone(), "{text}" }
-                    }
-                } }
-            } else {
-                FieldLabel { html_for: id.clone(), "{label}" }
-                Select::<String> {
-                    class: "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch",
-                    id, aria_label, value: Some(current.into()), disabled,
-                    on_value_change: choose,
-                    for (index, (value, text)) in options.into_iter().enumerate() {
-                        SelectOption::<String> { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index, value, text_value: text.clone(), "{text}" }
-                    }
-                }
-            }
+        ChoiceField { label, value, options, aria_label: Some(aria_label), disabled,
+            on_value_change: move |next: Option<String>| if let Some(next) = next { on_value_change.call(next) },
         }
     }
 }

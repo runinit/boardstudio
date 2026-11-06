@@ -28,6 +28,8 @@ pub mod canvas_layers;
 #[cfg(target_arch = "wasm32")]
 pub mod canvas_navigation;
 #[cfg(target_arch = "wasm32")]
+pub mod choice_field;
+#[cfg(target_arch = "wasm32")]
 pub mod footprint_graphics;
 #[cfg(target_arch = "wasm32")]
 pub mod geometry_scripts;

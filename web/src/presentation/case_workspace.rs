@@ -13,16 +13,15 @@ use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{Event, ReadModel, Scope, SelectionMode, SnapshotToken};
 use boardstudio_core::model::{MechanicalGasketSupport, ProjectDoc};
 pub(super) use boardstudio_web_case::case_selection::{SelectedPartSummary, selected_part_summary};
+use boardstudio_web_ui_shared::choice_field::{ChoiceField, ChoiceFieldLayout};
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonSize, ButtonVariant},
     callout::Callout,
     checkbox::{Checkbox, CheckboxState},
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
-    combobox::{Combobox, ComboboxOption},
     field::{Field, FieldLabel},
     icons::ChevronDown,
     label::Label,
-    select::{Select, SelectOption},
     toggle_group::{ToggleGroup, ToggleItem},
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
 };
@@ -1010,32 +1009,9 @@ fn CaseInspectorSelect(
     #[props(default)] disabled: bool,
     on_change: EventHandler<Option<String>>,
 ) -> Element {
-    let id = format!(
-        "case-inspector-select-{}",
-        dioxus::core::current_scope_id().0
-    );
-    let selected = use_memo(move || Some(value.clone()));
-    if options.len() <= 12 {
-        return rsx! {
-            Field { class: "gap-1.5", disabled,
-                FieldLabel { html_for: id.clone(), "{label}" }
-                Select::<String> { class: "max-[760px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch", id, aria_label: label, value: Some(selected.into()), disabled, on_value_change: on_change,
-                    for (index, (value, name)) in options.iter().enumerate() {
-                        SelectOption::<String> { key: "{value}", index, value: value.clone(), text_value: name.clone(), "{name}" }
-                    }
-                }
-            }
-        };
-    }
-    let name = label.clone();
     rsx! {
-        Field { class: "gap-1.5", disabled,
-            FieldLabel { "{label}" }
-            Combobox::<String> { class: "max-[760px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch", aria_label: name.clone(), list_aria_label: name, placeholder: label.clone(), disabled, value: Some(selected.into()), on_value_change: on_change,
-                for (index, (value, name)) in options.iter().enumerate() {
-                    ComboboxOption::<String> { key: "{value}", index, value: value.clone(), text_value: name.clone(), "{name}" }
-                }
-            }
+        ChoiceField { label, value, options, disabled, layout: ChoiceFieldLayout::StackedNarrow,
+            on_value_change: on_change,
         }
     }
 }

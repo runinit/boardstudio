@@ -5,12 +5,11 @@
 //! these helpers only own the label/input/error structure. An explicit
 //! `aria_label` owns the accessible name (existing tests address fields by it);
 //! otherwise the visible label names the field through `label[for]`.
+use boardstudio_web_ui_shared::choice_field::{ChoiceField, ChoiceFieldLayout};
 use boardstudio_web_ui_shared::ui::{
-    combobox::{Combobox, ComboboxOption},
     field::{Field, FieldError, FieldLabel},
     input::InputType,
     input_group::{InputGroup, InputGroupInput},
-    label::Label,
     select::{Select, SelectOption},
 };
 use dioxus::prelude::*;
@@ -203,43 +202,9 @@ pub(crate) fn EditorChoiceField(
     #[props(default)] disabled: bool,
     on_select: EventHandler<String>,
 ) -> Element {
-    let id = editor_field_id("parts-editor-choice");
-    let current = use_memo(use_reactive((&value,), |(value,)| Some(value)));
-    let name = aria_label.unwrap_or_else(|| label.clone());
-    let choose = move |next: Option<String>| {
-        if let Some(next) = next {
-            on_select.call(next);
-        }
-    };
     rsx! {
-        if options.len() > 12 {
-            Field {
-                Label { class: "flex-col items-stretch gap-3", "{label}"
-                Combobox::<String> {
-                    class: "max-[960px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch",
-                    aria_label: name.clone(), list_aria_label: name,
-                    value: Some(current.into()), disabled,
-                    on_value_change: choose,
-                    for (index, (option_value, option_text)) in options.into_iter().enumerate() {
-                        ComboboxOption::<String> { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index, value: option_value, text_value: option_text.clone(), "{option_text}" }
-                    }
-                } }
-            }
-        } else {
-            Field { class: "gap-1.5", disabled,
-                FieldLabel { html_for: id.clone(), "{label}" }
-                Select::<String> {
-                    class: "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch",
-                    id: id.clone(),
-                    aria_label: name,
-                    value: Some(current.into()),
-                    disabled,
-                    on_value_change: choose,
-                    for (index, (option_value, option_text)) in options.into_iter().enumerate() {
-                        SelectOption::<String> { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index, value: option_value, text_value: option_text.clone(), "{option_text}" }
-                    }
-                }
-            }
+        ChoiceField { label, value, options, aria_label, disabled, layout: ChoiceFieldLayout::WrappedTight,
+            on_value_change: move |next: Option<String>| if let Some(next) = next { on_select.call(next) },
         }
     }
 }
