@@ -41,7 +41,8 @@ or 011 unless the user says so.
 | Ticket | Status | Blocked by | Delivers |
 | --- | --- | --- | --- |
 | [012: Review the mirrored-heading ADRs](issues/012-review-mirrored-heading-adrs.md) | resolved | none | ADR-0010 amended with one heading table and the controller rule; ADR-0039 pointer; Core unchanged (carries the A8 controller-heading item) |
-| [013: Make a stale or updated build visible](issues/013-surface-build-updates.md) | ready-for-agent | none | "Update Available" notification with a refresh button, within ADR-0022 |
+| [013: Make a stale or updated build visible](issues/013-surface-build-updates.md) | ready-for-agent | none for coordination | Umbrella for specification 017 and implementation children; retains the user decisions |
+| [017: Build update notification specification](issues/017-build-update-spec.md) | ready-for-agent | none for planning | Source-grounded behavior, test seams, assumptions and open questions for 013 |
 | [014: Correct controller heading comments](issues/014-correct-controller-heading-comments.md) | resolved | none | Describe plain reflection accurately without changing Core behavior |
 | [015: Decide headings for other y-symmetric parts](issues/015-decide-y-symmetric-part-headings.md) | ready-for-human | none | User decision for screens, encoders and other y-symmetric parts |
 | [016: Audit ADR decisions](issues/016-audit-adr-decisions.md) | claimed | none | Bounded source review of each indexed ADR primary decision |

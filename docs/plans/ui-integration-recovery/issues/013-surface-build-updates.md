@@ -1,10 +1,18 @@
 # 013: Make a stale or updated build visible to the user
 
 Status: ready-for-agent
-Type: build
-Blocked by: none
+Type: umbrella
+Blocked by: none for coordination; completion requires implementation children
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
 Related: [Plan map](../map.md), [002: Diagnose MCU rotation](002-diagnose-mcu-rotation.md), [ADR-0022](../../../adr/0022-static-local-first-rust-application-with-worker-execution.md)
+
+## Delivery structure
+
+This remains the decision-owning umbrella, not a second implementation claim.
+[017: Build update specification](017-build-update-spec.md) expands the recorded
+choices into source-grounded behavior and test requirements. Child completion
+does not close this umbrella until every acceptance criterion below has evidence.
+The Decisions and original Comments remain authoritative and unchanged.
 
 ## What to build
 
@@ -71,3 +79,6 @@ so.
 - 2026-11-06: The user chose an "Update Available" notification with a refresh
   button. Status moved from `ready-for-human` to `ready-for-agent`; the pending-edits
   behavior and build identity are working assumptions, listed under Decisions.
+
+- 2026-11-06: Documentation planning made this a coordination umbrella with
+  specification 017. No implementation or acceptance completion is claimed.
