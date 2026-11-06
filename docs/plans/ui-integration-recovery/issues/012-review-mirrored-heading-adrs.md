@@ -28,6 +28,29 @@ Known starting facts, each to be re-verified rather than trusted:
 - ADR-0039 says the partner takes "`-x`, mirrored heading" and does not name the
   controller exception either.
 
+## Decision so far (user, 2026-11-06)
+
+Asked whether a controller at 90 or 270 degrees is mirrored as well, the user
+answered yes. Read as "a controller at 90 or 270 takes the ordinary mirrored
+heading", that answer conflicts with Core as shipped. Headings in degrees, for a
+mirror across the vertical axis:
+
+| Source `r` | Geometric mirror `180 - r` (ADR-0010 general rule) | Core controller `-r` | World heading `r` |
+| --- | --- | --- | --- |
+| 0 | 180 | 0 | 0 |
+| 90 | 90 | **270** | 90 |
+| 180 | 0 | 180 | 180 |
+| 270 | 270 | **90** | 270 |
+
+At 0 and 180 the controller exception deliberately keeps both halves on one
+heading (for example both MCUs pin-1 up). At 90 and 270 the geometric mirror and
+the world heading coincide, so the user's answer and "keep the world heading"
+agree there, and Core's `-r` turns the mirror 180 degrees away from both. The
+unit test at `core/src/mechanical/pair.rs:292` pins `-r` at all four headings.
+The single rule that satisfies the exception at 0/180 and the answer at 90/270
+is "a controller keeps its source heading `r`". This has not been run in the app
+and the interpretation is unconfirmed; no code was changed.
+
 ## Acceptance criteria
 
 - [ ] Read each ADR that states a mirrored-part or controller heading rule
@@ -58,3 +81,6 @@ the user approves them; if approved here, record them in a comment.
 
 - 2026-11-06: Added at the user's request after reviewing the 002 hand-off:
   "i dont think the ADRs were updated correctly".
+- 2026-11-06: The user answered "yes" to whether a controller at 90 and 270
+  degrees is mirrored as well. The consequence above (Core's `-r` differs from it
+  at 90 and 270) is for the user to confirm before any fix ticket exists.
