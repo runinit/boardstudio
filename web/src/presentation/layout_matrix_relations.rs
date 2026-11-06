@@ -36,10 +36,10 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
     let Some(relations) = props.relations.as_ref() else {
         return rsx! {
             section {
-                class: "m1-layout-component-inspector",
+                class: "grid min-w-0 content-start gap-3 px-4 pt-3 pb-5 text-foreground [&_h2]:m-0 [&_h3]:m-0 [&_p]:m-0",
                 aria_labelledby: "m1-relations-heading",
                 h2 { id: "m1-relations-heading", "Relationships" }
-                p { class: "m1-layout-component-relation-summary",
+                p { class: "text-xs leading-normal",
                     "This selection is no longer available."
                 }
             }
@@ -47,7 +47,7 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
     };
     rsx! {
         section {
-            class: "m1-layout-component-inspector",
+            class: "grid min-w-0 content-start gap-3 px-4 pt-3 pb-5 text-foreground [&_h2]:m-0 [&_h3]:m-0 [&_p]:m-0",
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == " " {
                     event.stop_propagation();
@@ -105,7 +105,7 @@ fn StructureRow(item: RelationItem, on_navigate: EventHandler<objects::TreeConte
     rsx! {
         li { "data-relation-label": "{item.label}",
             Item { class: "p-0",
-                span { class: "m1-layout-component-matrix-note", "{item.label}" }
+                span { class: "text-xs leading-[1.45] text-muted-foreground", "{item.label}" }
                 " "
                 if let Some(target) = item.target.clone() {
                     RelationReference {
@@ -132,7 +132,7 @@ fn DepartureRow(
         li {
             "data-relation-departure": "{departure.parameter}",
             Item { class: "p-0",
-                span { class: "m1-layout-component-matrix-note", "{departure.parameter}" }
+                span { class: "text-xs leading-[1.45] text-muted-foreground", "{departure.parameter}" }
                 " "
                 if let Some(target) = departure.target.clone() {
                     RelationReference {
@@ -223,7 +223,7 @@ fn ConstraintRow(
         li {
             "data-relation-constraint": "{constraint.id}",
             Item { class: "p-0",
-                span { class: "m1-layout-component-matrix-note", "{kind}" }
+                span { class: "text-xs leading-[1.45] text-muted-foreground", "{kind}" }
                 " "
                 ReferenceButton {
                     reference: constraint.source.clone(),
@@ -353,14 +353,17 @@ pub(super) fn RelationMatrixKey(
     on_pointer_down: EventHandler<PointerEvent>,
 ) -> Element {
     let RelationHighlight(highlight) = use_context::<RelationHighlight>();
-    let highlighted = part_id.as_ref().is_some_and(|id| {
-        highlight()
-            .as_ref()
-            .is_some_and(|part_ids| part_ids.contains(id))
-    });
+    let highlighted = !selected
+        && part_id.as_ref().is_some_and(|id| {
+            highlight()
+                .as_ref()
+                .is_some_and(|part_ids| part_ids.contains(id))
+        });
     rsx! {
         rect {
-            class: if selected { "m1-matrix-key is-selected" } else if highlighted { "m1-matrix-key is-relation-highlight" } else { "m1-matrix-key" },
+            class: if selected { "pointer-events-none fill-selection stroke-primary stroke-[0.42]" } else if highlighted { "pointer-events-none fill-geometry-fill-muted/55 stroke-geometry-part stroke-[0.42] [stroke-dasharray:1.2_0.8]" } else { "pointer-events-none fill-geometry-fill-muted/55 stroke-geometry-outline stroke-[0.28]" },
+            "data-selected": "{selected}",
+            "data-relation-highlight": "{highlighted}",
             x: "{x}",
             y: "{y}",
             width: "{width}",
@@ -378,13 +381,16 @@ pub(super) fn RelationMatrixKey(
 #[component]
 pub(super) fn RelationPartOutline(part_id: String, selected: bool, points: String) -> Element {
     let RelationHighlight(highlight) = use_context::<RelationHighlight>();
-    let highlighted = highlight()
-        .as_ref()
-        .is_some_and(|part_ids| part_ids.contains(&part_id));
+    let highlighted = !selected
+        && highlight()
+            .as_ref()
+            .is_some_and(|part_ids| part_ids.contains(&part_id));
     rsx! {
         polygon {
             points: "{points}",
-            class: if selected { "m1-part selected" } else if highlighted { "m1-part is-relation-highlight" } else { "m1-part" },
+            class: if selected { "cursor-grab fill-selection stroke-primary stroke-[0.8]" } else if highlighted { "cursor-grab fill-geometry-body stroke-geometry-part stroke-[0.8] [stroke-dasharray:1.2_0.8]" } else { "cursor-grab fill-geometry-body stroke-geometry-part stroke-[0.4]" },
+            "data-geometry": "part-outline",
+            "data-relation-highlight": "{highlighted}",
         }
     }
 }

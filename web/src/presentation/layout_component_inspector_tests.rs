@@ -1675,7 +1675,7 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
             .document()
             .unwrap()
             .query_selector(&format!(
-                "#{} .m1-layout-component-inspector",
+                "#{} [aria-label='Component inspector']",
                 probe.root_id
             ))
             .unwrap()
@@ -1709,7 +1709,7 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
             .document()
             .unwrap()
             .query_selector(&format!(
-                "#{} .m1-layout-component-inspector",
+                "#{} [aria-label='Component inspector']",
                 probe.root_id
             ))
             .unwrap()

@@ -1189,7 +1189,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
 
     rsx! {
                 section {
-                    class: "m1-layout-component-inspector",
+                    class: "grid min-w-0 content-start gap-3 px-4 pt-3 pb-5 text-foreground [&_h2]:m-0 [&_h3]:m-0 [&_p]:m-0 [&_fieldset_small]:text-[11px] [&_fieldset_small]:leading-[1.45] [&_fieldset_small]:text-muted-foreground",
                     aria_label: "Component inspector",
                 onkeydown: move |event: KeyboardEvent| {
                     if event.key().to_string() == " " {
@@ -1199,10 +1199,10 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                         }
                     }
                 },
-                    header { class: "m1-layout-component-inspector-heading",
+                    header { class: "flex items-start justify-between gap-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:[overflow-wrap:anywhere]",
                         h2 { "{projection.reference}" }
                         if projection.locked {
-                            span { class: "m1-inspector-lock", "Locked" }
+                            span { class: "flex-none rounded-[9px] border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground", "Locked" }
                         }
                     }
                     Tabs { horizontal: true,
@@ -1226,12 +1226,12 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                     "{projection.selection_count} parts selected. Position edits apply to the selection."
                                 }
                             } else {
-                                p { class: "m1-layout-component-definition",
+                                p { class: "grid min-w-0 grid-cols-[1fr_auto] items-baseline gap-[5px] text-[13px] text-foreground [&_span]:text-xs [&_span]:leading-[1.45] [&_span]:text-muted-foreground",
                                     "{projection.definition_name}"
                                     span { "{projection.definition_kind}" }
                                 }
                                 if let Some(notice) = projection.envelope_notice.as_ref() {
-                                    Callout { class: "m1-layout-component-notice", variant: CalloutVariant::Info, "{notice}" }
+                                    Callout { class: "text-xs leading-[1.45] text-muted-foreground", variant: CalloutVariant::Info, "{notice}" }
                                 }
                             }
                             if let Some(mirrored_half) = projection.mirrored_half.as_ref() {
@@ -1363,11 +1363,11 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                     }
                                 }
                             }
-                            h3 { class: "m1-layout-component-subtitle",
+                            h3 { class: "flex items-baseline justify-between text-[13px] [&_small]:text-[11px] [&_small]:font-normal [&_small]:text-muted-foreground",
                                 "Position"
                                 small { "millimetres" }
                             }
-                            div { class: "m1-layout-component-position",
+                            div { class: "grid grid-cols-2 gap-2",
                                 {
                                     let control_input_id = format!(
                                         "layout-input-{}-10",
@@ -1425,7 +1425,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                             }
                             if !group_selection {
                                 Collapsible {
-                                    class: "m1-layout-component-outline",
+                                    class: "[&_fieldset]:grid [&_fieldset]:min-w-0 [&_fieldset]:gap-[9px] [&_fieldset]:border-0 [&_fieldset]:px-0 [&_fieldset]:pt-0 [&_fieldset]:pb-3",
                                     keep_mounted: true,
                                     open: Some(outline_section_open()),
                                     on_open_change: move |next| outline_section_open.set(next),
@@ -1610,7 +1610,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                     }
                                 }
                                 Collapsible {
-                                    class: "m1-layout-component-constraint",
+                                    class: "grid gap-2.5 [&>label]:grid [&>label]:gap-[5px]",
                                     keep_mounted: true,
                                     open: Some(constraint_open()),
                                     on_open_change: move |next| constraint_open.set(next),
@@ -1788,7 +1788,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
 
                                                     }
                                                 }
-                                                div { class: "m1-layout-component-constraint-grid",
+                                                div { class: "grid grid-cols-2 gap-2",
                                                     {
                                                         let control_input_id = format!(
                                                             "layout-input-{}-7",
@@ -1917,7 +1917,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                                     "Footprint geometry stays unchanged. Use a handed definition where needed."
                                                 }
                                             } else {
-                                                div { class: "m1-layout-component-constraint-grid",
+                                                div { class: "grid grid-cols-2 gap-2",
                                                     {
                                                         let control_input_id = format!(
                                                             "layout-input-{}-3",
@@ -1981,11 +1981,11 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                                 }
                                             }
                                             if active_constraint.is_some() {
-                                                p { class: "m1-layout-component-constraint-note",
+                                                p { class: "text-[11px] leading-[1.45] text-muted-foreground",
                                                     "{constraint_source_reference} drives {constraint_target_reference}."
                                                 }
                                             }
-                                            div { class: "m1-layout-component-constraint-actions",
+                                            div { class: "flex flex-wrap gap-2 [&_button]:min-h-[34px]",
                                                 Button {
                                                     variant: ButtonVariant::Secondary,
                                                     button_type: "button",
@@ -2021,7 +2021,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                 FieldError {  "{message}"  }
                             }
                             Button { variant: ButtonVariant::Secondary,
-    class: "m1-layout-component-electrical",
+    class: "min-h-[34px] justify-self-start text-left",
     button_type: "button",
     onclick: {
                             let latest_capture = latest_capture; let action = props.on_action;
@@ -2032,7 +2032,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                         }
                         TabsContent { index: 1usize, value: "relations",
                             h2 { "Relationships" }
-                            p { class: "m1-layout-component-relation-summary",
+                            p { class: "text-xs leading-normal",
                                 "{projection.relationship_summary}"
                             }
                             Button {
@@ -2041,7 +2041,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                 onclick: move |_| tab.set(LayoutInspectorTab::Properties),
                                 "Go to Properties"
                             }
-                            p { class: "m1-layout-component-matrix-note",
+                            p { class: "text-xs leading-[1.45] text-muted-foreground",
                                 "Matrix rows and columns share pitch, stagger and splay. Edit those in Properties."
                             }
                         }

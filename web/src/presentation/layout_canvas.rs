@@ -377,8 +377,9 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                     if layer_visible || show_keycap.is_some() {
                         g {
                             key: "{part.id}",
-                            class: "m1-scene-part",
+                            class: "cursor-grab",
                             transform: "translate({pose.at.x},{pose.at.y}) rotate({pose.rotation}) {side_transform}",
+                            "data-geometry": "scene-part",
                             "data-part-id": "{part.id}",
                             onpointerdown: move |event: PointerEvent| {
                                 on_pointer_down.call(PartPointerDown { event, part_id: part_id.clone() });
@@ -449,9 +450,9 @@ fn PartContents(
                         rsx! {
                             g { transform: "translate({pad.at.x} {pad.at.y}) rotate({pad.rotation.unwrap_or(0.0)})",
                                 if pad.plated != Some(false) {
-                                    rect { class: "m1-part-pad", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}", rx: "{rx}" }
+                                    rect { class: "fill-geometry-part stroke-none", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}", rx: "{rx}" }
                                 }
-                                if let Some(drill) = pad.drill { circle { class: "m1-part-drill", r: "{drill / 2.0}" } }
+                                if let Some(drill) = pad.drill { circle { class: "fill-canvas stroke-geometry-outline stroke-[0.1]", r: "{drill / 2.0}" } }
                             }
                         }
                     }
@@ -462,16 +463,16 @@ fn PartContents(
             {
                 let inset = 1.5_f64.min(size.x / 6.0).min(size.y / 6.0);
                 rsx! {
-                    g { class: if selected { "m1-keycap-overlay is-selected" } else { "m1-keycap-overlay" }, "aria-hidden": "true",
+                    g { class: if selected { "pointer-events-none [&_rect]:fill-selection [&_rect]:stroke-primary [&_rect]:[stroke-width:0.22] [&_rect]:[fill-opacity:0.75]" } else { "pointer-events-none [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-outline [&_rect]:[stroke-width:0.22] [&_rect]:[fill-opacity:0.75]" }, "aria-hidden": "true", "data-geometry": "keycap", "data-selected": "{selected}",
                         rect { x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9" }
-                        rect { class: "m1-keycap-top", x: "{-size.x / 2.0 + inset}", y: "{-size.y / 2.0 + inset}", width: "{size.x - inset * 2.0}", height: "{size.y - inset * 2.0}", rx: "0.7" }
+                        rect { class: "[fill-opacity:0.25]! [stroke-width:0.14]!", x: "{-size.x / 2.0 + inset}", y: "{-size.y / 2.0 + inset}", width: "{size.x - inset * 2.0}", height: "{size.y - inset * 2.0}", rx: "0.7" }
                     }
-                    rect { class: "m1-part-hit-area", x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}" }
+                    rect { class: "cursor-grab fill-transparent stroke-none [pointer-events:all]", "data-geometry": "part-hit-area", x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}" }
                 }
             }
         }
         if layer_visible && show_keycap.is_none() {
-            text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{part.reference}" }
+            text { transform: "scale(1,-1)", text_anchor: "middle", class: "pointer-events-none fill-geometry-label font-mono text-[1.8px]", x: "0", y: "-5.2", "{part.reference}" }
         }
     }
 }
@@ -644,7 +645,7 @@ mod tests {
             .unwrap()
             .dyn_into::<web_sys::Event>()
             .unwrap();
-        root.query_selector(".m1-part-hit-area")
+        root.query_selector("[data-geometry='part-hit-area']")
             .unwrap()
             .unwrap()
             .dispatch_event(&pointer)
@@ -662,7 +663,7 @@ mod tests {
         click("#canvas-highlight");
         gloo_timers::future::TimeoutFuture::new(5).await;
         assert!(
-            root.query_selector(".m1-part.is-relation-highlight")
+            root.query_selector("[data-geometry='part-outline'][data-relation-highlight='true']")
                 .unwrap()
                 .is_some()
         );
@@ -680,7 +681,7 @@ mod tests {
             "pose-only previews must not rebuild unchanged part graphics"
         );
         assert_eq!(
-            root.query_selector(".m1-scene-part")
+            root.query_selector("[data-geometry='scene-part']")
                 .unwrap()
                 .unwrap()
                 .get_attribute("transform")
@@ -690,14 +691,14 @@ mod tests {
         click("#canvas-select");
         gloo_timers::future::TimeoutFuture::new(5).await;
         assert!(
-            root.query_selector(".m1-keycap-overlay.is-selected")
+            root.query_selector("[data-geometry='keycap'][data-selected='true']")
                 .unwrap()
                 .is_some()
         );
         click("#canvas-accepted");
         gloo_timers::future::TimeoutFuture::new(5).await;
         assert_eq!(
-            root.query_selector(".m1-part-hit-area")
+            root.query_selector("[data-geometry='part-hit-area']")
                 .unwrap()
                 .unwrap()
                 .get_attribute("width")
@@ -707,7 +708,11 @@ mod tests {
         );
         click("#canvas-hide");
         gloo_timers::future::TimeoutFuture::new(5).await;
-        assert!(root.query_selector(".m1-scene-part").unwrap().is_none());
+        assert!(
+            root.query_selector("[data-geometry='scene-part']")
+                .unwrap()
+                .is_none()
+        );
         root.remove();
     }
 
