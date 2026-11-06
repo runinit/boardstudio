@@ -86,7 +86,7 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
                         key: "outline-{index}",
                         "data-layer": "Edge.Cuts",
                         points: points(&contour.points),
-                        class: if contour.hole { "m1-outline is-hole" } else { "m1-outline" },
+                        class: if contour.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" },
                     }
                 }
             }
@@ -122,7 +122,7 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
                     rsx! {
                         g {
                             key: "part-{part_id}",
-                            class: if selected { "m1-scene-part is-selected" } else { "m1-scene-part" },
+                            class: "cursor-grab",
                             style: "cursor: pointer",
                             transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation}) {side_transform}",
                             role: "button",
@@ -185,7 +185,7 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
                                 });
                             },
                             if !courtyard.is_empty() && !hidden_layers.contains("Courtyards") {
-                                polygon { points: "{courtyard}", "data-layer": "Courtyards", class: if selected { "m1-part selected" } else { "m1-part" } }
+                                polygon { points: "{courtyard}", "data-layer": "Courtyards", class: if selected { "fill-selected stroke-primary stroke-[0.8] cursor-grab" } else { "fill-geometry-body stroke-geometry-part stroke-[0.4] cursor-grab" } }
                             }
                             if let Some(definition) = definition {
                                 if definition.generator.is_some() {
@@ -221,7 +221,7 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
                                                     }
                                                 }
                                                 if let Some(drill) = drill.filter(|_| !hidden_layers.contains("Holes")) {
-                                                    circle { class: "m1-part-drill", "data-layer": "Holes", r: "{drill / 2.0}" }
+                                                    circle { class: "fill-canvas stroke-geometry-outline stroke-[0.1]", "data-layer": "Holes", r: "{drill / 2.0}" }
                                                 }
                                             }
                                         }
@@ -229,10 +229,10 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
                                 }
                             }
                             if !hidden_layers.contains("References") {
-                                text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", "data-layer": "References", x: "0", y: "-5.2", "{reference}" }
+                                text { transform: "scale(1,-1)", text_anchor: "middle", class: "font-mono text-[1.8px] fill-geometry-label pointer-events-none", "data-layer": "References", x: "0", y: "-5.2", "{reference}" }
                             }
                             rect {
-                                class: "m1-part-hit-area",
+                                class: "fill-transparent stroke-none [pointer-events:all] cursor-grab",
                                 style: "cursor: pointer",
                                 x: "{hit_bounds.0}",
                                 y: "{hit_bounds.1}",
