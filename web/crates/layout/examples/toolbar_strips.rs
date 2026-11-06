@@ -23,6 +23,7 @@ fn fixture() -> Element {
         pointer_tools_visible: true,
         pointer_tools_available: has_selection(),
         active_tool: tool(),
+        matrix_rotate_followed: None,
         on_selection_kind: EventHandler::new(move |next| kind.set(next)),
         on_show_properties: EventHandler::new(move |()| properties += 1),
         on_transform_tool: EventHandler::new(move |next| {
