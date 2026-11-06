@@ -44,9 +44,11 @@ or 011 unless the user says so.
 | [013: Make a stale or updated build visible](issues/013-surface-build-updates.md) | ready-for-agent | none | "Update Available" notification with a refresh button, within ADR-0022 |
 | [014: Correct controller heading comments](issues/014-correct-controller-heading-comments.md) | resolved | none | Describe plain reflection accurately without changing Core behavior |
 | [015: Decide headings for other y-symmetric parts](issues/015-decide-y-symmetric-part-headings.md) | ready-for-human | none | User decision for screens, encoders and other y-symmetric parts |
-| [016: Audit ADR decisions](issues/016-audit-adr-decisions.md) | ready-for-agent | none | Bounded source review of each indexed ADR primary decision |
+| [016: Audit ADR decisions](issues/016-audit-adr-decisions.md) | claimed | none | Bounded source review of each indexed ADR primary decision |
 
 ## Evidence and decisions
+
+- 014: Controller comments now describe plain reflection; focused checks passed. See [014](issues/014-correct-controller-heading-comments.md#answer).
 
 - Preserve the [2026-11-06 integration audit](../../research/2026-11-06-dev-ui-integration-audit.md)
   unchanged with this plan. Its findings A1–A8 retain their identifiers.
