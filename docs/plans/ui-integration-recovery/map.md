@@ -33,6 +33,16 @@ Dependencies cover 008 through 009. 002 is resolved and 003 is `wontfix`
 wait on MCU work. Coordinate overlapping shared-file changes without inventing a
 blocking edge.
 
+## Added after the accepted breakdown
+
+The user added these on 2026-11-06 after 002 and 003 closed. Neither blocks 010
+or 011 unless the user says so.
+
+| Ticket | Status | Blocked by | Delivers |
+| --- | --- | --- | --- |
+| [012: Review the mirrored-heading ADRs](issues/012-review-mirrored-heading-adrs.md) | ready-for-agent | none | Per-statement check of ADR-0010/0039 against Core; decisions and proposed amendments (carries the A8 controller-heading item) |
+| [013: Make a stale or updated build visible](issues/013-surface-build-updates.md) | ready-for-human | none | Visible build identity and waiting-update signal, within ADR-0022 |
+
 ## Evidence and decisions
 
 - Preserve the [2026-11-06 integration audit](../../research/2026-11-06-dev-ui-integration-audit.md)
