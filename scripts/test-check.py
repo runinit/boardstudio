@@ -39,6 +39,7 @@ class CheckTests(unittest.TestCase):
         delegated = {"scripts/test-drag-interactions.cjs": "scripts/run-drag-browser.py"}
         opt_in = {
             "scripts/test-case-rest.py": "Case workspace journey against a checked server, with visual captures",
+            "scripts/test-keymap-layer-tabs.py": "trusted keyboard activation against a checked server",
             "scripts/test-library-export.py": "ticket 023 role/name workflow against a checked server with a coarse pointer",
             "scripts/test-graphite-feedback.cjs": "interactive Graphite acceptance against a running dev server",
             "scripts/test-graphite-usability.cjs": "compatibility entry point for Graphite acceptance",
