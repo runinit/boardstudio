@@ -759,7 +759,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
             .unwrap_or_default()
             + 1;
         return rsx! {
-            section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
+            section { class: "grid gap-3 [&_h3]:m-0 [&_p]:m-0 [&_label]:grid-cols-1 [&_small]:text-xs [&_small]:leading-normal [&_small]:text-muted-foreground", aria_label: "Mechanical stack settings",
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
@@ -781,7 +781,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         p { class: "text-muted-foreground text-sm leading-normal", "Fits at this position." }
                     }
                     for gasket_owner in [format!("{owner_key}:gasket:{}", support.id)] {
-                    fieldset { key: "{gasket_owner}", class: "m1-mechanical-group", disabled: !props.editable,
+                    fieldset { key: "{gasket_owner}", class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", disabled: !props.editable,
                         DimensionField {
                             identity: props.identity.clone(),
                             request_sequence,
@@ -833,7 +833,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
     }
 
     rsx! {
-        section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
+        section { class: "grid gap-3 [&_h3]:m-0 [&_p]:m-0 [&_label]:grid-cols-1 [&_small]:text-xs [&_small]:leading-normal [&_small]:text-muted-foreground", aria_label: "Mechanical stack settings",
             h2 { "Case construction" }
             if let Some(values) = props.values.as_ref().filter(|_| configuration_matches).or(props.preview_values.as_ref()) {
                 StackupPreview { values: values.clone() }
@@ -1679,7 +1679,7 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                         MechanicalFeatureState::Omitted => "removed on this half",
                     };
                     rsx! {
-                        fieldset { key: "{key}", class: "m1-mechanical-pair-row", disabled: !props.editable,
+                        fieldset { key: "{key}", class: "m-0 border-0 border-b border-border py-2", disabled: !props.editable,
                             "aria-label": "Mirrored {feature_label(row.kind).to_lowercase()}",
                             legend { "{feature_label(row.kind)} · {state}" }
                             if let Some(message) = failure {
@@ -2120,7 +2120,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
         Collapsible { keep_mounted: true, default_open: !hardware.is_empty() || !fits.is_empty(),
             CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Hardware & critical fits · {hardware.len()} hardware · {fits.len()} fits" }
             CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
-            div { class: "m1-mechanical-spec-group",
+            div { class: "mt-2.5 grid gap-2 border-t border-border pt-2.5 [&>header]:flex [&>header]:items-center [&>header]:justify-between [&>header]:gap-2",
                 header {
                     strong { "Hardware" }
                     Button {
@@ -2145,7 +2145,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                     p { class: "text-muted-foreground text-sm leading-normal", "Add a suspension or closure mount to link a fastener specification to its generated feature." }
                 }
                 for item in hardware.iter() {
-                    article { class: "m1-mechanical-spec-card", key: "{props.owner_key}:hardware:{item.id}",
+                    article { class: "grid min-w-0 gap-2 rounded-md border border-border bg-card p-2.5 [&>header]:flex [&>header]:items-center [&>header]:justify-between [&>header]:gap-2", key: "{props.owner_key}:hardware:{item.id}",
                         header {
                             strong { if item.designation.is_empty() { "Hardware item" } else { "{item.designation}" } }
                             Button {
@@ -2199,7 +2199,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                             intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field: MechanicalHardwareTextField::Thread },
                             editable: props.editable,
                         } } }
-                        div { class: "m1-mechanical-fit-points",
+                        div { class: "grid grid-cols-4 items-end gap-1.5 [@container_mechanical_(max-width:320px)]:grid-cols-2",
                             { rsx! { DimensionField {
                                 key: "{props.owner_key}:hardware:{item.id}:length",
                                 identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
@@ -2230,7 +2230,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                     }
                 }
             }
-            div { class: "m1-mechanical-spec-group",
+            div { class: "mt-2.5 grid gap-2 border-t border-border pt-2.5 [&>header]:flex [&>header]:items-center [&>header]:justify-between [&>header]:gap-2",
                 header {
                     strong { "Critical fits" }
                     Button {
@@ -2249,7 +2249,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                 }
                 p { class: "text-muted-foreground text-sm leading-normal", "Endpoints are document XY coordinates. Length is calculated from the saved endpoints." }
                 for (fit, measured_length) in fit_rows.iter() {
-                    article { class: "m1-mechanical-spec-card", key: "{props.owner_key}:fit:{fit.id}",
+                    article { class: "grid min-w-0 gap-2 rounded-md border border-border bg-card p-2.5 [&>header]:flex [&>header]:items-center [&>header]:justify-between [&>header]:gap-2", key: "{props.owner_key}:fit:{fit.id}",
                         header {
                             strong { if fit.label.is_empty() { "Fit dimension" } else { "{fit.label}" } }
                             Button {
@@ -2307,7 +2307,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                             intent: MechanicalTextIntent::CriticalFit { fit_id: fit.id.clone(), field: MechanicalCriticalFitTextField::Tolerance },
                             editable: props.editable,
                         } } }
-                        div { class: "m1-mechanical-fit-points",
+                        div { class: "grid grid-cols-4 items-end gap-1.5 [@container_mechanical_(max-width:320px)]:grid-cols-2",
                             { rsx! { DimensionField {
                                 key: "{props.owner_key}:fit:{fit.id}:from-x",
                                 identity: props.identity.clone(),
@@ -2736,7 +2736,7 @@ fn BatteryControls(props: BatteryControlsProps) -> Element {
     rsx! {
         section { aria_label: "Openings and battery",
             h3 { "Openings & battery" }
-            section { class: "m1-mechanical-group", aria_label: "Battery",
+            section { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", aria_label: "Battery",
                 h4 { "Battery" }
                 if props.values.transport == HardwareTransport::Wireless {
                     p { class: "text-muted-foreground text-sm leading-normal", "Included for wireless. Set your cell dimensions; the battery shares the space below the PCB with bottom foam." }
@@ -2763,7 +2763,7 @@ fn BatteryControls(props: BatteryControlsProps) -> Element {
                     }
                 }
                 if let Some(battery) = battery {
-                    fieldset { class: "m1-mechanical-group", disabled: !props.editable,
+                    fieldset { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", disabled: !props.editable,
                         legend { "Battery dimensions and cable · mm" }
                         DimensionField {
                             key: "{props.owner_key}:battery-width",
@@ -2882,8 +2882,8 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
         Collapsible { keep_mounted: true, default_open: false,
             CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Case openings · {openings.len()}" }
             CollapsibleContent { class: "data-[open=false]:hidden",
-            div { class: "m1-mechanical-openings",
-                div { class: "m1-mechanical-opening-title",
+            div { class: "grid min-w-0 gap-2.5",
+                div { class: "flex flex-wrap items-center justify-between gap-2",
                     strong { "Document-coordinate access openings" }
                     Button {
                         variant: ButtonVariant::Secondary,
@@ -2911,8 +2911,8 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                         let owner = owner_key.clone();
                         let opening_id = opening.id.clone();
                         rsx! {
-                            fieldset { class: "m1-mechanical-opening", key: "{owner}:opening:{opening_id}", disabled: !props.editable,
-                                div { class: "m1-mechanical-opening-title",
+                            fieldset { class: "m-0 grid min-w-0 gap-2.5 rounded-sm border border-border p-2.5", key: "{owner}:opening:{opening_id}", disabled: !props.editable,
+                                div { class: "flex flex-wrap items-center justify-between gap-2",
                                     strong { "Volume {opening_index + 1}" }
                                     Button {
                                         variant: ButtonVariant::Secondary,
@@ -2927,7 +2927,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                         "Remove"
                                     }
                                 }
-                                div { class: "m1-mechanical-opening-fields",
+                                div { class: "grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2.5",
                                     { rsx! { DimensionField {
                                         key: "{owner}:opening:{opening_id}:bottom-z",
                                         identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
@@ -2945,7 +2945,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                 }
                                 h4 { "XY footprint" }
                                 for (point_index, vertex) in opening.vertices.iter().enumerate() {
-                                    div { class: "m1-mechanical-opening-vertex",
+                                    div { class: "grid grid-cols-[72px_repeat(2,minmax(0,1fr))] items-end gap-2.5 [&>span]:pb-2 [&>span]:text-xs [&>span]:text-muted-foreground",
                                         span { "Vertex {point_index + 1}" }
                                         { rsx! { DimensionField {
                                             key: "{owner}:opening:{opening_id}:point:{point_index}:x",
@@ -3097,7 +3097,7 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
             .collect::<Vec<_>>(),
     );
     rsx! {
-        section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
+        section { class: "grid gap-3 [&_h3]:m-0 [&_p]:m-0 [&_label]:grid-cols-1 [&_small]:text-xs [&_small]:leading-normal [&_small]:text-muted-foreground", aria_label: "Mechanical stack settings",
             Button {
                 variant: ButtonVariant::Ghost,
                 size: ButtonSize::Sm,
@@ -3110,7 +3110,7 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
             if props.layer.is_previous {
                 div { role: "status", Callout { "Showing previous generated geometry. Measurements describe the prior accepted revision; settings below reflect the current configuration." } }
             }
-            fieldset { class: "m1-mechanical-group", disabled: !props.editable,
+            fieldset { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", disabled: !props.editable,
                 for (field, label, value) in fields {
                     DimensionField {
                         key: "{props.owner_key}:context:{props.layer.id}:{field.field_id()}",
@@ -3142,7 +3142,7 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
                 }
             }
             if !errors.is_empty() {
-                section { class: "m1-mechanical-group", aria_label: "Fit issues",
+                section { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", aria_label: "Fit issues",
                     h3 { "Fit issues" }
                     ItemGroup {
                         for finding in errors.iter() {
@@ -3186,7 +3186,7 @@ fn gasket_fit_issues(
         return rsx! {};
     }
     rsx! {
-        section { class: "m1-mechanical-group", aria_label: "Fit issues",
+        section { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", aria_label: "Fit issues",
             h3 { "Fit issues" }
             ItemGroup {
                 for finding in errors {
@@ -3296,12 +3296,12 @@ struct ManufacturingControlsProps {
 fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
     let version = "2026-09-24";
     rsx! {
-        section { class: "m1-mechanical-group", aria_label: "Manufacturing overrides",
+        section { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", aria_label: "Manufacturing overrides",
             h3 { "Manufacturing overrides" }
-            section { class: "m1-mechanical-profile", aria_label: "Per-part process overrides",
+            section { class: "grid gap-1.5", aria_label: "Per-part process overrides",
                 h4 { "Per-part process overrides {props.targets.iter().filter(|target| target.process.is_some()).count()}" }
                 for target in props.targets.iter() {
-                    div { class: "m1-mechanical-profile", key: "{target.part_id}",
+                    div { class: "grid gap-1.5", key: "{target.part_id}",
                         strong { "{target.name}" }
                         if let Some(process) = target.process.as_ref() {
                             Button {
@@ -3391,10 +3391,10 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                 }
                 p { class: "text-muted-foreground text-sm leading-normal", "Supported constraint set: {version}." }
             }
-            section { class: "m1-mechanical-profile", aria_label: "Stabilizer fit",
+            section { class: "grid gap-1.5", aria_label: "Stabilizer fit",
                 h4 { "Stabilizer fit {props.stabilizers.len()} wide keys" }
                 for stabilizer in props.stabilizers.iter() {
-                    div { class: "m1-mechanical-profile", key: "{stabilizer.part_id}",
+                    div { class: "grid gap-1.5", key: "{stabilizer.part_id}",
                         strong { "{stabilizer.reference} · {stabilizer.key_units}u" }
                         SettingsSelect {
                             label: "Stabilizer",
@@ -3439,7 +3439,7 @@ pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
         return rsx! { p { role: "status", "Case settings are loading." } };
     };
     rsx! {
-        section { class: "m1-case-setup-basics", aria_label: "Basic case setup",
+        section { class: "grid gap-4 border-0 bg-transparent p-0", aria_label: "Basic case setup",
             SettingsSelect {
                 label: "Mounting style",
                 aria_label: "Case mounting style",
@@ -4204,7 +4204,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                     aria_label: "{props.title} contour {polygon_index + 1}",
                     key: "{props.title}:{polygon_index}",
                     disabled: !props.editable,
-                    div { class: "m1-mechanical-opening-title",
+                    div { class: "flex flex-wrap items-center justify-between gap-2",
                         strong { "Contour {polygon_index + 1}" }
                         Button {
                             variant: ButtonVariant::Secondary,
@@ -4398,7 +4398,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                     aria_label: "{props.title} volume {opening_index + 1}",
                     key: "{props.title}:{opening_index}",
                     disabled: !props.editable,
-                    div { class: "m1-mechanical-opening-title",
+                    div { class: "flex flex-wrap items-center justify-between gap-2",
                         strong { "Volume {opening_index + 1}" }
                         Button {
                             variant: ButtonVariant::Secondary,
@@ -5209,7 +5209,7 @@ struct DiagnosticsProps {
 #[component]
 fn Diagnostics(props: DiagnosticsProps) -> Element {
     rsx! {
-        section { class: "m1-mechanical-group", aria_label: "Mechanical diagnostics",
+        section { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", aria_label: "Mechanical diagnostics",
             h3 { "Mechanical diagnostics · {props.findings.len()}" }
             if props.findings.is_empty() {
                 Callout { "No current mechanical findings." }
@@ -9205,7 +9205,7 @@ fn StackupPreview(values: MechanicalSettingsValues) -> Element {
         ("Bottom foam", values.bottom_foam_thickness),
         ("Bottom", values.bottom_thickness),
     ];
-    rsx! { figure { class: "m1-stackup-preview",
+    rsx! { figure { class: "m-0 mb-3 [&_svg]:block [&_svg]:max-h-[180px] [&_svg]:w-full [&_rect]:fill-surface [&_rect]:stroke-primary [&_rect]:[stroke-width:1] [&_text]:fill-foreground [&_text]:font-sans [&_text]:text-[11px] [&_figcaption]:text-xs [&_figcaption]:text-muted-foreground",
         svg { view_box: "0 0 240 156", role: "img", "aria-label": "Mechanical stackup preview",
             for (index, (name, thickness)) in rows.iter().enumerate().filter(|(_, (_, thickness))| *thickness > 0.0) {
                 g { "data-layer": *name,

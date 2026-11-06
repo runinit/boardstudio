@@ -295,7 +295,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
 
     if props.generated_stack {
         return rsx! {
-            section { class: "m1-case-bodies-generated", "aria-label": "Authored case bodies",
+            section { class: "flex min-h-0 min-w-0 flex-1 flex-col content-start justify-start gap-3.5 overflow-auto bg-card px-3 py-4 text-foreground", "aria-label": "Authored case bodies",
                 Callout { "Generated assembly preview · {bodies.len()} authored case bodies remain saved. Disable the mechanical stack to preview and edit them." }
             }
         };
@@ -352,9 +352,9 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
     let global_feedback_error = global_feedback.and_then(|feedback| feedback.failure.clone());
 
     rsx! {
-        section { class: "m1-case-bodies", "aria-label": "Authored case bodies",
+        section { class: "flex min-h-0 min-w-0 flex-1 flex-col content-start gap-3.5 overflow-auto bg-card px-3 py-4 text-foreground [&_h2]:m-0 [&_h3]:m-0", "aria-label": "Authored case bodies",
             if let Some(mismatch) = props.mismatch.as_ref() {
-                section { class: "m1-case-mismatch", "aria-label": "Mechanical stack board mismatch",
+                section { class: "grid gap-2 rounded-[5px] border border-border bg-surface p-3", "aria-label": "Mechanical stack board mismatch",
                     h3 { "Mechanical stack belongs to {mismatch.board_name}" }
                     Callout { "This board shows its authored case bodies. Select the configured board to inspect that mechanical stack." }
                     Button {
@@ -370,7 +370,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                     }
                 }
             }
-            header { class: "m1-case-bodies-heading",
+            header { class: "flex items-center justify-between gap-2 border-b border-border pb-2.5",
                 h2 { "Case stack" }
                 Button {
                     variant: ButtonVariant::Secondary, button_type: "button",
@@ -390,7 +390,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                     rsx! {
                         ToggleGroup {
                             aria_label: "Case bodies",
-                            class: "m1-case-body-list",
+                            class: "grid grid-cols-[repeat(auto-fit,minmax(112px,1fr))] gap-1.5",
                             style: "width: 100%",
                             disabled: !can_edit,
                             pressed: Some(active_index.map(|index| HashSet::from([index])).unwrap_or_default()),
@@ -415,7 +415,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                         ToggleItem {
                                             key: "{id}",
                                             index,
-                                            class: "m1-case-body-tab max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                            class: "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-0.5 text-left [&>span]:row-span-2 [&>span]:text-muted-foreground [&>span]:tabular-nums [&_strong]:truncate [&_small]:text-xs [&_small]:uppercase [&_small]:text-muted-foreground max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                             disabled: !can_edit,
                                             span { "{order}" }
                                             strong { "{name}" }
@@ -430,7 +430,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
             }
             if let Some(body) = active_body {
                 if let Some(body_id) = body_id {
-                    div { key: "{editor_key}", class: "m1-case-body-editor",
+                    div { key: "{editor_key}", class: "grid min-w-0 gap-2.5 border-t border-border py-3",
                         CaseStaticSelect {
                             label: "Body type",
                             value: (case_kind_value(&body.kind)).to_string(),
@@ -448,7 +448,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                 SelectOption::<String> { index: 1usize, value: "tray".to_owned(), text_value: "Tray".to_owned(), "Tray" }
                                 SelectOption::<String> { index: 2usize, value: "lid".to_owned(), text_value: "Lid".to_owned(), "Lid" }
                         }
-                        div { class: "m1-case-measures",
+                        div { class: "grid grid-cols-2 gap-2.5 max-[760px]:grid-cols-1",
                             CaseNumberField {
                                 label: "Thickness", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, None, "thickness"), value: body.thickness, unit: "mm", rule: NumberRule::Positive,
                                 editable: can_edit,
@@ -477,7 +477,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                 }
                             }
                         }
-                        Collapsible { class: "m1-case-subsection", keep_mounted: true, open: Some(mounts_open),
+                        Collapsible { class: "grid min-w-0 gap-2.5 border-t border-border py-3", keep_mounted: true, open: Some(mounts_open),
                             on_open_change: {
                                 let mut disclosures = disclosures;
                                 let owner = editor_key.clone();
@@ -497,7 +497,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                 small { class: "text-xs text-muted-foreground", "{body.mounts.as_ref().map_or(0, Vec::len)} mounts" }
                             }
                             CollapsibleContent { class: "data-[open=false]:hidden",
-                            div { class: "m1-case-subsection-content",
+                            div { class: "grid min-w-0 gap-2.5",
                                 Button {
                                     variant: ButtonVariant::Secondary, button_type: "button",
                                     class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
@@ -513,7 +513,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                     let submit_remove = emit_edit.clone();
                                     let body_id = body_id.clone();
                                     rsx! {
-                                        fieldset { key: "{mount_id}", class: "m1-case-mount-editor",
+                                        fieldset { key: "{mount_id}", class: "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2.5 rounded-[5px] border border-border p-2.5 [&_legend]:font-semibold [&_legend]:text-foreground",
                                             legend { "{mount_label}" }
                                             Button {
                                                 variant: ButtonVariant::Secondary, button_type: "button",
@@ -534,7 +534,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                                 SelectOption::<String> { index: 0usize, value: "hole".to_owned(), text_value: "Hole".to_owned(), "Hole" }
                                                     SelectOption::<String> { index: 1usize, value: "boss".to_owned(), text_value: "Boss".to_owned(), "Boss" }
                                             }
-                                            div { class: "m1-case-measures",
+                                            div { class: "col-span-full grid grid-cols-2 gap-2.5 max-[760px]:grid-cols-1",
                                                 CaseNumberField {
                                                     label: "X position", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, Some(&mount_id), "mount-x"), value: mount.at.x, unit: "mm", rule: NumberRule::Finite,
                                                     editable: can_edit,
@@ -570,7 +570,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                             }
                             }
                         }
-                        Collapsible { class: "m1-case-subsection", keep_mounted: true, open: Some(gasket_open),
+                        Collapsible { class: "grid min-w-0 gap-2.5 border-t border-border py-3", keep_mounted: true, open: Some(gasket_open),
                             on_open_change: {
                                 let mut disclosures = disclosures;
                                 let owner = editor_key.clone();
@@ -590,7 +590,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                 small { class: "text-xs text-muted-foreground", if body.gasket.is_some() { "Configured" } else { "Optional" } }
                             }
                             CollapsibleContent { class: "data-[open=false]:hidden",
-                            div { class: "m1-case-subsection-content",
+                            div { class: "grid min-w-0 gap-2.5",
                                 if body.gasket.is_some() {
                                     Button { variant: ButtonVariant::Secondary, button_type: "button",
                                         class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
@@ -607,7 +607,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                     }
                                 }
                             if let Some(gasket) = body.gasket.as_ref() {
-                                div { class: "m1-case-measures",
+                                div { class: "grid grid-cols-2 gap-2.5 max-[760px]:grid-cols-1",
                                     CaseNumberField {
                                         label: "Inset", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, None, "gasket-inset"), value: gasket.inset, unit: "mm", rule: NumberRule::Nonnegative,
                                         editable: can_edit,
