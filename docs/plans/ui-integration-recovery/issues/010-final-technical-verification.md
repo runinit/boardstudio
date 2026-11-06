@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 Type: task
-Blocked by: [009](009-verify-reload-persistence.md)
+Blocked by: [009](009-verify-reload-persistence.md), [022](022-restore-collision-provider-browser-proof.md)
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
 Related: [Plan map](../map.md), [Migration gate record](../../rust-ui-build/issues/026-merge-gate.md)
 
@@ -50,6 +50,9 @@ replacement is authorized by this gate. Product acceptance still requires 011.
 
 ## Comments
 
+- 2026-11-06: The user approved 022 as an explicit blocker for this gate. 008 and
+  009 are resolved within their bounded scopes, but the complete smoke runner
+  still fails at Case mounting style and has no success receipt.
 - 2026-11-06: Published with direct dependencies only. This ticket separates
   combined technical evidence from the user's populated-workspace acceptance.
 - 2026-11-06: The user cancelled 004–007; they are no longer dependencies.

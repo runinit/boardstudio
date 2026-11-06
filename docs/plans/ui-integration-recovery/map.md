@@ -25,7 +25,7 @@ neither is deferred to a separate cleanup ticket.
 | [007: Correct disclosure chevrons](issues/007-correct-disclosure-chevrons.md) | wontfix | none | Cancelled by the user; no completion evidence |
 | [008: Restore real drag/save/Undo proof](issues/008-restore-drag-save-undo-proof.md) | resolved | none | Drag, save, cancel and exact Undo pass on a pinned build; the complete runner still fails later at the unrelated Case collision control (see Answer) |
 | [009: Verify persistence across reload](issues/009-verify-reload-persistence.md) | resolved | 008 | Saved edit and saved Undo result survive an actual reload with exact document/scene/identity/revision proof; the complete runner still fails later at the unrelated Case collision control (see Answer) |
-| [010: Final technical verification and independent review](issues/010-final-technical-verification.md) | ready-for-agent | 009 | Full combined gates and independent spec+standards review |
+| [010: Final technical verification and independent review](issues/010-final-technical-verification.md) | ready-for-agent | 009, 022 | Full combined gates and independent spec+standards review |
 | [011: Populated-workspace human acceptance](issues/011-populated-workspace-acceptance.md) | ready-for-human | 010 | User review of the checked candidate across the complete review matrix |
 
 Dependencies cover 008 through 009. 002 is resolved and 003 is `wontfix`.
@@ -35,8 +35,8 @@ of findings in final review. Reconcile acceptance scope with that decision.
 
 ## Added after the accepted breakdown
 
-The user added these on 2026-11-06 after 002 and 003 closed. Neither blocks 010
-or 011 unless the user says so.
+The user added these on 2026-11-06 after 002 and 003 closed. They do not block
+010 or 011 unless explicitly stated; the user approved 022 as a blocker for 010.
 
 | Ticket | Status | Blocked by | Delivers |
 | --- | --- | --- | --- |
@@ -50,6 +50,7 @@ or 011 unless the user says so.
 | [016: Audit ADR decisions](issues/016-audit-adr-decisions.md) | resolved | none | All 40 indexed primary decisions audited; delivery gaps and uncertainties recorded |
 | [020: Export split firmware with either half as central](issues/020-split-firmware-either-half-central.md) | ready-for-agent | none | ADR-0026 delivery: right or left central without reordering logical keys |
 | [021: Stop repeated save Toasts](issues/021-repeated-save-toasts.md) | needs-triage | none | Investigate reported Toast floods during zooming and routine interaction |
+| [022: Restore collision/provider browser proof](issues/022-restore-collision-provider-browser-proof.md) | ready-for-agent | none | Complete required collision/provider smoke and validate the success receipt; blocks 010 |
 
 For the build-update addition, 013 remains the decision-owning umbrella; 017 is
 the specification, 018 is complete, and 019 is now unblocked. Both children must
@@ -90,7 +91,8 @@ block 010/011. Publication does not claim implementation or browser evidence.
 
 ## Next step and boundaries
 
-Unblocked implementation tickets include 008, 019 and 020. Claim the selected
+022 is the next unblocked recovery implementation ticket; 019 is also unblocked,
+and 020 remains open pending its recorded full-gate limitation. Claim the selected
 ticket before working it, keep execution bounded to that ticket, and retain the
 next blockers and stopping point in its completion record. Final acceptance
 remains open; a focused pass does not close 010 or 011.
