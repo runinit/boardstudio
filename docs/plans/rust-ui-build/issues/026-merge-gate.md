@@ -16,7 +16,7 @@ The migration branch passes the gate and is merged to `dev` once.
 - [ ] Full `scripts/check.py` and the browser tests pass; the accessibility checks pass; the old-CSS check passes in strict mode
 - [ ] The user has reviewed every Workspace in both Themes and both Appearances at desktop (above 1150px), mid (981 to 1150px) and narrow (980px and below) widths, with screenshots
 - [ ] One two-axis code review (Standards and Spec) of the whole branch is done and its findings resolved or recorded
-- [ ] `dev` was merged into the branch before the merge; the single merge to `dev` is done and nothing is pushed without the user's say-so
+- [x] `dev` was merged into the branch before the merge; the single merge to `dev` is done and nothing is pushed without the user's say-so
 - [x] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
 
 ## Current
@@ -129,3 +129,5 @@ spacing. Scroll long inspectors and open representative controls; record defects
 the exact combination and screenshot path. The user must explicitly approve or
 report the results; none is claimed here. Scoped resolution does not close the
 whole-branch review, human review or single merge to `dev`.
+
+2026-11-06: single merge to `dev` completed per user approval: `dev` fast-forwarded 510861b11 -> 64bc0e8fa (feat tip; dev was already merged into the branch and verified). No push to origin performed. Criterion 2 (human review) remains open as the user's live review.
