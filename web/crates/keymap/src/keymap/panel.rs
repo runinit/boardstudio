@@ -131,7 +131,7 @@ pub fn KeymapPanel(
                     on_open_change: move |open| keys_section_open.set(open),
                     CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{heading}" }
                     CollapsibleContent { hidden: !keys_section_open(), inert: (!keys_section_open()).then_some(""),
-                    div { class: "m1-keymap-section-body",
+                    div { class: "grid gap-3 min-w-0 pb-5",
                         if show_navigation {
                         Field { class: "gap-1.5",
                             FieldLabel { html_for: search_id.clone(), "Find a key" }
@@ -183,7 +183,7 @@ pub fn KeymapPanel(
                     on_open_change: move |open| macros_section_open.set(open),
                     CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Macros" }
                     CollapsibleContent { hidden: !macros_section_open(), inert: (!macros_section_open()).then_some(""),
-                    div { class: "m1-keymap-section-body",
+                    div { class: "grid gap-3 min-w-0 pb-5 [&>section]:border-t-0! [&>section]:pt-0! [&>section>h3]:hidden!",
                         {macros_editor}
                     }
                     }
@@ -193,7 +193,7 @@ pub fn KeymapPanel(
                     on_open_change: move |open| encoders_section_open.set(open),
                     CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{encoder_heading}" }
                     CollapsibleContent { hidden: !encoders_section_open(), inert: (!encoders_section_open()).then_some(""),
-                    div { class: "m1-keymap-section-body",
+                    div { class: "grid gap-3 min-w-0 pb-5 [&>section>header]:hidden!",
                         {encoders_editor}
                     }
                     }
@@ -555,8 +555,8 @@ mod disclosure_mounted_tests {
                 on_export: |_| {},
                 firmware_export_enabled: true,
                 keys_editor: rsx! { div { "Key editor" } },
-                macros_editor: rsx! { div { "Macro editor" } },
-                encoders_editor: rsx! { div { "Encoder editor" } },
+                macros_editor: rsx! { section { "data-editor-probe": "macros", h3 { "Macros" } p { "Macro editor" } } },
+                encoders_editor: rsx! { section { "data-editor-probe": "encoders", header { "Encoders" } p { "Encoder editor" } } },
             }
         }
     }
@@ -612,6 +612,67 @@ mod disclosure_mounted_tests {
             .copied()
             .expect("fixture exposes its production render signal");
         signal.set(signal() + 1);
+    }
+
+    #[wasm_bindgen_test]
+    async fn editor_bodies_keep_layout_and_nested_heading_rules_without_legacy_selectors() {
+        let (_, root) = mount();
+        rendered().await;
+        let key_input = by_role_name(&root, "searchbox", "Find a key").expect("key search");
+        let key_body = key_input
+            .closest("[data-slot=collapsible-content]")
+            .unwrap()
+            .unwrap()
+            .first_element_child()
+            .unwrap();
+        for expected in ["grid", "gap-3", "min-w-0", "pb-5"] {
+            assert!(
+                key_body
+                    .get_attribute("class")
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .any(|class| class == expected),
+                "keys: missing {expected}"
+            );
+        }
+        let editors = by_role_name(&root, "group", "Keymap editors").unwrap();
+        for (label, probe, nested) in [
+            (
+                "Macros",
+                "macros",
+                vec![
+                    "[&>section]:border-t-0!",
+                    "[&>section]:pt-0!",
+                    "[&>section>h3]:hidden!",
+                ],
+            ),
+            ("Encoders", "encoders", vec!["[&>section>header]:hidden!"]),
+        ] {
+            by_role_name(&editors, "button", label).unwrap().click();
+            wait_until("chosen editor mounts", || {
+                root.query_selector(&format!("[data-editor-probe={probe}]"))
+                    .unwrap()
+                    .is_some()
+            })
+            .await;
+            let body = root
+                .query_selector(&format!("[data-editor-probe={probe}]"))
+                .unwrap()
+                .unwrap()
+                .parent_element()
+                .unwrap();
+            let classes = body.get_attribute("class").unwrap_or_default();
+            for expected in ["grid", "gap-3", "min-w-0", "pb-5"]
+                .into_iter()
+                .chain(nested)
+            {
+                assert!(
+                    classes.split_whitespace().any(|class| class == expected),
+                    "{label}: missing {expected}"
+                );
+            }
+        }
+        root.remove();
     }
 
     #[wasm_bindgen_test]
