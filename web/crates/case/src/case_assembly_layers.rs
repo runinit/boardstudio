@@ -589,7 +589,10 @@ mod tests {
     async fn layer_menu_toggles_exact_rows_and_unavailable_rows_are_not_checked() {
         let document = web_sys::window().unwrap().document().unwrap();
         let stylesheet = document.create_element("style").unwrap();
-        stylesheet.set_text_content(Some(include_str!("../../../assets/m1.css")));
+        stylesheet.set_text_content(Some(concat!(
+            include_str!("../../../assets/m1.css"),
+            include_str!("../../../assets/tailwind.css")
+        )));
         document.head().unwrap().append_child(&stylesheet).unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("case-assembly-layer-test-root");
