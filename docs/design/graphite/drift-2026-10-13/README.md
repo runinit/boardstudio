@@ -64,7 +64,7 @@ fields, selected controls and keyboard focus. Primary transforms/dimensions
 should precede mirror-management lists, definition metadata and specialist
 settings. This is targeted shared-control adoption, not removal of every border.
 
-Source: [shared viewer rules](../../../../web/assets/m1.css),
+Source at the time: shared viewer rules in `web/assets/m1.css` (since retired),
 `.m1-shared-viewer` around lines 1073–1082; [mirror controls](../../../../web/crates/case/src/mechanical_settings.rs),
 `MechanicalPairControls` and `.m1-mechanical-pair-row` around lines 1554 and 1635.
 The latter class currently has no matching component styling in the two stylesheets.
@@ -117,7 +117,7 @@ compact action treatment. Preserve its current menu owner and event handlers.
 
 Source: [panel slot](../../../../web/crates/ui-shared/src/panels.rs), around
 lines 462–493; [Layout wiring](../../../../web/src/presentation.rs), around
-line 7659; [action styling](../../../../web/assets/m1.css), around lines 285–289.
+line 7659; action styling in the retired `web/assets/m1.css`, around lines 285–289.
 
 ## Page-by-page comparison
 

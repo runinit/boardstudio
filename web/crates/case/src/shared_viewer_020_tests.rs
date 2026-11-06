@@ -53,7 +53,7 @@ fn fixture() -> Element {
 
 fn inline_fixture() -> Element {
     rsx! {
-        style { {include_str!("../../../assets/m1.css")} }
+        style { {include_str!("../../../assets/workbench-base.css")} }
         // Use the same generated utilities and theme tokens as the page.
         style { {include_str!("../../../assets/tailwind.css")} }
         section { class: "relative flex min-h-0 flex-col overflow-hidden bg-canvas", {viewer_fixture(true)} }

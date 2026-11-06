@@ -95,23 +95,23 @@ def main():
                                 actualGroup:read(group,['backgroundColor']), expectedGroup:read(referenceGroup,['backgroundColor'])};
                         } finally { probe.remove(); }
                     })()"""))
-                # A real unmigrated caller of the shared inspector rule must keep its look.
+                # The migrated Wiring mode remains a named, keyboard-operable Select.
                 action("button", "Routing & nets")
-                action("combobox", "Wiring mode", "focus")
-                legacy = evaluate("""(() => {
+                action("button", "Wiring mode", "focus")
+                wiring = evaluate("""(() => {
                     const input = document.activeElement;
-                    const probe = document.createElement('div');
-                    probe.style.cssText = 'background:var(--wb-field);border-radius:var(--wb-radius-control);min-height:var(--wb-control-height)';
-                    document.body.append(probe);
-                    try {
-                        const read = el => { const css=getComputedStyle(el); return {backgroundColor:css.backgroundColor,borderTopLeftRadius:css.borderTopLeftRadius,minHeight:css.minHeight}; };
-                        return {slot:input.dataset.slot || null, actual:read(input),expected:read(probe)};
-                    } finally { probe.remove(); }
+                    const bounds = input.getBoundingClientRect();
+                    return {name:input.getAttribute('aria-label'), width:bounds.width,
+                            height:bounds.height};
                 })()""")
+                browser("press", "Enter")
+                browser("wait", "--fn", "document.querySelector('[aria-label=\"Wiring mode\"]').getAttribute('aria-expanded') === 'true'")
+                browser("press", "Escape")
+                browser("wait", "--fn", "document.activeElement?.getAttribute('aria-label') === 'Wiring mode' && document.activeElement.getAttribute('aria-expanded') === 'false'")
                 action("button", "Selection")
                 dismiss_notices()
                 browser("screenshot", str((args.evidence / f"position-{theme}-{appearance}.png").resolve()))
-                observations.append({"theme": theme, "appearance": appearance, "fields": fields, "unmigratedWiringMode": legacy})
+                observations.append({"theme": theme, "appearance": appearance, "fields": fields, "wiringMode": wiring})
         failures = []
         for state in observations:
             for field in state["fields"]:
@@ -121,8 +121,8 @@ def main():
                         failures.append({"theme":state["theme"], "appearance":state["appearance"],
                                          "field":field["name"], "target":target,
                                          "actual":field["actual"+target], "expected":field["expected"+target]})
-            assert state["unmigratedWiringMode"]["slot"] is None, state
-            assert state["unmigratedWiringMode"]["actual"] == state["unmigratedWiringMode"]["expected"], state
+            assert state["wiringMode"]["name"] == "Wiring mode", state
+            assert state["wiringMode"]["width"] > 0 and state["wiringMode"]["height"] >= 36, state
         (args.evidence / "computed.json").write_text(json.dumps({"observations": observations, "failures": failures}, indent=2) + "\n")
         assert not failures, json.dumps(failures, indent=2)
         # The same production selected component keeps precise native values and one Undo step.
@@ -138,8 +138,8 @@ def main():
         action("spinbutton", "X (mm)", "focus")
         browser("wait", "--fn", "document.activeElement?.value === '0'")
         (args.evidence / "result.json").write_text(json.dumps({"result": "passed", "combinations": 4,
-            "coverage": "Actual selected SW1 in PCB Selection Position; copied-style equality, legacy Wiring mode, native precision, Escape/Enter and Undo"}, indent=2) + "\n")
-        print("PASS: actual Position fields in four Theme/Appearance combinations; legacy caller unchanged; native precision/Escape/Enter/Undo")
+            "coverage": "Actual selected SW1 in PCB Selection Position; copied-style equality, accessible Wiring mode Select, native precision, Escape/Enter and Undo"}, indent=2) + "\n")
+        print("PASS: actual Position fields and Wiring mode Select in four Theme/Appearance combinations; native precision/Escape/Enter/Undo")
     except BaseException:
         (args.evidence / "partial-computed.json").write_text(json.dumps(observations, indent=2) + "\n")
         (args.evidence / "failure-snapshot.json").write_text(json.dumps(browser("snapshot", "-i"), indent=2) + "\n")

@@ -36,7 +36,7 @@ def main():
             (out / "assets").symlink_to("../assets", target_is_directory=True)
         (out / "index.html").write_text('<!doctype html><html lang="en"><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Actual Parts Inspector</title>'
-            '<link rel="stylesheet" href="../assets/m1.css"><link rel="stylesheet" href="tailwind.css">'
+            '<link rel="stylesheet" href="../assets/workbench-base.css"><link rel="stylesheet" href="tailwind.css">'
             '<body><div id="main"></div><script type="module">import init from "./inspector_020.js";init();</script>')
     args.evidence.mkdir(parents=True, exist_ok=True)
     driver = importlib.import_module("test-dock-primitives")
@@ -81,7 +81,7 @@ def main():
             capture("attachment-target", metrics)
             assert metrics["label"][3] == (44 if args.width <= 960 or args.coarse else 16), metrics
             assert metrics["checkbox"] == [16, 16] and not metrics["disabled"] and metrics["checked"] == "true", metrics
-            touch_targets(".m1-module-attach")
+            touch_targets('[aria-label="Attach module to PCB"]')
             browser("press", "Enter")
             check("connectionControl.getAttribute('aria-checked')==='true'")
             browser("press", "Space")
@@ -130,15 +130,15 @@ def main():
             action("menuitemradio", args.appearance.title())
             browser("wait", "--fn", f"document.documentElement.dataset.theme==={json.dumps(args.theme)} && document.documentElement.dataset.appearance==={json.dumps(args.appearance)}")
             if args.only == "controller":
-                action("button", "3 Controller & wiring")
+                action("button", "Controller & wiring")
                 browser("set", "viewport", args.width, 960 if args.width > 960 else 844)
-                browser("wait", "--fn", "!!document.querySelector('.m1-controller-card')")
-                browser("wait", "--fn", "document.querySelectorAll('.m1-controller-footprint svg').length>=2", "--timeout", 15000)
+                browser("wait", "--fn", "!!document.querySelector('[aria-label=Controllers] [data-match]')")
+                browser("wait", "--fn", "document.querySelectorAll('[aria-label=Controllers] [data-match] svg').length>=2", "--timeout", 15000)
                 evaluate("document.fonts.ready.then(()=>true)")
-                browser("wait", "--fn", "document.querySelector('.m1-setup-drawer').getAnimations({subtree:true}).every(a=>a.playState!=='running'||a.effect.getComputedTiming().iterations===Infinity)", "--timeout", 5000)
-                first_name = evaluate("(()=>{const e=document.querySelector('.m1-controller-card');return e.querySelector('[role=img]').getAttribute('aria-label')+' '+e.textContent.trim()})()")
+                browser("wait", "--fn", "document.querySelector('[aria-label=\"Keyboard setup\"]').getAnimations({subtree:true}).every(a=>a.playState!=='running'||a.effect.getComputedTiming().iterations===Infinity)", "--timeout", 5000)
+                first_name = evaluate("(()=>{const e=document.querySelector('[aria-label=Controllers] [data-match]');return e.querySelector('[role=img]').getAttribute('aria-label')+' '+e.textContent.trim()})()")
                 focus("button", first_name)
-                metrics = evaluate("""[...document.querySelectorAll('.m1-controller-card')].filter(e=>e.getAttribute('data-match')==='true').map(e=>{const rect=n=>{const r=n.getBoundingClientRect();return [r.left,r.top,r.right,r.bottom,r.width,r.height]},clips=[];for(let p=e.parentElement;p;p=p.parentElement){if(/hidden|auto|scroll|clip/.test(getComputedStyle(p).overflowY))clips.push(rect(p))}const label=e.querySelector('strong'),range=document.createRange();range.selectNodeContents(label);return {name:e.textContent.trim(),pressed:e.getAttribute('aria-pressed'),card:rect(e),thumbnail:rect(e.querySelector('.m1-controller-footprint')),label:rect(label),text:rect(range),visible:label.checkVisibility({checkOpacity:true}),clips}})""")
+                metrics = evaluate("""[...document.querySelectorAll('[aria-label=Controllers] [data-match]')].filter(e=>e.getAttribute('data-match')==='true').map(e=>{const rect=n=>{const r=n.getBoundingClientRect();return [r.left,r.top,r.right,r.bottom,r.width,r.height]},clips=[];for(let p=e.parentElement;p;p=p.parentElement){if(/hidden|auto|scroll|clip/.test(getComputedStyle(p).overflowY))clips.push(rect(p))}const label=e.querySelector('strong'),range=document.createRange();range.selectNodeContents(label);return {name:e.textContent.trim(),pressed:e.getAttribute('aria-pressed'),card:rect(e),thumbnail:rect(e.querySelector('[role=img]').parentElement),label:rect(label),text:rect(range),visible:label.checkVisibility({checkOpacity:true}),clips}})""")
                 capture("controller-cards", metrics)
                 navigation = evaluate("[...document.querySelectorAll('[aria-label=\"Previous controller\"],[aria-label=\"Next controller\"]')].map(e=>{const r=e.getBoundingClientRect();return {name:e.getAttribute('aria-label'),width:r.width,height:r.height}})")
                 print("Navigation inventory:", navigation, flush=True)
@@ -153,10 +153,10 @@ def main():
                     assert all(item["thumbnail"][1] >= clip[1] and item["label"][3] <= clip[3] for clip in item["clips"]), item
                 target = next(item for item in metrics if item["pressed"] == "false")
                 action("img", target["name"] + " footprint")
-                browser("wait", "--fn", f"[...document.querySelectorAll('.m1-controller-card')].find(e=>e.textContent.trim()==={json.dumps(target['name'])}).getAttribute('aria-pressed')==='true'")
-                check("document.querySelectorAll('.m1-controller-card[aria-pressed=true]').length===1")
-                browser("wait", "--fn", "(()=>{const e=document.querySelector('.m1-controller-card[aria-pressed=true]'),r=e.getBoundingClientRect(),rail=e.parentElement.getBoundingClientRect();return r.left>=rail.left-.1&&r.right<=rail.right+.1})()", "--timeout", 5000)
-                selected_card = evaluate("(()=>{const e=document.querySelector('.m1-controller-card[aria-pressed=true]'),r=e.getBoundingClientRect(),rail=e.parentElement.getBoundingClientRect();return {name:e.textContent.trim(),left:r.left,right:r.right,rail:[rail.left,rail.right],scroll:e.parentElement.scrollLeft}})()")
+                browser("wait", "--fn", f"[...document.querySelectorAll('[aria-label=Controllers] [data-match]')].find(e=>e.textContent.trim()==={json.dumps(target['name'])}).getAttribute('aria-pressed')==='true'")
+                check("document.querySelectorAll('[aria-label=Controllers] [data-match][aria-pressed=true]').length===1")
+                browser("wait", "--fn", "(()=>{const e=document.querySelector('[aria-label=Controllers] [data-match][aria-pressed=true]'),r=e.getBoundingClientRect(),rail=e.parentElement.getBoundingClientRect();return r.left>=rail.left-.1&&r.right<=rail.right+.1})()", "--timeout", 5000)
+                selected_card = evaluate("(()=>{const e=document.querySelector('[aria-label=Controllers] [data-match][aria-pressed=true]'),r=e.getBoundingClientRect(),rail=e.parentElement.getBoundingClientRect();return {name:e.textContent.trim(),left:r.left,right:r.right,rail:[rail.left,rail.right],scroll:e.parentElement.scrollLeft}})()")
                 capture("controller-selected", selected_card)
                 for name in ("Previous controller", "Next controller"):
                     focus("button", name)
@@ -165,10 +165,10 @@ def main():
                     assert metrics["width"] >= (44 if args.width <= 960 or args.coarse else 36), metrics
                     browser("press", "Space")
                 action("searchbox", "Search controllers", "fill", target["name"])
-                browser("wait", "--fn", "document.querySelectorAll('.m1-controller-card[data-match=true]').length===1")
+                browser("wait", "--fn", "document.querySelectorAll('[aria-label=Controllers] [data-match][data-match=true]').length===1")
                 check("document.querySelector('[aria-label=\"Previous controller\"]').disabled && document.querySelector('[aria-label=\"Next controller\"]').disabled")
             else:
-                action("button", "4 Case (optional)")
+                action("button", "Case (optional)")
                 action("button", "Hide guide")
                 action("button", "Open Parts workspace")
                 browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Search footprints\"]')")
@@ -183,7 +183,7 @@ def main():
                 capture("assembly-target", metrics)
                 assert metrics["width"] == metrics["height"] == (44 if args.width <= 960 or args.coarse else 36), metrics
                 assert not metrics["disabled"], metrics
-                touch_targets(".m1-parts-library")
+                touch_targets('[aria-label="Parts library"]')
                 modes = evaluate("[...document.querySelectorAll('[aria-label=\"2D footprint\"],[aria-label=\"3D model\"]')].map(e=>{const r=e.getBoundingClientRect();return {width:r.width,height:r.height}})")
                 assert len(modes) == 2, modes
                 if args.width <= 960 or args.coarse:

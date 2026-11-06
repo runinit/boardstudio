@@ -10,7 +10,7 @@ fn composition() -> Element {
         width: None,
     });
     rsx! {
-        style { {include_str!("../../../assets/m1.css")} }
+        style { {include_str!("../../../assets/workbench-base.css")} }
         style { {include_str!("../../../assets/tailwind.css")} }
         style { "@media (min-width:761px) {{ #inspector-scroll-test-root {{ height:600px; }} }}" }
         div { class: "flex flex-col w-full h-full min-h-0 overflow-hidden",

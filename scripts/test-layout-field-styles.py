@@ -94,7 +94,7 @@ def tests(url, captures):
     click("Project")
     browser("find", "role", "menuitem", "click", "--name", "New project", "--exact")
     browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Keyboard setup\"]')")
-    click("4 Case (optional)")
+    click("Case (optional)")
     click("Hide guide")
     click("Open Layout workspace")
     click("Add object")
@@ -103,7 +103,7 @@ def tests(url, captures):
         browser("focus", driver.by_role_name("slider", name))
         browser("press", "Home")
     click("Create matrix")
-    browser("wait", "--fn", "document.querySelectorAll('.m1-matrix-key').length===1")
+    browser("wait", "--fn", "document.querySelectorAll('rect[data-matrix-id][data-row][data-column]').length===1")
     failures = check_fields([("textbox", "Matrix name"), ("spinbutton", "Origin X")], "matrix", captures)
     browser("set", "viewport", 1440, 900)
     refs = browser("snapshot", "-i")["refs"]
@@ -130,7 +130,7 @@ def tests(url, captures):
                               ("spinbutton", "Gap between key edges (mm)")], "new-pair", captures, in_inspector=False)
     check("pairNameDraft.isConnected && pairNameDraft.value==='Left draft'")
     click("Cancel")
-    check("document.querySelectorAll('.m1-matrix-key').length===1")
+    check("document.querySelectorAll('rect[data-matrix-id][data-row][data-column]').length===1")
     print("All owned field style failures:", failures, flush=True)
     assert not failures, failures
 

@@ -557,7 +557,7 @@ def main():
     driver.run(str(Path.home()/".local/share/.dx/tools/tailwindcss-v4.1.5/tailwindcss"), "-i", "web/tailwind.css", "-o", str(out/"tailwind.css"))
     if not (out/"assets").exists():
         (out/"assets").symlink_to(ROOT/"web/assets", target_is_directory=True)
-    (out/"index.html").write_text('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Case settings 017</title><link rel="stylesheet" href="assets/m1.css"><link rel="stylesheet" href="tailwind.css"><style>body{overflow:auto;height:auto;min-height:100vh}#main{box-sizing:border-box;max-width:480px;width:100%;padding:16px;background:var(--card);color:var(--foreground)}output{display:block}</style><body><div id="main"></div><script type="module">import init from "./settings.js";init()</script>')
+    (out/"index.html").write_text('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Case settings 017</title><link rel="stylesheet" href="assets/workbench-base.css"><link rel="stylesheet" href="tailwind.css"><style>body{overflow:auto;height:auto;min-height:100vh}#main{box-sizing:border-box;max-width:480px;width:100%;padding:16px;background:var(--card);color:var(--foreground)}output{display:block}</style><body><div id="main"></div><script type="module">import init from "./settings.js";init()</script>')
     handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(out))
     with http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler) as server:
         threading.Thread(target=server.serve_forever, daemon=True).start()

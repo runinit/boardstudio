@@ -447,7 +447,7 @@ def main():
     if not (OUT / "assets").exists():
         (OUT / "assets").symlink_to(ROOT / "web/assets", target_is_directory=True)
     (OUT / "index.html").write_text('<!doctype html><html lang="en"><meta charset="utf-8">'
-        '<title>Dock integration test</title><link rel="stylesheet" href="assets/m1.css">'
+        '<title>Dock integration test</title><link rel="stylesheet" href="assets/workbench-base.css">'
         '<link rel="stylesheet" href="tailwind.css"><body><div id="main"></div>'
         '<script type="module">import init from "./dock_layout.js"; init();</script>')
     handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(OUT))

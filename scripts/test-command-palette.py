@@ -324,7 +324,7 @@ def main():
     choose("Layout")
     check("""
         const triggers = document.querySelectorAll('[aria-label="Snap settings"]');
-        if (triggers.length !== 1 || !triggers[0].checkVisibility() || document.querySelector('.m1-layout-snap-dock')) throw Error('Canonical canvas Snap trigger must be visible and unique, without a dock duplicate');
+        if (triggers.length !== 1 || !triggers[0].checkVisibility()) throw Error('Canonical canvas Snap trigger must be visible and unique, without a dock duplicate');
     """)
     # Keep the palette open while crossing the dock breakpoint: dispatch must read it now.
     check("""
@@ -391,7 +391,7 @@ def main():
     dock("Show/hide Objects", 980, 980)
     panels("collapsed", "pinned")
     choose("Add object")
-    check("if (!document.querySelector('[role=dialog][aria-label=Add]')?.checkVisibility()) throw Error('Add command must reveal its collapsed Objects owner');")
+    check("if (!document.querySelector('[role=region][aria-label=Add]')?.checkVisibility()) throw Error('Add command must reveal its collapsed Objects owner');")
     panels("pinned", "pinned")
     action("button", "← Back to objects")
     browser("wait", "--fn", "document.activeElement.id === 'm1-add-object-trigger'")
@@ -399,11 +399,11 @@ def main():
     panels("pinned", "pinned", "Inspector")
     choose("Add object")
     panels("pinned", "pinned", "Objects")
-    check("if (!document.querySelector('[role=dialog][aria-label=Add]')?.checkVisibility()) throw Error('Compact Add must reveal Objects over Inspector');")
+    check("if (!document.querySelector('[role=region][aria-label=Add]')?.checkVisibility()) throw Error('Compact Add must reveal Objects over Inspector');")
     action("button", "← Back to objects", "focus")
-    check("if (!document.activeElement.closest('[role=dialog][aria-label=Add]')) throw Error('Add Escape must originate in its non-modal task surface');")
+    check("if (!document.activeElement.closest('[role=region][aria-label=Add]')) throw Error('Add Escape must originate in its non-modal task surface');")
     browser("press", "Escape")
-    browser("wait", "--fn", "!document.querySelector('[role=dialog][aria-label=Add]') && document.activeElement.id === 'm1-add-object-trigger'")
+    browser("wait", "--fn", "!document.querySelector('[role=region][aria-label=Add]') && document.activeElement.id === 'm1-add-object-trigger'")
     panels("pinned", "pinned", "Objects")
     dock("Show/hide Objects", 979, 979)
     panels("pinned", "pinned")

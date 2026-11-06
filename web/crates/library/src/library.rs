@@ -2081,7 +2081,11 @@ mod mounted_tests {
             "starting a project copy closes the menu"
         );
         assert_eq!(
-            web_sys::window().unwrap().document().unwrap().active_element(),
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .active_element(),
             Some(trigger.into()),
             "closing the project menu returns focus to its trigger"
         );

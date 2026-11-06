@@ -99,6 +99,8 @@ drag preflight by itself before a longer browser or performance run.
 remain under `web/` (distinct names, build output skipped) and never fails on them. `python3 scripts/check.py old-css`
 (or `python3 scripts/check-old-css.py --strict`) fails while any remain; it is not in the default run and gates the
 final merge to `dev` only.
+Workbench Theme tokens and Tailwind utilities live in `web/tailwind.css`; document defaults,
+fonts, and shared finding outlines live in `web/assets/workbench-base.css`.
 
 **KiCad in native tests.** The native tests call `kicad-cli` (KiCad 10) and fail with a clear message when it
 is missing; CI installs it. Only the generator export check (`core/tests/generator_export.rs`) can be skipped

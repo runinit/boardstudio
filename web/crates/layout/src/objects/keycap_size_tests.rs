@@ -135,7 +135,7 @@ async fn key_size_preview_keeps_its_geometry_without_legacy_classes() {
     let stylesheet = document.create_element("style").unwrap();
     stylesheet.set_text_content(Some(&format!(
         "{}\n{}",
-        include_str!("../../../../assets/m1.css"),
+        include_str!("../../../../assets/workbench-base.css"),
         include_str!("../../../../assets/tailwind.css")
     )));
     document.head().unwrap().append_child(&stylesheet).unwrap();

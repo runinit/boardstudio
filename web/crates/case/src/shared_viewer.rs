@@ -4432,7 +4432,7 @@ mod tests {
             })
         });
         rsx! {
-            style { {include_str!("../../../assets/m1.css")} }
+            style { {include_str!("../../../assets/workbench-base.css")} }
             style { {include_str!("../../../assets/tailwind.css")} }
             section { class: "relative flex min-h-0 flex-col overflow-hidden bg-canvas", style: "width:725px;height:560px",
                 SharedViewer {

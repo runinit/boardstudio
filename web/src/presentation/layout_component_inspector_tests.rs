@@ -1103,7 +1103,7 @@ fn mounted_component_inspector_host() -> Element {
     let component_probe = probe.clone();
     let clear_probe = probe.clone();
     rsx! {
-        style { {include_str!("../../assets/m1.css")} }
+        style { {include_str!("../../assets/workbench-base.css")} }
         button { id: "component-inspector-select-source", onclick: { let mut generation = render_generation; move |_| { switch_probe.select(Some("source-part")); generation += 1; } }, "Select source" }
         button { id: "component-inspector-select-original", onclick: { let mut generation = render_generation; move |_| { restore_probe.select(Some("selected-part")); generation += 1; } }, "Select original" }
         button { id: "component-inspector-select-component", onclick: { let mut generation = render_generation; move |_| { let part = component_probe.selected_part.borrow().clone().unwrap_or_else(|| "selected-part".into()); component_probe.select_component_from_finding(&part); generation += 1; } }, "Select component from finding" }

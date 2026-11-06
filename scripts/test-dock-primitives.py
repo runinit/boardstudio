@@ -211,7 +211,7 @@ def main():
     if not (OUT / "assets").exists():
         (OUT / "assets").symlink_to(ROOT / "web/assets", target_is_directory=True)
     (OUT / "index.html").write_text('<!doctype html><html lang="en"><meta charset="utf-8">'
-        '<title>Dock primitives test</title><link rel="stylesheet" href="assets/m1.css">'
+        '<title>Dock primitives test</title><link rel="stylesheet" href="assets/workbench-base.css">'
         '<link rel="stylesheet" href="tailwind.css">'
         '<style>body{overflow:auto;height:auto;min-height:100vh;padding:8px}'
         '@media(max-width:980px){[role=complementary]{display:none}header{flex-wrap:wrap;height:auto!important}}</style>'

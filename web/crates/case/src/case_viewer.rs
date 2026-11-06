@@ -2472,7 +2472,7 @@ mod gesture_cancellation_tests {
         let restore = runtime.clone();
         let instance = use_context::<InstanceSelection>();
         rsx! {
-            style { {include_str!("../../../assets/m1.css")} }
+            style { {include_str!("../../../assets/workbench-base.css")} }
             button { id: "case-gesture-scope", onclick: move |_| {
                 instance.reconcile(away_source.scope.session_epoch, away_source.scope.document_id.clone(), "alternate".into());
                 navigate.submit(Event::Navigate {

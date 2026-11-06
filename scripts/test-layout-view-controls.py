@@ -18,7 +18,7 @@ def tests(url, captures):
     click("Project")
     browser("find", "role", "menuitem", "click", "--name", "New project", "--exact")
     browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Keyboard setup\"]')")
-    click("4 Case (optional)")
+    click("Case (optional)")
     click("Hide guide")
     click("Open Layout workspace")
     for name in ["3D assembly", "2D"]:
@@ -56,7 +56,7 @@ def tests(url, captures):
                 if width < 980:
                     click("Close panels")
                 browser("focus", driver.by_role_name("button", "2D"))
-                evaluate("window.actualView=document.activeElement;window.actualViewGroup=actualView.closest('.m1-layout-view-group')")
+                evaluate("window.actualView=document.activeElement")
                 # Exercise real keyboard focus on the production owner; no substitute state.
                 browser("press", "Tab")
                 browser("press", "Shift+Tab")
@@ -78,14 +78,7 @@ def tests(url, captures):
                     const wasDisabled=actualView.disabled;actualView.disabled=true;
                     const disabled={opacity:getComputedStyle(actualView).opacity,pointerEvents:getComputedStyle(actualView).pointerEvents};
                     actualView.disabled=wasDisabled;
-                    // The old, unadopted branch remains a native style reference only.
-                    const legacyOwner=document.createElement('div');legacyOwner.className='m1-layout-view-group board-tool-pill';
-                    const legacy=document.createElement('button');legacy.textContent='Legacy Layout style reference';legacyOwner.append(legacy);
-                    actualViewGroup.parentElement.append(legacyOwner);
-                    const old=getComputedStyle(legacy), legacyStyle={font:old.fontSize,padding:old.padding,bg:old.backgroundColor};
-                    legacy.setAttribute('aria-pressed','true');const legacyPressed=getComputedStyle(legacy).backgroundColor;
-                    legacyOwner.remove();
-                    return {copied,disabled,legacyStyle,legacyPressed,expectedBackground};
+                    return {copied,disabled,expectedBackground};
                 })()""")
                 print(width, theme, appearance, {"view": result, "secondary action": secondary}, flush=True)
                 for name in ["3D assembly", "Footprints"]:
@@ -122,9 +115,6 @@ def tests(url, captures):
                     "touch rectangle": copied["width"] >= 44 and copied["height"] >= 44,
                     "copied slot coexistence": copied["slot"] in ["toggle-group-item", "tooltip-trigger"],
                     "disabled CSS": result["disabled"] == {"opacity": "0.5", "pointerEvents": "none"},
-                    "unadopted font": result["legacyStyle"]["font"] == "12px",
-                    "unadopted padding": result["legacyStyle"]["padding"] == "10px",
-                    "unadopted pressed": result["legacyPressed"] != result["legacyStyle"]["bg"],
                 }
                 failures.extend((width, theme, appearance, name) for name, passed in checks.items() if not passed)
     secondary_failures = [failure for failure in failures if failure[3].startswith(("secondary", "actual secondary"))]

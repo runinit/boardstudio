@@ -266,7 +266,7 @@ mod tests {
         );
         rsx! {
             NotificationProvider {
-            style { {include_str!("../../assets/m1.css")} }
+            style { {include_str!("../../assets/workbench-base.css")} }
             RuntimeNotifications {}
             ExportPanel { zmk_firmware: Some(firmware) }
             }

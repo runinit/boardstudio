@@ -10,7 +10,7 @@ fn composition() -> Element {
     let inspector = use_panel_settings(PanelSide::Inspector, warning);
     let open = use_signal(|| true);
     rsx! {
-        style { {include_str!("../../../assets/m1.css")} }
+        style { {include_str!("../../../assets/workbench-base.css")} }
         style { {include_str!("../../../assets/tailwind.css")} }
         div { class: "flex flex-col w-full h-full min-h-0 overflow-hidden",
             div { class: "flex flex-1 flex-col min-h-0",

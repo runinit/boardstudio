@@ -4,10 +4,9 @@
 //!
 //! Edits to the upstream file:
 //! - the router `Link` branch is a plain `a` with `href`;
-//! - `data-slot="button"` on both elements: the legacy unlayered `button`, `input` and `select`
-//!   rules in `m1.css` skip elements with a `data-slot`, and `tailwind.css` gives them a minimal
-//!   reset instead (the app has no Tailwind preflight). Every copied component's root element
-//!   carries a `data-slot` for the same reason, until the legacy rules are deleted.
+//! - `data-slot="button"` on both elements: the native-control defaults in
+//!   `workbench-base.css` skip slotted components, and `tailwind.css` gives them a minimal
+//!   reset instead (the app has no Tailwind preflight).
 //! - heights read the shared control sizes (`h-9` → `h-control`, `h-8` → `h-control-compact`,
 //!   `h-10` → `h-control-touch`, `size-9`/`size-8` likewise; theme contract section 5).
 //! - the `Outline` variant's border, including `dark:border-input`, is removed: cards style (theme

@@ -661,7 +661,7 @@ fn WorkbenchApp() -> Element {
         on_export,
     );
     rsx! {
-        link { rel: "stylesheet", href: "assets/m1.css" }
+        link { rel: "stylesheet", href: "assets/workbench-base.css" }
         link { rel: "stylesheet", href: "assets/header.css" }
         link { rel: "stylesheet", href: "assets/command-palette.css" }
         link { rel: "stylesheet", href: "assets/shell.css" }
@@ -9015,6 +9015,7 @@ fn Editor() -> Element {
                               rsx! {
                                 g {
                                     class: "pointer-events-none opacity-[0.68]",
+                                    "data-placement-preview": "part",
                                     transform: "translate({at.x},{at.y})",
                                     "aria-hidden": "true",
                                     polygon { points: "{courtyard}", class: "fill-selection stroke-primary stroke-[0.7] [stroke-dasharray:2_1]" }

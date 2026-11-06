@@ -131,7 +131,7 @@ def main():
     driver.run(str(Path.home() / ".local/share/.dx/tools/tailwindcss-v4.1.5/tailwindcss"), "-i", "web/tailwind.css", "-o", str(OUT / "tailwind.css"))
     if not (OUT / "assets").exists():
         (OUT / "assets").symlink_to(ROOT / "web/assets", target_is_directory=True)
-    (OUT / "index.html").write_text('<!doctype html><html lang="en"><meta charset="utf-8"><title>Actual standalone Objects</title><link rel="stylesheet" href="assets/m1.css"><link rel="stylesheet" href="tailwind.css"><style>body{height:auto;overflow:auto;padding:16px}#main{max-width:360px}</style><body><div id="main"></div><script type="module">import init from "./layout_add.js";init();</script>')
+    (OUT / "index.html").write_text('<!doctype html><html lang="en"><meta charset="utf-8"><title>Actual standalone Objects</title><link rel="stylesheet" href="assets/workbench-base.css"><link rel="stylesheet" href="tailwind.css"><style>body{height:auto;overflow:auto;padding:16px}#main{max-width:360px}</style><body><div id="main"></div><script type="module">import init from "./layout_add.js";init();</script>')
     captures = ROOT / ".evidence/016" / datetime.now().strftime("add-entries-%Y%m%d-%H%M%S")
     captures.mkdir(parents=True)
     handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(OUT))

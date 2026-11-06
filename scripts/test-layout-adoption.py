@@ -31,7 +31,7 @@ def activate_with_space(name):
 
 def geometry():
     # Drawing geometry is inspected structurally; interactive controls use role/name.
-    return evaluate("[...document.querySelectorAll('.m1-matrix-key')].map(e=>({matrix:e.dataset.matrixId,transform:e.getAttribute('transform'),width:e.getAttribute('width'),height:e.getAttribute('height')}))")
+    return evaluate("[...document.querySelectorAll('rect[data-matrix-id][data-row][data-column]')].map(e=>({matrix:e.dataset.matrixId,transform:e.getAttribute('transform'),width:e.getAttribute('width'),height:e.getAttribute('height')}))")
 
 
 def space_key(event_type, repeat=False):
@@ -112,7 +112,7 @@ def new_layout_project(url):
     click("Project")
     browser("find", "role", "menuitem", "click", "--name", "New project", "--exact")
     browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Keyboard setup\"]')")
-    click("4 Case (optional)")
+    click("Case (optional)")
     click("Hide guide")
     click("Open Layout workspace")
 
@@ -124,7 +124,7 @@ def create_single_matrix(expected_keys):
         browser("focus", driver.by_role_name("slider", name))
         browser("press", "Home")
     activate_with_space("Create matrix")
-    browser("wait", "--fn", f"document.querySelectorAll('.m1-matrix-key').length==={expected_keys}")
+    browser("wait", "--fn", f"document.querySelectorAll('rect[data-matrix-id][data-row][data-column]').length==={expected_keys}")
 
 
 def tests(url, captures):
@@ -147,7 +147,7 @@ def tests(url, captures):
         browser("focus", driver.by_role_name("slider", name))
         browser("press", "Home")
     activate_with_space("Create matrix")
-    browser("wait", "--fn", "document.querySelectorAll('.m1-matrix-key').length===1")
+    browser("wait", "--fn", "document.querySelectorAll('rect[data-matrix-id][data-row][data-column]').length===1")
     original = geometry()
     assert original[0]["transform"] == "translate(0 0) rotate(0)" and original[0]["width"] == original[0]["height"] == "18", original
     click("Add object")
@@ -199,7 +199,7 @@ def tests(url, captures):
     browser("focus", driver.by_role_name("spinbutton", "Mirror axis X"))
     check("document.activeElement===axisDraft && axisDraft.value==='12.123456789'")
     activate_with_space("Create linked half")
-    browser("wait", "--fn", "document.querySelectorAll('.m1-matrix-key').length===2")
+    browser("wait", "--fn", "document.querySelectorAll('rect[data-matrix-id][data-row][data-column]').length===2")
     paired = geometry()
     assert original[0] in paired, paired
     mirrored = [key for key in paired if key["matrix"] != original[0]["matrix"]]
@@ -207,18 +207,18 @@ def tests(url, captures):
     assert mirrored[0]["width"] == mirrored[0]["height"] == "18", paired
     browser("fill", driver.by_role_name("spinbutton", "Origin X"), "7.125")
     browser("press", "Enter")
-    browser("wait", "--fn", "[...document.querySelectorAll('.m1-matrix-key')].some(e=>e.getAttribute('transform')==='translate(7.125 0) rotate(0)')")
+    browser("wait", "--fn", "[...document.querySelectorAll('rect[data-matrix-id][data-row][data-column]')].some(e=>e.getAttribute('transform')==='translate(7.125 0) rotate(0)')")
     moved = geometry()
     assert {key["transform"] for key in moved} == {"translate(7.125 0) rotate(0)", "translate(17.121913578 0) rotate(0)"}, moved
     assert all(key["width"] == key["height"] == "18" for key in moved)
     click("Undo")
-    browser("wait", "--fn", "[...document.querySelectorAll('.m1-matrix-key')].some(e=>e.getAttribute('transform')==='translate(24.246913578 0) rotate(0)')")
+    browser("wait", "--fn", "[...document.querySelectorAll('rect[data-matrix-id][data-row][data-column]')].some(e=>e.getAttribute('transform')==='translate(24.246913578 0) rotate(0)')")
     assert geometry() == paired, "one Undo restores the exact measurements and linked geometry"
     click("Undo")
-    browser("wait", "--fn", "document.querySelectorAll('.m1-matrix-key').length===1")
+    browser("wait", "--fn", "document.querySelectorAll('rect[data-matrix-id][data-row][data-column]').length===1")
     assert geometry() == original, "one Undo removes only the linked half"
     click("Undo")
-    browser("wait", "--fn", "document.querySelectorAll('.m1-matrix-key').length===0")
+    browser("wait", "--fn", "document.querySelectorAll('rect[data-matrix-id][data-row][data-column]').length===0")
     print("PASS actual Add/Mirror dock owners, retained precise local draft and hidden/inert focus across 12 combinations; exact linked geometry/measurements and three separate Undo outcomes", captures, flush=True)
 
 

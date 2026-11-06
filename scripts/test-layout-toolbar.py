@@ -497,7 +497,7 @@ def main():
     driver.run(str(Path.home() / ".local/share/.dx/tools/tailwindcss-v4.1.5/tailwindcss"), "-i", "web/tailwind.css", "-o", str(OUT / "tailwind.css"))
     if not (OUT / "assets").exists():
         (OUT / "assets").symlink_to(ROOT / "web/assets", target_is_directory=True)
-    (OUT / "index.html").write_text('<!doctype html><html lang="en"><meta charset="utf-8"><title>Layout strips</title><link rel="stylesheet" href="assets/m1.css"><link rel="stylesheet" href="tailwind.css"><style>body{margin:0}.toolbar-fixture{position:relative;padding:12px;box-sizing:border-box}</style><body><div id="main"></div><script type="module">import init from "./toolbar_strips.js";init();</script>')
+    (OUT / "index.html").write_text('<!doctype html><html lang="en"><meta charset="utf-8"><title>Layout strips</title><link rel="stylesheet" href="assets/workbench-base.css"><link rel="stylesheet" href="tailwind.css"><style>body{margin:0}.toolbar-fixture{position:relative;padding:12px;box-sizing:border-box}</style><body><div id="main"></div><script type="module">import init from "./toolbar_strips.js";init();</script>')
     handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(OUT))
     with http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler) as server:
         threading.Thread(target=server.serve_forever, daemon=True).start()

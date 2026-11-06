@@ -112,7 +112,7 @@ def styles(url, captures):
     check("document.activeElement.getAttribute('aria-label')==='Add object'")
     choose("Key size", "combobox", "2u")
     browser("wait", "--fn", "!keySizeControl.closest('section').querySelector('[data-slot=field-error]')")
-    browser("wait", "--fn", "document.querySelector('.m1-matrix-key').getAttribute('width')!=='18'")
+    browser("wait", "--fn", "document.querySelector('rect[data-matrix-id][data-row][data-column]').getAttribute('width')!=='18'")
     print("Review style failures", failures, flush=True)
     assert not failures, failures
 

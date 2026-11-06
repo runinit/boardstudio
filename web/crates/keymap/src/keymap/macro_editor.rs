@@ -760,7 +760,7 @@ mod mounted_accessible_name_tests {
         };
         let request_sequence = use_signal(|| 0);
         rsx! {
-            style { {include_str!("../../../../assets/m1.css")} }
+            style { {include_str!("../../../../assets/workbench-base.css")} }
             MacroEditor {
                 scope,
                 scope_generation: 1,

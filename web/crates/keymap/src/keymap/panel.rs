@@ -541,7 +541,7 @@ mod disclosure_mounted_tests {
         let operations = probe.operations.clone();
         let selected_key = probe.selected_key.clone();
         rsx! {
-            style { {include_str!("../../../../assets/m1.css")} }
+            style { {include_str!("../../../../assets/workbench-base.css")} }
             KeymapPanel {
                 view,
                 scope,

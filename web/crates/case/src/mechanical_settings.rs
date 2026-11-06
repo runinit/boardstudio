@@ -6471,7 +6471,7 @@ mod contextual_layer_tests {
     async fn selected_plate_uses_contextual_inspector_and_returns_to_assembly_settings() {
         let document = web_sys::window().unwrap().document().unwrap();
         let stylesheet = document.create_element("style").unwrap();
-        stylesheet.set_text_content(Some(include_str!("../../../assets/m1.css")));
+        stylesheet.set_text_content(Some(include_str!("../../../assets/workbench-base.css")));
         document.head().unwrap().append_child(&stylesheet).unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("case-contextual-mechanical-settings-test-root");

@@ -645,7 +645,7 @@ fn mounted_outline_inspector_host() -> Element {
         }
     };
     rsx! {
-        style { {include_str!("../../../assets/m1.css")} }
+        style { {include_str!("../../../assets/workbench-base.css")} }
         svg { id: "outline-point-canvas-test", view_box: "-20 -20 40 40", onmounted: mount_point_canvas,
             if let Some(projection) = projection.clone() {
                 super::super::outline_lifecycle::OutlinePointCanvasOverlay {

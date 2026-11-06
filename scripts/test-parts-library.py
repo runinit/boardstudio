@@ -92,7 +92,7 @@ def main():
                 center:[t.x+t.width/2,t.y+t.height/2],track:[r.x,r.y,r.width,r.height],thumb:[t.left,t.top,t.right,t.bottom],clips,
                 row:root.getBoundingClientRect().height,disabled:thumb.disabled,ariaDisabled:thumb.getAttribute('aria-disabled'),
                 position:getComputedStyle(thumb).position,overflow:getComputedStyle(track).overflow,
-                scroll:thumb.closest('.m1-case-view').scrollTop};})()""")
+                scroll:thumb.closest('[aria-label="3D footprint model preview"]').querySelector('canvas').parentElement.parentElement.scrollTop};})()""")
         expected = metrics["track"][0] + (metrics["value"]-metrics["min"])/(metrics["max"]-metrics["min"])*metrics["track"][2]
         assert abs(metrics["center"][0]-expected) < 0.1, metrics
         assert abs(metrics["center"][1]-(metrics["track"][1]+metrics["track"][3]/2)) < 0.1, metrics
@@ -112,7 +112,7 @@ def main():
         action("button", "Project")
         action("menuitem", "New project")
         browser("wait", "--fn", "document.querySelector('[aria-label=\"Keyboard setup\"]')?.checkVisibility()")
-        action("button", "4 Case (optional)")
+        action("button", "Case (optional)")
         action("button", "Hide guide")
         action("button", "Open Parts workspace")
         browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Search footprints\"]')")
@@ -246,13 +246,13 @@ def main():
                         browser("press", "End")
                     for role, name in [("button", "Top view"), ("checkbox", "Show hidden lines")]:
                         focus(role, name)
-                        check("""(()=>{const active=document.activeElement,root=active.closest('.m1-case-view'),
+                        check("""(()=>{const active=document.activeElement,root=active.closest('[aria-label="3D footprint model preview"]').querySelector('canvas').parentElement.parentElement,
                             content=active.closest('[data-slot=collapsible-content]'),toolbar=content.parentElement.parentElement,
                             r=active.getBoundingClientRect(),t=toolbar.getBoundingClientRect(),v=root.getBoundingClientRect();
                             return root.scrollTop===0 && t.top>=v.top && t.bottom<=v.bottom
                                 && active.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})()""")
                         browser("press", "Tab")
-                        check("document.querySelector('.m1-parts-sample-viewer .m1-case-view').scrollTop===0")
+                        check("document.querySelector('[aria-label=\"3D footprint model preview\"] canvas').parentElement.parentElement.scrollTop===0")
                         browser("press", "Shift+Tab")
                     mode_names = ("shaded", "wireframe", "hybrid")
                     before_modes = [attr("button", name, "aria-pressed") for name in mode_names]
@@ -262,7 +262,7 @@ def main():
                         state = evaluate("""(()=>{const active=document.activeElement,r=active.getBoundingClientRect();
                             return {name:active.getAttribute('aria-label')||active.textContent.trim(),
                                 visible:active.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)),
-                                scroll:active.closest('.m1-case-view')?.scrollTop,
+                                scroll:active.closest('[aria-label="3D footprint model preview"]')?.querySelector('canvas').parentElement.parentElement.scrollTop,
                                 position:getComputedStyle(active).position,parentOverflow:getComputedStyle(active.parentElement).overflow,
                                 rect:[r.left,r.top,r.right,r.bottom],parentRect:(()=>{const p=active.parentElement.getBoundingClientRect();return [p.left,p.top,p.right,p.bottom]})(),
                                 hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.outerHTML};})()""")
@@ -291,7 +291,7 @@ def main():
                         probe.style.backgroundColor='var(--background)'; document.body.append(probe);
                         const expected=getComputedStyle(probe).backgroundColor; probe.remove();
                         const bounds=content.getBoundingClientRect();
-                        const root=toolbar.closest('.m1-case-view'),canvas=root.querySelector('canvas');
+                        const canvas=toolbar.closest('[aria-label="3D footprint model preview"]').querySelector('canvas'),root=canvas.parentElement.parentElement;
                         const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}};
                         const clips=[];
                         for(let e=content.parentElement;e;e=e.parentElement){

@@ -125,7 +125,7 @@ def tests(url, captures):
                             evaluate(f"window.point{index}=document.activeElement")
                             browser("press", "Space")
                         result = evaluate("""(()=>{
-                            const header=point2.closest('.m1-outline-point-list').querySelector('.m1-outline-point-columns');
+                            const header=point2.closest('[role=group][aria-label="Outline points"]').querySelector('[aria-hidden=true]');
                             return {first:point1.getAttribute('aria-pressed'),second:point2.getAttribute('aria-pressed'),
                                 display:getComputedStyle(point2).display,header:[...header.children].map(e=>e.getBoundingClientRect().x),
                                 row:[...point2.children].map(e=>e.getBoundingClientRect().x)};

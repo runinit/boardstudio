@@ -287,7 +287,7 @@ focus, selection, validation and CAD geometry keep their distinct visible states
 - Fixed canvas controls and independently scrolling side panels.
 - Light and dark palettes with a persisted System option.
 
-The current workbench uses one header, docked Objects and Inspector panels, solid contextual toolbars, and shared semantic controls. The OpenDesign Application prototype follows BoardStudio's light theme and guides control grouping; current Rust/Dioxus code remains the source for supported behavior and edit ownership. Older Graphite explorations are archived in [the reference packet](docs/design/graphite/approved-suite/) and are not the target for this prototype. Shell, panel, Inspector and geometry styles use semantic `--wb-*` roles in [Tailwind source](web/tailwind.css) and [the base stylesheet](web/assets/m1.css); workspace components live in [presentation](web/src/presentation/).
+The current workbench uses one header, docked Objects and Inspector panels, solid contextual toolbars, and shared semantic controls. The OpenDesign Application prototype follows BoardStudio's light theme and guides control grouping; current Rust/Dioxus code remains the source for supported behavior and edit ownership. Older Graphite explorations are archived in [the reference packet](docs/design/graphite/approved-suite/) and are not the target for this prototype. Both Themes and their semantic tokens are defined in [Tailwind source](web/tailwind.css); shared document defaults and finding outlines live in [the base stylesheet](web/assets/workbench-base.css), and workspace components live in [presentation](web/src/presentation/).
 
 The same dock vocabulary now covers PCB Placement/Wiring, Case assembly and
 construction disclosures, Keymap layer and key editing, Keycaps board appearance and
@@ -303,30 +303,25 @@ separately from portable downloads and fabrication readiness.
 
 ## Colors
 
-Role-led names describe the implemented palette. The frontmatter records separate
-`light-*` and `dark-*` values; neither theme is a global inversion. Removing the
-mode prefix from a paired color key gives its corresponding `--wb-` CSS token
-suffix. The `keymap-*` values are a fixed dark key-face treatment shared by both
-themes.
-Tokens in this document record the implementation; update the document and its
-sidecar together when the implementation's palette changes.
+The frontmatter records reference swatches for the Original Theme in light and
+dark appearances, not CSS token names. The shadcn Theme has its own palette.
+Neither Appearance is a global inversion. The current token names and values for
+both Themes live in [the theme contract](docs/plans/rust-ui-migration/theme-contract.md)
+and [Tailwind source](web/tailwind.css); update the design record when those
+palettes change.
 
 ### Primary
 
-- **Action blue:** `accent` marks primary actions, active navigation, selected
-  objects, and most inspector focus rings. `on-accent` is the paired foreground.
-- **Action hover:** `accent-dark` is the existing hover token. Its name is legacy:
-  it becomes lighter in the dark theme.
-- **Selection surface:** `selection-surface` marks selected catalog and tree rows.
+- **Primary action:** `primary` marks primary actions, paired with
+  `primary-foreground`; hover treatments retain that pairing.
+- **Selection surface:** `selected` and `selected-foreground` mark selected catalog and tree rows.
   Selected buttons and toggles use the filled surface without a persistent outline;
-  keyboard focus keeps its 2px Action blue ring.
+  keyboard focus keeps its Theme-colored ring.
 
 ### Secondary
 
-- **Secondary violet:** `accent-secondary` supplies secondary emphasis.
-- **Legacy `teal` token:** despite its name, `teal` currently equals Action blue
-  in both themes and no stylesheet rule consumes it. Do not give it a new role;
-  use `accent` or a geometry/status token instead.
+- **Secondary emphasis:** use semantic secondary or geometry roles rather than
+  deriving an action color from a canvas color.
 
 ### Tertiary
 
@@ -337,24 +332,23 @@ sidecar together when the implementation's palette changes.
 - **Geometry support:** `geometry-outline`, `geometry-body`, `geometry-label`,
   `geometry-text`, and `geometry-zone` keep boundaries, bodies, labels, and zones
   distinct. `geometry-fill-muted` supports inactive matrix cells.
-- **Keymap keys:** the fixed `keymap-key-face`, `keymap-key-ink`, and
-  `keymap-key-rule` tokens keep binding labels legible across themes.
-- **Status colors:** `status-success`, `status-warning`, and `status-error` have
-  separate surface tokens for filled backgrounds. Geometry keepouts and cutouts
+- **Keymap keys:** `keycap-face`, `keycap-ink`, and `keycap-rule` keep
+  binding labels legible across Themes.
+- **Status colors:** `success`, `warning`, and `destructive` have
+  paired foreground and light/dark roles. Geometry keepouts and cutouts
   currently reuse the error color and retain dashed boundaries.
 
 ### Neutral
 
 - **Neutral canvas:** `canvas` is the drawing, footprint, and 3D preview field.
   `grid-small` and `grid-large` form its quiet measurement grid.
-- **Shell surfaces:** `paper`, `panel`, and `raised` distinguish the application,
-  permanent panels, and raised or hovered areas. `surface-soft` and
-  `surface-strong` provide additional interaction surfaces.
-- **Field and toolbar surfaces:** `field` distinguishes editable controls; `toolbar` and `toolbar-rule` back the contextual actions with a solid contrasting surface.
-- **Content and rules:** `ink`, `muted`, and `subtle` form the text hierarchy;
-  `rule` and `rule-strong` separate panels and outline controls.
+- **Shell surfaces:** `background`, `card`, `muted`, and `accent`
+  distinguish the desk, panels, quieter surfaces, and hovered areas.
+- **Field and toolbar surfaces:** `field` distinguishes editable controls; `toolbar` and `toolbar-border` back contextual actions.
+- **Content and rules:** `foreground` and `muted-foreground` form the text
+  hierarchy; `border` and `border-strong` separate panels and outline controls.
 
-**The Shared Token Rule.** Tailwind utilities and BoardStudio controls consume the same `--wb-*` roles. Keep workspace state and document edits out of visual primitives.
+**The Shared Token Rule.** Tailwind utilities and BoardStudio controls consume the same semantic Theme roles. Keep workspace state and document edits out of visual primitives.
 
 **The Paired Foreground Rule.** Use each filled action with its designated foreground; ordinary content colors are not interchangeable with on-accent colors.
 
@@ -375,7 +369,7 @@ These are recorded defects or limitations, not patterns to reproduce:
 - The existing palette is not a blanket contrast guarantee. Inspect real
   foreground/background pairs, opacity, focus states, and selected surfaces.
 
-Calculated from current opaque CSS pairs (normal text target 4.5:1):
+Calculated from the Original reference's opaque CSS pairs (normal text target 4.5:1):
 
 | Pair | Light | Dark |
 | --- | --- | --- |
@@ -572,15 +566,15 @@ consistent outline strokes; geometry uses actual editable and compiled shapes.
 
 ### Actions
 
-Shared `BoardButton` primary actions use Action blue with the paired foreground,
-8px corners, 12px horizontal padding, and a 40px minimum height (34px compact;
+Shared `Button` primary actions use the Theme's primary color with the paired foreground,
+Theme-set corners, 12px horizontal padding, and a 40px height (36px compact;
 44px for coarse-pointer controls). The Parts placement action fills the
 Inspector width. Hover uses Action hover for primary buttons and a soft surface
 for ordinary buttons. Secondary buttons use the quiet surface fill without an
 outline; quiet actions are transparent.
 
-Keyboard focus is a 2px Action blue ring with 2px offset. Shared buttons dim to
-0.58 opacity when disabled; some legacy inspector actions use their own muted
+Keyboard focus uses the Theme's ring color. Shared buttons dim to
+0.5 opacity when disabled; some workspace actions use their own muted
 surface or opacity treatment.
 
 ### Fields
@@ -780,24 +774,17 @@ with each workspace. Other workspaces retain their existing selection selector. 
 Objects options. Panel menu actions occupy full-width rows, and Escape closes
 the menu without changing the canvas selection.
 
-Shared controls live in `web/crates/ui-shared/src/controls.rs`, with token-based
-styles in `web/tailwind.css`. Use `BoardButton` variants for form and task actions;
-pass `type="submit"` explicitly for submission. Keep bespoke canvas, tree and
+Shared controls live in `web/crates/ui-shared/src/ui/`, with token-based
+styles in `web/tailwind.css`. Use `Button` variants for form and task actions;
+pass the submit type explicitly for submission. Keep bespoke canvas, tree and
 navigation affordances in their owning workspace.
 
-`BoardCheckbox` keeps native checkbox and switch form events and label
-activation while its shared CSS supplies the themed control rendering. `BoardDisclosure` retains native details/summary keyboard behavior
-and keeps child drafts mounted while collapsed; controlled headings keep their
-existing handlers. Layout transform groups and key assembly groups collapse
-independently, starting open. `BoardAccordionSection` uses the Dioxus inline
-accordion primitive for compact workspace sections. Use the mounted native
-disclosure for draft-owning fields: the pinned Dioxus AccordionContent currently
-unmounts closed content.
-`BoardDialog` provides native modal confirmation or an inline,
-non-modal task surface. Pending actions control whether dismissal is permitted.
-Browser file pickers remain native. Dioxus Components primitives own popovers
-and toggles; native form, disclosure and dialog semantics stay intact where they
-already provide the required behavior.
+Copied controls use Dioxus primitives for interactive behavior, with their
+keyboard and ARIA requirements recorded in the
+[accessibility floor](docs/plans/rust-ui-migration/accessibility-floor.md).
+Collapsible sections that own drafts must keep those children mounted while
+closed. Pending actions control whether a confirmation can be dismissed.
+Browser file pickers remain native.
 
 Compact headers retain the active board name and a focusable local-save status.
 The status follows actual storage writes; a failed write must not show as saved.

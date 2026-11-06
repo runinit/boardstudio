@@ -59,7 +59,7 @@ class BuildWebTests(unittest.TestCase):
             web = root / "web"
             public = web / "target/dx/boardstudio-web/release/web/public"
             (web / "assets").mkdir(parents=True)
-            (web / "assets/m1.css").write_text("body{}")
+            (web / "assets/workbench-base.css").write_text("body{}")
             (web / "assets/layout-generators.js").write_text("obsolete generator")
             for name in ("layout-generators", "preview-generator"):
                 (web / "assets" / name).mkdir()
@@ -100,7 +100,7 @@ class BuildWebTests(unittest.TestCase):
             self.assertEqual((root_site / "index.html").read_text(), "/")
             self.assertEqual((subpath_site / "index.html").read_text(), "/boardstudio/")
             for site in (root_site, subpath_site):
-                self.assertTrue((site / "assets/m1.css").is_file())
+                self.assertTrue((site / "assets/workbench-base.css").is_file())
                 for name in ("layout-generators.js", "layout-generators", "preview-generator"):
                     self.assertFalse((site / "assets" / name).exists(), name)
                 self.assertTrue((site / "assets/imported-modules.json").is_file())
