@@ -19,7 +19,7 @@ use boardstudio_core::{
         KeycapSpec, Material, MechanicalAssembly, MechanicalBuiltinProfile,
         MechanicalConfiguration, MechanicalExtraction, MechanicalPartProfile,
         MechanicalPurposeMapping, MechanicalSwitchFamily, Operation, OutlineFeature,
-        OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
+        OutlineSettings, PcbPreview, PhysicalBoardInstance, PrepareExportRequest, ProjectDoc,
     },
 };
 pub use boardstudio_web_host::host::CoreExecutor;
@@ -6801,14 +6801,8 @@ impl Runtime {
         let peripheral = instances
             .iter()
             .find(|instance| instance.role == "peripheral");
-        if hardware.is_some_and(|hardware| hardware.topology == HardwareTopology::Split)
-            && (instances.len() != 2
-                || central.is_none_or(|instance| instance.half != "left")
-                || peripheral.is_none_or(|instance| instance.half != "right"))
-        {
-            return Err(
-                "Split firmware requires a left central and a right peripheral assembly".into(),
-            );
+        if hardware.is_some_and(|hardware| hardware.topology == HardwareTopology::Split) {
+            validate_split_assignment(instances)?;
         }
         let primary_board_id = central.map_or(scope.board_id.as_str(), |instance| {
             instance.board_id.as_str()
@@ -7742,6 +7736,38 @@ pub mod firmware_export_test_support {
         })
     }
 
+    thread_local! {
+        static GENERATED_FILES: RefCell<Vec<BTreeMap<String, String>>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// Run the real generator and keep its files for assertions; failures fall through to Core.
+    fn generated_with_recording(request: &CoreRequest) -> Option<CoreReply> {
+        let CoreRequest::GenerateFirmware { id, request } = request else {
+            return None;
+        };
+        let package = boardstudio_core::firmware::generate(request).ok()?;
+        GENERATED_FILES.with(|files| files.borrow_mut().push(package.files.clone()));
+        Some(CoreReply::FirmwareGenerated {
+            id: id.clone(),
+            package,
+        })
+    }
+
+    /// Files the real generator produced for each firmware export since the last call.
+    pub fn take_generated_files() -> Vec<BTreeMap<String, String>> {
+        GENERATED_FILES.with(|files| std::mem::take(&mut *files.borrow_mut()))
+    }
+
+    /// A wireless split design: physical left half on `board-a`, right half on `board-b`, each
+    /// with its own bindings, with the given roles. Firmware generation runs the real generator.
+    pub async fn split_fixture(left_role: &str, right_role: &str) -> Rc<Runtime> {
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, split_document(left_role, right_role)).await;
+        support::in_process_core(&runtime).script_replies(generated_with_recording);
+        take_generated_files();
+        runtime
+    }
+
     pub async fn fixture() -> (Rc<Runtime>, AcceptedSnapshot, Scope) {
         let runtime = support::new_runtime();
         support::open_document(&runtime, wired_document()).await;
@@ -7905,10 +7931,79 @@ pub mod firmware_export_test_support {
             mcu_terms,
             Some("ceoloide/mcu_nice_nano"),
         ));
+        add_half_board(&mut doc, "board-a", "m", "mcu-left");
+        doc.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Unibody,
+            transport: HardwareTransport::None,
+            instances: Vec::new(),
+            shared_construction: None,
+            pairs: Vec::new(),
+            boards: vec![ElectricalBoardConfiguration {
+                board_id: "board-a".into(),
+                controller_part_id: Some("mcu-left".into()),
+                ..Default::default()
+            }],
+        });
+        doc
+    }
+
+    fn split_document(left_role: &str, right_role: &str) -> ProjectDoc {
+        let mut doc = wired_document();
+        add_half_board(&mut doc, "board-b", "n", "mcu-right");
+        let bindings = |matrix: &str, keys: [&str; 4]| {
+            ["r0c0", "r0c1", "r1c0", "r1c1"]
+                .into_iter()
+                .zip(keys)
+                .map(|(cell, key)| (format!("matrix/{matrix}/{cell}"), format!("&kp {key}")))
+                .collect::<BTreeMap<_, _>>()
+        };
+        let instance = |id: &str, board: &str, half: &str, role: &str, controller: &str| {
+            PhysicalBoardInstance {
+                id: id.into(),
+                name: id.into(),
+                board_id: board.into(),
+                half: half.into(),
+                role: role.into(),
+                flipped: false,
+                controller_part_id: Some(controller.into()),
+                mechanical: None,
+                construction_ownership: Default::default(),
+                mechanical_identity_reservation: None,
+            }
+        };
+        doc.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Split,
+            transport: HardwareTransport::Wireless,
+            instances: vec![
+                instance("left-half", "board-a", "left", left_role, "mcu-left"),
+                instance("right-half", "board-b", "right", right_role, "mcu-right"),
+            ],
+            shared_construction: None,
+            pairs: Vec::new(),
+            boards: vec![
+                ElectricalBoardConfiguration {
+                    board_id: "board-a".into(),
+                    controller_part_id: Some("mcu-left".into()),
+                    key_bindings: bindings("m", ["A", "B", "C", "D"]),
+                    ..Default::default()
+                },
+                ElectricalBoardConfiguration {
+                    board_id: "board-b".into(),
+                    controller_part_id: Some("mcu-right".into()),
+                    key_bindings: bindings("n", ["E", "F", "G", "H"]),
+                    ..Default::default()
+                },
+            ],
+        });
+        doc
+    }
+
+    fn add_half_board(doc: &mut ProjectDoc, board_id: &str, matrix_id: &str, controller_id: &str) {
+        let first_part = doc.parts.len();
         let mut matrix_parts = vec![];
         for r in 0..2 {
             for c in 0..2 {
-                let id = format!("matrix/m/r{r}c{c}");
+                let id = format!("matrix/{matrix_id}/r{r}c{c}");
                 matrix_parts.push(id.clone());
                 doc.parts.push(part(&id, "switch"));
                 let did = format!("{id}/diode");
@@ -7916,19 +8011,22 @@ pub mod firmware_export_test_support {
                 doc.parts.push(part(&did, "diode"));
             }
         }
-        doc.parts.push(part("mcu-left", "mcu"));
+        doc.parts.push(part(controller_id, "mcu"));
         doc.boards.push(Board {
-            id: "board-a".into(),
-            name: "A".into(),
+            id: board_id.into(),
+            name: board_id.into(),
             outline_ids: vec![],
-            part_ids: doc.parts.iter().map(|p| p.id.clone()).collect(),
+            part_ids: doc.parts[first_part..]
+                .iter()
+                .map(|p| p.id.clone())
+                .collect(),
             net_ids: vec![],
             thickness: 1.6,
             traces: vec![],
             vias: vec![],
         });
         doc.matrices.push(Matrix {
-            id: "m".into(),
+            id: matrix_id.into(),
             name: None,
             rows: 2,
             columns: 2,
@@ -7936,7 +8034,7 @@ pub mod firmware_export_test_support {
             origin: Vec2::default(),
             definition_id: "switch".into(),
             part_ids: matrix_parts,
-            board_id: Some("board-a".into()),
+            board_id: Some(board_id.into()),
             mirror: None,
             rotation: None,
             edge_gap: None,
@@ -7965,20 +8063,32 @@ pub mod firmware_export_test_support {
                 })
                 .collect(),
         });
-        doc.hardware = Some(HardwareConfiguration {
-            topology: HardwareTopology::Unibody,
-            transport: HardwareTransport::None,
-            instances: Vec::new(),
-            shared_construction: None,
-            pairs: Vec::new(),
-            boards: vec![ElectricalBoardConfiguration {
-                board_id: "board-a".into(),
-                controller_part_id: Some("mcu-left".into()),
-                ..Default::default()
-            }],
-        });
-        doc
     }
+}
+
+/// Either physical half may be central; the split needs one of each role and one of each side.
+fn validate_split_assignment(instances: &[PhysicalBoardInstance]) -> Result<(), String> {
+    let [first, second] = instances else {
+        return Err(
+            "Split firmware needs exactly two assemblies: one left half and one right half".into(),
+        );
+    };
+    let roles = [first.role.as_str(), second.role.as_str()];
+    if !(roles == ["central", "peripheral"] || roles == ["peripheral", "central"]) {
+        return Err(if roles[0] == roles[1] {
+            format!(
+                "Split firmware needs exactly one central half and one peripheral half; both halves are assigned {}",
+                roles[0]
+            )
+        } else {
+            "Split firmware needs exactly one central half and one peripheral half".into()
+        });
+    }
+    let halves = [first.half.as_str(), second.half.as_str()];
+    if !(halves == ["left", "right"] || halves == ["right", "left"]) {
+        return Err("Split firmware needs one left half and one right half".into());
+    }
+    Ok(())
 }
 
 fn validate_mechanical_source(accepted: &AcceptedSnapshot, scope: &Scope) -> Result<(), String> {
@@ -8504,6 +8614,98 @@ mod firmware_export_tests {
             }
         })
         .await
+    }
+
+    async fn export_split(
+        left_role: &str,
+        right_role: &str,
+    ) -> (Rc<Runtime>, Vec<BTreeMap<String, String>>) {
+        let runtime = test_support::split_fixture(left_role, right_role).await;
+        let (_, run_effect) = run_export_effect(test_support::start_export(&runtime));
+        test_support::run_effects(&runtime, vec![run_effect]).await;
+        let generated = test_support::take_generated_files();
+        (runtime, generated)
+    }
+
+    const SHIELD: &str = "config/boards/shields/boardstudio/";
+
+    fn bindings(keymap: &str) -> Vec<&str> {
+        let list = keymap
+            .split("bindings = <")
+            .nth(1)
+            .and_then(|rest| rest.split('>').next())
+            .expect("keymap lists its bindings");
+        list.split("&kp ").skip(1).map(str::trim).collect()
+    }
+
+    #[wasm_bindgen_test]
+    async fn split_export_follows_the_central_role_while_keys_keep_physical_left_to_right_order() {
+        let mut exports = Vec::new();
+        for (left_role, right_role, left_central, right_central) in [
+            ("central", "peripheral", "y", "n"),
+            ("peripheral", "central", "n", "y"),
+        ] {
+            let (runtime, generated) = export_split(left_role, right_role).await;
+            assert_eq!(generated.len(), 1, "{left_role}/{right_role} exports once");
+            assert!(
+                !runtime.status_is_alert(),
+                "{left_role}/{right_role}: {}",
+                runtime.status()
+            );
+            let files = &generated[0];
+            let defconfig = &files[&format!("{SHIELD}Kconfig.defconfig")];
+            let role = |shield: &str, central: &str| {
+                format!(
+                    "if SHIELD_BOARDSTUDIO_{shield}\nconfig ZMK_SPLIT\n    default y\nconfig ZMK_SPLIT_ROLE_CENTRAL\n    default {central}"
+                )
+            };
+            assert!(
+                defconfig.contains(&role("LEFT", left_central)),
+                "{defconfig}"
+            );
+            assert!(
+                defconfig.contains(&role("RIGHT", right_central)),
+                "{defconfig}"
+            );
+            let mut positions = bindings(&files[&format!("{SHIELD}boardstudio.keymap")]);
+            assert_eq!(positions.len(), 8);
+            positions[..4].sort();
+            positions[4..].sort();
+            assert_eq!(
+                positions,
+                ["A", "B", "C", "D", "E", "F", "G", "H"],
+                "positions are physical left-then-right whichever half is central"
+            );
+            assert!(
+                files[&format!("{SHIELD}boardstudio_left.overlay")].contains("row-offset = <0>")
+            );
+            assert!(
+                files[&format!("{SHIELD}boardstudio_right.overlay")].contains("row-offset = <2>")
+            );
+            exports.push(generated.into_iter().next().unwrap());
+        }
+        for path in [
+            "boardstudio.keymap",
+            "boardstudio_left.overlay",
+            "boardstudio_right.overlay",
+        ] {
+            let path = format!("{SHIELD}{path}");
+            assert_eq!(
+                exports[0][&path], exports[1][&path],
+                "swapping the central role must not change {path}"
+            );
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn split_export_rejects_two_central_halves_and_names_the_role_problem() {
+        let (runtime, generated) = export_split("central", "central").await;
+        assert!(generated.is_empty());
+        assert!(runtime.status_is_alert());
+        assert_eq!(
+            runtime.status(),
+            "Split firmware needs exactly one central half and one peripheral half; both halves are assigned central"
+        );
     }
 
     #[wasm_bindgen_test]

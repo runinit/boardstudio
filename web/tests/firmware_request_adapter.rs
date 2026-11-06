@@ -4,9 +4,10 @@ mod firmware_request_adapter;
 use boardstudio_core::{
     electrical::{ElectricalAssignment, ElectricalDiagnostic, ElectricalMode, ElectricalPlan},
     electrical_peripherals::PeripheralRequirement,
-    firmware::{FirmwareScanMode, ScanPin, SplitTransport},
+    firmware::{FirmwareScanMode, ScanPin, SplitHalf, SplitTransport},
     model::{
-        Board, ElectricalBoardConfiguration, HardwareConfiguration, HardwareTransport, ProjectDoc,
+        Board, ElectricalBoardConfiguration, HardwareConfiguration, HardwareTransport,
+        PhysicalBoardInstance, ProjectDoc,
     },
 };
 use std::collections::BTreeMap;
@@ -393,4 +394,105 @@ fn legacy_encoder_uses_resolved_c_terminal_and_shared_sensor_overlay_order() {
         assert!(text.contains("b-gpios = <&gpio0 3 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>"));
         assert!(text.contains("status = \"disabled\""));
     }
+}
+
+fn split_document(central_half: &str) -> ProjectDoc {
+    let mut document = document();
+    let hardware = document.hardware.as_mut().unwrap();
+    hardware.transport = HardwareTransport::Wireless;
+    hardware.instances = [("left-half", "left"), ("right-half", "right")]
+        .map(|(id, half)| PhysicalBoardInstance {
+            id: id.into(),
+            name: id.into(),
+            board_id: half.into(),
+            half: half.into(),
+            role: if half == central_half {
+                "central"
+            } else {
+                "peripheral"
+            }
+            .into(),
+            flipped: false,
+            controller_part_id: None,
+            mechanical: None,
+            construction_ownership: Default::default(),
+            mechanical_identity_reservation: None,
+        })
+        .into();
+    document
+}
+
+fn half_plan(instance: &str, encoder: Option<&str>) -> ElectricalPlan {
+    let mut half = match encoder {
+        Some(id) => {
+            let mut value = encoder_plan(id, "P0.02", "P0.03", None);
+            value.peripherals[0].gpio_terminals = vec![
+                ("A".into(), "encoder-a".into()),
+                ("C".into(), "encoder-b".into()),
+            ];
+            value.peripheral_pins = BTreeMap::from([
+                ("encoder-a".into(), "P0.02".into()),
+                ("encoder-b".into(), "P0.03".into()),
+            ]);
+            value
+        }
+        None => plan(ElectricalMode::Matrix),
+    };
+    half.instance_id = Some(instance.into());
+    half
+}
+
+#[test]
+fn central_half_follows_the_central_plans_physical_half_and_offsets_stay_physical() {
+    for (central_half, central_instance, other_instance, expected, offsets) in [
+        ("left", "left-half", "right-half", SplitHalf::Left, (0, 1)),
+        ("right", "right-half", "left-half", SplitHalf::Right, (1, 0)),
+    ] {
+        let document = split_document(central_half);
+        let (request, _) = firmware_request_adapter::firmware_request(
+            &document,
+            &half_plan(central_instance, None),
+            Some(&half_plan(other_instance, None)),
+        )
+        .unwrap();
+        assert_eq!(request.central_half, expected);
+        assert_eq!(
+            (
+                request.matrix_row_offset,
+                request.peripheral.unwrap().matrix_row_offset
+            ),
+            offsets,
+            "{central_half} central: the right half sits after the left half's rows"
+        );
+    }
+}
+
+#[test]
+fn legacy_sensor_order_is_physical_left_then_right_whichever_half_is_central() {
+    let sensors = |central_half: &str, central: (&str, &str), other: (&str, &str)| {
+        let document = split_document(central_half);
+        let (request, _) = firmware_request_adapter::firmware_request(
+            &document,
+            &half_plan(central.0, Some(central.1)),
+            Some(&half_plan(other.0, Some(other.1))),
+        )
+        .unwrap();
+        request
+            .peripheral_overlays
+            .iter()
+            .find(|row| row.contains("zmk,keymap-sensors"))
+            .cloned()
+            .unwrap()
+    };
+    let left_central = sensors(
+        "left",
+        ("left-half", "left-knob"),
+        ("right-half", "right-knob"),
+    );
+    let right_central = sensors(
+        "right",
+        ("right-half", "right-knob"),
+        ("left-half", "left-knob"),
+    );
+    assert_eq!(right_central, left_central);
 }

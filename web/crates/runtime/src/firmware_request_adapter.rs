@@ -7,7 +7,8 @@ use boardstudio_core::{
     firmware::{
         FirmwareEncoder, FirmwareHardware, FirmwareKey, FirmwareModuleFinding,
         FirmwareModuleQualification, FirmwarePartQualification, FirmwarePhysicalInstance,
-        FirmwareQualification, FirmwareRequest, FirmwareScanMode, ScanPin, SplitTransport,
+        FirmwareQualification, FirmwareRequest, FirmwareScanMode, ScanPin, SplitHalf,
+        SplitTransport,
     },
     model::{HardwareTransport, ProjectDoc},
 };
@@ -169,14 +170,20 @@ fn build_request(
                 .find(|board| Some(board.board_id.as_str()) == plan.board_id.as_deref())
         })
         .map(|board| &board.key_bindings);
-    let all_peripherals = plan
+    // Roles pick the central plan; sensor and row order follow physical position, left first.
+    let central_half = if peripheral_plan.is_some() {
+        physical_half(document, plan)
+    } else {
+        SplitHalf::Left
+    };
+    let (left_plan, right_plan) = match (central_half, peripheral_plan) {
+        (SplitHalf::Right, Some(left)) => (left, Some(plan)),
+        _ => (plan, peripheral_plan),
+    };
+    let all_peripherals = left_plan
         .peripherals
         .iter()
-        .chain(
-            peripheral_plan
-                .into_iter()
-                .flat_map(|p| p.peripherals.iter()),
-        )
+        .chain(right_plan.into_iter().flat_map(|p| p.peripherals.iter()))
         .collect::<Vec<_>>();
     let sensor_ids = all_peripherals
         .iter()
@@ -355,7 +362,10 @@ fn build_request(
                     )?;
                     request.peripheral_overlays = legacy.overlays;
                     request.transport = transport_value.clone();
-                    request.matrix_row_offset = plan.row_pins.len();
+                    request.matrix_row_offset = match central_half {
+                        SplitHalf::Left => plan.row_pins.len(),
+                        SplitHalf::Right => 0,
+                    };
                     request.uart_tx = if transport == HardwareTransport::Wired {
                         uart_pin(other, "split-rx")
                     } else {
@@ -406,7 +416,11 @@ fn build_request(
         uart_rx,
         peripheral_overlays: peripherals.overlays,
         peripheral: peripheral_request,
-        matrix_row_offset: 0,
+        matrix_row_offset: match central_half {
+            SplitHalf::Right => left_plan.row_pins.len(),
+            SplitHalf::Left => 0,
+        },
+        central_half,
     };
     let warnings = plan
         .diagnostics
@@ -415,6 +429,22 @@ fn build_request(
         .map(|diagnostic| diagnostic.message.clone())
         .collect();
     Ok((request, warnings))
+}
+
+/// The physical half a plan's instance occupies; plans without a known instance are left.
+fn physical_half(document: &ProjectDoc, plan: &ElectricalPlan) -> SplitHalf {
+    let half = document.hardware.as_ref().and_then(|hardware| {
+        hardware
+            .instances
+            .iter()
+            .find(|instance| Some(&instance.id) == plan.instance_id.as_ref())
+            .map(|instance| instance.half.as_str())
+    });
+    if half == Some("right") {
+        SplitHalf::Right
+    } else {
+        SplitHalf::Left
+    }
 }
 
 fn validate_plan(plan: &ElectricalPlan) -> Result<(), String> {

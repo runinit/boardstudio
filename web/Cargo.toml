@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 publish = false
-# The files in tests/ `#[path]`-include wasm-only presentation sources and do not build
-# natively; `cargo test --workspace` must not try. Browser tests live in src/.
+# Most files in tests/ `#[path]`-include wasm-only presentation sources and do not build
+# natively; `cargo test --workspace` must not try. Browser tests live in src/. The `[[test]]`
+# entries below register the few native-safe ones.
 autotests = false
 
 [lib]
@@ -87,6 +88,11 @@ wasm-bindgen-test = "=0.3.79"
 [[example]]
 name = "case-settings"
 required-features = ["page"]
+
+# Path-includes only the native-safe runtime adapter.
+[[test]]
+name = "firmware_request_adapter"
+path = "tests/firmware_request_adapter.rs"
 
 [lints]
 workspace = true

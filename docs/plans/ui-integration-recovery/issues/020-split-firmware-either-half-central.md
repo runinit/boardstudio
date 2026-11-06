@@ -1,6 +1,6 @@
 # 020: Export split firmware with either half as central
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -70,3 +70,39 @@ coding instead of widening this ticket.
   policy is already decided by an accepted ADR, so no grilling step; it looks
   like one session of work if transport support is already known, otherwise run
   `/to-spec` then `/to-tickets` first.
+- 2026-11-06: Implementation evidence (agent). Left open: see "Not proven".
+  - Design: Core `FirmwareRequest` gains `central_half` (`SplitHalf`); `generate` reorders to physical
+    left-first before anything positional, so keys, sensors, row offsets, shield files and `.conf`
+    follow the physical half and only `Kconfig.defconfig` role flags follow the role. The adapter
+    derives `central_half` from the central plan's instance `half`. The runtime guard
+    (`validate_split_assignment`) accepts one central plus one peripheral on opposite sides and
+    rejects the rest, e.g. "...both halves are assigned central". Shield names stay physical.
+  - RED (runtime, real Core, wasm): `split_export_*` failed: right-central exported 0 files with
+    "Split firmware requires a left central and a right peripheral assembly"; log
+    `.evidence/ui-integration-recovery/020-red-runtime.log` (mixed tree with 018 at the time).
+    Core and adapter RED seen as failing assertions before their code. GREEN on the isolated tree
+    (HEAD da752ad5c plus only 020 edits): `firmware_export_tests` 7 passed (wasm, via
+    `scripts/check.py`-equivalent runner); Core `firmware::` 13 passed; adapter 9 passed
+    (`cargo test -p boardstudio-web --test firmware_request_adapter`, newly registered in
+    `web/Cargo.toml` because `autotests = false` had left that file unrun).
+  - Left-central unchanged: byte-identical `dump_firmware` output (wired and wireless variants)
+    before and after the Core change (`diff -r`), plus the existing split tests. The right-central
+    README gains one "Central half: right" line; left-central README text is unchanged.
+  - Full check: `check.py` repo, tooling, build, lint and native tests passed (2384 baselined tests
+    executed; baseline not updated, 40 unrecorded names include 018's and this ticket's).
+    `check.py browser --keep-going`: every crate wasm launch and 132 page tests passed.
+    Final `check.py repo lint test` after review fixes: passed.
+  - Combinations: no transport/hardware side restriction is recorded or invented. ZMK docs call
+    left-central a convention and set the central role per shield by Kconfig; wired split is
+    described as experimental there (docs from `main`, not checked against the pinned v0.3.0).
+    Wireless is exercised through the real Runtime; wired UART only by an adapter test and Core
+    tests, and the role-based tx/rx reversal is carried over unchanged. No real hardware verified.
+  - Review: fresh Standards and Spec delegates. No hard standards breaches; fixes applied for the
+    stale `web/Cargo.toml` comment, a mis-named test helper, duplicated offset matching and ADR
+    over-claims (swapping roles also changes per-half transport-direction settings). Open
+    judgement calls left as is: `"left"`/`"right"` instance strings still parsed in two places.
+  - Not proven: `check.py browser` fails at `scripts/run-drag-browser.py` (Part drag, "WebSocket
+    protocol reset"; logs under `web/target/test-results/drag-browser/`), reproduced twice. It
+    touches no firmware code, but I could not run it on a clean HEAD, so it is not shown to be
+    pre-existing. Wired right-central through the real Runtime and encoder-bearing right-central
+    through the Runtime are not tested.
