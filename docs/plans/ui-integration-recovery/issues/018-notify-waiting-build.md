@@ -36,12 +36,13 @@ This slice alone does not satisfy the umbrella's chosen complete interaction.
 - [ ] Running version/time display (user: drop it if it needs plumbing): include
   only if actual loaded-build metadata makes it nearly free; otherwise record its
   omission. Do not call the waiting/server identity the running identity.
-- [ ] Dismissal (user, 2026-11-06): dismissing the Toast does not reload and moves
-  the notice to the **header bar**, which keeps showing the waiting update for as long
-  as it waits. Derive it from the real waiting worker; store nothing about dismissal,
-  and record the assumption that the Toast shows again on the next page load. The
-  header notice must not offer a working "Update Now" until 019 delivers it; show the
-  state only, with no misleading enabled no-op.
+- [ ] Dismissal (user, 2026-11-06): dismissing the Toast does not reload. Derive the
+  notice from the real waiting worker and store nothing about dismissal; the Toast
+  shows again on the next page load (confirmed by the user). The persistent **header**
+  notice that follows dismissal needs a working "Update Now", so it is delivered with
+  the action in [019](019-adopt-build-safely.md), not here. This slice ships no
+  action and no header notice, so nothing misleading is enabled; say plainly that the
+  user-chosen interaction is incomplete until 019.
 
 ## Verification and completion
 

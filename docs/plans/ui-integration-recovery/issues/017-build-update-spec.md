@@ -184,10 +184,11 @@ a new product choice rather than inventing one.
 **Answered by the user, 2026-11-06** (the questions above are kept as asked):
 
 1. The Toast is dismissible and carries "Update Now" as clickable text. After
-   dismissal the header bar shows the update notification and keeps it while the
-   update waits. Whether the Toast itself reappears on the next page load is not
-   stated; the working assumption is that it is derived from the real waiting worker
-   on each load and nothing about dismissal is stored.
+   dismissal the header bar shows the update notification, with a working "Update
+   Now", and keeps it while the update waits. The Toast itself reappears on the next
+   page load (confirmed by the user); it is derived from the real waiting worker on
+   each load and nothing about dismissal is stored. Slice placement: the Toast is 018,
+   the action and the header notice are 019.
 2. Show something like "Please close any other open tabs"; never force other tabs.
 3. Yes: defer adoption until unsaved drafts are resolved.
 4. Drop the version/time display if it needs plumbing.

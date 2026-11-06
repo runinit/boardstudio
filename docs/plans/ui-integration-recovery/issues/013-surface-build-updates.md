@@ -63,9 +63,10 @@ These answer the four questions raised in [017](017-build-update-spec.md) and su
 the working assumptions above where they differ:
 
 1. The notification can be dismissed and offers **"Update Now"** as clickable text.
-   Once dismissed, the **header bar** shows the update notification and keeps it for as
-   long as the update is waiting (persists). The action is "Update Now", not a button
-   labelled refresh.
+   Once dismissed, the **header bar** shows the update notification, with a working
+   "Update Now", and keeps it for as long as the update is waiting (persists). The
+   Toast shows again on the next page load (user, 2026-11-06). The action is "Update
+   Now", not a button labelled refresh.
 2. When another open editor blocks adoption, the user is told something like
    **"Please close any other open tabs"**. Other tabs are never forced closed or reloaded.
 3. Unsaved draft values that cannot yet be saved: **yes, defer the update** until the
@@ -109,6 +110,9 @@ so.
 
 - 2026-11-06: Published children 018 (unblocked) and 019 (blocked by 018).
   All original choices and assumptions remain; open questions are in 017.
+
+- 2026-11-06: Follow-up: the Toast reappears on reload, and the header notice must have
+  a working "Update Now". The header notice therefore moved from 018 to 019.
 
 - 2026-11-06: The user answered 017's four open questions (see Later answers under
   Decisions): dismissible toast with "Update Now" and a persistent header indicator

@@ -16,9 +16,13 @@ notification and A/B fixture; it does not depend on unrelated recovery tickets.
 
 ## Acceptance criteria
 
-- [ ] The action is labelled **"Update Now"** and is clickable text in the Toast and
-  in the persistent header notice that 018 shows after dismissal (user, 2026-11-06).
-  Add it through the existing shared control/notification seam.
+- [ ] The action is labelled **"Update Now"**, a working clickable control in the Toast
+  and in a persistent **header-bar notice** that appears once the Toast is dismissed and
+  stays while the update waits (user, 2026-11-06: the header notice needs a working
+  Update Now, not a state-only label). This ticket delivers both, because the header
+  notice is useless without the action. Add them through the existing shared
+  control/header seam; mounted tests cover both entry points and that the header
+  notice survives Toast dismissal and workspace changes.
   Refresh uses real waiting state and rechecks safety at activation. Avoid
   duplicate adoption from repeated activation or stale notifications.
 - [ ] Inventory the relevant Draft value, Pending edit and local-save owners.
