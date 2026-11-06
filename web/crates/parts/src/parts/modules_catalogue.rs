@@ -440,28 +440,28 @@ pub fn ModuleSourcePreview(module: ModuleEntry) -> Element {
         definition.mounts.len()
     );
     rsx! {
-        section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Module source preview",
+        section { class: "relative order-2 flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden rounded-xl bg-card shadow-sm", "aria-label": "Module source preview",
             header { style: "display: grid; gap: 4px; padding: 12px;",
-                h2 { style: "margin: 0; color: var(--wb-ink); font-size: 16px;", "{definition.name}" }
-                small { style: "color: var(--wb-muted);", "VIK module · {definition.variant}" }
+                h2 { style: "margin: 0; color: var(--foreground); font-size: 16px;", "{definition.name}" }
+                small { style: "color: var(--muted-foreground);", "VIK module · {definition.variant}" }
             }
             if board_path.is_empty() {
                 p { class: "text-primary", role: "status", "This module snapshot has no recorded board contours." }
             } else {
                 svg { role: "img", "aria-label": "{definition.name} source board and components", view_box: "{view_box}", style: "flex: 1; width: 100%; min-height: 0;",
                     g { transform: "scale(1,-1)",
-                        path { d: "{board_path}", fill: "rgba(52,124,99,.2)", fill_rule: "evenodd", stroke: "var(--wb-accent)", stroke_width: "0.35" }
+                        path { d: "{board_path}", fill: "rgba(52,124,99,.2)", fill_rule: "evenodd", stroke: "var(--primary)", stroke_width: "0.35" }
                         for (index, points) in &holes {
-                            polygon { key: "source-hole-{index}", points: "{points}", fill: "var(--wb-canvas)", stroke: "var(--wb-muted)", stroke_width: "0.2" }
+                            polygon { key: "source-hole-{index}", points: "{points}", fill: "var(--canvas)", stroke: "var(--muted-foreground)", stroke_width: "0.2" }
                         }
                         for part in &circuit_parts {
                             g { key: "{part.id}", transform: "{part.transform}",
                                 title { "{part.reference} · {part.source_name}" }
                                 if !part.courtyard.is_empty() {
-                                    polygon { points: "{part.courtyard}", fill: "none", stroke: "var(--wb-muted)", stroke_width: "0.2" }
+                                    polygon { points: "{part.courtyard}", fill: "none", stroke: "var(--muted-foreground)", stroke_width: "0.2" }
                                 }
                                 for (pad_id, x, y, radius) in &part.drills {
-                                    circle { key: "{pad_id}", cx: "{x}", cy: "{y}", r: "{radius}", fill: "var(--wb-canvas)", stroke: "var(--wb-muted)", stroke_width: "0.2" }
+                                    circle { key: "{pad_id}", cx: "{x}", cy: "{y}", r: "{radius}", fill: "var(--canvas)", stroke: "var(--muted-foreground)", stroke_width: "0.2" }
                                 }
                             }
                         }
@@ -565,7 +565,7 @@ pub fn ModuleInspector(
             }
         }
         a { href: "{source_url}", target: "_blank", rel: "noreferrer", "Pinned source ↗" }
-        p { class: "m1-parts-empty", "{source_summary}" }
+        p { class: "my-3 text-muted-foreground text-sm leading-normal", "{source_summary}" }
         ModuleProfileEditor {
             snapshot: snapshot.clone(),
             definition: (*module.definition).clone(),

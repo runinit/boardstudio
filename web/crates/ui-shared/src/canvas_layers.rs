@@ -94,7 +94,7 @@ pub fn LayerToggleButton(
 ) -> Element {
     rsx! {
         Item { size: ItemSize::Xs, class: "flex-nowrap gap-2 px-1 py-0",
-            span { class: if visible { "m1-layer-swatch" } else { "m1-layer-swatch opacity-35" }, "data-layer": "{swatch}" }
+            span { class: if visible { "size-2.5 shrink-0 rounded-[2px] bg-geometry-outline data-[layer=Keys]:bg-primary data-[layer=Components]:bg-warning-dark data-[layer=Keycaps]:bg-foreground data-[layer=Footprints]:bg-geometry-part data-[layer=Board]:bg-geometry-board data-[layer='Edge.Cuts']:bg-geometry-board data-[layer='F.Cu']:bg-primary data-[layer='B.Cu']:bg-warning-dark data-[layer=Courtyards]:bg-geometry-part data-[layer=References]:bg-geometry-text" } else { "size-2.5 shrink-0 rounded-[2px] bg-geometry-outline opacity-35 data-[layer=Keys]:bg-primary data-[layer=Components]:bg-warning-dark data-[layer=Keycaps]:bg-foreground data-[layer=Footprints]:bg-geometry-part data-[layer=Board]:bg-geometry-board data-[layer='Edge.Cuts']:bg-geometry-board data-[layer='F.Cu']:bg-primary data-[layer='B.Cu']:bg-warning-dark data-[layer=Courtyards]:bg-geometry-part data-[layer=References]:bg-geometry-text" }, "data-layer": "{swatch}" }
             span { class: if visible { "min-w-0 flex-1" } else { "min-w-0 flex-1 text-muted-foreground" }, "{label}" }
             ToggleGroup {
                 aria_label: format!("{label} visibility"),
@@ -151,13 +151,13 @@ pub fn LayerPanel(
     };
     rsx! {
         Collapsible {
-            class: "m1-layers", keep_mounted: true,
+            class: "absolute z-[2] right-3.5 bottom-3.5 flex flex-col w-48 max-h-[min(420px,calc(100%-28px))] overflow-hidden border border-border-strong rounded-xl bg-card/95 text-foreground text-xs shadow-lg data-[open=false]:w-auto data-[open=false]:rounded-full max-[760px]:right-2 max-[760px]:bottom-2 max-[760px]:w-[min(240px,calc(100%-16px))] max-[760px]:max-h-[calc(100%-16px)] max-[760px]:data-[open=false]:w-[100px] [#m1-objects-panel_&]:relative [#m1-objects-panel_&]:left-0 [#m1-objects-panel_&]:right-auto [#m1-objects-panel_&]:bottom-auto [#m1-objects-panel_&]:w-full [#m1-objects-panel_&]:min-w-0 [#m1-objects-panel_&]:border-0 [#m1-objects-panel_&]:border-t [#m1-objects-panel_&]:border-border [#m1-objects-panel_&]:rounded-none [#m1-objects-panel_&]:bg-card [#m1-objects-panel_&]:shadow-none", keep_mounted: true,
             open: Some(open()), on_open_change: move |next| open.set(next),
             attributes: vec![dioxus::events::onkeydown(onkeydown)],
             CollapsibleTrigger { id: trigger_id, aria_label: trigger_label.clone(), class: "min-h-11 px-3 py-2",
                 span { "{trigger_label}" }
             }
-            CollapsibleContent { id: list_id, class: "m1-layer-list", hidden: !open(), inert: (!open()).then_some(""),
+            CollapsibleContent { id: list_id, class: "min-h-0 overflow-y-auto border-t border-border p-1 max-[760px]:max-h-[min(360px,50dvh)]", hidden: !open(), inert: (!open()).then_some(""),
                 {children}
             }
         }
@@ -234,7 +234,7 @@ pub fn CanvasLayers(props: CanvasLayersProps) -> Element {
                         rsx! {
                             div {
                                 key: "group-{group_index}",
-                                class: "m1-layer-group",
+                                class: "grid gap-0.5 [&:not(:first-child)]:mt-1 [&:not(:first-child)]:pt-1 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-border",
                                 role: "group",
                                 aria_label: "{group_title.clone().unwrap_or_else(|| \"Other layers\".into())}",
                                 if let Some(title) = group_title.as_ref() {

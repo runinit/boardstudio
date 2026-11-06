@@ -11,20 +11,20 @@ fn composition() -> Element {
     });
     rsx! {
         style { {include_str!("../../../assets/m1.css")} }
-        style { {include_str!("../../../assets/docks.css")} }
+        style { {include_str!("../../../assets/tailwind.css")} }
         style { "@media (min-width:761px) {{ #inspector-scroll-test-root {{ height:600px; }} }}" }
-        div { class: "m1-workbench",
-            div { class: "m1-editor",
-                div { class: "m1-editor-body dock-desk",
+        div { class: "flex flex-col w-full h-full min-h-0 overflow-hidden",
+            div { class: "flex flex-1 flex-col min-h-0",
+                div { class: "dock-desk relative flex flex-1 flex-row gap-2 p-2 min-h-0 overflow-hidden bg-background",
                     ObjectsPanel { compact_open: open, settings,
                         header_action: Some(rsx! { button { id: "objects-panel-action-fixture", "Add object" } }),
-                        aside { class: "m1-objects", "Objects fixture" }
+                        aside { class: "flex flex-col min-w-0 min-h-0 bg-card", "Objects fixture" }
                     }
-                    section { class: "m1-workspace-content", role: "region", aria_label: "Canvas",
+                    section { class: "order-2 flex-1 min-w-0 min-h-0 overflow-hidden rounded-xl bg-card shadow-sm", role: "region", aria_label: "Canvas",
                         "Canvas fixture"
                     }
                     InspectorPanel { compact_open: open, settings,
-                        section { class: "m1-selected-context", "First contextual section" }
+                        section { class: "px-3 py-3.5 border-b border-border", "First contextual section" }
                         section { id: "scroll-test-controls",
                             for index in 0..40 {
                                 button { id: "scroll-test-control-{index}", style: "display:block;height:42px;width:100%", "Control {index}" }

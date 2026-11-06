@@ -1130,14 +1130,14 @@ pub fn PartsLibraryPanel(
     };
 
     rsx! {
-        section { class: "m1-parts-library", "aria-label": "Parts library",
+        section { class: "flex flex-1 flex-col min-h-0 px-3 py-4 text-foreground [&>h2]:mt-0 [&>h2]:mb-4 [&>h2]:text-xl", "aria-label": "Parts library",
             crate::parts_view_generation::PartsViewGenerationOwner {
                 workspace,
                 view_generation,
             }
             h2 { "Parts library" }
             {content}
-            div { class: "m1-parts-actions",
+            div { class: "grid gap-1 pt-3 mt-3 border-t border-border",
                 crate::presentation::parts_import_footprint::ImportKiCadFootprintAction {
                     scope: scope.clone(),
                     view_generation,
@@ -1239,12 +1239,12 @@ pub fn ControllerSetupPicker(
     }));
     let navigation_disabled = matches.len() < 2;
     rsx! {
-        section { class: "m1-controller-picker", aria_label: "Controller selection", aria_roledescription: "carousel",
+        section { class: "grid grid-cols-1 gap-3 min-w-0", aria_label: "Controller selection", aria_roledescription: "carousel",
             Field {
                 Label { html_for: format!("parts-controller-search-{}", dioxus::core::current_scope_id().0), "Search controllers" }
                 InputGroup { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch", InputGroupInput { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch", id: format!("parts-controller-search-{}", dioxus::core::current_scope_id().0), r#type: InputType::Search, aria_label: "Search controllers", placeholder: "Find a controller…", value: search(), oninput: move |event: FormEvent| search.set(event.value()) } }
             }
-            div { class: "m1-controller-carousel-navigation",
+            div { class: "flex items-center gap-1 text-muted-foreground text-xs [&>span]:flex-1 [&>span]:tabular-nums [&_svg]:size-5 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
                 span { role: "status", aria_live: "polite", if matches.is_empty() { "0 controllers" } else { "{position + 1} of {matches.len()}" } }
                 Tooltip {
                     TooltipTrigger { as: move |attributes| { let previous = previous.clone(); rsx! {
@@ -1269,14 +1269,14 @@ pub fn ControllerSetupPicker(
                     TooltipContent { "Next controller" }
                 }
             }
-            div { class: "m1-controller-choices", role: "group", aria_label: "Controllers",
+            div { class: "relative flex flex-nowrap overflow-x-auto snap-x snap-mandatory [scrollbar-width:thin] pt-1 pb-3", role: "group", aria_label: "Controllers",
                 for entry in &controllers {
                     {
                         let id = entry.definition.id.clone();
                         let active = chosen_id.as_ref() == Some(&id);
                         let matching = preferred_label(&entry.definition).to_lowercase().contains(&needle);
                         rsx! { Button {
-                            key: "{id}", class: "m1-controller-card h-auto", variant: ButtonVariant::Ghost, aria_pressed: active,
+                            key: "{id}", class: "flex h-auto flex-[0_0_192px] flex-col items-stretch gap-3 max-w-[192px] min-w-0 mr-2 p-3 rounded-full bg-secondary text-center snap-center overflow-hidden transition-all motion-reduce:transition-none data-[match=false]:basis-0 data-[match=false]:max-w-0 data-[match=false]:px-0 data-[match=false]:mr-0 data-[match=false]:opacity-0 data-[match=false]:invisible aria-pressed:bg-selected aria-pressed:text-selected-foreground [&_strong]:block [&_strong]:min-w-[168px] [&_strong]:text-[11px] [&_strong]:font-semibold [&_strong]:leading-[1.4]", variant: ButtonVariant::Ghost, aria_pressed: active,
                             attributes: {
                                 let mut attributes = vec![Attribute::new("data-match", matching, None, false)];
                                 if !matching { attributes.push(Attribute::new("aria-hidden", "true", None, false)); }
@@ -1648,13 +1648,13 @@ pub fn PartsPreviewWorkspace(
         }
         if let Some(error) = module_catalogue.error {
             return rsx! {
-                section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Module source preview",
+                section { class: "relative order-2 flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden rounded-xl bg-card shadow-sm", "aria-label": "Module source preview",
                     Alert { variant: AlertVariant::Destructive, "Module source preview could not be loaded: {error}" }
                 }
             };
         }
         return rsx! {
-            section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Module source preview",
+            section { class: "relative order-2 flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden rounded-xl bg-card shadow-sm", "aria-label": "Module source preview",
                 div { role: "status", Spinner {} "Loading module source preview…" }
             }
         };

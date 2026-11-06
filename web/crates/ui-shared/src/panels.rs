@@ -363,7 +363,7 @@ pub fn InspectorPanel(
     settings: Signal<PanelSettings>,
     children: Element,
 ) -> Element {
-    let body = rsx! { div { class: "m1-inspector-body", {children} } };
+    let body = rsx! { div { class: "m1-inspector-body flex-1 min-w-0 min-h-0 overflow-auto overscroll-contain max-[760px]:overflow-visible max-[760px]:overscroll-auto", {children} } };
     panel_frame(
         PanelSide::Inspector,
         compact_open,
