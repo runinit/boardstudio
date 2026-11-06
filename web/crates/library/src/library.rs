@@ -306,7 +306,7 @@ fn KeyboardCard(
                 },
                 match &preview {
                     Err(()) => rsx! {
-                            div { class: "grid place-items-center w-full h-[108px] mb-1 p-3.5 rounded bg-canvas text-geometry-key [&_svg]:w-full [&_svg]:h-full [&_svg]:max-w-full [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-key [&_rect]:stroke-[1] max-[760px]:h-[92px] max-[760px]:p-2.5 [#m1-library-landing-content_&]:h-[clamp(120px,12vw,190px)] content-center gap-2 text-muted-foreground text-xs [&_svg]:!w-[30px] [&_svg]:!h-[30px] [&_svg]:justify-self-center",
+                            LibraryPreviewFrame { class: "content-center gap-2 text-muted-foreground text-xs [&_svg]:!w-[30px] [&_svg]:!h-[30px] [&_svg]:justify-self-center",
                                 svg { class: "fill-none stroke-current stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]", view_box: "0 0 20 20", "aria-hidden": "true",
                                     path { d: "M2 5h16v11H2ZM5 8h.1M8 8h.1M11 8h.1M14 8h.1M5 11h.1M8 11h.1M11 11h.1M14 11h.1M6 14h8" }
                                 }
@@ -314,7 +314,7 @@ fn KeyboardCard(
                             }
                     },
                     Ok(preview) if preview.keys.is_empty() => rsx! {
-                            div { class: "grid place-items-center w-full h-[108px] mb-1 p-3.5 rounded bg-canvas text-geometry-key [&_svg]:w-full [&_svg]:h-full [&_svg]:max-w-full [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-key [&_rect]:stroke-[1] max-[760px]:h-[92px] max-[760px]:p-2.5 [#m1-library-landing-content_&]:h-[clamp(120px,12vw,190px)] content-center gap-2 text-muted-foreground text-xs [&_svg]:!w-[30px] [&_svg]:!h-[30px] [&_svg]:justify-self-center",
+                            LibraryPreviewFrame { class: "content-center gap-2 text-muted-foreground text-xs [&_svg]:!w-[30px] [&_svg]:!h-[30px] [&_svg]:justify-self-center",
                                 svg { class: "fill-none stroke-current stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]", view_box: "0 0 20 20", "aria-hidden": "true",
                                     path { d: "M2 5h16v11H2ZM5 8h.1M8 8h.1M11 8h.1M14 8h.1M5 11h.1M8 11h.1M11 11h.1M14 11h.1M6 14h8" }
                                 }
@@ -322,7 +322,7 @@ fn KeyboardCard(
                             }
                     },
                     Ok(preview) => rsx! {
-                        div { class: "grid place-items-center w-full h-[108px] mb-1 p-3.5 rounded bg-canvas text-geometry-key [&_svg]:w-full [&_svg]:h-full [&_svg]:max-w-full [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-key [&_rect]:stroke-[1] max-[760px]:h-[92px] max-[760px]:p-2.5 [#m1-library-landing-content_&]:h-[clamp(120px,12vw,190px)]",
+                        LibraryPreviewFrame {
                             svg { view_box: "{preview.left} {preview.top} {preview.width} {preview.height}", "aria-hidden": "true",
                                 for key in &preview.keys {
                                     rect {
@@ -371,11 +371,21 @@ fn KeyboardCard(
     }
 }
 
+/// Shared frame for project and library previews; callers supply empty-state styling.
+#[component]
+fn LibraryPreviewFrame(#[props(default)] class: String, children: Element) -> Element {
+    rsx! {
+        div { class: "grid place-items-center w-full h-[108px] mb-1 p-3.5 rounded bg-canvas text-geometry-key [&_svg]:w-full [&_svg]:h-full [&_svg]:max-w-full [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-key [&_rect]:stroke-[1] max-[760px]:h-[92px] max-[760px]:p-2.5 [#m1-library-landing-content_&]:h-[clamp(120px,12vw,190px)] {class}",
+            {children}
+        }
+    }
+}
+
 #[component]
 fn LibraryPreview(preview: Option<Preview>, fallback: String) -> Element {
     match preview {
         Some(preview) if preview.keys.is_empty() => rsx! {
-            div { class: "grid place-items-center w-full h-[108px] mb-1 p-3.5 rounded bg-canvas text-geometry-key [&_svg]:w-full [&_svg]:h-full [&_svg]:max-w-full [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-key [&_rect]:stroke-[1] max-[760px]:h-[92px] max-[760px]:p-2.5 [#m1-library-landing-content_&]:h-[clamp(120px,12vw,190px)] content-center gap-2 text-muted-foreground text-xs [&_svg]:!w-[30px] [&_svg]:!h-[30px] [&_svg]:justify-self-center",
+            LibraryPreviewFrame { class: "content-center gap-2 text-muted-foreground text-xs [&_svg]:!w-[30px] [&_svg]:!h-[30px] [&_svg]:justify-self-center",
                 svg { class: "fill-none stroke-current stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]", view_box: "0 0 20 20", "aria-hidden": "true",
                     path { d: "M2 5h16v11H2ZM5 8h.1M8 8h.1M11 8h.1M14 8h.1M5 11h.1M8 11h.1M11 11h.1M14 11h.1M6 14h8" }
                 }
@@ -383,7 +393,7 @@ fn LibraryPreview(preview: Option<Preview>, fallback: String) -> Element {
             }
         },
         Some(preview) => rsx! {
-            div { class: "grid place-items-center w-full h-[108px] mb-1 p-3.5 rounded bg-canvas text-geometry-key [&_svg]:w-full [&_svg]:h-full [&_svg]:max-w-full [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-key [&_rect]:stroke-[1] max-[760px]:h-[92px] max-[760px]:p-2.5 [#m1-library-landing-content_&]:h-[clamp(120px,12vw,190px)]",
+            LibraryPreviewFrame {
                 svg { view_box: "{preview.left} {preview.top} {preview.width} {preview.height}", "aria-hidden": "true",
                     for key in &preview.keys {
                         rect {
@@ -400,7 +410,7 @@ fn LibraryPreview(preview: Option<Preview>, fallback: String) -> Element {
             }
         },
         None => rsx! {
-            div { class: "grid place-items-center w-full h-[108px] mb-1 p-3.5 rounded bg-canvas text-geometry-key [&_svg]:w-full [&_svg]:h-full [&_svg]:max-w-full [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-key [&_rect]:stroke-[1] max-[760px]:h-[92px] max-[760px]:p-2.5 [#m1-library-landing-content_&]:h-[clamp(120px,12vw,190px)] content-center gap-2 text-muted-foreground text-xs [&_svg]:!w-[30px] [&_svg]:!h-[30px] [&_svg]:justify-self-center",
+            LibraryPreviewFrame { class: "content-center gap-2 text-muted-foreground text-xs [&_svg]:!w-[30px] [&_svg]:!h-[30px] [&_svg]:justify-self-center",
                 svg { class: "fill-none stroke-current stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]", view_box: "0 0 20 20", "aria-hidden": "true",
                     path { d: "M2 5h16v11H2ZM5 8h.1M8 8h.1M11 8h.1M14 8h.1M5 11h.1M8 11h.1M11 11h.1M14 11h.1M6 14h8" }
                 }
