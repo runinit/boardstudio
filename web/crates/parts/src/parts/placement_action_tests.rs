@@ -117,7 +117,7 @@ fn add_object_snapshot() -> AcceptedSnapshot {
             id: format!("layout-{id}"),
             name: format!("{name} layout"),
             board_id: id.into(),
-            matrix_id: format!("matrix-{id}"),
+            matrix_ids: vec![format!("matrix-{id}")],
             part_ids: vec![],
             mirror_link: None,
         });
