@@ -282,7 +282,7 @@ pub fn PcbWiringInspector(props: PcbWiringInspectorProps) -> Element {
     ));
     let Some(display) = display() else {
         return rsx! {
-            section { class: "m1-pcb-wiring", role: "status",
+            section { class: "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto overscroll-contain p-4 text-foreground [&_h2]:mt-0 [&_h2]:mb-2 [&_h2]:text-lg [&_h3]:mt-[18px] [&_h3]:mb-2 [&_h3]:text-xs [&_h3]:text-muted-foreground [&_p]:my-2 [&_p]:text-xs [&_p]:leading-normal [&_p]:text-muted-foreground", role: "status",
                 h2 { "Electrical wiring" }
                 p { "The selected board wiring is unavailable." }
             }
@@ -319,7 +319,7 @@ pub fn PcbWiringInspector(props: PcbWiringInspectorProps) -> Element {
         SelectionView::Unsupported => rsx! {},
     };
     rsx! {
-        div { class: "m1-pcb-inspector-content",
+        div {
             {body}
         }
     }
@@ -563,24 +563,24 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
         }
     };
     rsx! {
-        section { class: "m1-pcb-wiring m1-pcb-part-connections",
-            p { class: "m1-pcb-wiring-breadcrumb", "{breadcrumb}" }
+        section { class: "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto overscroll-contain p-4 text-foreground [&_h2]:mt-0 [&_h2]:mb-2 [&_h2]:text-lg [&_h3]:mt-[18px] [&_h3]:mb-2 [&_h3]:text-xs [&_h3]:text-muted-foreground [&_p]:my-2 [&_p]:text-xs [&_p]:leading-normal [&_p]:text-muted-foreground",
+            p { class: "!mt-0 !mb-3 !text-[11px]", "{breadcrumb}" }
             h2 { "{title}" }
             part_input_settings::PartInputInspector {
                 source: source.clone(),
                 actions: props.part_input_actions.clone(),
                 board_details_and_connections: rsx! {
-            PcbSection { class: "m1-pcb-wiring-section", label: "Board details",
+            PcbSection { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs", label: "Board details",
                 ul {
                     li { span { "Board thickness" } strong { "{thickness:.2} mm" } }
                     li { span { "Placed parts" } strong { "{placed_parts}" } }
                     li { span { "Net assignments" } strong { "{assigned_pins}" } }
                 }
             }
-            div { class: "m1-pcb-wiring-section",
+            div { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs",
                 h3 { "Connections" }
                 if connections.is_empty() {
-                    p { class: "m1-pcb-wiring-empty", "This part has no assignable terminals or pads." }
+                    p { class: "text-muted-foreground", "This part has no assignable terminals or pads." }
                 } else {
                     for row in connections.iter().filter(|row| {
                         !row.standalone_pad || standalone_pads_allowed
@@ -591,7 +591,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                             let pad_ids = row.pad_ids.clone();
                             let value = identity.as_ref().and_then(|identity| controller::pending_net(identity, &row.pad_ids)).unwrap_or_else(|| row.selected_net_id.clone()).unwrap_or_default();
                             rsx! {
-                                PcbChoice { class: "m1-pcb-wiring-assignment", key: "{row.label}",
+                                PcbChoice { class: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-2.5 gap-y-[3px] py-2 border-b border-border text-xs [&_strong]:[overflow-wrap:anywhere] [&_small]:col-span-full [&_small]:text-muted-foreground", key: "{row.label}",
                                         label: row.label.clone(), aria_label: format!("Net for {}", row.label), value, searchable: true,
                                         disabled: !actions.editable || identity.is_none(),
                                         on_change: move |value: String| {
@@ -613,7 +613,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
             }
                 },
             }
-            form { class: "m1-pcb-wiring-assignment m1-pcb-new-net", onsubmit: add_net,
+            form { class: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-2.5 gap-y-[3px] py-2 border-b border-border text-xs [&_strong]:[overflow-wrap:anywhere] [&_small]:col-span-full [&_small]:text-muted-foreground !items-center !gap-2 mt-2.5", onsubmit: add_net,
                 PcbInput { label: "New net name", aria_label: "New net name", r#type: InputType::Text,
                     placeholder: Some("New net name".into()), value: new_net_name(),
                     disabled: !actions.editable || identity.is_none(),
@@ -621,7 +621,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                 }
                 Button { button_type: "submit", variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !actions.editable || identity.is_none() || new_net_name().trim().is_empty() || actions.create_pending, "Add net" }
             }
-            PcbSection { class: "m1-pcb-wiring-section", label: format!("Electrical nets ({})", nets.len()),
+            PcbSection { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs", label: format!("Electrical nets ({})", nets.len()),
                 ul {
                     for net in nets {
                         li { key: "{net.id}", span { "{net.name}" } small { "{net.pin_count} pins" } }
@@ -669,14 +669,14 @@ fn switch_wiring(
     on_edit_board_wiring: EventHandler<()>,
 ) -> Element {
     rsx! {
-        section { class: "m1-pcb-wiring m1-pcb-switch-wiring",
-            p { class: "m1-pcb-wiring-breadcrumb", "{breadcrumb}" }
+        section { class: "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto overscroll-contain p-4 text-foreground [&_h2]:mt-0 [&_h2]:mb-2 [&_h2]:text-lg [&_h3]:mt-[18px] [&_h3]:mb-2 [&_h3]:text-xs [&_h3]:text-muted-foreground [&_p]:my-2 [&_p]:text-xs [&_p]:leading-normal [&_p]:text-muted-foreground",
+            p { class: "!mt-0 !mb-3 !text-[11px]", "{breadcrumb}" }
             h2 { "{title}" }
             p { "Switch wiring is inherited from its key assembly." }
-            div { class: "m1-pcb-wiring-section",
+            div { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs",
                 h3 { "Named terminals" }
                 if terminals.is_empty() {
-                    p { class: "m1-pcb-wiring-empty", "This switch has no named terminals." }
+                    p { class: "text-muted-foreground", "This switch has no named terminals." }
                 } else {
                     ul {
                         for terminal in terminals {
@@ -773,16 +773,16 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let on_release_reviewed_connections = apply_actions.on_release_reviewed_connections;
     let review_connections_identity = mode_identity.clone();
     rsx! {
-        section { class: "m1-pcb-wiring m1-pcb-board-wiring", aria_label: "Electrical wiring",
-            p { class: "m1-pcb-wiring-breadcrumb", "{display.board_name} / PCB" }
-            header { class: "m1-pcb-wiring-header",
+        section { class: "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto overscroll-contain p-4 text-foreground [&_h2]:mt-0 [&_h2]:mb-2 [&_h2]:text-lg [&_h3]:mt-[18px] [&_h3]:mb-2 [&_h3]:text-xs [&_h3]:text-muted-foreground [&_p]:my-2 [&_p]:text-xs [&_p]:leading-normal [&_p]:text-muted-foreground gap-4", aria_label: "Electrical wiring",
+            p { class: "!m-0 !text-[11px]", "{display.board_name} / PCB" }
+            header { class: "flex items-start justify-between gap-3 [&_h2]:!m-0 [&_p]:!mt-[5px] [&_p]:!mb-0",
                 div {
                     h2 { "Routing & nets" }
                     p { "{controller_name}" }
                 }
-                span { class: "m1-pcb-wiring-topology", "{selected_mode}" }
+                span { class: "border border-border rounded-[3px] px-1.5 py-[3px] text-muted-foreground font-mono text-[11px] uppercase", "{selected_mode}" }
             }
-            PcbSection { class: "m1-inspector-section m1-pcb-net-overview", default_open: true, label: "Nets",
+            PcbSection { class: "border-t border-border py-4 [&_ul]:list-none [&_ul]:m-0 [&_ul]:p-0 [&_li]:flex [&_li]:items-baseline [&_li]:justify-between [&_li]:gap-2 [&_li]:py-1.5 [&_li]:border-b [&_li]:border-border [&_li_span]:text-muted-foreground [&_li_span]:text-xs", default_open: true, label: "Nets",
                 ul {
                     for net in props.source.document.nets.iter().filter(|net| props.source.document.boards.iter().find(|board| board.id == props.source.identity.scope.board_id).is_some_and(|board| board.net_ids.contains(&net.id) || net.pins.iter().any(|pin| board.part_ids.contains(&pin.part_id)))) {
                         li { key: "{net.id}", strong { "{net.name}" } span { "{net.pins.len()} pins" } }
@@ -791,7 +791,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             }
             PcbChoice {
                 label: "Wiring mode",
-                class: "m1-pcb-wiring-mode-control",
+                class: "grid gap-[5px] text-xs text-muted-foreground",
                 aria_label: "Wiring mode",
                 value: "{selected_mode}",
                 disabled: !mode_actions.editable,
@@ -825,7 +825,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             if protected_remap_actions.handoff_revision.is_some()
                 || protected_remap_actions.feedback.is_some()
             {
-                section { class: "m1-pcb-wiring-protected", aria_label: "Protected handoff",
+                section { class: "grid gap-1.5 my-2.5 p-2.5 border border-border rounded [&>strong]:text-xs [&>strong]:text-muted-foreground [&_p]:!m-0", aria_label: "Protected handoff",
                     strong { "Protected handoff" }
                     if let Some(revision) = protected_remap_actions.handoff_revision {
                         p { "Pins protected by PCB handoff at revision {revision}" }
@@ -861,7 +861,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 WiringResolutionNotice::Waiting => rsx! {},
             }
             if matching_plan.is_some() && chosen_controller_id.is_some() {
-                div { class: "m1-pcb-wiring-pin-summary",
+                div { class: "grid gap-2 p-3 border border-border rounded-lg bg-secondary [&>div]:grid [&>div]:gap-[3px] [&>div]:min-w-0 [&_strong]:text-xs [&_strong]:text-muted-foreground [&_span]:text-[11px] [&_span]:font-mono [&_span]:text-muted-foreground [&_span]:[overflow-wrap:anywhere]",
                     div { strong { "Used pins" }
                         span { if used_pins.is_empty() { "None assigned" } else { "{used_pins.join(\" · \")}" } }
                     }
@@ -870,7 +870,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     }
                 }
             }
-            div { class: "m1-pcb-wiring-actions",
+            div { class: "flex flex-wrap gap-2",
                 Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: pending || display.controller_choices.is_empty(), onclick: move |_| on_resolve.call(()),
                     if pending { "Resolving…" } else { "Resolve automatically" }
                 }
@@ -883,7 +883,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 Alert { variant: AlertVariant::Destructive, "{message}" }
             }
             if let Some(plan) = matching_plan.filter(|plan| !plan.diagnostics.is_empty()) {
-                Alert { variant: AlertVariant::Destructive, class: "m1-pcb-wiring-findings",
+                Alert { variant: AlertVariant::Destructive, class: "[&_p]:!m-0 [&_p]:!text-xs",
                     strong { "Review before handoff" }
                     for (index, diagnostic) in plan.diagnostics.iter().enumerate() {
                         p { key: "{index}", "{diagnostic.severity}: {diagnostic.message}" }
@@ -891,7 +891,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 }
             }
             if let Some(review) = existing_connections.as_ref() {
-                div { class: "m1-pcb-wiring-protected",
+                div { class: "grid gap-1.5 my-2.5 p-2.5 border border-border rounded [&>strong]:text-xs [&>strong]:text-muted-foreground [&_p]:!m-0",
                     strong { "Review existing connections" }
                     p { "{review.pin_count} pin connections already belong to {existing_connection_names}. Switching them to automatic wiring removes these assignments so the board plan can replace them. Other connections stay in place. You can undo this change." }
                     Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
@@ -906,23 +906,23 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             }
             {props.firmware_controls.clone()}
             if let Some(plan) = matching_plan {
-                PcbSection { default_open: true, class: "m1-pcb-wiring-section m1-pcb-wiring-assignments", label: format!("Assignments ({})", pin_rows.len()),
+                PcbSection { default_open: true, class: "m-0 p-0 border-t-0", label: format!("Assignments ({})", pin_rows.len()),
                     if plan.mode == ElectricalMode::Matrix && !assignment_groups.rows.is_empty() {
-                        PcbSection { class: "m1-pcb-wiring-pin-group", label: format!("Row pins ({})", assignment_groups.rows.len()),
+                        PcbSection { class: "m-0 p-0 border-t border-border", label: format!("Row pins ({})", assignment_groups.rows.len()),
                             for row in assignment_groups.rows.iter() {
                                 {pin_assignment_row(row, &pin_actions, plan)}
                             }
                         }
                     }
                     if plan.mode == ElectricalMode::Matrix && !assignment_groups.columns.is_empty() {
-                        PcbSection { class: "m1-pcb-wiring-pin-group", label: format!("Column pins ({})", assignment_groups.columns.len()),
+                        PcbSection { class: "m-0 p-0 border-t border-border", label: format!("Column pins ({})", assignment_groups.columns.len()),
                             for row in assignment_groups.columns.iter() {
                                 {pin_assignment_row(row, &pin_actions, plan)}
                             }
                         }
                     }
                     if plan.mode == ElectricalMode::Matrix && !assignment_groups.other.is_empty() {
-                        PcbSection { class: "m1-pcb-wiring-pin-group", label: format!("Peripheral pins ({})", assignment_groups.other.len()),
+                        PcbSection { class: "m-0 p-0 border-t border-border", label: format!("Peripheral pins ({})", assignment_groups.other.len()),
                             for row in assignment_groups.other.iter() {
                                 {pin_assignment_row(row, &pin_actions, plan)}
                             }
@@ -934,7 +934,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                         }
                     }
                     if pin_rows.is_empty() {
-                        p { class: "m1-pcb-wiring-empty", "Resolve the board to see controller, matrix, and peripheral assignments." }
+                        p { class: "text-muted-foreground", "Resolve the board to see controller, matrix, and peripheral assignments." }
                     }
                 }
             }
@@ -952,14 +952,14 @@ fn pin_assignment_row(
     let assignment_id = row.id.clone();
     let pin_choices = pins::pin_choices(row, plan);
     rsx! {
-        div { class: "m1-pcb-wiring-assignment m1-pcb-wiring-pin-assignment", key: "{row.id}",
+        div { class: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-2.5 gap-y-[3px] py-2 border-b border-border text-xs [&_strong]:[overflow-wrap:anywhere] [&_small]:col-span-full [&_small]:text-muted-foreground !grid-cols-[minmax(0,1fr)_minmax(84px,auto)_auto] !items-center !gap-x-2 [&>div]:min-w-0 [&>div_small]:block", key: "{row.id}",
             div {
                 strong { "{row.label}" }
                 if let Some(detail) = row.detail.as_deref() {
                     small { "{detail}" }
                 }
             }
-            PcbChoice { class: "m1-pcb-wiring-pin-control", label_class: "m1-visually-hidden",
+            PcbChoice { class: "min-w-0", label_class: "sr-only",
                     label: format!("Pin for {}", row.label), aria_label: format!("Pin for {}", row.label),
                     value: row.value.clone().unwrap_or_default(), searchable: true,
                     disabled: !actions.editable || row.locked,
@@ -1105,6 +1105,15 @@ mod tests {
         })
         .await;
         let picker = by_role_name(&root, "combobox", "Pin for Row 1").unwrap();
+        let label = root.query_selector("label").unwrap().unwrap();
+        assert!(
+            label
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class == "sr-only"),
+            "the accessible pin label uses the new visually-hidden utility"
+        );
         let input: web_sys::HtmlInputElement = picker
             .clone()
             .dyn_into()

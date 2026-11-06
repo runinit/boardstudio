@@ -28,7 +28,7 @@ fn fixture() -> Element {
     let mut clicks = use_signal(|| 0);
     let mut draft = use_signal(String::new);
     rsx! {
-        div { class: "m1-workbench",
+        div { class: "flex flex-col w-full h-dvh min-h-0 overflow-hidden",
             header { style: "min-height:56px;display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0",
                 for name in ["Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts"] {
                     Button { onclick: move |_| workspace.set(name), "{name}" }
@@ -36,8 +36,8 @@ fn fixture() -> Element {
                 panels::CompactPanelControls {}
                 Button { onclick: move |_| { objects_open.set(false); inspector_open.set(false); }, "External close panels" }
             }
-            section { class: "m1-editor",
-                div { class: "m1-editor-body dock-desk",
+            section { class: "flex flex-1 flex-col min-h-0",
+                div { class: "dock-desk relative flex flex-1 flex-row gap-2 p-2 min-h-0 overflow-hidden bg-background",
                     panels::DockLayout {
                         objects: Some(rsx! {
                     ObjectsPanel { compact_open: objects_open, settings: objects,
@@ -58,7 +58,7 @@ fn fixture() -> Element {
                         for index in 0..40 { Button { "Inspector action {index}" } }
                     }
                         }),
-                    section { class: "m1-workspace-content", role: "region", aria_label: "Canvas",
+                    section { class: "order-2 flex-1 min-w-0 min-h-0 overflow-hidden rounded-xl bg-card shadow-sm", role: "region", aria_label: "Canvas",
                         Button { onclick: move |_| clicks += 1, "Canvas action" }
                         output { role: "status", aria_label: "Canvas clicks", "{clicks}" }
                     }

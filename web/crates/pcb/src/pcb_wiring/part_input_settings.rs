@@ -179,19 +179,19 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
     };
 
     rsx! {
-        section { class: "m1-pcb-wiring m1-pcb-part-input",
+        section { class: "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto overscroll-contain p-4 text-foreground [&_h2]:mt-0 [&_h2]:mb-2 [&_h2]:text-lg [&_h3]:mt-[18px] [&_h3]:mb-2 [&_h3]:text-xs [&_h3]:text-muted-foreground [&_p]:my-2 [&_p]:text-xs [&_p]:leading-normal [&_p]:text-muted-foreground gap-1",
             if let Some(scan_mode) = scan_mode {
-                PcbSection { class: "m1-pcb-wiring-section", default_open: true, label: "Press input",
+                PcbSection { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs", default_open: true, label: "Press input",
                     PcbChoice {
                         label: "Scan mode",
-                        class: "m1-pcb-part-input-field",
+                        class: "grid grid-cols-[minmax(0,1fr)_minmax(120px,1.15fr)] items-center gap-2.5 py-2 text-foreground text-xs",
                         aria_label: "Press scan mode",
                         value: (scan_mode_text(scan_mode)).to_string(),
                         disabled: read_only,
                         on_change: scan_change,
                         options: vec![("matrix".into(), "Matrix key".into(), !matrix_enabled), ("direct".into(), "Direct GPIO".into(), false), ("unassigned".into(), "Unassigned".into(), false)],
                     }
-                    p { class: "m1-pcb-part-input-note", "Rotation uses separate GPIOs. Apply the board wiring plan after changing the press connection." }
+                    p { class: "pb-2", "Rotation uses separate GPIOs. Apply the board wiring plan after changing the press connection." }
                 }
             }
             {props.board_details_and_connections}
@@ -203,7 +203,7 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                         rsx! {}
                     } else {
                         rsx! {
-                            PcbSection { class: "m1-pcb-wiring-section m1-pcb-part-bindings", default_open: true, label: "Generator bindings",
+                            PcbSection { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs", default_open: true, label: "Generator bindings",
                                 for (name, kind) in fields {
                                     if kind == "net" {
                                         {
@@ -222,7 +222,7 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                                                 });
                                             };
                                             rsx! {
-                                                PcbChoice { class: "m1-pcb-part-input-field", key: "net-{name}", label: name.clone(),
+                                                PcbChoice { class: "grid grid-cols-[minmax(0,1fr)_minmax(120px,1.15fr)] items-center gap-2.5 py-2 text-foreground text-xs", key: "net-{name}", label: name.clone(),
                                                     aria_label: format!("Generator net {name}"), value: current, disabled: read_only, searchable: true, on_change,
                                                     options: std::iter::once((String::new(), "Default".into(), false)).chain(nets.into_iter().map(|net| (net.name.clone(), net.name, false))).collect(),
                                                 }
@@ -249,12 +249,12 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                                                     edit.call(PartInputEditRequest { identity: field_identity.clone(), intent: PartInputIntent::GeneratorAnchor { name: field_name.clone(), axis: field_axis.clone(), value } });
                                                 };
                                                 rsx! {
-                                                    PcbInput { class: "m1-pcb-part-input-axis", key: "{axis}", label: format!("{name} {}", axis_upper(axis)),
+                                                    PcbInput { class: "grid gap-1 text-muted-foreground", key: "{axis}", label: format!("{name} {}", axis_upper(axis)),
                                                         r#type: InputType::Number, step: Some("any".into()), aria_label: format!("Generator anchor {name} {}", axis_upper(axis)), value: number, disabled: read_only, oninput: on_change }
                                                 }
                                             };
                                             rsx! {
-                                                div { class: "m1-pcb-part-input-anchor", key: "anchor-{name}",
+                                                div { class: "grid grid-cols-[minmax(70px,0.7fr)_repeat(2,minmax(70px,1fr))] items-end gap-2 py-2 text-foreground text-xs", key: "anchor-{name}",
                                                     span { "{name}" }
                                                     {render_axis("x")}
                                                     {render_axis("y")}

@@ -533,9 +533,9 @@ fn PcbMountedModuleInspector(
     };
 
     rsx! {
-        section { class: "m1-pcb-module-inspector", "aria-label": "Mounted module placement",
+        section { class: "grid gap-2.5 min-w-0 overflow-auto p-4 text-foreground [&_h2]:m-0 [&_h2]:text-lg [&_p]:m-0 [&_p]:text-xs [&_p]:leading-normal [&_p]:text-muted-foreground", "aria-label": "Mounted module placement",
             h2 { "{module_name} placement" }
-            p { class: "m1-pcb-module-source-note", "Placement edits affect this project instance. Source footprint artwork remains owned by the module." }
+            p { "Placement edits affect this project instance. Source footprint artwork remains owned by the module." }
             PcbChoice {
                 label: "Host board",
                 aria_label: "Module host board",
@@ -631,11 +631,11 @@ fn PcbMountedModuleInspector(
                         }
                     },
             }
-            section { class: "m1-pcb-module-supports", "aria-label": "{support_section}",
+            section { class: "grid gap-2 min-w-0 p-2.5 border border-border rounded-md bg-card [&_h3]:m-0 [&_h3]:text-xs [&_h3]:text-foreground", "aria-label": "{support_section}",
                 h3 { "{support_section}" }
                 p { "Choose a source PCB hole and enter designer-selected ring dimensions. Z and height are module-midplane millimetres; these values are not vendor specifications." }
                 for (index, support) in draft().mount_supports.iter().enumerate() {
-                    div { key: "{support.mount_id}", class: "m1-pcb-module-support-row",
+                    div { key: "{support.mount_id}", class: "flex items-center justify-between gap-2 py-1.5 border-b border-border text-foreground text-xs [&_button]:flex-none",
                         span { "{support.mount_id} · OD {support.outer_diameter} / ID {support.hole_diameter} · Z {support.z} · height {support.height} mm" }
                         Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable, aria_label: "Remove support {support.mount_id}", onclick: move |_| {
                             edit_module_draft(draft, draft_dirty, |value| { value.mount_supports.remove(index); });
@@ -643,7 +643,7 @@ fn PcbMountedModuleInspector(
                     }
                 }
                 if !resolved_supports.is_empty() {
-                    div { class: "m1-pcb-module-support-preview", "aria-label": "Resolved support geometry",
+                    div { class: "p-2 border-l-2 border-primary bg-canvas [&_strong]:block [&_strong]:mb-1 [&_strong]:text-foreground [&_strong]:text-xs", "aria-label": "Resolved support geometry",
                         strong { "Resolved {support_section}" }
                         for (index, support) in resolved_supports.iter().enumerate() {
                             p { key: "{support.mount_id}-{index}", "{support.mount_id} · center {support.at.x:.2}, {support.at.y:.2} mm · OD {support.outer_diameter:.2} / ID {support.hole_diameter:.2} mm · Z {support.z:.2} · height {support.height:.2} mm" }
@@ -659,7 +659,7 @@ fn PcbMountedModuleInspector(
                     on_change: move |next: String| support_draft.with_mut(|value| value.mount_id = next),
                     options: std::iter::once((String::new(), "Choose module hole…".into(), false)).chain(source_mounts.iter().map(|mount| (mount.source_id.clone(), format!("{} · source drill {} mm", mount.source_id, mount.diameter), false))).collect(),
                 }
-                div { class: "m1-pcb-module-support-fields",
+                div { class: "grid grid-cols-2 gap-2",
                     PcbInput {
                         label: "Outer diameter (mm)",
                         r#type: InputType::Number, step: Some("0.1".into()),
@@ -737,7 +737,7 @@ fn PcbMountedModuleInspector(
             PcbCheck { label: "Detached", checked: draft().detached, disabled: !editable,
                 on_change: move |checked| edit_module_draft(draft, draft_dirty, |value| value.detached = checked)
             }
-            section { class: "m1-pcb-module-connection", "aria-label": "VIK connection",
+            section { "aria-label": "VIK connection",
                 h3 { "VIK connection" }
                 PcbCheck { label: "Assign host connection",
                     checked: draft().connection.is_some(),
@@ -792,7 +792,7 @@ fn PcbMountedModuleInspector(
                         oninput: move |event: FormEvent| edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection { connection.bus_id = event.value(); })
                     }
                     p { "12 contacts · 0.5 mm pitch · Type A cable · 3.3 V logic. Enter actual MCU terminals; shared buses are checked by their wiring." }
-                    div { class: "m1-pcb-module-signals",
+                    div {
                         for (signal, label) in vik_signals() {
                             PcbInput { key: "{label}", label: label.to_owned(), r#type: InputType::Text, aria_label: format!("VIK {label} terminal"), value: "{connection.assignments.get(&signal).cloned().unwrap_or_default()}", disabled: !editable,
                                     oninput: move |event: FormEvent| {
@@ -805,7 +805,7 @@ fn PcbMountedModuleInspector(
                             }
                         }
                     }
-                    div { class: "m1-pcb-module-rail-values",
+                    div {
                         for (signal, label) in [(VikSignal::V3v3, "3.3V supply"), (VikSignal::V5, "5V supply"), (VikSignal::Gnd, "Ground") ] {
                             PcbInput { key: "{label}", label: format!("{label} · V"), r#type: InputType::Number, step: Some("0.1".into()), aria_label: format!("VIK {label} voltage"), value: "{connection.rail_voltages.get(&signal).map(ToString::to_string).unwrap_or_default()}", disabled: !editable,
                                     oninput: move |event: FormEvent| {
@@ -835,7 +835,7 @@ fn PcbMountedModuleInspector(
                 }
             }
             if definition.circuit.is_some() {
-                section { class: "m1-pcb-module-circuit", "aria-label": "Use circuit on PCB",
+                section { "aria-label": "Use circuit on PCB",
                     h3 { "Use circuit on PCB" }
                     p { "Creates an independent, editable copy. Choose host nets for explicit joins; other nets remain local to this copy." }
                     for port in circuit_nets.clone() {
@@ -860,7 +860,7 @@ fn PcbMountedModuleInspector(
                     // controls; the begin guard keeps a second click a no-op while a
                     // sibling removal is still in flight.
                     for circuit in &embedded_circuits {
-                        div { class: "m1-pcb-module-circuit-copy", key: "{circuit.id}",
+                        div { key: "{circuit.id}",
                             span {
                                 "{circuit.part_ids.len()} components · {circuit.id.rsplit('/').next().unwrap_or(&circuit.id)}"
                             }
@@ -896,12 +896,12 @@ fn PcbMountedModuleInspector(
                     }
                 }
             }
-            section { class: "m1-pcb-module-components", "aria-label": "Individual components",
+            section { "aria-label": "Individual components",
                 h3 { "Individual components" }
                 p { "Place available source footprints independently. Component heights and assembly completeness need separate review." }
                 if definition.circuit.is_some() {
                     for constituent in constituent_actions.clone() {
-                        div { class: "m1-pcb-module-constituent", key: "{constituent.reference}-{constituent.index}",
+                        div { key: "{constituent.reference}-{constituent.index}",
                             div { strong { "{constituent.reference} · {constituent.name}" } small { if constituent.purchased { "Purchased assembly · footprint and external contacts only" } else { "{constituent.footprint}" } } }
                             Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable || constituent.source_definition.is_none(), aria_label: "Place {constituent.reference}", onclick: move |_| {
                                 if let Some(definition) = constituent.source_definition.clone() {
@@ -917,7 +917,7 @@ fn PcbMountedModuleInspector(
                     p { "This module has no editable component circuit source." }
                 }
             }
-            div { class: "m1-pcb-module-actions",
+            div { class: "flex flex-wrap gap-2 mt-1",
                 Button { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable || draft().connection.as_ref().is_some_and(|connection| connection.host_connector_part_id.is_empty()), onclick: save, "Save placement" }
                 Button { variant: ButtonVariant::Destructive, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable || remove_disabled(), onclick: remove, "Remove module" }
             }
@@ -1978,9 +1978,10 @@ mod mounted_save_replacement_tests {
             "after the old IndexedDB write completes, the replacement Session has no old-operation feedback"
         );
         assert!(
-            root.query_selector(".m1-pcb-module-actions + p[role='status']")
-                .unwrap()
-                .is_none(),
+            by_role_name(&root, "button", "Save placement")
+                .and_then(|button| button.parent_element())
+                .and_then(|actions| actions.next_element_sibling())
+                .is_none_or(|next| !next.matches("p[role='status']").unwrap()),
             "a landed placement shows no status message"
         );
         let _ = runtime

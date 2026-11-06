@@ -12,13 +12,13 @@ pub fn KeymapCanvas(
     on_select_key: EventHandler<String>,
 ) -> Element {
     rsx! {
-        g { class: "m1-keymap-layout",
-            g { class: "m1-keymap-outline", "aria-hidden": "true", "pointer-events": "none",
+        g {
+            g { "aria-hidden": "true", "pointer-events": "none",
                 for (index, contour) in contours.iter().enumerate() {
                     polygon {
                         key: "outline-{index}",
                         points: contour_points(&contour.points),
-                        class: if contour.hole { "m1-outline is-hole" } else { "m1-outline" },
+                        class: if contour.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" },
                     }
                 }
             }
@@ -48,7 +48,7 @@ pub fn KeymapCanvas(
                     rsx! {
                         g {
                             key: "{id}",
-                            class: if selected { "m1-keymap-key is-selected" } else { "m1-keymap-key" },
+                            class: if selected { "cursor-pointer outline-none [&>rect]:fill-selected [&>rect]:stroke-primary [&>rect]:stroke-[1] [&_text]:pointer-events-none" } else { "cursor-pointer outline-none hover:[&>rect]:stroke-primary focus-visible:[&>rect]:fill-selected focus-visible:[&>rect]:stroke-primary focus-visible:[&>rect]:stroke-[1] [&_text]:pointer-events-none" },
                             transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})",
                             role: "button",
                             tabindex: "0",
@@ -66,7 +66,7 @@ pub fn KeymapCanvas(
                                 }
                             },
                             rect {
-                                class: "m1-keymap-key-face",
+                                class: "fill-keycap-face stroke-keycap-rule stroke-[0.55] [vector-effect:non-scaling-stroke]",
                                 x: "{-size.x / 2.0}",
                                 y: "{-size.y / 2.0}",
                                 width: "{size.x}",
@@ -77,9 +77,9 @@ pub fn KeymapCanvas(
                             g { transform: "scale(1 -1)",
                                 text {
                                     class: if binding.as_ref() == "Unassigned" {
-                                        "m1-keymap-binding-label is-unassigned"
+                                        "fill-muted-foreground font-sans text-[4.6px] font-medium pointer-events-none"
                                     } else {
-                                        "m1-keymap-binding-label"
+                                        "fill-keycap-ink font-sans text-[4.6px] font-semibold pointer-events-none"
                                     },
                                     text_anchor: "middle",
                                     dominant_baseline: "central",

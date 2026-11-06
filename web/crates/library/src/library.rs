@@ -136,7 +136,7 @@ fn focus_library_search() {
             .and_then(|window| window.document())
             .and_then(|document| {
                 document
-                    .query_selector(".m1-keyboard-search input")
+                    .query_selector("[type=search][aria-label='Search saved keyboards']")
                     .ok()
                     .flatten()
             })
@@ -291,10 +291,10 @@ fn KeyboardCard(
         ),
     };
     rsx! {
-        Card { class: if selected { "m1-keyboard-card is-selected" } else if current { "m1-keyboard-card is-current" } else { "m1-keyboard-card" },
+        Card { class: if selected { "relative min-w-0 p-0 gap-0 bg-selected text-selected-foreground" } else { "relative min-w-0 p-0 gap-0" },
           div { "data-project-id": "{project_id}",
             Button { variant: ButtonVariant::Ghost,
-                class: "m1-keyboard-tile",
+                class: "flex w-full h-auto min-h-11 flex-col items-stretch justify-start gap-[5px] p-3 text-left whitespace-normal",
                 button_type: "button",
                 aria_label: "{action_name}",
                 aria_current: current.then_some("true".to_owned()),
@@ -306,23 +306,23 @@ fn KeyboardCard(
                 },
                 match &preview {
                     Err(()) => rsx! {
-                            div { class: "m1-keyboard-preview is-empty",
-                                svg { class: "m1-library-keyboard-icon", view_box: "0 0 20 20", "aria-hidden": "true",
+                            div { class: "grid place-items-center w-full h-[108px] mb-1 p-3.5 rounded bg-canvas text-geometry-key [&_svg]:w-full [&_svg]:h-full [&_svg]:max-w-full [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-key [&_rect]:stroke-[1] max-[760px]:h-[92px] max-[760px]:p-2.5 [#m1-library-landing-content_&]:h-[clamp(120px,12vw,190px)] content-center gap-2 text-muted-foreground text-xs [&_svg]:!w-[30px] [&_svg]:!h-[30px] [&_svg]:justify-self-center",
+                                svg { class: "fill-none stroke-current stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]", view_box: "0 0 20 20", "aria-hidden": "true",
                                     path { d: "M2 5h16v11H2ZM5 8h.1M8 8h.1M11 8h.1M14 8h.1M5 11h.1M8 11h.1M11 11h.1M14 11h.1M6 14h8" }
                                 }
                                 span { "Preview unavailable" }
                             }
                     },
                     Ok(preview) if preview.keys.is_empty() => rsx! {
-                            div { class: "m1-keyboard-preview is-empty",
-                                svg { class: "m1-library-keyboard-icon", view_box: "0 0 20 20", "aria-hidden": "true",
+                            div { class: "grid place-items-center w-full h-[108px] mb-1 p-3.5 rounded bg-canvas text-geometry-key [&_svg]:w-full [&_svg]:h-full [&_svg]:max-w-full [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-key [&_rect]:stroke-[1] max-[760px]:h-[92px] max-[760px]:p-2.5 [#m1-library-landing-content_&]:h-[clamp(120px,12vw,190px)] content-center gap-2 text-muted-foreground text-xs [&_svg]:!w-[30px] [&_svg]:!h-[30px] [&_svg]:justify-self-center",
+                                svg { class: "fill-none stroke-current stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]", view_box: "0 0 20 20", "aria-hidden": "true",
                                     path { d: "M2 5h16v11H2ZM5 8h.1M8 8h.1M11 8h.1M14 8h.1M5 11h.1M8 11h.1M11 11h.1M14 11h.1M6 14h8" }
                                 }
                                 span { "No keys placed" }
                             }
                     },
                     Ok(preview) => rsx! {
-                        div { class: "m1-keyboard-preview",
+                        div { class: "grid place-items-center w-full h-[108px] mb-1 p-3.5 rounded bg-canvas text-geometry-key [&_svg]:w-full [&_svg]:h-full [&_svg]:max-w-full [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-key [&_rect]:stroke-[1] max-[760px]:h-[92px] max-[760px]:p-2.5 [#m1-library-landing-content_&]:h-[clamp(120px,12vw,190px)]",
                             svg { view_box: "{preview.left} {preview.top} {preview.width} {preview.height}", "aria-hidden": "true",
                                 for key in &preview.keys {
                                     rect {
@@ -339,12 +339,12 @@ fn KeyboardCard(
                         },
                     }
                 }
-                span { class: "m1-keyboard-title", "{name}" }
-                span { class: "m1-keyboard-detail",
-                    span { class: "m1-keyboard-facts", "{detail}" }
+                span { class: "max-w-full px-1.5 text-foreground text-[13px] font-semibold [overflow-wrap:anywhere] [#m1-library-landing-content_&]:text-lg", "{name}" }
+                span { class: "flex flex-wrap items-center gap-x-2 gap-y-1 px-1.5 text-muted-foreground text-[14px]",
+                    span { "{detail}" }
                     if current {
-                        span { class: "m1-keyboard-current",
-                            svg { class: "m1-library-check-icon", view_box: "0 0 20 20", "aria-hidden": "true", path { d: "m4 10 4 4 8-8" } }
+                        span { class: "inline-flex items-center gap-0.5 text-primary [&_svg]:size-3",
+                            svg { class: "fill-none stroke-current stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]", view_box: "0 0 20 20", "aria-hidden": "true", path { d: "m4 10 4 4 8-8" } }
                             "Current"
                             }
                         }
@@ -355,7 +355,7 @@ fn KeyboardCard(
                 Tooltip { class: "library-card-delete",
                   TooltipTrigger { r#as: move |attributes: Vec<Attribute>| { let delete_document = delete_document.clone(); rsx! {
                     Button { attributes: { let mut attributes = attributes; attributes.push(Attribute::new("data-project-id", document.id.clone(), None, false)); attributes }, variant: ButtonVariant::Ghost, size: ButtonSize::Icon,
-                    class: "m1-keyboard-delete",
+                    class: "[&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]",
                     button_type: "button",
                     aria_label: delete_label.clone(),
                     aria_haspopup: "dialog", aria_controls: "library-project-delete",
@@ -375,15 +375,15 @@ fn KeyboardCard(
 fn LibraryPreview(preview: Option<Preview>, fallback: String) -> Element {
     match preview {
         Some(preview) if preview.keys.is_empty() => rsx! {
-            div { class: "m1-keyboard-preview is-empty",
-                svg { class: "m1-library-keyboard-icon", view_box: "0 0 20 20", "aria-hidden": "true",
+            div { class: "grid place-items-center w-full h-[108px] mb-1 p-3.5 rounded bg-canvas text-geometry-key [&_svg]:w-full [&_svg]:h-full [&_svg]:max-w-full [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-key [&_rect]:stroke-[1] max-[760px]:h-[92px] max-[760px]:p-2.5 [#m1-library-landing-content_&]:h-[clamp(120px,12vw,190px)] content-center gap-2 text-muted-foreground text-xs [&_svg]:!w-[30px] [&_svg]:!h-[30px] [&_svg]:justify-self-center",
+                svg { class: "fill-none stroke-current stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]", view_box: "0 0 20 20", "aria-hidden": "true",
                     path { d: "M2 5h16v11H2ZM5 8h.1M8 8h.1M11 8h.1M14 8h.1M5 11h.1M8 11h.1M11 11h.1M14 11h.1M6 14h8" }
                 }
                 span { "No keys placed" }
             }
         },
         Some(preview) => rsx! {
-            div { class: "m1-keyboard-preview",
+            div { class: "grid place-items-center w-full h-[108px] mb-1 p-3.5 rounded bg-canvas text-geometry-key [&_svg]:w-full [&_svg]:h-full [&_svg]:max-w-full [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-key [&_rect]:stroke-[1] max-[760px]:h-[92px] max-[760px]:p-2.5 [#m1-library-landing-content_&]:h-[clamp(120px,12vw,190px)]",
                 svg { view_box: "{preview.left} {preview.top} {preview.width} {preview.height}", "aria-hidden": "true",
                     for key in &preview.keys {
                         rect {
@@ -400,8 +400,8 @@ fn LibraryPreview(preview: Option<Preview>, fallback: String) -> Element {
             }
         },
         None => rsx! {
-            div { class: "m1-keyboard-preview is-empty",
-                svg { class: "m1-library-keyboard-icon", view_box: "0 0 20 20", "aria-hidden": "true",
+            div { class: "grid place-items-center w-full h-[108px] mb-1 p-3.5 rounded bg-canvas text-geometry-key [&_svg]:w-full [&_svg]:h-full [&_svg]:max-w-full [&_rect]:fill-geometry-body [&_rect]:stroke-geometry-key [&_rect]:stroke-[1] max-[760px]:h-[92px] max-[760px]:p-2.5 [#m1-library-landing-content_&]:h-[clamp(120px,12vw,190px)] content-center gap-2 text-muted-foreground text-xs [&_svg]:!w-[30px] [&_svg]:!h-[30px] [&_svg]:justify-self-center",
+                svg { class: "fill-none stroke-current stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]", view_box: "0 0 20 20", "aria-hidden": "true",
                     path { d: "M2 5h16v11H2ZM5 8h.1M8 8h.1M11 8h.1M14 8h.1M5 11h.1M8 11h.1M11 11h.1M14 11h.1M6 14h8" }
                 }
                 span { "{fallback}" }
@@ -428,8 +428,8 @@ fn DemoActionCard(mut open: Signal<bool>) -> Element {
         }
     }));
     rsx! {
-        Card { class: "m1-library-start-card",
-            div { class: "m1-library-start-icon m1-library-start-icon--demo",
+        Card { class: "min-w-0 min-h-[354px] items-stretch px-6 [&_h2]:text-lg [&>p]:min-h-[2.8em] [&>p]:m-0 [&>p]:text-muted-foreground [&>p]:text-sm [&>p]:leading-relaxed [&>[data-slot=button]]:w-full [&>[data-slot=button]]:mt-auto max-[1100px]:p-3 max-[760px]:min-h-0",
+            div { class: "grid h-28 place-items-center text-muted-foreground [&_svg]:w-[min(100%,180px)] [&_svg]:h-full [&_svg]:fill-none [&_svg]:stroke-border-strong [&_svg]:stroke-[1.6] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round] max-[1100px]:h-[88px] [&_rect:nth-of-type(n+3)]:fill-selected [&_rect:nth-of-type(n+3)]:stroke-geometry-key",
                 svg { view_box: "0 0 96 56", "aria-hidden": "true",
                     rect { x: "4", y: "7", width: "88", height: "42", rx: "4" }
                     for (x, y) in [(10, 13), (20, 13), (30, 13), (40, 13), (50, 13), (60, 13), (70, 13), (80, 13), (14, 24), (24, 24), (34, 24), (44, 24), (54, 24), (64, 24), (74, 24), (20, 35), (30, 35), (40, 35), (50, 35), (60, 35), (70, 35)] {
@@ -439,22 +439,22 @@ fn DemoActionCard(mut open: Signal<bool>) -> Element {
             }
             h2 { "Try a demo" }
             p { "Explore a sample keyboard to see BoardStudio in action." }
-            Collapsible { class: "m1-demo-picker", open: open(), on_open_change: move |next| open.set(next), keep_mounted: true,
+            Collapsible { class: "relative w-full mt-auto", open: open(), on_open_change: move |next| open.set(next), keep_mounted: true,
                 CollapsibleTrigger { r#as: move |attributes: Vec<Attribute>| rsx! {
                     Button { attributes: { let mut attributes = attributes; attributes.push(dioxus::events::onmounted(move |event: MountedEvent| summary.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<web_sys::HtmlElement>()).cloned()))); attributes }, variant: ButtonVariant::Default, class: "w-full",
                         aria_expanded: open(), aria_controls: trigger_content_id.clone(),
                         "Open demo" }
                 } }
-                CollapsibleContent { id: Some(content_id), class: "m1-demo-options", aria_label: "Demo keyboards", hidden: !open(), inert: (!open()).then_some(""),
+                CollapsibleContent { id: Some(content_id), class: "grid gap-2 mt-2 [&[hidden]]:hidden", aria_label: "Demo keyboards", hidden: !open(), inert: (!open()).then_some(""),
                     for demo in DEMO_PROJECTS {
                         {
                             let document = demo.document();
                             let demo_preview = preview(&document).ok();
                             let runtime = runtime.clone();
                             rsx! {
-                                article { class: "m1-demo-option",
+                                article { class: "grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 p-2 border border-border rounded-md bg-canvas [&>div:first-child]:row-span-2 [&>div:first-child]:!h-[54px] [&>div:first-child]:!bg-transparent [&>[data-slot=button]]:col-span-full [&>[data-slot=button]]:w-full",
                                     LibraryPreview { preview: demo_preview, fallback: demo.name.to_owned() }
-                                    div { class: "m1-demo-option-copy",
+                                    div { class: "min-w-0 [&_h3]:text-xs [&_h3]:font-semibold [&_p]:block [&_small]:block [&_p]:mt-0.5 [&_small]:mt-0.5 [&_p]:text-muted-foreground [&_small]:text-muted-foreground [&_p]:text-[11px] [&_small]:text-[11px] [&_p]:leading-[1.35] [&_small]:leading-[1.35]",
                                         h3 { "{demo.name}" }
                                         p { "{demo.summary}" }
                                         small { "Editable layout example" }
@@ -778,9 +778,9 @@ pub fn Library(
     let is_settings_page = project_menu && menu_page() == super::ProjectMenuPage::Settings;
     let no_saved_projects = cards.is_empty();
     rsx! {
-        section { id: if project_menu { "m1-project-menu-dropdown" } else { "m1-library-landing-content" }, class: if project_menu { "m1-library m1-project-menu-library" } else { "m1-library" }, "aria-label": if project_menu { "Project menu" } else { "Your keyboards" }, "data-page": if project_menu && menu_page() == super::ProjectMenuPage::Settings { "settings" } else { "project" },
+        section { id: if project_menu { "m1-project-menu-dropdown" } else { "m1-library-landing-content" }, class: if project_menu { "fixed z-50 top-[49px] left-3.5 flex w-[min(740px,calc(100vw-28px))] h-[min(760px,calc(100dvh-61px))] max-h-[calc(100dvh-61px)] flex-col gap-0 overflow-hidden p-0 rounded-lg bg-card shadow-lg data-[page=settings]:w-[min(420px,calc(100vw-28px))] data-[page=settings]:h-auto data-[page=settings]:overflow-y-auto max-[760px]:top-12 max-[760px]:left-1.5 max-[760px]:w-[calc(100vw-12px)] max-[760px]:h-[calc(100dvh-54px)] max-[760px]:max-h-[calc(100dvh-54px)] max-[760px]:data-[page=settings]:w-[calc(100vw-12px)] max-[760px]:data-[page=settings]:h-auto" } else { "grid grid-cols-[minmax(0,2.7fr)_minmax(280px,1fr)] gap-0 w-full h-full min-h-0 bg-card max-[1100px]:grid-cols-[minmax(0,1.8fr)_minmax(260px,1fr)] max-[760px]:flex max-[760px]:h-auto max-[760px]:min-h-full max-[760px]:flex-col" }, "aria-label": if project_menu { "Project menu" } else { "Your keyboards" }, "data-page": if project_menu && menu_page() == super::ProjectMenuPage::Settings { "settings" } else { "project" },
             if project_menu {
-                header { class: "m1-project-menu-heading",
+                header { class: "flex flex-none items-center justify-between gap-3 pt-2.5 pr-4 pb-1.5 pl-5 [&_h2]:m-0 [&_h2]:text-xl [&_h2]:font-semibold [&_svg]:size-[17px] [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5] max-[760px]:pt-1 max-[760px]:pr-2 max-[760px]:pb-0 max-[760px]:pl-3.5",
                     h2 { if menu_page() == super::ProjectMenuPage::Settings { "Workspace settings" } else { "Keyboards" } }
                     Tooltip { TooltipTrigger { r#as: move |attributes: Vec<Attribute>| rsx! {
                         Button { attributes, variant: ButtonVariant::Ghost, size: ButtonSize::Icon, aria_label: "Close project menu", onclick: |_| super::close_project_menu(),
@@ -790,17 +790,17 @@ pub fn Library(
                 }
             }
             if project_menu && !is_settings_page && browser.is_some() {
-                Button { variant: ButtonVariant::Secondary, class: "m1-browse-projects", onclick: move |_| {
+                Button { variant: ButtonVariant::Secondary, onclick: move |_| {
                     if let Some(mut browser) = browser { browser.0.set(true); }
                     super::close_project_menu();
                 }, "Browse projects" }
             }
             if is_settings_page {
-                div { class: "m1-workspace-preferences",
+                div { class: "grid content-start gap-3 min-h-0 flex-1 px-5 pb-5 text-foreground",
                     Button {
                         variant: ButtonVariant::Ghost,
                         size: ButtonSize::Sm,
-                        class: "m1-back-link",
+                        class: "[&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]",
                         onclick: move |_| {
                         menu_page.set(super::ProjectMenuPage::Project);
                         focus_preferences_entry();
@@ -812,13 +812,13 @@ pub fn Library(
                 }
             }
             if project_menu {
-                    div { class: "m1-project-menu-actions",
-                        Button { variant: ButtonVariant::Secondary, class: "m1-library-new", button_type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu_top(),
+                    div { class: "flex flex-none gap-2 pt-0.5 px-5 pb-3.5 [&_svg]:size-[17px] [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5] max-[760px]:pt-0 max-[760px]:px-3.5 max-[760px]:pb-2.5 max-[760px]:[&_button]:min-h-11 [#m1-project-menu-dropdown[data-page=settings]_&]:hidden",
+                        Button { variant: ButtonVariant::Secondary, button_type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu_top(),
                             svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M10 3v14M3 10h14" } }
                             "New project"
                         }
                         if has_current {
-                            Button { variant: ButtonVariant::Secondary, class: "m1-project-copy-action", button_type: "button", onclick: move |_| {
+                            Button { variant: ButtonVariant::Secondary, button_type: "button", onclick: move |_| {
                                 super::close_project_menu();
                                 menu_save_copy.export_project_copy();
                             },
@@ -826,13 +826,13 @@ pub fn Library(
                                 "Save project copy…"
                             }
                         }
-                        div { class: "m1-project-menu-open",
+                        div { class: "max-[760px]:min-h-11",
                           Button { variant: ButtonVariant::Secondary, onclick: move |_| {
                               if let Some(input) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id("library-menu-file")).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) { input.click(); }
                           },
                             svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M2 6V4h6l2 2h8v3M2 6v11h14l2-8H5l-3 8" } }
                             "Open project…" }
-                            input { id: "library-menu-file", hidden: true, class: "m1-project-file-input", r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
+                            input { id: "library-menu-file", hidden: true, class: "hidden", r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
                                 let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
                                 let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
                                 super::close_project_menu();
@@ -844,8 +844,8 @@ pub fn Library(
                     }
             }
             if has_current && project_menu {
-                section { class: "m1-project-current", "aria-label": "Current project",
-                    Label { class: "m1-project-title",
+                section { class: "flex flex-none flex-col items-stretch gap-1.5 m-0 px-5 py-3 border-y border-border bg-background max-[760px]:px-3.5 max-[760px]:py-2.5 [#m1-project-menu-dropdown[data-page=settings]_&]:hidden", "aria-label": "Current project",
+                    Label { class: "flex flex-1 items-center gap-3 w-auto m-0 text-muted-foreground text-xs font-normal [&>span]:flex-none max-[760px]:grid max-[760px]:gap-1",
                         span { "Current project" }
                         InputGroup { InputGroupInput {
                             aria_label: "Project name",
@@ -887,29 +887,29 @@ pub fn Library(
                             })], } }
                         }
                     if let Some(message) = name_failure() { div { id: "library-project-name-error", FieldError { "{message}" } } }
-                    span { class: "m1-project-current-status", "Revision {current_revision} · {current_durability}" }
+                    span { class: "text-muted-foreground text-[11px]", "Revision {current_revision} · {current_durability}" }
                     }
                 }
-            div { class: if project_menu { "m1-library-content m1-library-scroll" } else { "m1-library-content" },
+            div { class: if project_menu { "min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 [scrollbar-width:thin] max-[760px]:px-3.5 max-[760px]:py-4 [#m1-project-menu-dropdown[data-page=settings]_&]:hidden" } else { "col-start-1 min-w-0 min-h-0 overflow-auto pt-14 px-[clamp(24px,3vw,48px)] pb-8 bg-canvas max-[760px]:overflow-visible max-[760px]:px-4 max-[760px]:py-6" },
                 if !project_menu {
-                    header { class: "m1-library-intro",
+                    header { class: "mb-3 [&_h1]:text-3xl [&_h1]:tracking-tight [&_p]:mt-1 [&_p]:text-muted-foreground [&_p]:text-sm",
                         h1 { "Your keyboards" }
                         p { "Create, customize and manage your keyboard projects." }
                     }
                 }
-                header { class: "m1-library-heading",
+                header { class: "flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 mb-3 [&_h2]:m-0 [&_h2]:text-[15px] [&_h2]:font-semibold [&_h2_span]:ml-[5px] [&_h2_span]:text-muted-foreground [&_h2_span]:text-xs [&_h2_span]:font-normal [&>span]:text-muted-foreground [&>span]:text-xs [#m1-library-landing-content_&]:block [#m1-library-landing-content_&]:mb-4",
                     if project_menu {
                         h2 { "Your keyboards" if status() == ListStatus::Ready { span { "{saved_count}" } } }
                         span { "Saved in this browser" }
                     } else {
-                        span { class: "m1-library-count", "{saved_count} saved keyboards" }
+                        span { class: "text-muted-foreground !text-sm", "{saved_count} saved keyboards" }
                     }
                 }
                 if !project_menu {
-                    div { class: "m1-library-start-actions", aria_label: "Start a keyboard project",
+                    div { class: "grid grid-cols-3 items-stretch gap-3 mb-[34px] max-[760px]:grid-cols-1", aria_label: "Start a keyboard project",
                         DemoActionCard { open: demo_tool_open }
-                        Card { class: "m1-library-start-card",
-                            div { class: "m1-library-start-icon",
+                        Card { class: "min-w-0 min-h-[354px] items-stretch px-6 [&_h2]:text-lg [&>p]:min-h-[2.8em] [&>p]:m-0 [&>p]:text-muted-foreground [&>p]:text-sm [&>p]:leading-relaxed [&>[data-slot=button]]:w-full [&>[data-slot=button]]:mt-auto max-[1100px]:p-3 max-[760px]:min-h-0",
+                            div { class: "grid h-28 place-items-center text-muted-foreground [&_svg]:w-[min(100%,180px)] [&_svg]:h-full [&_svg]:fill-none [&_svg]:stroke-border-strong [&_svg]:stroke-[1.6] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round] max-[1100px]:h-[88px]",
                                 svg { view_box: "0 0 96 56", "aria-hidden": "true",
                                     rect { x: "25", y: "5", width: "46", height: "46", rx: "5" }
                                     path { d: "M48 16v24M36 28h24" }
@@ -926,8 +926,8 @@ pub fn Library(
                                 "Create new"
                             }
                         }
-                        Card { class: "m1-library-start-card",
-                            div { class: "m1-library-start-icon",
+                        Card { class: "min-w-0 min-h-[354px] items-stretch px-6 [&_h2]:text-lg [&>p]:min-h-[2.8em] [&>p]:m-0 [&>p]:text-muted-foreground [&>p]:text-sm [&>p]:leading-relaxed [&>[data-slot=button]]:w-full [&>[data-slot=button]]:mt-auto max-[1100px]:p-3 max-[760px]:min-h-0",
+                            div { class: "grid h-28 place-items-center text-muted-foreground [&_svg]:w-[min(100%,180px)] [&_svg]:h-full [&_svg]:fill-none [&_svg]:stroke-border-strong [&_svg]:stroke-[1.6] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round] max-[1100px]:h-[88px]",
                                 svg { view_box: "0 0 96 56", "aria-hidden": "true",
                                     path { d: "M25 5h33l14 14v32H25z" }
                                     path { d: "M58 5v14h14M48 41V24m-8 8 8-8 8 8" }
@@ -935,11 +935,11 @@ pub fn Library(
                             }
                             h2 { "Import project" }
                             p { "Bring in a keyboard file from your computer." }
-                            div { class: "m1-library-import-action",
+                            div { class: "w-full mt-auto",
                                 Button { variant: ButtonVariant::Default, class: "w-full", onclick: move |_| {
                                     if let Some(input) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id("library-import-file")).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) { input.click(); }
                                 }, "Import project" }
-                                input { id: "library-import-file", hidden: true, class: "m1-project-file-input", r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
+                                input { id: "library-import-file", hidden: true, class: "hidden", r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
                                     let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
                                     let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
                                     super::close_project_menu();
@@ -951,11 +951,11 @@ pub fn Library(
                         }
                     }
                 }
-                div { class: "m1-library-shelf-heading",
+                div { class: "flex items-baseline justify-between mb-2 pt-[31px] border-t border-border [&_h2]:text-base [&_span]:text-muted-foreground [&_span]:text-xs",
                     h2 { if project_menu { "Saved keyboards" } else { "Your saved keyboards" } }
                 }
                 if project_menu || saved_count > 0 {
-                div { class: "m1-keyboard-search",
+                div { class: "flex items-center gap-2 mb-3.5 max-[760px]:min-h-11 [&_[data-slot=input-group-addon]_svg]:size-4 [&_[data-slot=input-group-addon]_svg]:fill-none [&_[data-slot=input-group-addon]_svg]:stroke-current",
                     InputGroup {
                      InputGroupAddon { svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M13.5 13.5 18 18M15 8.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" } } }
                      InputGroupInput {
@@ -975,7 +975,7 @@ pub fn Library(
                     p { role: "status", class: "flex items-center gap-2", Spinner {} "Loading saved keyboards…" }
                 }
                 if recovery_required && runtime.has_pending_edits() {
-                    Alert { variant: AlertVariant::Destructive, class: "m1-save-error",
+                    Alert { variant: AlertVariant::Destructive, class: "max-w-[min(44vw,440px)] m-0 text-xs",
                         p { "Your pending edits have not been saved. Download them before reloading if you want to keep them." }
                         Button { variant: ButtonVariant::Secondary, button_type: "button", onclick: {
                             let runtime = runtime.clone();
@@ -992,7 +992,7 @@ pub fn Library(
                         Button {
                             variant: ButtonVariant::Ghost,
                             size: ButtonSize::Sm,
-                            class: "m1-library-text-action",
+                            class: "max-[760px]:min-h-11",
                             onclick: move |_| {
                             if let Some(generation) = retry_generations.get().checked_add(1) {
                                 retry_generations.set(generation);
@@ -1004,7 +1004,7 @@ pub fn Library(
                     }
                 }
                 if !no_saved_projects || project_menu {
-                div { class: "m1-keyboard-grid",
+                div { class: "grid grid-cols-3 gap-x-3.5 gap-y-4 max-[760px]:grid-cols-2 max-[760px]:gap-x-2.5 max-[760px]:gap-y-3.5 [#m1-library-landing-content_&]:gap-3",
                     for (document, is_current) in cards {
                         KeyboardCard { key: "{document.id}", selected: selected_project().as_ref().is_some_and(|selected| selected.id == document.id),
                             document: KeyboardCardSource(document), current: is_current, recovery_required, deletable: true,
@@ -1028,7 +1028,7 @@ pub fn Library(
                 }
                 }
                 if !project_menu && no_saved_projects && status() == ListStatus::Ready && query.trim().is_empty() {
-                    Empty { class: "m1-library-empty-state",
+                    Empty { class: "grid justify-items-center gap-4 py-[18px] px-5 text-center [&_svg]:size-14 [&_svg]:fill-none [&_svg]:stroke-muted-foreground [&_svg]:stroke-[1.5] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round] [&_h2]:text-lg [&_p]:max-w-[54ch] [&_p]:m-0 [&_p]:text-muted-foreground [&_p]:text-sm",
                         svg { view_box: "0 0 48 48", "aria-hidden": "true",
                             path { d: "M5 19h10l4 7h10l4-7h10M5 19l3 20h32l3-20" }
                         }
@@ -1037,15 +1037,15 @@ pub fn Library(
                     }
                 }
                 for record in unreadable() {
-                    Alert { variant: AlertVariant::Destructive, class: "m1-save-error",
+                    Alert { variant: AlertVariant::Destructive, class: "max-w-[min(44vw,440px)] m-0 text-xs",
                         strong { "Unreadable saved keyboard: {record.label}" }
                         p { "{record.error}" }
-                        Button { variant: ButtonVariant::Secondary, class: "m1-project-raw-download", button_type: "button", onclick: {
+                        Button { variant: ButtonVariant::Secondary, button_type: "button", onclick: {
                             let runtime = runtime.clone();
                             let key = record.key.clone();
                             move |_| runtime.download_raw_project(key.clone())
                         }, "Download raw saved data" }
-                        Button { variant: ButtonVariant::Destructive, class: "m1-project-unreadable-delete", button_type: "button", disabled: record.token.is_none(),
+                        Button { variant: ButtonVariant::Destructive, button_type: "button", disabled: record.token.is_none(),
                             aria_haspopup: "dialog", aria_controls: "library-unreadable-delete",
                             aria_expanded: pending_unreadable().as_ref().is_some_and(|pending| pending.key == record.key),
                             onclick: move |_| {
@@ -1055,10 +1055,10 @@ pub fn Library(
                     }
                 }
                 if no_search_matches {
-                    p { class: "m1-keyboard-empty", "No keyboards match your search." }
+                    p { class: "my-3.5 mx-0 text-muted-foreground text-[13px]", "No keyboards match your search." }
                 }
                 if !project_menu {
-                    div { class: "m1-library-actions",
+                    div { class: "grid grid-cols-2 gap-2 mt-2 [&_label]:col-span-full max-[760px]:[&_button]:min-h-11",
                         if let Some(project_id) = current_project_id.clone() {
                             Button { variant: ButtonVariant::Secondary, button_type: "button", onclick: move |_| {
                                 guide_request_counter += 1;
@@ -1075,14 +1075,14 @@ pub fn Library(
                 }
             }
             if !project_menu {
-                aside { class: "m1-library-selection", aria_label: "Keyboard details and starting guidance",
+                aside { class: "col-start-2 row-start-1 self-stretch sticky top-0 max-h-none overflow-auto flex flex-col gap-3 py-12 px-10 border-l border-border bg-selected [&>h2]:text-base [&>p]:text-muted-foreground max-[1100px]:py-7 max-[1100px]:px-6 max-[760px]:static max-[760px]:overflow-visible max-[760px]:px-4 max-[760px]:py-6 max-[760px]:border-t max-[760px]:border-l-0 max-[760px]:has-[#m1-browser-open-keyboard]:order-first", aria_label: "Keyboard details and starting guidance",
                     if let Some(document) = selected_document {
                         h2 { "{project_display_name(&document)}" }
                         if current_project_id.as_deref() == Some(document.id.as_str()) {
-                            Collapsible { class: "m1-library-selection-rename-disclosure", open: rename_tool_open(), on_open_change: move |open| rename_tool_open.set(open), keep_mounted: true,
+                            Collapsible { class: "[&_[data-slot=collapsible-content][hidden]]:hidden", open: rename_tool_open(), on_open_change: move |open| rename_tool_open.set(open), keep_mounted: true,
                                 CollapsibleTrigger { r#as: move |attributes: Vec<Attribute>| rsx! { Button { attributes, variant: ButtonVariant::Secondary, aria_expanded: rename_tool_open(), aria_controls: rename_trigger_content_id.clone(), "Rename project" } } }
                                 CollapsibleContent { id: Some(rename_content_id.clone()), hidden: !rename_tool_open(), inert: (!rename_tool_open()).then_some(""),
-                                Label { class: "m1-library-selection-rename",
+                                Label { class: "grid gap-1 text-muted-foreground text-xs",
                                     span { "Project name" }
                                     InputGroup { InputGroupInput {
                                         aria_label: "Project name",
@@ -1120,14 +1120,14 @@ pub fn Library(
                             }
                         }
                         if let Some(message) = name_failure() { div { id: "library-project-name-error", FieldError { "{message}" } } }
-                        p { class: "m1-library-selection-summary",
+                        p { class: "m-0 text-foreground text-sm",
                             "{selected_summary}"
                         }
-                        p { class: "m1-library-selection-saved", "Saved in this browser" }
-                        div { class: "m1-library-selection-preview",
+                        p { class: "m-0 text-muted-foreground text-xs", "Saved in this browser" }
+                        div { class: "[&>div]:!h-[clamp(180px,18vw,280px)] [&>div]:!bg-card",
                             LibraryPreview { preview: selected_preview, fallback: "Preview unavailable" }
                         }
-                        div { class: "m1-library-selection-actions",
+                        div { class: "grid grid-cols-2 gap-2 [&>#m1-browser-open-keyboard]:col-span-full [&>#m1-browser-open-keyboard]:w-full",
                             Button { id: "m1-browser-open-keyboard", variant: ButtonVariant::Default, onclick: {
                                 let runtime = runtime.clone(); let id = document.id.clone();
                                 move |_| { runtime.open_saved(id.clone()); if let Some(mut browser) = browser { browser.0.set(false); } }
@@ -1145,18 +1145,18 @@ pub fn Library(
                     } else {
                         h2 { "Start here" }
                         p { "Choose an option to get started with BoardStudio." }
-                        ol { class: "m1-library-start-guide",
+                        ol { class: "grid gap-4 my-5 p-0 list-none [&_li]:grid [&_li]:gap-1 [&_strong]:text-foreground [&_strong]:text-sm [&_p]:m-0 [&_p]:text-muted-foreground [&_p]:text-sm [&_p]:leading-relaxed",
                             li { strong { "Try a demo" } p { "Open a sample keyboard to explore features and get familiar with the editor." } }
                             li { strong { "Create a new keyboard" } p { "Start from a blank canvas and bring your ideas to life." } }
                             li { strong { "Import a project" } p { "Load a .boardstudio file from your computer to continue working." } }
                         }
-                        p { class: "m1-library-guide-note", "Demo layouts are starting points; add and verify hardware before fabrication." }
+                        p { class: "m-0 pt-3 border-t border-border text-muted-foreground text-sm leading-relaxed", "Demo layouts are starting points; add and verify hardware before fabrication." }
                     }
-                    p { class: "m1-library-storage-note", "Projects are saved in this browser. Download a .boardstudio copy to move or back them up." }
+                    p { class: "mt-8", "Projects are saved in this browser. Download a .boardstudio copy to move or back them up." }
                 }
             }
             if project_menu {
-                footer { class: "m1-project-menu-footer",
+                footer { class: "flex flex-none justify-start py-2 px-3.5 bg-background [&_svg]:size-[17px] [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5] max-[760px]:py-1 max-[760px]:px-2 max-[760px]:[&_button]:min-h-11 [#m1-project-menu-dropdown[data-page=settings]_&]:hidden",
                     if let Some(project_id) = current_project_id {
                         Button { variant: ButtonVariant::Secondary, button_type: "button", onclick: move |_| {
                             guide_request_counter += 1;
@@ -1197,7 +1197,6 @@ pub fn Library(
                     AlertDialogActions {
                         AlertDialogCancel { attributes: vec![Attribute::new("disabled", deleting_project(), None, false)], "Cancel" }
                         Button { variant: ButtonVariant::Destructive,
-                            class: "m1-project-delete-confirm",
                             button_type: "button",
                             disabled: deleting_project(),
                             onclick: move |_| {
@@ -1533,7 +1532,7 @@ mod mounted_tests {
     }
 
     fn saved_card_count(root: &web_sys::Element) -> u32 {
-        root.query_selector_all(".m1-keyboard-card")
+        root.query_selector_all("[data-project-id] [aria-label^='Open '], [data-project-id] [aria-label^='Preview '], [data-project-id] [aria-label^='Recover from ']")
             .unwrap()
             .length()
     }
@@ -1557,8 +1556,10 @@ mod mounted_tests {
 
     /// The title of the only saved keyboard card, when the filtered listing shows one.
     fn saved_card_title(root: &web_sys::Element) -> Option<String> {
-        root.query_selector(".m1-keyboard-card .m1-keyboard-title")
+        root.query_selector("[data-project-id] [aria-label^='Open '], [data-project-id] [aria-label^='Preview '], [data-project-id] [aria-label^='Recover from ']")
             .unwrap()
+            .and_then(|action| action.first_element_child())
+            .and_then(|preview| preview.next_element_sibling())
             .and_then(|title| title.text_content())
     }
 
@@ -1618,17 +1619,22 @@ mod mounted_tests {
                 root.text_content()
                     .unwrap_or_default()
                     .contains("Healthy saved keyboard")
-                    && root
-                        .query_selector(".m1-project-raw-download")
-                        .unwrap()
-                        .is_some()
-                    && root
-                        .query_selector(".m1-project-unreadable-delete")
-                        .unwrap()
-                        .is_some()
+                    && by_role_name(&root, "button", "Download raw saved data").is_some()
+                    && by_role_name(&root, "button", "Delete unreadable keyboard…").is_some()
             },
         )
         .await;
+        for name in ["Download raw saved data", "Delete unreadable keyboard…"] {
+            let action = by_role_name(&root, "button", name).expect("recovery action is named");
+            assert!(
+                !action
+                    .get_attribute("class")
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .any(|class| class.starts_with("m1-")),
+                "recovery actions do not depend on removed legacy class names"
+            );
+        }
         assert!(root.text_content().unwrap().contains("partial-list-future"));
         click(&root, "Delete unreadable keyboard…");
         wait_until("unreadable deletion exposes an Alert Dialog", || {
@@ -1714,9 +1720,7 @@ mod mounted_tests {
         let root = mount_menu(runtime, "damaged-preview-fallback-mounted-regression");
         wait_for_project_cards(&root, 2).await;
 
-        let damaged_card = root
-            .query_selector(".m1-keyboard-card button[aria-label='Open Damaged preview keyboard']")
-            .unwrap()
+        let damaged_card = by_role_name(&root, "button", "Open Damaged preview keyboard")
             .expect("damaged preview remains an accessible Open action");
         assert!(damaged_card.get_attribute("disabled").is_none());
         assert!(
@@ -1732,9 +1736,7 @@ mod mounted_tests {
                 .contains("Open to check this keyboard")
         );
         assert!(
-            root.query_selector(".m1-keyboard-card button[aria-label='Open Healthy keyboard']",)
-                .unwrap()
-                .is_some(),
+            by_role_name(&root, "button", "Open Healthy keyboard").is_some(),
             "one damaged preview does not hide a healthy saved card"
         );
 
@@ -1795,9 +1797,7 @@ mod mounted_tests {
             "failed listing exposes retry"
         );
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card")
-                .unwrap()
-                .length(),
+            saved_card_count(&root),
             1,
             "the current project remains available while listing fails"
         );
@@ -1807,7 +1807,7 @@ mod mounted_tests {
         assert!(root.query_selector("[role='alert']").unwrap().is_none());
         assert!(root.text_content().unwrap().contains("Recovered keyboard"));
         assert!(
-            root.query_selector(".m1-keyboard-card [aria-current='true']")
+            root.query_selector("[data-project-id] [aria-current='true']")
                 .unwrap()
                 .is_some(),
             "retry keeps the current-project marker"
@@ -1970,7 +1970,7 @@ mod mounted_tests {
             "browser-selection-current"
         );
         assert!(
-            root.query_selector(".m1-library-selection")
+            root.query_selector("[aria-label='Keyboard details and starting guidance']")
                 .unwrap()
                 .unwrap()
                 .text_content()
@@ -1979,7 +1979,7 @@ mod mounted_tests {
         );
         click(&root, "Preview Current keyboard");
         wait_until("current keyboard preview is selected", || {
-            root.query_selector(".m1-library-selection > h2")
+            root.query_selector("[aria-label='Keyboard details and starting guidance'] > h2")
                 .unwrap()
                 .and_then(|heading| heading.text_content())
                 .as_deref()
@@ -1995,7 +1995,7 @@ mod mounted_tests {
             boardstudio_application::TerminalOutcome::Completed
         );
         wait_until("selected preview follows the accepted rename", || {
-            root.query_selector(".m1-library-selection > h2")
+            root.query_selector("[aria-label='Keyboard details and starting guidance'] > h2")
                 .unwrap()
                 .and_then(|heading| heading.text_content())
                 .as_deref()
@@ -2051,17 +2051,28 @@ mod mounted_tests {
         let copy = by_role_name(&root, "button", "Save project copy…")
             .expect("the Project menu exposes Save project copy");
         assert_eq!(copy.text_content().unwrap().trim(), "Save project copy…");
+        assert!(
+            !copy
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class.starts_with("m1-"))
+        );
 
         copy.dyn_into::<web_sys::HtmlElement>().unwrap().click();
         // The menu starts open, so "closed" is false before the click and proves its effect.
         wait_until("starting a project copy closes the menu", || {
-            root.query_selector("details.m1-project-menu")
+            root.query_selector("[aria-label='Project menu']")
                 .unwrap()
+                .and_then(|menu| menu.closest("details").unwrap())
                 .is_some_and(|menu| !menu.has_attribute("open"))
         })
         .await;
         let menu = root
-            .query_selector("details.m1-project-menu")
+            .query_selector("[aria-label='Project menu']")
+            .unwrap()
+            .unwrap()
+            .closest("details")
             .unwrap()
             .unwrap();
         assert!(
@@ -2094,6 +2105,14 @@ mod mounted_tests {
         .await;
         let dialog = by_role_name(&root, "alertdialog", "Delete “Safe project”?").unwrap();
         assert_eq!(dialog.get_attribute("aria-modal").as_deref(), Some("true"));
+        let confirm = by_role_name(&dialog, "button", "Delete keyboard").unwrap();
+        assert!(
+            !confirm
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class.starts_with("m1-"))
+        );
         let cancel = by_role_name(&dialog, "button", "Cancel").unwrap();
         cancel.click();
         wait_until("Cancel closes the named Alert Dialog", || {
@@ -2542,112 +2561,84 @@ mod mounted_tests {
         wait_for_saved_cards(&root, 4).await;
 
         let project_menu = root
-            .query_selector(".m1-project-menu-library")
+            .query_selector("[aria-label='Project menu']")
             .unwrap()
             .expect("menu instance uses the dropdown composition");
-        let mut menu_child = project_menu.first_element_child();
-        for expected in [
-            "m1-project-menu-heading",
-            "m1-project-menu-actions",
-            "m1-project-current",
-            "m1-library-content m1-library-scroll",
-            "m1-project-menu-footer",
-        ] {
-            let child = menu_child.expect("expected direct menu child");
-            assert_eq!(child.get_attribute("class").as_deref(), Some(expected));
-            menu_child = child.next_element_sibling();
-        }
-        assert!(menu_child.is_none(), "unexpected direct menu child");
+        let heading = project_menu.first_element_child().expect("menu heading");
+        let actions = heading.next_element_sibling().expect("project actions");
+        let current = actions.next_element_sibling().expect("current project");
+        let content = current.next_element_sibling().expect("saved keyboards");
+        let footer = content.next_element_sibling().expect("menu footer");
         assert!(
-            root.query_selector(".m1-project-menu-heading h2")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .unwrap()
-                .contains("Keyboards")
+            footer.next_element_sibling().is_none(),
+            "unexpected direct menu child"
         );
+        assert!(heading.text_content().unwrap().contains("Keyboards"));
+        assert_eq!(
+            current.get_attribute("aria-label").as_deref(),
+            Some("Current project")
+        );
+        assert!(content.text_content().unwrap().contains("Saved keyboards"));
+        let new_project =
+            by_role_name(&actions, "button", "New project").expect("new project action");
         assert!(
-            root.query_selector(".m1-project-menu-actions .m1-library-new")
-                .unwrap()
-                .is_some()
+            !new_project
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class.starts_with("m1-")),
+            "the project action does not depend on a dead legacy class"
         );
-        assert!(
-            root.query_selector(".m1-project-menu-actions .m1-project-menu-open")
-                .unwrap()
-                .is_some()
-        );
-        assert!(
-            root.query_selector(".m1-project-menu-footer button")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .unwrap()
-                .contains("Setup guide")
-        );
+        assert!(by_role_name(&actions, "button", "Open project…").is_some());
+        assert!(by_role_name(&footer, "button", "Setup guide").is_some());
 
         let search = search_field();
         assert_eq!(
             search.get_attribute("placeholder").as_deref(),
             Some("Search your keyboards")
         );
+        let search_wrapper = search
+            .closest("[data-slot=input-group]")
+            .unwrap()
+            .unwrap()
+            .parent_element()
+            .unwrap();
+        search_wrapper.remove_attribute("class").unwrap();
+        new_project.focus().unwrap();
+        focus_library_search();
+        wait_until(
+            "search receives focus without a legacy wrapper class",
+            || search.matches(":focus").unwrap(),
+        )
+        .await;
         type_value(&search, "  sOfLe  ");
         wait_until("the trimmed search leaves the current keyboard", || {
             saved_card_count(&root) == 1 && saved_card_title(&root).as_deref() == Some("Sofle v2")
         })
         .await;
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card")
-                .unwrap()
-                .length(),
+            saved_card_count(&root),
             1,
             "trimmed case-insensitive search includes the current keyboard"
         );
-        assert_eq!(
-            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Sofle v2")
-        );
+        assert_eq!(saved_card_title(&root).as_deref(), Some("Sofle v2"));
         type_value(&search, "alpha");
         wait_until("the alpha search shows Alpha Board", || {
             saved_card_count(&root) == 1
                 && saved_card_title(&root).as_deref() == Some("Alpha Board")
         })
         .await;
-        assert_eq!(
-            root.query_selector_all(".m1-keyboard-card")
-                .unwrap()
-                .length(),
-            1
-        );
-        assert_eq!(
-            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Alpha Board")
-        );
+        assert_eq!(saved_card_count(&root), 1);
+        assert_eq!(saved_card_title(&root).as_deref(), Some("Alpha Board"));
         type_value(&search, "untitled");
         wait_until("the untitled search shows the Untitled fallback", || {
             saved_card_count(&root) == 1
                 && saved_card_title(&root).as_deref() == Some("Untitled keyboard")
         })
         .await;
+        assert_eq!(saved_card_count(&root), 1);
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card")
-                .unwrap()
-                .length(),
-            1
-        );
-        assert_eq!(
-            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
+            saved_card_title(&root).as_deref(),
             Some("Untitled keyboard")
         );
         type_value(&search, "missing");
@@ -2669,12 +2660,7 @@ mod mounted_tests {
         })
         .await;
         assert_eq!(search.value(), "");
-        assert_eq!(
-            root.query_selector_all(".m1-keyboard-card")
-                .unwrap()
-                .length(),
-            4
-        );
+        assert_eq!(saved_card_count(&root), 4);
 
         assert_eq!(field().value(), "Sofle v2");
         let label = field().closest("[data-slot=label]").unwrap().unwrap();

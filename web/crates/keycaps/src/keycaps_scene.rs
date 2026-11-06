@@ -283,13 +283,13 @@ pub fn KeycapsCanvas(
     on_select_key: EventHandler<String>,
 ) -> Element {
     rsx! {
-        g { class: "m1-keycaps-layout", "data-board-id": "{view.board_id}",
-            g { class: "m1-keycaps-outline", "aria-hidden": "true", "pointer-events": "none",
+        g { "data-board-id": "{view.board_id}",
+            g { "aria-hidden": "true", "pointer-events": "none",
                 for (index, contour) in contours.iter().enumerate() {
                     polygon {
                         key: "outline-{index}",
                         points: contour_points(&contour.points),
-                        class: if contour.hole { "m1-outline is-hole" } else { "m1-outline" },
+                        class: if contour.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" },
                     }
                 }
             }
@@ -311,7 +311,7 @@ pub fn KeycapsCanvas(
                     rsx! {
                         g {
                             key: "{id}",
-                            class: if selected { "m1-keymap-key is-selected" } else { "m1-keymap-key" },
+                            class: if selected { "cursor-pointer outline-none [&_rect]:stroke-primary [&_rect]:stroke-[0.8] [&_text]:pointer-events-none" } else { "cursor-pointer outline-none [&_rect]:stroke-border-strong [&_rect]:stroke-[0.2] hover:[&_rect]:stroke-primary hover:[&_rect]:stroke-[0.5] focus-visible:[&_rect]:stroke-primary focus-visible:[&_rect]:stroke-[0.8] [&_text]:pointer-events-none" },
                             transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})",
                             role: "button",
                             tabindex: "0",

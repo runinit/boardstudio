@@ -308,7 +308,7 @@ pub fn PartsPreviewPanel(
     let Some(definition) = definition else {
         lease_slot.invalidate();
         return rsx! {
-            section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Parts footprint preview",
+            section { class: "relative order-2 flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden rounded-xl bg-card shadow-sm", "aria-label": "Parts footprint preview",
                 div { role: "status", Callout { "Select a component from the Parts catalogue to preview its footprint." } }
             }
         };
@@ -363,10 +363,10 @@ pub fn PartsPreviewPanel(
         }
     };
     rsx! {
-        section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Parts footprint preview",
-            h2 { class: "m1-library-workspace-title", "{preview_title.as_deref().map(str::to_owned).unwrap_or_else(|| super::placement_label(&definition).to_owned())}" }
+        section { class: "relative order-2 flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden rounded-xl bg-card shadow-sm [section[aria-roledescription=carousel]_&]:order-none [section[aria-roledescription=carousel]_&]:min-h-[260px] [section[aria-roledescription=carousel]_&]:h-[320px] [section[aria-roledescription=carousel]_&]:p-3 [section[aria-roledescription=carousel]_&]:bg-canvas", "aria-label": "Parts footprint preview",
+            h2 { class: "flex-none min-h-[72px] m-0 pt-5 pr-[120px] pb-5 pl-4 text-lg [section[aria-roledescription=carousel]_&]:min-h-0 [section[aria-roledescription=carousel]_&]:p-0 [section[aria-roledescription=carousel]_&]:text-base", "{preview_title.as_deref().map(str::to_owned).unwrap_or_else(|| super::placement_label(&definition).to_owned())}" }
             if !show_3d() || recipe_pending || matching_sample.as_ref().is_none_or(|result| result.is_err()) {
-                div { class: "absolute right-3 top-3 z-10 [.m1-controller-picker_&]:static [.m1-controller-picker_&]:my-2 [.m1-controller-picker_&]:self-start", {view_controls.clone()} }
+                div { class: "absolute right-3 top-3 z-10 [section[aria-roledescription=carousel]_&]:static [section[aria-roledescription=carousel]_&]:my-2 [section[aria-roledescription=carousel]_&]:self-start", {view_controls.clone()} }
             }
             if let Some(draft) = generator_draft.as_ref() {
                 match &draft.status {
@@ -401,7 +401,7 @@ pub fn PartsPreviewPanel(
                         div { role: "status", Callout { variant: CalloutVariant::Warning, "{notice}" } }
                     }
                     svg {
-                        class: "m1-canvas",
+                        class: "block w-full h-full min-h-[250px] bg-canvas touch-none max-[760px]:h-[54svh] max-[760px]:min-h-[270px] [section[aria-roledescription=carousel]_&]:static [section[aria-roledescription=carousel]_&]:flex-1 [section[aria-roledescription=carousel]_&]:min-h-0 [section[aria-roledescription=carousel]_&]:h-[180px]",
                         view_box: "{content.view_box}",
                         preserve_aspect_ratio: "xMidYMid meet",
                         role: "img",
@@ -417,12 +417,12 @@ pub fn PartsPreviewPanel(
                                                 && !hidden.contains(&format!("outline:{}", outline.label)) {
                                                 if outline.label == "Keycap" {
                                                     if let Some((x, y, width, height)) = outline_bounds(&outline.points) {
-                                                        g { class: "m1-keycap-overlay", "data-layer": "Keycap",
+                                                        g { class: "pointer-events-none [&_rect]:fill-geometry-body [&_rect]:[fill-opacity:0.75] [&_rect]:stroke-geometry-outline [&_rect]:stroke-[0.22]", "data-layer": "Keycap",
                                                             rect { x: "{x}", y: "{y}", width: "{width}", height: "{height}", rx: "0.9" }
                                                         }
                                                     }
                                                 } else {
-                                                    polygon { class: "m1-outline", "data-layer": "{outline.label}", points: polygon_points(&outline.points) }
+                                                    polygon { class: "fill-geometry-fill stroke-geometry-board stroke-[0.3]", "data-layer": "{outline.label}", points: polygon_points(&outline.points) }
                                                 }
                                             }
                                             for pad in &member.definition.pads {
@@ -498,7 +498,7 @@ fn PartsSampleViewer(
         }
     };
     rsx! {
-        section { class: "m1-parts-sample-viewer", "aria-label": "3D footprint model preview",
+        section { class: "flex flex-1 flex-col min-w-0 min-h-0 [&>p]:my-2 [&>p]:mx-3 [&>div:has(canvas)]:relative [&>div:has(canvas)]:flex-1 [&>div:has(canvas)]:min-h-0 [&>div:has(canvas)]:overflow-hidden [&_div:has(>canvas)]:relative [&_div:has(>canvas)]:flex [&_div:has(>canvas)]:flex-1 [&_div:has(>canvas)]:min-w-0 [&_div:has(>canvas)]:min-h-[160px] [&_canvas]:flex-1 [&_canvas]:w-full [&_canvas]:min-w-0 [&_canvas]:min-h-0 [&_canvas]:h-full", "aria-label": "3D footprint model preview",
             if preview.preview.models.is_empty() {
                 div { role: "status", Callout { "No 3D model is linked to this definition." } }
             }
@@ -538,7 +538,7 @@ pub(super) fn ControllerFootprintThumbnail(definition: Rc<PartDefinition>) -> El
         .clone()
         .filter(|(owner, _)| owner == &definition);
     rsx! {
-        div { class: "m1-controller-footprint",
+        div { class: "grid place-items-center w-[168px] h-[132px] p-2 rounded-lg bg-canvas text-muted-foreground text-xs [&_svg]:block [&_svg]:w-full [&_svg]:h-full",
             match matching {
                 None => rsx! { span { "Loading footprint…" } },
                 Some((_, Err(_))) => rsx! { span { "Footprint preview unavailable" } },
@@ -548,7 +548,7 @@ pub(super) fn ControllerFootprintThumbnail(definition: Rc<PartDefinition>) -> El
                         g { transform: "scale(1,-1)",
                             for member in &content.members {
                                 if let Some(outline) = &member.outline {
-                                    polygon { class: "m1-outline", points: polygon_points(&outline.points) }
+                                    polygon { class: "fill-geometry-fill stroke-geometry-board stroke-[0.3]", points: polygon_points(&outline.points) }
                                 }
                                 for pad in &member.definition.pads { {render_pad(pad, "F.Cu", false, true)} }
                                 for graphic in member.drawings.iter().filter(|graphic| !matches!(graphic.shape, Shape::Text(..))) {
@@ -1002,13 +1002,13 @@ fn render_pad(pad: &Pad, copper_layer: &str, hide_drill: bool, hide_number: bool
     let rotation = pad.rotation.unwrap_or(0.0);
     rsx! {
         g { transform: "translate({pad.at.x} {pad.at.y}) rotate({rotation})",
-            rect { class: "m1-part-pad", "data-layer": "{copper_layer}", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}", rx: "{rx}" }
+            rect { class: "fill-geometry-part stroke-none", "data-layer": "{copper_layer}", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}", rx: "{rx}" }
             if let Some(drill) = pad.drill.filter(|drill| *drill > 0.0)
                 && !hide_drill {
                 circle { class: "{drill_class(pad)}", "data-layer": "Drills", r: "{drill / 2.0}" }
             }
             if !hide_number {
-                text { class: "m1-part-label", "data-layer": "Pad numbers", transform: "scale(1,-1)", text_anchor: "middle", x: "0", y: "{-pad.size.y / 2.0 - 0.7}", "{pad.number}" }
+                text { class: "font-mono text-[1.8px] fill-geometry-label pointer-events-none", "data-layer": "Pad numbers", transform: "scale(1,-1)", text_anchor: "middle", x: "0", y: "{-pad.size.y / 2.0 - 0.7}", "{pad.number}" }
             }
         }
     }
@@ -1016,9 +1016,9 @@ fn render_pad(pad: &Pad, copper_layer: &str, hide_drill: bool, hide_number: bool
 
 fn drill_class(pad: &Pad) -> &'static str {
     if pad.plated == Some(false) {
-        "m1-part-drill is-mechanical"
+        "fill-canvas stroke-geometry-outline stroke-[0.1] is-mechanical"
     } else {
-        "m1-part-drill"
+        "fill-canvas stroke-geometry-outline stroke-[0.1]"
     }
 }
 
@@ -1062,8 +1062,8 @@ fn PartsPreviewLayers(
             trigger_id: "m1-parts-preview-layers-trigger",
             list_id: "m1-parts-preview-layers-list",
             for (group_name, group_layers) in groups {
-                div { key: "{group_name}", class: "m1-layer-group", role: "group", "aria-label": "{group_name}",
-                    div { class: "m1-layer-group-heading", "{group_name}" }
+                div { key: "{group_name}", class: "grid gap-0.5 [&:not(:first-child)]:mt-1 [&:not(:first-child)]:pt-1 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-border", role: "group", "aria-label": "{group_name}",
+                    div { class: "pt-[9px] px-1.5 pb-1 text-muted-foreground font-semibold", "{group_name}" }
                     for layer in group_layers {
                         { let id = layer.id.clone();
                           let visible = !hidden.contains(&id);
@@ -1440,7 +1440,7 @@ mod tests {
 
         wait_for_button(&root, "3D model").await;
         click_button(&root, "3D model");
-        let alert = wait_for(&root, ".m1-case-view-status[role=alert]").await;
+        let alert = wait_for(&root, "[role=alert]").await;
         assert!(
             alert
                 .text_content()
@@ -1695,8 +1695,16 @@ mod tests {
         let mut mechanical = pad("NPTH", Side::Front, Some(1.0));
         mechanical.plated = Some(false);
         let plated = pad("PTH", Side::Front, Some(1.0));
-        assert_eq!(drill_class(&mechanical), "m1-part-drill is-mechanical");
-        assert_eq!(drill_class(&plated), "m1-part-drill");
+        assert!(
+            drill_class(&mechanical)
+                .split_whitespace()
+                .any(|class| class == "is-mechanical")
+        );
+        assert!(
+            !drill_class(&plated)
+                .split_whitespace()
+                .any(|class| class == "is-mechanical")
+        );
     }
 
     #[wasm_bindgen_test]

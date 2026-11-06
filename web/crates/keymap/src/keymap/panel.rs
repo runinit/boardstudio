@@ -89,13 +89,14 @@ pub fn KeymapPanel(
     let selected_key_value = use_memo(use_reactive((&selected_key_id,), |(value,)| value));
 
     rsx! {
-        section { class: "m1-keymap-panel", "aria-label": "Keymap",
-            header { class: "m1-keymap-heading",
-                h2 { "Keymap editor" }
-                span { "{layer_count} layers · {key_count} keys" }
+        section { class: "flex flex-1 flex-col gap-0 min-w-0 min-h-0 overflow-auto py-2 px-6 text-foreground bg-card [&_h3]:m-0 [&_h3]:mb-[7px] [&_h3]:text-foreground [&_h3]:text-base", "aria-label": "Keymap",
+            header { class: "flex items-baseline justify-between gap-2 mb-4",
+                h2 { class: "m-0 text-foreground text-[17px]", "Keymap editor" }
+                span { class: "text-muted-foreground text-sm", "{layer_count} layers · {key_count} keys" }
             }
             if show_navigation {
             KeymapLayersSection {
+                compact: false,
                 view: view.clone(),
                 scope: scope.clone(),
                 active_layer_id: active_layer_id.clone(),
@@ -105,7 +106,7 @@ pub fn KeymapPanel(
                 on_layer_operation,
             }
             }
-            ToggleGroup { class: "m1-keymap-actions", aria_label: "Keymap editors", horizontal: true,
+            ToggleGroup { class: "flex-wrap gap-1.5! mb-1", aria_label: "Keymap editors", horizontal: true,
                 pressed: Some([match selected_editor() { KeymapEditor::Keys => 0usize, KeymapEditor::Macros => 1, KeymapEditor::Encoders => 2 }].into_iter().collect()),
                 on_pressed_change: move |next: std::collections::HashSet<usize>| {
                     let editor = if next.contains(&0) { Some(KeymapEditor::Keys) }
@@ -126,11 +127,11 @@ pub fn KeymapPanel(
                 ToggleItem { index: 2usize, aria_label: "Encoders", class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Encoders" }
             }
             if selected_editor() == KeymapEditor::Keys {
-                Collapsible { class: "m1-keymap-editor-section", open: keys_section_open(), keep_mounted: true,
+                Collapsible { class: "min-w-0 border-t border-border", open: keys_section_open(), keep_mounted: true,
                     on_open_change: move |open| keys_section_open.set(open),
                     CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{heading}" }
                     CollapsibleContent { hidden: !keys_section_open(), inert: (!keys_section_open()).then_some(""),
-                    div { class: "m1-keymap-section-body",
+                    div { class: "grid gap-3 min-w-0 pb-5",
                         if show_navigation {
                         Field { class: "gap-1.5",
                             FieldLabel { html_for: search_id.clone(), "Find a key" }
@@ -162,37 +163,37 @@ pub fn KeymapPanel(
                         }
                         }
                         if key_count == 0 {
-                            p { class: "m1-keymap-empty", role: "status", "No keys are available on this board." }
+                            p { class: "m-0 text-muted-foreground text-base leading-normal", role: "status", "No keys are available on this board." }
                         } else if let Some(key) = selected {
                             if no_matches {
-                                p { class: "m1-keymap-empty", role: "status", "No keys match this search." }
+                                p { class: "m-0 text-muted-foreground text-base leading-normal", role: "status", "No keys match this search." }
                             }
-                            p { class: "m1-keymap-selected-label", "{key.binding_title}" }
+                            p { class: "m-0 text-foreground text-base", "{key.binding_title}" }
                         } else if no_matches {
-                            p { class: "m1-keymap-empty", role: "status", "No keys match this search." }
+                            p { class: "m-0 text-muted-foreground text-base leading-normal", role: "status", "No keys match this search." }
                         } else {
-                            p { class: "m1-keymap-empty", role: "status", "Select a switch on the layout to assign its behavior." }
+                            p { class: "m-0 text-muted-foreground text-base leading-normal", role: "status", "Select a switch on the layout to assign its behavior." }
                         }
                         {keys_editor}
                     }
                     }
                 }
             } else if selected_editor() == KeymapEditor::Macros {
-                Collapsible { class: "m1-keymap-editor-section", open: macros_section_open(), keep_mounted: true,
+                Collapsible { class: "min-w-0 border-t border-border", open: macros_section_open(), keep_mounted: true,
                     on_open_change: move |open| macros_section_open.set(open),
                     CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Macros" }
                     CollapsibleContent { hidden: !macros_section_open(), inert: (!macros_section_open()).then_some(""),
-                    div { class: "m1-keymap-section-body",
+                    div { class: "grid gap-3 min-w-0 pb-5 [&>section]:border-t-0! [&>section]:pt-0! [&>section>h3]:hidden!",
                         {macros_editor}
                     }
                     }
                 }
             } else {
-                Collapsible { class: "m1-keymap-editor-section", open: encoders_section_open(), keep_mounted: true,
+                Collapsible { class: "min-w-0 border-t border-border", open: encoders_section_open(), keep_mounted: true,
                     on_open_change: move |open| encoders_section_open.set(open),
                     CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{encoder_heading}" }
                     CollapsibleContent { hidden: !encoders_section_open(), inert: (!encoders_section_open()).then_some(""),
-                    div { class: "m1-keymap-section-body",
+                    div { class: "grid gap-3 min-w-0 pb-5 [&>section>header]:hidden!",
                         {encoders_editor}
                     }
                     }
@@ -204,7 +205,7 @@ pub fn KeymapPanel(
                 onclick: move |_| on_export.call(()),
                 "Export ZMK source"
             }
-            p { class: "m1-keymap-export-note", "Local source export. Configure controller and wiring in PCB before building firmware." }
+            p { class: "m-0 mb-4 text-muted-foreground text-xs leading-normal", "Local source export. Configure controller and wiring in PCB before building firmware." }
         }
     }
 }
@@ -246,8 +247,9 @@ pub fn KeymapNavigation(
         .iter()
         .position(|key| selected_key_id.as_deref() == Some(key.id.as_ref()));
     rsx! {
-        section { class: "m1-keymap-navigation", aria_label: "Keymap layers and keys",
+        section { class: "flex-1 min-h-0 overflow-auto p-4", aria_label: "Keymap layers and keys",
             KeymapLayersSection {
+                compact: true,
                 view: view.clone(),
                 scope: scope.clone(),
                 active_layer_id: active_layer_id.clone(),
@@ -263,7 +265,7 @@ pub fn KeymapNavigation(
                     value: query(), oninput: move |event: FormEvent| query.set(event.value()) }
                 }
             }
-            ToggleGroup { class: "m1-keymap-key-navigation w-full", aria_label: "Keys on active layer", horizontal: false,
+            ToggleGroup { class: "grid! gap-0.5! mt-3 w-full", aria_label: "Keys on active layer", horizontal: false,
                 pressed: Some(selected_index.into_iter().collect()),
                 on_pressed_change: move |next: std::collections::HashSet<usize>| {
                     if let Some(index) = next.into_iter().next().or(selected_index)
@@ -288,6 +290,7 @@ pub fn KeymapNavigation(
 /// Layer disclosure shared by the Inspector panel and the dock navigation.
 #[component]
 fn KeymapLayersSection(
+    compact: bool,
     view: Rc<KeymapView>,
     scope: Scope,
     active_layer_id: String,
@@ -305,18 +308,18 @@ fn KeymapLayersSection(
     let mut layers_open = use_signal(|| true);
     let tabs_id = format!("keymap-layer-tabs-{}", dioxus::core::current_scope_id().0);
     rsx! {
-        Collapsible { class: "m1-keymap-layers", open: layers_open(), on_open_change: move |open| layers_open.set(open), keep_mounted: true,
+        Collapsible { class: "min-w-0 border-t border-border", open: layers_open(), on_open_change: move |open| layers_open.set(open), keep_mounted: true,
             CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Keymap layers" }
             CollapsibleContent { hidden: !layers_open(), inert: (!layers_open()).then_some(""),
-                div { class: "m1-keymap-layers-content",
-                    Tabs { value: active_layer.map(|layer| layer.id.to_string()),
+                div { class: "grid gap-3 min-w-0 pb-5",
+                    Tabs { class: "flex-col!", value: active_layer.map(|layer| layer.id.to_string()),
                         on_value_change: move |id: String| on_layer.call(id),
-                        TabsList { aria_label: "Keymap layers", aria_orientation: "vertical",
+                        TabsList { class: "flex! flex-col! gap-1!", aria_label: "Keymap layers", aria_orientation: "vertical",
                             for (index, layer) in view.layers.iter().enumerate() {
                                 TabsTrigger { key: "{layer.id}", value: layer.id.to_string(), index, id: Some(format!("{tabs_id}-tab-{index}")),
                                     class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                     aria_label: layer.name.to_string(),
-                                    span { class: "m1-keymap-layer-index", aria_hidden: "true", "{index}" }
+                                    span { class: "flex-none min-w-5 text-muted-foreground tabular-nums", aria_hidden: "true", "{index}" }
                                     "{layer.name}"
                                 }
                             }
@@ -327,6 +330,7 @@ fn KeymapLayersSection(
                                 aria_labelledby: format!("{tabs_id}-tab-{index}"),
                                 KeymapLayerControls {
                                     key: "{scope:?}:{layer.id}",
+                                    compact,
                                     layer_id: layer.id.to_string(),
                                     layer_name: layer.name.to_string(),
                                     is_base: index == 0,
@@ -338,7 +342,7 @@ fn KeymapLayersSection(
                             }
                         }
                     }
-                    p { class: "m1-keymap-empty", "Higher layers take precedence. Transparent keys fall through to the layer below." }
+                    p { class: "m-0 text-muted-foreground text-base leading-normal", "Higher layers take precedence. Transparent keys fall through to the layer below." }
                 }
             }
         }
@@ -347,6 +351,7 @@ fn KeymapLayersSection(
 
 #[derive(Props, Clone, PartialEq)]
 struct KeymapLayerControlsProps {
+    compact: bool,
     layer_id: String,
     layer_name: String,
     is_base: bool,
@@ -392,7 +397,11 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
     };
 
     rsx! {
-        div { class: "m1-keymap-layer-controls", role: "group", "aria-label": "Layer operations",
+        div { class: if props.compact {
+                "grid gap-2 pt-0 border-t-0 [&_p]:my-[3px] [&_p]:text-muted-foreground [&_p]:text-sm [&_p]:leading-normal [&_[role=alert]]:text-destructive"
+            } else {
+                "grid gap-3 pt-0 border-t-0 [&_p]:my-[3px] [&_p]:text-muted-foreground [&_p]:text-sm [&_p]:leading-normal [&_[role=alert]]:text-destructive"
+            }, role: "group", "aria-label": "Layer operations",
             Button {
                 variant: ButtonVariant::Secondary,
                 class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
@@ -400,12 +409,12 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
                 onclick: move |_| props.on_operation.call(KeymapLayerOperation::Add),
                 "Add layer"
             }
-            Field { class: "m1-keymap-layer-name-label gap-1.5", disabled: !props.enabled, invalid: field_error.is_some(),
+            Field { class: if props.compact { "grid gap-2" } else { "gap-1.5" }, disabled: !props.enabled, invalid: field_error.is_some(),
                 FieldLabel { html_for: name_id.clone(), "Layer name" }
                 InputGroup {
                 InputGroupInput {
                     id: name_id,
-                    class: "m1-keymap-layer-name max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Layer name",
                     aria_invalid: field_error.is_some(),
                     aria_describedby: field_error.as_ref().map(|_| error_id.clone()),
@@ -449,7 +458,7 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
                 }
             }
             if !props.enabled && props.feedback.is_none() {
-                p { class: "m1-keymap-layer-paused", role: "status", "Layer changes are paused while another edit or save is in progress." }
+                p { role: "status", "Layer changes are paused while another edit or save is in progress." }
             }
 
             if let Some(message) = feedback_error { Alert { variant: AlertVariant::Destructive, "{message}" } }
@@ -546,8 +555,8 @@ mod disclosure_mounted_tests {
                 on_export: |_| {},
                 firmware_export_enabled: true,
                 keys_editor: rsx! { div { "Key editor" } },
-                macros_editor: rsx! { div { "Macro editor" } },
-                encoders_editor: rsx! { div { "Encoder editor" } },
+                macros_editor: rsx! { section { "data-editor-probe": "macros", h3 { "Macros" } p { "Macro editor" } } },
+                encoders_editor: rsx! { section { "data-editor-probe": "encoders", header { "Encoders" } p { "Encoder editor" } } },
             }
         }
     }
@@ -606,13 +615,122 @@ mod disclosure_mounted_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn editor_bodies_keep_layout_and_nested_heading_rules_without_legacy_selectors() {
+        let (_, root) = mount();
+        rendered().await;
+        let key_input = by_role_name(&root, "searchbox", "Find a key").expect("key search");
+        let key_body = key_input
+            .closest("[data-slot=collapsible-content]")
+            .unwrap()
+            .unwrap()
+            .first_element_child()
+            .unwrap();
+        for expected in ["grid", "gap-3", "min-w-0", "pb-5"] {
+            assert!(
+                key_body
+                    .get_attribute("class")
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .any(|class| class == expected),
+                "keys: missing {expected}"
+            );
+        }
+        let editors = by_role_name(&root, "group", "Keymap editors").unwrap();
+        for (label, probe, nested) in [
+            (
+                "Macros",
+                "macros",
+                vec![
+                    "[&>section]:border-t-0!",
+                    "[&>section]:pt-0!",
+                    "[&>section>h3]:hidden!",
+                ],
+            ),
+            ("Encoders", "encoders", vec!["[&>section>header]:hidden!"]),
+        ] {
+            by_role_name(&editors, "button", label).unwrap().click();
+            wait_until("chosen editor mounts", || {
+                root.query_selector(&format!("[data-editor-probe={probe}]"))
+                    .unwrap()
+                    .is_some()
+            })
+            .await;
+            let body = root
+                .query_selector(&format!("[data-editor-probe={probe}]"))
+                .unwrap()
+                .unwrap()
+                .parent_element()
+                .unwrap();
+            let classes = body.get_attribute("class").unwrap_or_default();
+            for expected in ["grid", "gap-3", "min-w-0", "pb-5"]
+                .into_iter()
+                .chain(nested)
+            {
+                assert!(
+                    classes.split_whitespace().any(|class| class == expected),
+                    "{label}: missing {expected}"
+                );
+            }
+        }
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn layers_are_accessible_tabs_and_select_the_requested_layer() {
         let (probe, root) = mount();
         rendered().await;
         let main = by_role_name(&root, "tab", "Main").expect("Main layer tab");
         let function = by_role_name(&root, "tab", "Function").expect("Function layer tab");
+        let controls = by_role_name(&root, "group", "Layer operations").unwrap();
+        let classes = controls.get_attribute("class").unwrap_or_default();
+        for expected in ["grid", "gap-3"] {
+            assert!(classes.split_whitespace().any(|class| class == expected));
+        }
         assert!(by_role_name(&root, "tablist", "Keymap layers").is_some());
         let panel = by_role_name(&root, "tabpanel", "Main").expect("named active layer panel");
+        let disclosure = by_role_name(&root, "button", "Keymap layers").unwrap();
+        let layers = disclosure
+            .closest("[data-slot=collapsible]")
+            .unwrap()
+            .unwrap();
+        let layer_classes = layers.get_attribute("class").unwrap_or_default();
+        for expected in ["min-w-0", "border-t", "border-border"] {
+            assert!(
+                layer_classes
+                    .split_whitespace()
+                    .any(|class| class == expected)
+            );
+        }
+        let tabs = main.closest("[data-slot=tabs]").unwrap().unwrap();
+        assert!(
+            tabs.get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class == "flex-col!")
+        );
+        let tablist = by_role_name(&root, "tablist", "Keymap layers").unwrap();
+        let tablist_classes = tablist.get_attribute("class").unwrap_or_default();
+        for expected in ["flex!", "flex-col!", "gap-1!"] {
+            assert!(
+                tablist_classes
+                    .split_whitespace()
+                    .any(|class| class == expected)
+            );
+        }
+        let controlled = root
+            .owner_document()
+            .unwrap()
+            .get_element_by_id(&disclosure.get_attribute("aria-controls").unwrap())
+            .unwrap();
+        let content = controlled.first_element_child().unwrap();
+        let content_classes = content.get_attribute("class").unwrap_or_default();
+        for expected in ["grid", "gap-3", "min-w-0", "pb-5"] {
+            assert!(
+                content_classes
+                    .split_whitespace()
+                    .any(|class| class == expected)
+            );
+        }
         assert_eq!(
             main.get_attribute("aria-controls").as_deref(),
             Some(panel.id().as_str())
@@ -645,8 +763,73 @@ mod disclosure_mounted_tests {
     async fn editor_choice_roves_and_keeps_its_selection() {
         let (_, root) = mount();
         rendered().await;
+        let panel = root
+            .query_selector("[aria-label='Keymap']")
+            .unwrap()
+            .unwrap();
+        let panel_classes = panel.get_attribute("class").unwrap_or_default();
+        for expected in [
+            "flex",
+            "flex-1",
+            "flex-col",
+            "gap-0",
+            "min-w-0",
+            "min-h-0",
+            "overflow-auto",
+            "py-2",
+            "px-6",
+            "text-foreground",
+            "bg-card",
+        ] {
+            assert!(
+                panel_classes
+                    .split_whitespace()
+                    .any(|class| class == expected)
+            );
+        }
+        let heading = panel.query_selector("header").unwrap().unwrap();
+        let heading_classes = heading.get_attribute("class").unwrap_or_default();
+        for expected in ["flex", "items-baseline", "justify-between", "gap-2", "mb-4"] {
+            assert!(
+                heading_classes
+                    .split_whitespace()
+                    .any(|class| class == expected)
+            );
+        }
+        let empty = by_role_name(
+            &root,
+            "status",
+            "Select a switch on the layout to assign its behavior.",
+        )
+        .expect("key selection guidance");
+        let classes = empty.get_attribute("class").unwrap_or_default();
+        for expected in [
+            "m-0",
+            "text-muted-foreground",
+            "text-base",
+            "leading-normal",
+        ] {
+            assert!(
+                classes.split_whitespace().any(|class| class == expected),
+                "key selection guidance retains its presentation: {expected}"
+            );
+        }
+        let group = by_role_name(&root, "group", "Keymap editors").unwrap();
+        let classes = group.get_attribute("class").unwrap_or_default();
+        for expected in ["flex-wrap", "gap-1.5!", "mb-1"] {
+            assert!(classes.split_whitespace().any(|class| class == expected));
+        }
         let keys = by_role_name(&root, "button", "Keys").unwrap();
         let macros = by_role_name(&root, "button", "Macros").unwrap();
+        let section = by_role_name(&root, "button", "Select a key")
+            .expect("key editor disclosure")
+            .closest("[data-slot=collapsible]")
+            .unwrap()
+            .unwrap();
+        let classes = section.get_attribute("class").unwrap_or_default();
+        for expected in ["min-w-0", "border-t", "border-border"] {
+            assert!(classes.split_whitespace().any(|class| class == expected));
+        }
         assert_eq!(keys.get_attribute("aria-pressed").as_deref(), Some("true"));
         keys.focus().unwrap();
         let init = web_sys::KeyboardEventInit::new();
@@ -725,6 +908,53 @@ mod disclosure_mounted_tests {
     async fn navigation_keys_roving_focus_and_selection() {
         let (probe, root) = mount_component(navigation_fixture);
         rendered().await;
+        let group = by_role_name(&root, "group", "Keys on active layer").unwrap();
+        let navigation = group
+            .closest("[aria-label='Keymap layers and keys']")
+            .unwrap()
+            .unwrap();
+        let navigation_classes = navigation.get_attribute("class").unwrap_or_default();
+        for expected in ["flex-1", "min-h-0", "overflow-auto", "p-4"] {
+            assert!(
+                navigation_classes
+                    .split_whitespace()
+                    .any(|class| class == expected)
+            );
+        }
+        let classes = group.get_attribute("class").unwrap_or_default();
+        for expected in ["grid!", "gap-0.5!", "mt-3"] {
+            assert!(
+                classes.split_whitespace().any(|class| class == expected),
+                "key navigation retains its layout without legacy CSS: {expected}"
+            );
+        }
+        let name = by_role_name(&root, "textbox", "Layer name").unwrap();
+        let controls = by_role_name(&root, "group", "Layer operations").unwrap();
+        let control_classes = controls.get_attribute("class").unwrap_or_default();
+        for expected in ["grid", "gap-2"] {
+            assert!(
+                control_classes
+                    .split_whitespace()
+                    .any(|class| class == expected)
+            );
+        }
+        let input_classes = name.get_attribute("class").unwrap_or_default();
+        for expected in ["w-full", "min-w-0"] {
+            assert!(
+                input_classes
+                    .split_whitespace()
+                    .any(|class| class == expected)
+            );
+        }
+        let field = name.closest("[data-slot=field]").unwrap().unwrap();
+        let field_classes = field.get_attribute("class").unwrap_or_default();
+        for expected in ["grid", "gap-2"] {
+            assert!(
+                field_classes
+                    .split_whitespace()
+                    .any(|class| class == expected)
+            );
+        }
         let first = by_role_name(&root, "button", "K1 Alpha").unwrap();
         let second = by_role_name(&root, "button", "K2 Beta").unwrap();
         first.focus().unwrap();
