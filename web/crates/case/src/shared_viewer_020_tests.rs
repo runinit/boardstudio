@@ -56,7 +56,7 @@ fn inline_fixture() -> Element {
         style { {include_str!("../../../assets/m1.css")} }
         // Native inline controls use these maintained vanilla theme variables and legacy rules.
         style { {include_str!("../../../tailwind.css").replacen("@import \"tailwindcss\";", "", 1)} }
-        section { class: "m1-case-panel m1-workspace-content", {viewer_fixture(true)} }
+        section { class: "relative flex min-h-0 flex-col overflow-hidden bg-canvas", {viewer_fixture(true)} }
     }
 }
 

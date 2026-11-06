@@ -96,13 +96,13 @@ pub fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
     let footprints_visible = props.footprints_visible;
     rsx! {
         div {
-            class: "m1-canvas-toolbar m1-design-canvas-toolbar",
+            class: "absolute top-4 left-1/2 z-[1] flex min-h-10 w-fit max-w-[calc(100%-32px)] -translate-x-1/2 items-center gap-2 rounded-2xl border border-border-strong bg-card px-2.5 py-1.5",
             role: "group",
             aria_label: "{label} commands",
             if let Some(tools) = props.contextual_tools { {tools} } else {
-            div { class: "m1-canvas-context",
+            div { class: "flex items-center gap-3 p-0 [&_strong]:text-xs [&_strong]:text-foreground [&_span]:p-0 [&_span]:text-xs [&_span]:text-muted-foreground",
                 svg {
-                    class: "m1-tab-icon",
+                    class: "size-[17px] flex-none max-[760px]:w-3.5",
                     view_box: "0 0 20 20",
                     fill: "none",
                     stroke: "currentColor",
@@ -118,7 +118,7 @@ pub fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
             }
             }
         }
-        div { class: "m1-design-view-group",
+        div { class: "absolute bottom-3 left-3 z-[11] flex gap-0.5 rounded-lg border border-border bg-card p-[3px] max-[760px]:left-2",
             ToggleGroup {
                 aria_label: "View mode",
                 pressed: Some(if assembly_3d { [1].into_iter().collect() } else { [0].into_iter().collect() }),
@@ -2760,7 +2760,7 @@ fn SharedViewer(
             let color_id = id.clone();
             let reset_id = id.clone();
             rsx! {
-                div { class: "m1-viewer-layer", key: "{id}",
+                div { class: "flex flex-wrap items-center gap-1.5 border-b border-border py-2 [&_label]:flex [&_label]:gap-1.5 [&_label]:text-muted-foreground [&_input[type=color]]:w-11 [&_input[type=color]]:p-[3px]", key: "{id}",
                     UiButton { variant: UiButtonVariant::Ghost,
                         aria_pressed: selected_layer == id,
                         onclick: move |_| select_layer(select_id.clone()),
@@ -2818,12 +2818,12 @@ fn SharedViewer(
     }    });
 
     rsx! {
-        div { class: "m1-case-view m1-shared-viewer",
+        div { class: "relative flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden",
             style: (!inline_case_controls).then_some("container-type: size"),
-            div { class: if inline_case_controls { "m1-case-view-toolbar board-tool-pill" } else { "relative flex flex-none flex-wrap items-center justify-center gap-1 rounded-md bg-toolbar p-1" },
+            div { class: if inline_case_controls { "relative z-[5] m-3 flex w-max max-w-[calc(100%-24px)] flex-none flex-wrap items-center self-start gap-1 overflow-visible rounded-2xl bg-toolbar p-[5px] shadow-[0_6px_18px_rgb(0_0_0/16%)] [&_[role=group]]:m-0 [&_[role=group]]:flex-none [&_[role=group]]:gap-0.5 [&_[role=group]]:p-0" } else { "relative flex flex-none flex-wrap items-center justify-center gap-1 rounded-md bg-toolbar p-1" },
                 {toolbar_leading}
                 if inline_case_controls {
-                    div { class: "m1-case-camera-controls", role: "group", "aria-label": "Assembly camera",
+                    div { class: "static flex flex-wrap items-center gap-0.5 border-0 bg-transparent p-0", role: "group", "aria-label": "Assembly camera",
                         Tooltip {
                             TooltipTrigger { as: move |attributes| { let fit = case_fit.clone(); rsx! {
                                 UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
@@ -3038,10 +3038,10 @@ fn SharedViewer(
                             p { role: if alert { "alert" } else { "status" }, "{message}" }
                         }
                         if selected_support.is_some_and(|support| support.unlinked) {
-                            p { class: "m1-case-edit-hint", "This gasket is unlinked from its pair." }
+                            p { "This gasket is unlinked from its pair." }
                         }
                     } else {
-                        p { class: "m1-case-edit-hint", "Select a gasket in Objects to unlink its mirrored support pair." }
+                        p { "Select a gasket in Objects to unlink its mirrored support pair." }
                     }
                 }
                 if !inline_case_controls {
@@ -3056,7 +3056,7 @@ fn SharedViewer(
                     } } }
                     TooltipContent { "{canvas_context.fit_label()}" }
                 }
-                Collapsible { class: "m1-case-view-settings", keep_mounted: true,
+                Collapsible { keep_mounted: true,
                     Tooltip {
                         TooltipTrigger { as: move |attributes| rsx! {
                             CollapsibleTrigger { aria_label: "View controls", class: "size-control-compact justify-center max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]", attributes, {viewer_control_icon("View controls")} }
@@ -3152,7 +3152,7 @@ fn SharedViewer(
                 }
             }
             if inline_case_controls && show_assembly_controls && transient().assembly == AssemblyView::Section {
-                div { class: "m1-case-view-adjustments",
+                div { class: "flex flex-wrap items-center gap-3 border-b border-border px-2.5 py-1.5",
                     Field {
                         Label { html_for: format!("viewer-section-plane-{}", dioxus::core::current_scope_id().0), "Section plane" }
                         Select::<String> {
@@ -3182,9 +3182,9 @@ fn SharedViewer(
                     }
                 }
             }
-            div { class: "m1-case-view-canvas-shell",
+            div { class: "relative flex min-h-[160px] min-w-0 flex-1 [&>canvas]:h-full [&>canvas]:min-h-0 [&>canvas]:min-w-0 [&>canvas]:w-full [&>canvas]:flex-1 [&>canvas]:border-0",
                 if let Some(reference) = selected_reference.as_deref() {
-                    div { class: "m1-case-picked-part-badge", "aria-hidden": "true", "{reference}" }
+                    div { class: "pointer-events-none absolute bottom-14 left-3 z-[2] max-w-[min(70%,320px)] overflow-hidden truncate rounded-sm border border-border bg-card px-[9px] py-[7px] font-mono text-sm leading-[1.45] text-foreground", "aria-hidden": "true", "{reference}" }
                 }
                 canvas {
                     style: "width:100%;height:100%;display:block",
@@ -3200,10 +3200,10 @@ fn SharedViewer(
                     onwheel: on_wheel,
                 }
                 if let Some(message) = gesture_message.as_deref() {
-                    p { class: "m1-case-edit-hint", role: "status", "{message}" }
+                    p { class: "pointer-events-none absolute top-14 left-3 z-[3] m-0 max-w-[calc(100%-24px)] rounded-sm border border-border bg-card px-2 py-1.5 text-foreground", role: "status", "aria-label": "Case edit guidance", "{message}" }
                 }
                 if !status().is_empty() && !matches!(status().as_str(), "3D preview updated." | "3D preview ready." | "Starting the 3D renderer…" | "A stale 3D scene update was ignored.") {
-                    p { class: "m1-case-view-status", role: if status().to_ascii_lowercase().contains("unavailable") || status().contains("failed") { "alert" } else { "status" }, "aria-live": "polite", "{status()}" }
+                    p { class: "pointer-events-none absolute top-3 left-3 z-[3] m-0 max-w-[min(70%,420px)] rounded-md bg-card px-[7px] py-1 text-sm text-muted-foreground [&[role=alert]]:pointer-events-auto [&[role=alert]]:text-destructive", role: if status().to_ascii_lowercase().contains("unavailable") || status().contains("failed") { "alert" } else { "status" }, "aria-live": "polite", "{status()}" }
                 }
             }
             {docked_layers}
@@ -4433,7 +4433,7 @@ mod tests {
         });
         rsx! {
             style { {include_str!("../../../assets/m1.css")} }
-            section { class: "m1-case-panel", style: "width:725px;height:560px",
+            section { class: "relative flex min-h-0 flex-col overflow-hidden bg-canvas", style: "width:725px;height:560px",
                 SharedViewer {
                     projection,
                     assembly_layers: vec![],
@@ -4501,7 +4501,7 @@ mod tests {
             let mut rendered = false;
             for _ in 0..50 {
                 let hint = root
-                    .query_selector(".m1-case-view-canvas-shell > .m1-case-edit-hint")
+                    .query_selector("[role='status'][aria-label='Case edit guidance']")
                     .unwrap();
                 if hint
                     .as_ref()

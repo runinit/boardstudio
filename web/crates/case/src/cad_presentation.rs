@@ -226,18 +226,18 @@ pub fn CasePanel(
     ]);
     let live_preview_id = format!("case-live-preview-{}", dioxus::core::current_scope_id().0);
     rsx! {
-        section { class: "m1-case-panel", "aria-label": "Case assembly",
-            p { class: "m1-case-live-status", role: "status", "aria-live": "polite", "{title}" }
+        section { class: "relative flex h-full min-h-0 flex-1 flex-col gap-0 overflow-hidden bg-canvas p-0 [&_h2]:m-0 [&_p]:m-0", "aria-label": "Case assembly",
+            p { class: "order-[9] m-0 flex-none px-3 py-1 text-xs leading-[1.35] text-muted-foreground", role: "status", "aria-live": "polite", "{title}" }
             if runtime.native_case_preview_pending() {
-                p { class: "m1-case-live-status is-secondary", role: "status", "aria-live": "polite", "Preparing the accepted PCB preview…" }
+                p { class: "order-[9] m-0 flex-none px-3 py-1 text-xs leading-[1.35] text-muted-foreground", role: "status", "aria-live": "polite", "Preparing the accepted PCB preview…" }
             } else if runtime.native_case_preview_error().is_some() {
-                p { class: "m1-case-live-status is-error", role: "alert", "The accepted PCB preview could not be prepared." }
+                p { class: "order-[9] m-0 flex-none px-3 py-1 text-xs leading-[1.35] text-destructive", role: "alert", "The accepted PCB preview could not be prepared." }
             }
             if let Some(preview) = accepted_preview.as_ref()
                 && let Some(rows) = runtime.native_model_delivery(preview)
                 && (rows.delivered.len() != preview.preview.models.len() || !rows.failures.is_empty())
             {
-                Collapsible { class: "m1-case-model-delivery", keep_mounted: true, default_open: false,
+                Collapsible { class: "absolute top-[46px] right-3 z-[6] max-w-[min(420px,calc(100%-24px))] border border-border bg-card px-[9px] py-1.5 max-[760px]:top-14 max-[760px]:right-2 max-[760px]:max-w-[calc(100%-16px)]", keep_mounted: true, default_open: false,
                     CollapsibleTrigger { class: "text-xs text-muted-foreground", aria_label: "Board models: {rows.delivered.len()} of {preview.preview.models.len()} decoded", "Board models: {rows.delivered.len()} of {preview.preview.models.len()} decoded" }
                     CollapsibleContent { class: "data-[open=false]:hidden",
                         for failure in rows.failures.iter() {
@@ -264,9 +264,9 @@ pub fn CasePanel(
                     mechanical_settings,
                 }
             }
-            footer { class: "m1-case-header",
+            footer { class: "relative order-10 m-0 flex flex-none flex-wrap items-center gap-1.5 border-0 border-t border-border bg-card px-3 py-1.5 [&_h2]:hidden max-[760px]:gap-2 max-[760px]:[&>button]:min-h-11",
                 h2 { "Case assembly" }
-                FieldLabel { class: "m1-case-live-toggle max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", html_for: live_preview_id.clone(),
+                FieldLabel { class: "mx-1.5 flex items-center gap-1.5 text-xs text-muted-foreground max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", html_for: live_preview_id.clone(),
                     Checkbox {
                         id: live_preview_id.clone(),
                         aria_label: "Live preview",
