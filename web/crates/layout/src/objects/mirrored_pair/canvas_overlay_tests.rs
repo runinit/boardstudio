@@ -121,7 +121,7 @@ fn composition() -> Element {
                 },
             }
         }
-        section { id: "mirror-overlay-workspace", class: "m1-workspace-content",
+        section { id: "mirror-overlay-workspace", class: "relative min-h-[320px]",
             div { id: "mirror-overlay-canvas", "Layout canvas" }
             if active() {
                 MirroredPairCanvasOverlay {
