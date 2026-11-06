@@ -182,7 +182,7 @@ pub fn MacroEditor(props: MacroEditorProps) -> Element {
     let add_context = MacroRequestContext::from(&props);
     let macro_count = macros.len();
     rsx! {
-        section { class: "m1-keymap-macros",
+        section { class: "grid gap-3 min-w-0 pt-3 border-t border-border",
             h3 { "Macros" }
             if let Some(message) = feedback_text {
                 Alert { variant: AlertVariant::Destructive, "{message}" }
@@ -783,6 +783,23 @@ mod mounted_accessible_name_tests {
         settle().await;
 
         let step = by_role_name(&root, "button", "Macro 1 step 1").unwrap();
+        let editor = step.closest("section").unwrap().unwrap();
+        let editor_classes = editor.get_attribute("class").unwrap_or_default();
+        for expected in [
+            "grid",
+            "gap-3",
+            "min-w-0",
+            "pt-3",
+            "border-t",
+            "border-border",
+        ] {
+            assert!(
+                editor_classes
+                    .split_whitespace()
+                    .any(|class| class == expected),
+                "macro editor: missing {expected}"
+            );
+        }
         let card = step.closest("fieldset").unwrap().unwrap();
         let classes = card.get_attribute("class").unwrap_or_default();
         for expected in [
