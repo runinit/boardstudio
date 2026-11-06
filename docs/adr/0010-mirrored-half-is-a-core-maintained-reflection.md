@@ -214,3 +214,36 @@ a complete Local matrix and its surviving Layout ownership, retiring only the de
 correspondence. Rejoin cannot target a deleted source or silently bind a replacement.
 The linked-half decision names the exact inverse/refusal rules and required prepared-route
 acceptance; it does not claim production implementation.
+
+## Amendment: one table of mirrored headings, and the controller rule (2026-11-06)
+
+The user confirmed on 2026-11-06 that the earlier amendments, read together, were hard to
+follow because the rule depends on both the part and its source heading. This amendment
+states them in one place and corrects one omission. It decides nothing new about switches,
+stabilisers or other independent parts. It records the controller rule that Core has
+implemented since 2026-10-25 (`40df01155`), which the heading amendment above ("Everything
+else follows the general rule") did not mention.
+
+Headings are Core rotations in degrees across the vertical axis (pair mapping rotation 0).
+Position is always mirrored on X, so the table covers heading only.
+
+| Part | Mirrored heading | Why |
+| --- | --- | --- |
+| Key switch (matrix member) | `-r` (the tilt negates) | Keeps its body orientation; turning it would put its LED position on the wrong side. |
+| Stabiliser | `r` (world heading kept) | Never rotated, in every companion mode. |
+| **Controller (MCU)** | **`-r`, no half turn** | A plain reflection. A controller is symmetric about its own local y axis, so its mirror image is the same footprint at `-r`. |
+| Other independent part (TRRS jack, reset button, connector, screen, encoder) | `180 - r` | A part facing outward turns through 180 degrees so it still faces outward on the mirrored half. |
+
+For a controller: at `r = 0` and `r = 180` the mirror keeps the source's heading (both MCUs
+point the same way). At `r = 90` and `r = 270` the mirror is at 270 and 90, 180 degrees from
+the source in world terms, exactly as the mirror image of a part rotated sideways is. The
+user confirmed this on 2026-11-06: a source MCU at 90 degrees ends at -90 degrees. Describing
+the controller rule as "keeping the world heading" is true only at 0 and 180 and should not be
+used. The general `180 - r` rule is that same reflection plus a half turn, which is why it
+applies to parts that face an edge and not to a controller.
+
+An anchored part's carried rotation follows the same split: `-rotation` for a controller and
+`-rotation + 180` for every other part ([ADR-0040](0040-part-anchoring-column-vocabulary.md)).
+The rule is implemented once, in `mirrored_part_heading`
+(`core/src/mechanical/pair.rs`), and the creation, reconciliation, inverse and constraint
+endpoint paths all call it.

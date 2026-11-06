@@ -34,8 +34,10 @@ toggle makes the part local in one Undo entry each way.
 - **Either copy edits both.** Drags arrive board-space and clamp so the
   evaluated extent stops at the split axis, then commit through ticket 10's
   spacing rule. The dragged copy converts to storage; the partner reflects
-  the half-frame pose (`-x`, mirrored heading). A constraint-driven partner
-  back-solves the authority from the partner, like the legacy sync did;
+  the half-frame pose (`-x`, mirrored heading; a controller takes the plain
+  reflection `-r`, see the 2026-11-06 amendment in
+  [ADR-0010](0010-mirrored-half-is-a-core-maintained-reflection.md)). A
+  constraint-driven partner back-solves the authority from the partner, like the legacy sync did;
   both copies retune held offsets before the write, so one drag never shifts
   an offset twice.
 - **Local by pin.** Making a part local removes the partner, retires the

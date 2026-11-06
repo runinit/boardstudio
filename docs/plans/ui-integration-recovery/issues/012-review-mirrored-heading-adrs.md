@@ -1,6 +1,6 @@
 # 012: Review the mirrored-heading ADRs against shipped behavior
 
-Status: ready-for-agent
+Status: resolved
 Type: research
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -109,3 +109,39 @@ the user approves them; if approved here, record them in a comment.
   position across the X axis only, a controller at 0 or 180 keeps its heading, and
   keyswitches follow their own rule. That matches Core at 0 and 180. The 180 case is
   an open question for the user.
+- 2026-11-06: The user confirmed the readings (a controller keeps its heading at 0 and
+  180, a source MCU at 90 ends at -90, components mirror position on X only, keyswitches
+  have their own rule) and said "update ADR". Reviewed and applied below.
+
+## Answer
+
+**Verdict.** The ADRs were incomplete, not contradicted by Core. Core is internally
+consistent: every path gives a controller `-r` and every other independent part `180 - r`
+(creation, reconcile, inverse and constraint endpoints all call `mirrored_part_heading`).
+No Core or test change is needed. Two things were wrong: ADR-0010 never recorded the
+controller exception, and code comments describe it as "keeping the world heading".
+
+| Statement | Code | Agrees? |
+| --- | --- | --- |
+| ADR-0010 heading amendment, "`180 - r` over 360 degrees" | `pair.rs:67-73` (non-controller `reflected + 180`); `derive.rs:24`; `layout.rs:2112`, `3384`, `3547` | Yes, for non-controllers |
+| ADR-0010, "Key switches mirror on X only; tilt `-r`" | matrix relative-negate rule, `layout.rs:1519`; `part_anchors.rs:284` | Yes |
+| ADR-0010, "Stabilisers never rotated" | `derive.rs:79`, `335`; `endpoints.rs:145` | Yes |
+| ADR-0010, "Everything else follows `180 - r`" | controllers: `pair.rs:69-70`, `endpoints.rs:307`, `369`, `part_anchors.rs:299` give `-r` | **No, omitted exception** (fixed by the amendment) |
+| ADR-0039, partner takes "`-x`, mirrored heading" | same helper | Incomplete: did not name the controller rule (pointer added) |
+| ADR-0040, "non-controllers keep the shared half turn" | `part_anchors.rs:299` | Yes (already implies the exception) |
+| Comments "share the same world rotation / faces the same way" | `pair.rs:61`; `derive.rs:20`; `layout.rs:2090`, `3363`, `4808`, test message `4840` | **Imprecise**: true only at 0 and 180 |
+
+**Decision recorded.** A controller mirrors by plain reflection `-r` at every heading,
+including 90 and 270 (user, 2026-11-06). The MCU is symmetric about its local y axis, so
+this is the true mirror image; `180 - r` is that plus a half turn and applies to parts that
+face an edge. An early version of this ticket wrongly called `-r` a defect at 90/270.
+
+**Applied (user-authorized).** A dated amendment in ADR-0010 with one table by part class,
+and a pointer in ADR-0039. ADR-0010's earlier text is unchanged.
+
+**Not done.** The imprecise comments above remain; this ticket changes no code. Correcting
+them is a one-line wording fix at five sites and can ride along with any change to those
+files. Whether `180 - r` is right for other parts symmetric about local y (screen,
+encoder) is not decided; ADR-0010's own 2026-10-10 verification note raises it. No wider
+ADR audit is proposed: the review found the other heading statements consistent with Core,
+but I did not check ADRs outside the mirrored-heading rules.
