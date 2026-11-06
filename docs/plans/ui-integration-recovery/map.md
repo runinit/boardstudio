@@ -23,7 +23,7 @@ neither is deferred to a separate cleanup ticket.
 | [005: Restore nonduplicated scope actions](issues/005-restore-scope-actions.md) | wontfix | none | Cancelled by the user; no completion evidence |
 | [006: Restore shared disclosure motion](issues/006-restore-disclosure-motion.md) | wontfix | none | Cancelled by the user; no completion evidence |
 | [007: Correct disclosure chevrons](issues/007-correct-disclosure-chevrons.md) | wontfix | none | Cancelled by the user; no completion evidence |
-| [008: Restore real drag/save/Undo proof](issues/008-restore-drag-save-undo-proof.md) | ready-for-agent | none | Current-control gestures, durable saves, cancellation and exact Undo |
+| [008: Restore real drag/save/Undo proof](issues/008-restore-drag-save-undo-proof.md) | resolved | none | Drag, save, cancel and exact Undo pass on a pinned build; the complete runner still fails later at the unrelated Case collision control (see Answer) |
 | [009: Verify persistence across reload](issues/009-verify-reload-persistence.md) | ready-for-agent | 008 | Explicit reload of saved edits and saved Undo results |
 | [010: Final technical verification and independent review](issues/010-final-technical-verification.md) | ready-for-agent | 009 | Full combined gates and independent spec+standards review |
 | [011: Populated-workspace human acceptance](issues/011-populated-workspace-acceptance.md) | ready-for-human | 010 | User review of the checked candidate across the complete review matrix |

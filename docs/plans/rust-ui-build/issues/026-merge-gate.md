@@ -131,3 +131,11 @@ report the results; none is claimed here. Scoped resolution does not close the
 whole-branch review, human review or single merge to `dev`.
 
 2026-11-06: single merge to `dev` completed per user approval: `dev` fast-forwarded 510861b11 -> 64bc0e8fa (feat tip; dev was already merged into the branch and verified). No push to origin performed. Criterion 2 (human review) remains open as the user's live review.
+
+2026-11-06 (addendum, ui-integration-recovery 008): the drag-smoke deferral above is partly superseded; the results recorded
+above are unchanged. On HEAD `ca065e679` the `.m1-save-state` wait still timed out, and the Rows focus failure did not
+reproduce. The harness now observes the header `.header-save[data-state]` and `[data-transform-handle]`. All Part, Column,
+Stagger cancel, Stagger handle, Ctrl Offset and Matrix move scenarios and their exact Undo checks pass on that build, but the
+complete runner still fails later at the Case collision scenario (`Case mounting style` is no longer a native select), so
+there is no success receipt and the full browser gate stays open. Details and identities:
+[ui-integration-recovery 008](../../ui-integration-recovery/issues/008-restore-drag-save-undo-proof.md#answer).

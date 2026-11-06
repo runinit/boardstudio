@@ -566,10 +566,44 @@ async fn scene(page: &Page) -> Result<Value> {
     .await
 }
 
+/// After Escape the canvas restores the pre-drag preview a moment later
+/// (observed about 160 ms), so the cancel comparison waits for it: true only
+/// when the scene's canonical signature equals `expected` within the bound.
+async fn scene_settles_to(page: &Page, expected: &Value) -> Result<bool> {
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        if signature_of(&scene(page).await?) == signature_of(expected) {
+            return Ok(true);
+        }
+        if Instant::now() >= deadline {
+            return Ok(false);
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+/// The header save status is the only save-state observation; an absent
+/// control is a failed precondition, never a save that has not happened yet.
+async fn require_save_status(page: &Page) -> Result<()> {
+    let present = driver::eval(
+        page,
+        r#"(() => { const status = document.querySelector('.header-save');
+      return !!status && typeof status.dataset.state === 'string'; })()"#,
+    )
+    .await?;
+    if present != Value::Bool(true) {
+        return Err(fail(
+            "the header save status (.header-save[data-state]) is absent; the harness cannot observe saves",
+        ));
+    }
+    Ok(())
+}
+
 async fn saved(page: &Page) -> Result<()> {
+    require_save_status(page).await?;
     driver::wait_for(
         page,
-        r#"document.querySelector('.m1-save-state')?.dataset.state === 'saved'"#,
+        r#"document.querySelector('.header-save')?.dataset.state === 'saved'"#,
         "a saved document",
         Duration::from_secs(20),
     )
@@ -577,12 +611,13 @@ async fn saved(page: &Page) -> Result<()> {
 }
 
 async fn start_save_tracking(page: &Page) -> Result<()> {
+    require_save_status(page).await?;
     driver::eval(
         page,
         r#"(() => {
-    window.__saveStates = [document.querySelector('.m1-save-state')?.dataset.state];
+    window.__saveStates = [document.querySelector('.header-save')?.dataset.state];
     new MutationObserver(() => {
-      const state = document.querySelector('.m1-save-state')?.dataset.state;
+      const state = document.querySelector('.header-save')?.dataset.state;
       if (state && window.__saveStates.at(-1) !== state) window.__saveStates.push(state);
     }).observe(document.body, { attributes: true, childList: true, subtree: true, attributeFilter: ['data-state'] });
     return true;
@@ -824,7 +859,7 @@ async fn start_event_capture(page: &Page) -> Result<()> {
           movementY: event.movementY,
           detail: event.detail,
           isPrimary: event.isPrimary,
-          label: event.target.closest?.('.m1-transform-handle')?.getAttribute('aria-label'),
+          label: event.target.closest?.('[data-transform-handle]')?.getAttribute('aria-label'),
           partId: event.target.closest?.('[data-part-id]')?.getAttribute('data-part-id'),
         }), true);
       }
@@ -889,7 +924,7 @@ async fn observe_live_drag(page: &Page) -> Result<LiveDrag> {
     let capture = driver::eval(
         page,
         r#"(() => { const down = window.__dragEvents.find(event => event.type === 'pointerdown');
-      return !!down && [...document.querySelectorAll('svg.m1-canvas,.m1-transform-handle')]
+      return !!down && [...document.querySelectorAll('svg[role="group"][aria-label^="Keyboard layout"],[data-transform-handle]')]
         .some(element => element.hasPointerCapture(down.pointerId)); })()"#,
     )
     .await?;
@@ -2120,7 +2155,7 @@ async fn drag_scenarios(smoke: &mut Smoke) -> Result<()> {
     if cancel_after.revision != cancel_before.revision {
         return Err(fail("Stagger cancel created no saved revision"));
     }
-    if signature_of(&scene(&page).await?) != signature_of(&cancel_scene) {
+    if !scene_settles_to(&page, &cancel_scene).await? {
         return Err(fail("Stagger cancel restored the exact canvas scene"));
     }
     record(
