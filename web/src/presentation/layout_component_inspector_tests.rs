@@ -2302,9 +2302,10 @@ async fn mounted_finding_return_focus_reaches_the_selected_copied_inspector_tab(
     let document = web_sys::window().unwrap().document().unwrap();
     let inspector = document.create_element("section").unwrap();
     inspector.set_id("m1-inspector-panel-content");
-    root.parent_node()
-        .unwrap()
-        .insert_before(&inspector, Some(&root))
+    // Other concurrently mounted page fixtures may contain the production ID.
+    // Put this short-lived fixture first so the production document query selects it.
+    let body = document.body().unwrap();
+    body.insert_before(&inspector, body.first_child().as_ref())
         .unwrap();
     inspector.append_child(&root).unwrap();
     let properties = component_inspector_control(probe.root_id, "tab", "Properties");
@@ -2315,6 +2316,13 @@ async fn mounted_finding_return_focus_reaches_the_selected_copied_inspector_tab(
         .unwrap();
     let selected = component_inspector_control(probe.root_id, "tab", "Relations");
 
+    assert_eq!(
+        document
+            .query_selector("#m1-inspector-panel-content .layout-inspector-tabs [role='tab'][aria-selected='true']")
+            .unwrap(),
+        Some(selected.clone().into()),
+        "finding return selector must resolve to this fixture's selected tab"
+    );
     assert!(
         boardstudio_web_layout::layout_findings_state::focus_layout_finding_return_destination()
     );
