@@ -503,10 +503,10 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
     let on_action = input.on_action;
     let rows_for_render = rows;
     rsx! {
-        aside { class: "m1-objects", "aria-label": "Objects",
+        aside { class: "flex min-h-0 min-w-0 flex-col border-r border-border bg-card max-[760px]:border-0", "aria-label": "Objects",
             header { h2 { "Objects" } }
-            div { class: "m1-object-tree",
-                div { role: "tree", "aria-label": "Case assembly", class: "m1-component-list m1-object-tree-list",
+            div { class: "flex min-h-0 flex-1 flex-col",
+                div { role: "tree", "aria-label": "Case assembly", class: "grid min-h-0 flex-1 content-start gap-0 overflow-auto overscroll-contain px-0 py-1",
                     for row in rows_for_render.iter().cloned() {
                         {
                             let row_key = row.id.clone();
@@ -556,7 +556,7 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                             let disclosure_label = format!("{} {}", if row.expanded == Some(true) { "Collapse" } else { "Expand" }, row.label);
                             rsx! {
                                 div {
-                                    key: "{row_key}", class: "m1-tree-row",
+                                    key: "{row_key}", class: "flex min-h-10 min-w-0 items-center gap-0.5 pr-2",
                                     style: "padding-left: {8 + row_level * 14}px",
                                     role: "treeitem", "aria-labelledby": "{label_id}",
                                     "aria-level": "{row_level + 1}", "aria-selected": "{selected}",
@@ -595,11 +595,11 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                                             } }
                                         }
                                     } else {
-                                        span { class: "m1-tree-spacer", "aria-hidden": "true" }
+                                        span { class: "grid h-6 min-h-6 w-5 shrink-0 place-items-center border-0 bg-transparent p-0 text-muted-foreground", "aria-hidden": "true" }
                                     }
                                     Button { variant: ButtonVariant::Secondary,
                                         id: "{label_id}",
-                                        class: if selected { "m1-component selected" } else { "m1-component" },
+                                        class: if selected { "flex min-h-8 min-w-0 flex-1 items-center justify-start gap-[9px] rounded-[3px] border-primary bg-selection px-[5px] text-left text-selection-foreground [&_span]:text-selection-foreground" } else { "flex min-h-8 min-w-0 flex-1 items-center justify-start gap-[9px] rounded-[3px] border-transparent bg-transparent px-[5px] text-left hover:bg-accent" },
                                         disabled: !row_selectable,
                                         onclick: move |_| {
                                             if let Some(action) = row_action_for_click.clone() {
@@ -631,9 +631,9 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                                                 }
                                             }
                                         },
-                                        span { class: "m1-tree-glyph", {if row_level == 0 { "▰" } else if row_is_part { "◇" } else { "▱" }} }
-                                        span { class: "m1-tree-label", "{row_label}" }
-                                        if let Some(detail) = row.detail { span { class: "m1-object-kind", "{detail}" } }
+                                        span { class: "block size-[17px] shrink-0 text-muted-foreground", {if row_level == 0 { "▰" } else if row_is_part { "◇" } else { "▱" }} }
+                                        span { class: "min-w-0 truncate text-base leading-[1.45] text-foreground", "{row_label}" }
+                                        if let Some(detail) = row.detail { span { class: "ml-auto min-w-0 flex-[0_1_auto] truncate text-sm leading-[1.45] text-muted-foreground", "{detail}" } }
                                     }
                                     if let Some(id) = visibility_id {
                                         {
@@ -679,7 +679,7 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                     }
                 }
             }
-            footer { class: "m1-case-selection-footer", "aria-label": "Current selection",
+            footer { class: "grid gap-1.5 border-t border-border p-2.5 text-sm [&_strong]:text-foreground [&_strong]:[overflow-wrap:anywhere] [&_span]:text-muted-foreground [&_span]:[overflow-wrap:anywhere]", "aria-label": "Current selection",
                 strong { "{selection_title}" }
                 span { "{selection_breadcrumb}" }
                 span { "{selection_count}" }
@@ -1102,17 +1102,17 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
         .unwrap_or("#b4bac2")
         .to_owned();
     rsx! {
-        section { class: "m1-case-inspector", "aria-label": "Case Inspector",
+        section { "aria-label": "Case Inspector",
             if input.instance_scope_pending {
                 p { role: "status", "Selecting physical assembly…" }
             }
             if let Some(summary) = input.selected_part_summary.as_ref() {
-                p { class: "m1-case-selection-breadcrumb", "aria-label": "Current selection",
+                p { class: "m-0 px-3.5 pt-2.5 text-sm leading-normal text-muted-foreground", "aria-label": "Current selection",
                     "{summary.breadcrumb}"
                 }
             }
             if !input.instance_scope_pending {
-                section { class: "m1-case-physical-setup", "aria-label": "Physical assembly",
+                section { class: "grid gap-2 border-b border-border py-2.5 [&>p]:m-0 [&>p]:text-sm [&>p]:leading-normal [&>p]:text-muted-foreground", "aria-label": "Physical assembly",
                     if let Some(instance) = input.physical_setup.projection.case_instance.clone() {
                         Collapsible { keep_mounted: true, default_open: false,
                             CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", aria_label: "Assembly setup", "Assembly setup" }
@@ -1181,7 +1181,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                 }
                 if generated {
                     if active_display_layer.is_some() {
-                section { class: "m1-case-display", "aria-label": "Part appearance",
+                section { "aria-label": "Part appearance",
                     h3 { "Display" }
                     Field {
                         Label { html_for: format!("case-part-colour-{}", dioxus::core::current_scope_id().0), "Colour" }
@@ -1626,7 +1626,15 @@ mod mounted_live_scene_tests {
             settle().await;
             assert!(
                 document
-                    .query_selector("#case-navigation-content .m1-mechanical-settings")
+                    .query_selector("#case-navigation-content [aria-label='Case Inspector']")
+                    .unwrap()
+                    .is_some()
+            );
+            assert!(
+                document
+                    .query_selector(
+                        "#case-navigation-content [aria-label='Mechanical stack settings']"
+                    )
                     .unwrap()
                     .is_some(),
                 "entering Case mounts its real mechanical Inspector"
@@ -1668,7 +1676,9 @@ mod mounted_live_scene_tests {
         let mut last_text = String::new();
         for _ in 0..50 {
             if let Some(inspector) = document
-                .query_selector("#case11-workspace-evidence-root .m1-mechanical-settings")
+                .query_selector(
+                    "#case11-workspace-evidence-root [aria-label='Mechanical stack settings']",
+                )
                 .unwrap()
             {
                 last_text = inspector.text_content().unwrap_or_default();
@@ -1751,7 +1761,7 @@ mod mounted_live_scene_tests {
             "the same-scope plate row is labelled previous; plate={:?}; root={root_text:?}",
             plate.text_content()
         );
-        let row = plate.closest(".m1-tree-row").unwrap().unwrap();
+        let row = plate.closest("[role='treeitem']").unwrap().unwrap();
         assert_eq!(row.get_attribute("aria-selected").as_deref(), Some("true"));
         assert!(
             !text.contains("previous generated geometry"),
@@ -1803,7 +1813,9 @@ mod mounted_live_scene_tests {
             .click();
         settle().await;
         let inspector = document
-            .query_selector("#case11-workspace-evidence-root .m1-mechanical-settings")
+            .query_selector(
+                "#case11-workspace-evidence-root [aria-label='Mechanical stack settings']",
+            )
             .unwrap()
             .unwrap();
         let text = inspector.text_content().unwrap_or_default();
@@ -1878,7 +1890,9 @@ mod mounted_live_scene_tests {
                 .is_none()
         );
         let inspector = document
-            .query_selector("#case11-workspace-evidence-root .m1-mechanical-settings")
+            .query_selector(
+                "#case11-workspace-evidence-root [aria-label='Mechanical stack settings']",
+            )
             .unwrap()
             .unwrap();
         let text = inspector.text_content().unwrap_or_default();

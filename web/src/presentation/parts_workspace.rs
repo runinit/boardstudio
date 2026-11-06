@@ -123,9 +123,9 @@ pub(super) fn toolbar() -> Element {
 
 pub(super) fn canvas(mut input: PlaceholderInput) -> Element {
     rsx! {
-        section { class: "m1-placeholder-workspace",
+        section { class: "box-border w-full max-w-[760px] m-auto p-7 text-foreground",
             h1 { "{input.name}" }
-            p { "{input.message}" }
+            p { class: "max-w-[60ch] text-muted-foreground", "{input.message}" }
             Button { variant: ButtonVariant::Secondary, onclick: move |_| input.workspace.set("Layout"), "Back to Layout" }
         }
     }
@@ -134,7 +134,7 @@ pub(super) fn canvas(mut input: PlaceholderInput) -> Element {
 pub(super) fn preview(input: CanvasInput) -> Element {
     rsx! {
         if let Some(on_back) = input.controller_back {
-            Button { class: "m1-parts-controller-back", variant: ButtonVariant::Secondary, onclick: move |_| on_back.call(()), "Back to PCB" }
+            Button { variant: ButtonVariant::Secondary, onclick: move |_| on_back.call(()), "Back to PCB" }
         }
         PartsPreviewWorkspace {
             snapshot: input.snapshot,

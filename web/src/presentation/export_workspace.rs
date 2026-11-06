@@ -123,23 +123,22 @@ pub(super) fn ExportWorkspace(
     let archive = runtime.clone();
 
     rsx! {
-        section { class: "m1-export-panel m1-export-workspace", "aria-label": "Export package",
-            header { class: "m1-export-heading",
+        section { class: "grid w-full max-w-none grid-cols-[minmax(0,1fr)_minmax(320px,34%)] content-start gap-x-8 gap-y-4 bg-card p-[clamp(24px,3vw,48px)] text-foreground max-[1100px]:grid-cols-[minmax(0,1fr)_minmax(280px,36%)] max-[1100px]:gap-x-5 max-[1100px]:gap-y-3.5 max-[1100px]:p-6 max-[760px]:flex max-[760px]:flex-col max-[760px]:gap-4 max-[760px]:px-4 max-[760px]:pt-5 max-[760px]:pb-8 max-[960px]:[&_[data-slot=button]]:min-h-11 [@media(pointer:coarse)]:[&_[data-slot=button]]:min-h-11", "aria-label": "Export package",
+            header { class: "col-start-1 [&_h1]:mt-2 [&_h1]:mb-3 [&_h1]:text-[32px] [&_p]:m-0 [&_p]:max-w-[68ch] [&_p]:text-base [&_p]:text-muted-foreground",
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
-                    class: "m1-export-back",
                     onclick: move |_| workspace.set(back),
                     "Back to {back}"
                 }
                 h1 { "Export package" }
                 p { "Choose a handoff for {board_name}. Downloads use the current committed design; routing and mechanical fit still need downstream review." }
             }
-            div { class: "m1-export-rail",
-                section { class: "m1-export-portable", "aria-label": "Portable project",
+            div { class: "col-start-2 row-start-1 row-span-6 flex min-w-0 flex-col content-start gap-4 max-[1100px]:row-span-8 max-[760px]:gap-3",
+                section { class: "grid gap-3 rounded-xl bg-card p-5 [&_h2]:m-0 [&_h2]:text-xl [&_p]:m-0 [&_p]:text-muted-foreground max-[760px]:p-4", "aria-label": "Portable project",
                     h2 { "Portable project" }
                     p { "Keep an editable copy of the whole project, including all boards." }
-                    Label { class: "m1-export-option",
+                    Label { class: "flex items-start gap-2.5 [&_span]:grid [&_span]:gap-[3px] [&_small]:text-xs [&_small]:text-muted-foreground [&_[data-slot=checkbox]]:min-h-6 [&_[data-slot=checkbox]]:min-w-6 [&_[data-slot=checkbox]]:flex-none",
                         Checkbox {
                             aria_label: "Embed used models",
                             checked: if runtime.embed_used_models() { CheckboxState::Checked } else { CheckboxState::Unchecked },
@@ -148,14 +147,14 @@ pub(super) fn ExportWorkspace(
                         span { strong { "Embed used models" } small { "Include attached 3D model files used in this project." } }
                     }
                     Button { variant: ButtonVariant::Secondary,
-                        class: "m1-export-action",
+                        class: "min-h-12 w-full justify-self-start",
                         button_type: "button",
                         disabled: model.accepted.is_none(),
                         onclick: move |_| archive.export_project_copy(),
                         "Download .boardstudio project"
                     }
                 }
-                aside { class: "m1-export-current", aria_label: "Current design",
+                aside { class: "order-first grid content-start gap-3 rounded-xl bg-card p-5 [&_h2]:m-0 [&_h2]:text-xl [&_dl]:m-0 [&_dl]:grid [&_dl]:grid-cols-[minmax(86px,auto)_minmax(0,1fr)] [&_dl]:gap-x-3 [&_dl]:gap-y-2 [&_dt]:text-muted-foreground [&_dd]:m-0 [&_dd]:font-semibold [&_dd]:[overflow-wrap:anywhere] [&_p]:m-0 [&_p]:text-muted-foreground max-[760px]:order-none max-[760px]:p-4", aria_label: "Current design",
                     h2 { "Current design" }
                     dl {
                         dt { "Project" } dd { "{project_name}" }
@@ -166,13 +165,13 @@ pub(super) fn ExportWorkspace(
                     p { "Review routing, firmware builds and mechanical fit in downstream tools." }
                 }
             }
-            h2 { class: "m1-export-section-title", "Design files" }
-            div { class: "m1-export-list",
+            h2 { class: "col-start-1 mt-2 border-b border-border pb-2.5 text-lg", "Design files" }
+            div { class: "col-start-1 grid gap-0",
                 for row in rows {
                     ExportRowView { row, zmk_firmware: zmk_firmware.clone() }
                 }
             }
-            div { class: "m1-export-review-links",
+            div { class: "col-start-1 mt-0 flex flex-wrap gap-2.5",
                 Button { variant: ButtonVariant::Secondary, onclick: review_wiring, "Review wiring" }
                 Button { variant: ButtonVariant::Secondary, onclick: review_case, "Review case" }
             }
@@ -226,20 +225,20 @@ fn ExportRowView(row: ExportRow, zmk_firmware: Option<ZmkFirmwareExportPanelInpu
     }
     rsx! {
         div { "data-export-kind": "{row.label}",
-          Item { class: "m1-export-row",
-            ItemContent { class: "m1-export-row-copy",
+          Item { class: "grid grid-cols-[minmax(0,1fr)_auto] gap-3 bg-card p-4 max-[760px]:grid-cols-1",
+            ItemContent { class: "flex min-w-0 flex-wrap items-start gap-x-3 gap-y-1 [&>strong]:text-lg [&_[data-slot=badge]]:w-fit [&_[data-slot=item-description]]:block [&_[data-slot=item-description]]:overflow-visible [&_[data-slot=item-description]]:[-webkit-line-clamp:unset]",
                 strong { "{row.label}" }
-                Badge { class: "m1-handoff-state", variant: if row.ready && row.available { BadgeVariant::Success } else { BadgeVariant::Warning },
+                Badge { variant: if row.ready && row.available { BadgeVariant::Success } else { BadgeVariant::Warning },
                     if !row.available { "Provider unavailable" } else { "{row.status}" }
                 }
                 ItemDescription { "{row.detail}" }
-                if let Some(reason) = row.reason { Callout { class: "m1-export-reason", variant: CalloutVariant::Warning, "{reason}" } }
+                if let Some(reason) = row.reason { Callout { variant: CalloutVariant::Warning, "{reason}" } }
                 if row.ready && !row.available {
-                    Callout { class: "m1-export-provider-gap", variant: CalloutVariant::Warning, "This export provider is not connected in this build." }
+                    Callout { variant: CalloutVariant::Warning, "This export provider is not connected in this build." }
                 }
             }
             Button { variant: ButtonVariant::Secondary,
-                class: "m1-export-row-action",
+                class: "min-h-9 min-w-[104px] max-[760px]:col-start-1 max-[760px]:min-h-11 max-[760px]:justify-self-start",
                 button_type: "button",
                 aria_label: format!("Export {}", row.label),
                 disabled: !row.ready || !row.available,
@@ -729,19 +728,14 @@ mod tests {
             .unwrap();
             assert_eq!(button.has_attribute("disabled"), disabled);
             assert_eq!(button.text_content().as_deref(), Some(label));
-            assert_eq!(
-                root.query_selector(".m1-handoff-state")
-                    .unwrap()
-                    .unwrap()
-                    .text_content()
-                    .as_deref(),
-                Some(expected_status)
-            );
-            let reason = root.query_selector(".m1-export-reason").unwrap();
-            assert_eq!(
-                reason.and_then(|element| element.text_content()).as_deref(),
-                expected_reason
-            );
+            let text = root.text_content().unwrap();
+            assert!(text.contains(expected_status));
+            for reason in [
+                "Review the board outline and layout findings.",
+                "Review the layout and resolve controller wiring in PCB.",
+            ] {
+                assert_eq!(text.contains(reason), expected_reason == Some(reason));
+            }
             root.remove();
         }
     }

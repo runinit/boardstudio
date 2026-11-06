@@ -113,11 +113,21 @@ async fn switch_visibility_keeps_keycaps_independent() {
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     wait_until("the scene shows its keycap and switch", || {
-        count(&root, ".m1-keycap-overlay") == 1 && count(&root, ".m1-scene-part .m1-part") == 1
+        count(&root, "[data-geometry='keycap']") == 1
+            && count(
+                &root,
+                "[data-geometry='scene-part'] [data-geometry='part-outline']",
+            ) == 1
     })
     .await;
-    assert_eq!(count(&root, ".m1-keycap-overlay"), 1);
-    assert_eq!(count(&root, ".m1-scene-part .m1-part"), 1);
+    assert_eq!(count(&root, "[data-geometry='keycap']"), 1);
+    assert_eq!(
+        count(
+            &root,
+            "[data-geometry='scene-part'] [data-geometry='part-outline']"
+        ),
+        1
+    );
     let layer_trigger = by_role_name(&root, "button", "Canvas visibility").unwrap();
     assert_eq!(
         layer_trigger.get_attribute("aria-expanded").as_deref(),
@@ -132,7 +142,10 @@ async fn switch_visibility_keeps_keycaps_independent() {
         "Layout visibility controls stay in the Objects dock"
     );
     assert_eq!(
-        count(&root, ".m1-workspace-content .m1-layers"),
+        count(
+            &root,
+            "[aria-label='Layout workspace'] [aria-label='Canvas visibility']"
+        ),
         0,
         "the viewer must not duplicate the docked visibility controls"
     );
@@ -145,34 +158,58 @@ async fn switch_visibility_keeps_keycaps_independent() {
     wait_until(
         "hiding switches removes the switch and offers Show Switches",
         || {
-            count(&root, ".m1-scene-part .m1-part") == 0
+            count(
+                &root,
+                "[data-geometry='scene-part'] [data-geometry='part-outline']",
+            ) == 0
                 && by_role_name(&root, "button", "Show Switches").is_some()
         },
     )
     .await;
     assert_eq!(
-        count(&root, ".m1-keycap-overlay"),
+        count(&root, "[data-geometry='keycap']"),
         1,
         "hiding switches must preserve visible keycaps"
     );
-    assert_eq!(count(&root, ".m1-scene-part .m1-part"), 0);
+    assert_eq!(
+        count(
+            &root,
+            "[data-geometry='scene-part'] [data-geometry='part-outline']"
+        ),
+        0
+    );
     assert!(by_role_name(&root, "button", "Show Switches").is_some());
     click(&root, "Hide Keycaps");
     wait_until(
         "hiding keycaps removes the keycaps and the scene part",
-        || count(&root, ".m1-keycap-overlay") == 0 && count(&root, ".m1-scene-part") == 0,
+        || {
+            count(&root, "[data-geometry='keycap']") == 0
+                && count(&root, "[data-geometry='scene-part']") == 0
+        },
     )
     .await;
-    assert_eq!(count(&root, ".m1-keycap-overlay"), 0);
-    assert_eq!(count(&root, ".m1-scene-part"), 0);
+    assert_eq!(count(&root, "[data-geometry='keycap']"), 0);
+    assert_eq!(count(&root, "[data-geometry='scene-part']"), 0);
     click(&root, "Show Switches");
     wait_until(
         "showing switches restores the switch without keycaps",
-        || count(&root, ".m1-scene-part .m1-part") == 1 && count(&root, ".m1-keycap-overlay") == 0,
+        || {
+            count(
+                &root,
+                "[data-geometry='scene-part'] [data-geometry='part-outline']",
+            ) == 1
+                && count(&root, "[data-geometry='keycap']") == 0
+        },
     )
     .await;
-    assert_eq!(count(&root, ".m1-scene-part .m1-part"), 1);
-    assert_eq!(count(&root, ".m1-keycap-overlay"), 0);
+    assert_eq!(
+        count(
+            &root,
+            "[data-geometry='scene-part'] [data-geometry='part-outline']"
+        ),
+        1
+    );
+    assert_eq!(count(&root, "[data-geometry='keycap']"), 0);
     assert_eq!(
         runtime.model().accepted.as_ref().unwrap().document.revision,
         revision
@@ -181,7 +218,10 @@ async fn switch_visibility_keeps_keycaps_independent() {
 }
 
 fn finding_row_containing(root: &web_sys::Element, phrase: &str) -> Option<web_sys::Element> {
-    let rows = root.query_selector_all("li.m1-layout-finding").unwrap();
+    let panel = root
+        .query_selector("[aria-label='Layout findings']")
+        .unwrap()?;
+    let rows = panel.query_selector_all("li").unwrap();
     (0..rows.length())
         .filter_map(|index| rows.item(index))
         .filter_map(|row| row.dyn_into::<web_sys::Element>().ok())
@@ -247,7 +287,10 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     wait_until("the Editor shows the paired right board", || {
-        count(&root, ".m1-scene-part .m1-part") > 0
+        count(
+            &root,
+            "[data-geometry='scene-part'] [data-geometry='part-outline']",
+        ) > 0
     })
     .await;
     assert!(
@@ -321,7 +364,7 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
         &format!("Layout findings: {}", accepted_findings_count + 3),
     );
     wait_until("the footer opens the Info-only findings panel", || {
-        root.query_selector(".m1-layout-findings")
+        root.query_selector("[aria-label='Layout findings']")
             .unwrap()
             .is_some()
             && root
@@ -331,6 +374,12 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
             && finding_row_containing(&root, &pin_notice).is_some()
     })
     .await;
+    let finding = finding_row_containing(&root, &pin_notice).unwrap();
+    finding.remove_attribute("class").unwrap();
+    assert!(
+        finding_row_containing(&root, &pin_notice).is_some(),
+        "finding lookup does not depend on styling classes"
+    );
     let text = root.text_content().unwrap_or_default();
     assert!(text.contains(&pin_notice));
     assert!(text.contains(&net_notice));

@@ -181,7 +181,7 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
         let handlers = input.handlers;
         rsx! {
             svg {
-                class: "m1-canvas m1-keymap-canvas",
+                class: "block w-full h-full min-h-[250px] bg-canvas touch-none max-[760px]:h-[54svh] max-[760px]:min-h-[270px] [@media(max-height:520px)_and_(min-width:761px)]:min-h-0",
                 view_box: "{input.view_box}",
                 preserve_aspect_ratio: "xMidYMid meet",
                 tabindex: "0",
@@ -207,7 +207,7 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
             }
         }
     } else {
-        rsx! { p { class: "m1-keymap-unavailable", role: "status", "Keymap is unavailable for the current board." } }
+        rsx! { p { class: "my-2 mx-0 text-base leading-normal text-muted-foreground", role: "status", "Keymap is unavailable for the current board." } }
     }
 }
 
@@ -261,7 +261,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             }
         } else {
             rsx! {
-                p { class: "m1-keymap-unavailable", role: "status", "Macro editor is unavailable for the current board." }
+                p { class: "my-2 mx-0 text-base leading-normal text-muted-foreground", role: "status", "Macro editor is unavailable for the current board." }
             }
         };
         let encoders_editor = if let Some(projection) = binding_actions.encoder_projection.as_ref()
@@ -301,8 +301,8 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
         }
     } else {
         rsx! {
-            section { class: "m1-keymap-panel", "aria-label": "Keymap",
-                p { class: "m1-keymap-unavailable", role: "status", "Keymap is unavailable for the current board." }
+            section { class: "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto px-6 py-2 text-foreground bg-card", "aria-label": "Keymap",
+                p { class: "my-2 mx-0 text-base leading-normal text-muted-foreground", role: "status", "Keymap is unavailable for the current board." }
             }
         }
     }

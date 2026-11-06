@@ -1114,7 +1114,7 @@ fn mounted_component_inspector_host() -> Element {
                 LayoutComponentInspector { projection, inspector_tab, pending_edits, x: x_draft, y: y_draft, margin: margin_draft, x_failure, y_failure, margin_failure, error, layout_pending, constraint_pending, remove_pending, mirrored_half_pending, on_action: action_handler }
             }
         }
-        output { class: "m1-layout-component-test-generation", "{render_generation()}" }
+        output { "data-test-render-generation": "", "{render_generation()}" }
     }
 }
 
@@ -1293,10 +1293,7 @@ async fn settle_component_inspector(root_id: &str, mut generation: Signal<u64>) 
                 .unwrap()
                 .document()
                 .unwrap()
-                .query_selector(&format!(
-                    "#{} .m1-layout-component-test-generation",
-                    root_id
-                ))
+                .query_selector(&format!("#{} [data-test-render-generation]", root_id))
                 .ok()
                 .flatten()
                 .is_some_and(|label| label.text_content().as_deref() == Some(expected.as_str()))
@@ -1311,10 +1308,7 @@ async fn settle_mounted_component_inspector(probe: &MountedProbe) {
             .unwrap()
             .document()
             .unwrap()
-            .query_selector(&format!(
-                "#{} .m1-layout-component-test-generation",
-                probe.root_id
-            ))
+            .query_selector(&format!("#{} [data-test-render-generation]", probe.root_id))
             .unwrap()
             .is_some()
     })
@@ -1681,7 +1675,7 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
             .document()
             .unwrap()
             .query_selector(&format!(
-                "#{} .m1-layout-component-inspector",
+                "#{} [aria-label='Component inspector']",
                 probe.root_id
             ))
             .unwrap()
@@ -1715,7 +1709,7 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
             .document()
             .unwrap()
             .query_selector(&format!(
-                "#{} .m1-layout-component-inspector",
+                "#{} [aria-label='Component inspector']",
                 probe.root_id
             ))
             .unwrap()
@@ -2336,17 +2330,14 @@ async fn mounted_group_position_blur_moves_all_selected_parts_from_first_anchor(
     let (probe, root) = mounted_group_probe("layout-component-group-position-test-root").await;
     settle_mounted_component_inspector(&probe).await;
     let document = web_sys::window().unwrap().document().unwrap();
-    assert_eq!(
+    assert!(
         document
-            .query_selector(&format!(
-                "#{} .m1-layout-component-selection-note",
-                probe.root_id
-            ))
+            .query_selector(&format!("#{}", probe.root_id))
             .unwrap()
             .unwrap()
             .text_content()
-            .as_deref(),
-        Some("2 parts selected. Position edits apply to the selection.")
+            .unwrap_or_default()
+            .contains("2 parts selected. Position edits apply to the selection.")
     );
     let x = position_input(probe.root_id, "X mm");
     assert!(!x.disabled());
@@ -2676,10 +2667,7 @@ mod matrix_relations_panel {
                     .unwrap()
                     .document()
                     .unwrap()
-                    .query_selector(&format!(
-                        "#{} .m1-layout-component-test-generation",
-                        self.root_id
-                    ))
+                    .query_selector(&format!("#{} [data-test-render-generation]", self.root_id))
                     .unwrap()
                     .is_some()
             })
@@ -2881,7 +2869,7 @@ mod matrix_relations_panel {
                 board_inspector_mount: board_inspector,
                 findings_page: None,
             })}
-            output { class: "m1-layout-component-test-generation", "{render_generation()}" }
+            output { "data-test-render-generation": "", "{render_generation()}" }
         }
     }
 

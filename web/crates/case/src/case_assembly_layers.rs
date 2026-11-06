@@ -181,7 +181,7 @@ pub fn CaseAssemblyLayers(
     };
     rsx! {
         section {
-            class: "m1-case-assembly-layers",
+            class: "absolute right-2.5 bottom-2.5 z-[6] w-[min(360px,calc(100%-20px))] text-foreground max-[640px]:right-2 max-[640px]:bottom-2 max-[640px]:w-[min(340px,calc(100%-16px))] [[id=m1-objects-panel]_&]:static [[id=m1-objects-panel]_&]:w-full",
             "aria-label": "Assembly visibility",
             "data-open": "{open()}",
             onkeydown: keydown,
@@ -195,12 +195,12 @@ pub fn CaseAssemblyLayers(
             }
             CollapsibleContent {
                 id: "m1-case-assembly-layers-list",
-                class: "m1-case-assembly-layers-list",
+                class: "mb-2 grid max-h-[min(55vh,440px)] gap-2.5 overflow-auto rounded-[10px] border border-border-strong bg-card p-3 shadow-[0_10px_30px_#0005] [&[hidden]]:hidden max-[640px]:max-h-[52vh] [[id=m1-objects-panel]_&]:absolute [[id=m1-objects-panel]_&]:bottom-full [[id=m1-objects-panel]_&]:left-0 [[id=m1-objects-panel]_&]:z-30 [[id=m1-objects-panel]_&]:m-0 [[id=m1-objects-panel]_&]:box-border [[id=m1-objects-panel]_&]:w-full [[id=m1-objects-panel]_&]:max-h-[min(65vh,520px)] [[id=m1-objects-panel]_&]:rounded-b-none [[id=m1-objects-panel]_&]:rounded-t-xl",
                 hidden: !open(),
                 inert: (!open()).then_some(""),
                 if !assembly.is_empty() {
-                    div { class: "m1-case-assembly-layer-group", role: "group", "aria-label": "Assembly",
-                        div { class: "m1-case-assembly-layer-heading", "Assembly" }
+                    div { class: "grid gap-1", role: "group", "aria-label": "Assembly",
+                        div { class: "px-1 pt-0.5 pb-[5px] text-[0.78rem] font-bold tracking-[0.04em] text-muted-foreground uppercase", "Assembly" }
                         for layer in assembly {
                             {
                                 let toggle = toggle.clone();
@@ -220,8 +220,8 @@ pub fn CaseAssemblyLayers(
                     }
                 }
                 if !components.is_empty() {
-                    div { class: "m1-case-assembly-layer-group", role: "group", "aria-label": "Components",
-                        div { class: "m1-case-assembly-layer-heading", "Components" }
+                    div { class: "grid gap-1", role: "group", "aria-label": "Components",
+                        div { class: "px-1 pt-0.5 pb-[5px] text-[0.78rem] font-bold tracking-[0.04em] text-muted-foreground uppercase", "Components" }
                         for layer in components {
                             { let toggle = toggle.clone(); rsx! { ComponentLayerButton { layer, display: display.clone(), on_toggle: toggle } } }
                         }
@@ -288,8 +288,8 @@ fn CaseLayerButton(
                     disabled: row_disabled,
                     class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11",
                     style: "width: 100%; justify-content: flex-start;",
-                    span { class: "m1-case-assembly-layer-swatch", "data-layer": "{layer.label}" }
-                    span { class: "m1-case-assembly-layer-label flex-1 text-left", "{layer.label}" }
+                    span { class: "m-auto size-2.5 rounded-[2px] border border-current bg-primary data-[layer=PCB]:bg-[#51b98b] data-[layer=Copper]:bg-[#ce8a49]", "data-layer": "{layer.label}" }
+                    span { class: "flex-1 truncate text-left", "{layer.label}" }
                     if let Some(state) = unavailable { small { class: "whitespace-nowrap text-xs text-muted-foreground", "{state}" } }
                 }
             }
@@ -367,8 +367,8 @@ fn ComponentLayerButton(
                 disabled: row_disabled,
                 class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11",
                 style: "width: 100%; justify-content: flex-start;",
-                span { class: "m1-case-assembly-layer-swatch is-component", "data-layer": "Components" }
-                span { class: "m1-case-assembly-layer-label flex-1 text-left", "{label}" }
+                span { class: "m-auto size-2.5 rounded-full border border-current bg-[#879acb]", "data-layer": "Components" }
+                span { class: "flex-1 truncate text-left", "{label}" }
                 if let Some(state) = unavailable { small { class: "whitespace-nowrap text-xs text-muted-foreground", "{state}" } }
                 LayerEye { visible }
             }
@@ -589,7 +589,10 @@ mod tests {
     async fn layer_menu_toggles_exact_rows_and_unavailable_rows_are_not_checked() {
         let document = web_sys::window().unwrap().document().unwrap();
         let stylesheet = document.create_element("style").unwrap();
-        stylesheet.set_text_content(Some(include_str!("../../../assets/m1.css")));
+        stylesheet.set_text_content(Some(concat!(
+            include_str!("../../../assets/m1.css"),
+            include_str!("../../../assets/tailwind.css")
+        )));
         document.head().unwrap().append_child(&stylesheet).unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("case-assembly-layer-test-root");

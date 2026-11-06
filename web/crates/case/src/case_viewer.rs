@@ -306,7 +306,7 @@ fn use_case_keycaps(
             }
         }
         if !shown.findings.is_empty() {
-            Collapsible { class: "m1-case-keycap-findings", keep_mounted: true, default_open: true,
+            Collapsible { class: "flex-none max-h-[min(25vh,180px)] overflow-auto overscroll-contain", keep_mounted: true, default_open: true,
                 CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", aria_label: "Keycap clearance · {shown.findings.len()} findings", "Keycap clearance · {shown.findings.len()} findings" }
                 CollapsibleContent { class: "data-[open=false]:hidden",
                     for finding in &shown.findings { Item { size: ItemSize::Sm, key: "{finding.id}", p { "{finding.message}" } } }

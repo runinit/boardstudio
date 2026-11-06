@@ -759,12 +759,12 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
             .unwrap_or_default()
             + 1;
         return rsx! {
-            section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
+            section { class: "grid gap-3 [&_h3]:m-0 [&_p]:m-0 [&_label]:grid-cols-1 [&_small]:text-xs [&_small]:leading-normal [&_small]:text-muted-foreground", aria_label: "Mechanical stack settings",
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     onclick: move |_| props.on_select_layer.call(String::new()),
                     "Assembly settings"
                 }
@@ -772,16 +772,16 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 if support.is_previous {
                     div { role: "status", Callout { "Showing previous generated geometry. Gasket measurements cannot be edited until the current assembly resolves." } }
                 } else {
-                    p { class: "m1-mechanical-help",
+                    p { class: "text-muted-foreground text-sm leading-normal",
                         if support.unlinked { "This gasket is unlinked from its pair." } else { "This support is linked to its mirrored pair. Matching upper and lower pads resize together." }
                     }
                     if let Some(error) = support.fit_error.as_deref() {
                         Alert { variant: AlertVariant::Destructive, "{error} Preview and export stay blocked until it fits." }
                     } else {
-                        p { class: "m1-mechanical-help", "Fits at this position." }
+                        p { class: "text-muted-foreground text-sm leading-normal", "Fits at this position." }
                     }
                     for gasket_owner in [format!("{owner_key}:gasket:{}", support.id)] {
-                    fieldset { key: "{gasket_owner}", class: "m1-mechanical-group", disabled: !props.editable,
+                    fieldset { key: "{gasket_owner}", class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", disabled: !props.editable,
                         DimensionField {
                             identity: props.identity.clone(),
                             request_sequence,
@@ -815,12 +815,12 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         }
                     }
                     }
-                    p { class: "m1-mechanical-help", "Prefer 10 mm cuts; use 5 mm increments for a tighter fit. Foam thickness and compression are shared by the floating stack." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Prefer 10 mm cuts; use 5 mm increments for a tighter fit. Foam thickness and compression are shared by the floating stack." }
                     Button {
                         variant: ButtonVariant::Ghost,
                         size: ButtonSize::Sm,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         onclick: move |_| props.on_select_layer.call("gaskets".to_owned()),
                         "All gasket settings"
                     }
@@ -833,7 +833,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
     }
 
     rsx! {
-        section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
+        section { class: "grid gap-3 [&_h3]:m-0 [&_p]:m-0 [&_label]:grid-cols-1 [&_small]:text-xs [&_small]:leading-normal [&_small]:text-muted-foreground", aria_label: "Mechanical stack settings",
             h2 { "Case construction" }
             if let Some(values) = props.values.as_ref().filter(|_| configuration_matches).or(props.preview_values.as_ref()) {
                 StackupPreview { values: values.clone() }
@@ -878,7 +878,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                             Button {
                                 variant: ButtonVariant::Secondary,
                                 button_type: "button",
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 disabled: mechanical_action_pending("initialize-closures") || !props.editable,
                                 onclick: {
                                     let identity = props.identity.clone();
@@ -896,7 +896,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         div { role: "status", Callout { "{reason}" } }
                     }
                 }
-                p { class: "m1-mechanical-help", "Authored Case bodies remain saved while the generated stack is active. Disable the stack to return to authored bodies." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Authored Case bodies remain saved while the generated stack is active. Disable the stack to return to authored bodies." }
                 ConstructionControls {
                     identity: props.identity.clone(),
                     values: values.clone(),
@@ -1013,12 +1013,12 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     }
                 }
                 if values.mount == MechanicalMount::Gasket && values.internal_gasket {
-                    section { class: "m1-mechanical-option-group", aria_label: "Gasket supports",
+                    section { aria_label: "Gasket supports",
                         h3 { "Gasket supports" }
                         Button {
                             variant: ButtonVariant::Secondary,
                             button_type: "button",
-                            class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             disabled: mechanical_action_pending("reset-gasket-placement") || !props.editable,
                             onclick: {
                                 let identity = props.identity.clone();
@@ -1028,7 +1028,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                             },
                             "Reset gasket placement"
                         }
-                        p { class: "m1-mechanical-help",
+                        p { class: "text-muted-foreground text-sm leading-normal",
                             "Reset releases manually positioned supports. Closure positions stay fixed."
                         }
                     }
@@ -1065,7 +1065,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 Button {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: !props.editable,
                     onclick: {
                         let identity = props.identity.clone();
@@ -1076,7 +1076,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     if props.pair_counterpart.is_some() { "Unlink and disable this half" } else { "Disable mechanical stack" }
                 }
                 if let Some(counterpart) = props.pair_counterpart.clone() {
-                    p { class: "m1-mechanical-help",
+                    p { class: "text-muted-foreground text-sm leading-normal",
                         "This half is linked with {counterpart}. Disabling removes that link and disables only this half's mechanical stack: the other half keeps its geometry and settings, and neither PCB is removed. One Undo restores the link and this stack."
                     }
                     MechanicalPairMemberRemoval {
@@ -1099,16 +1099,16 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 }
                 if let Some(values) = props.preview_values.as_ref() {
                     ConstructionControls { identity: props.identity.clone(), values: values.clone(), editable: false, request_sequence, on_request: props.on_request }
-                    p { class: "m1-mechanical-help", "Suggested stack from this board and its switch profiles. Configure to save these settings; viewing this preview does not change the project." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Suggested stack from this board and its switch profiles. Configure to save these settings; viewing this preview does not change the project." }
                 }
-                p { class: "m1-mechanical-help", "Configure a mechanical stack from the current board and represented switch fit profiles." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Configure a mechanical stack from the current board and represented switch fit profiles." }
                 if !props.editable {
                     if let Some(reason) = props.disabled_reason.as_deref() { div { role: "status", Callout { "{reason}" } } }
                 }
                 Button {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: !props.editable,
                     onclick: {
                         let identity = props.identity.clone();
@@ -1148,16 +1148,16 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
     let pending = mechanical_action_pending(&patch.field_id()) || !props.editable;
     let mut confirming_state = confirming;
     rsx! {
-        fieldset { class: "m1-mechanical-legacy-construction grid gap-3 m-0 min-w-0 border-0 p-3 rounded-md bg-card", disabled: !props.editable,
+        fieldset { class: "grid gap-3 m-0 min-w-0 border-0 p-3 rounded-md bg-card", disabled: !props.editable,
             legend { "Shared construction" }
             if confirming() {
-                p { class: "m1-mechanical-help",
+                p { class: "text-muted-foreground text-sm leading-normal",
                     "Makes {instance_id}'s construction its own: the values it shows today (including the overlaid hardware, critical fits and profiles) become this half's local values and its construction becomes local. Other legacy halves keep their previous baseline. One Undo restores the ownership and the overlay."
                 }
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Confirm making construction local for {instance_id}",
                     disabled: pending,
                     onclick: {
@@ -1175,19 +1175,19 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Keep shared construction for {instance_id}",
                     onclick: move |_| confirming_state.set(false),
                     "Keep it shared"
                 }
             } else {
-                p { class: "m1-mechanical-help",
+                p { class: "text-muted-foreground text-sm leading-normal",
                     "This half still uses the shared construction baseline."
                 }
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Make construction local for {instance_id}",
                     disabled: pending,
                     onclick: move |_| confirming_state.set(true),
@@ -1221,16 +1221,16 @@ fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Eleme
     let counterpart = props.counterpart.clone();
     let mut confirming_state = confirming;
     rsx! {
-        section { class: "m1-mechanical-remove-member", aria_label: "Remove this physical assembly",
+        section { aria_label: "Remove this physical assembly",
             if confirming() {
-                p { class: "m1-mechanical-help",
+                p { class: "text-muted-foreground text-sm leading-normal",
                     "Removes {instance_id} from the project and clears the link. {counterpart} keeps the geometry and settings it shows today as its own local assembly. Your boards, PCBs and parts stay. One Undo restores the assembly and the link."
                 }
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Confirm removing assembly {instance_id}",
                     disabled: pending,
                     onclick: {
@@ -1253,20 +1253,20 @@ fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Eleme
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Keep assembly {instance_id}",
                     onclick: move |_| confirming_state.set(false),
                     "Keep it"
                 }
             } else {
-                p { class: "m1-mechanical-help",
+                p { class: "text-muted-foreground text-sm leading-normal",
                     "Removing this assembly clears the link and removes only it; the other half stays as its own local assembly."
                 }
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Remove assembly {instance_id}",
                     disabled: pending,
                     onclick: move |_| confirming_state.set(true),
@@ -1404,9 +1404,9 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
         .to_string()
     });
     rsx! {
-        section { class: "m1-mechanical-pair m1-mechanical-pair-link", aria_label: "Link a mechanical mirror pair",
+        section { aria_label: "Link a mechanical mirror pair",
             h3 { "Mirror another half" }
-            p { class: "m1-mechanical-help",
+            p { class: "text-muted-foreground text-sm leading-normal",
                 "Linking keeps shared mounts, closure mounts, openings and gasket supports reflected and linked. Features without a match stay local to their half."
             }
             SettingsChoiceField {
@@ -1439,7 +1439,7 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                     SelectOption::<String> { index: 1usize, value: "other".to_owned(), text_value: option.other_instance_id.clone(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{option.other_instance_id}" }
             }
             if option.derived_mapping.is_none() {
-                div { class: "m1-mechanical-pair-mapping",
+                div {
                     SettingsNumberField {
                         label: "Map offset X",
                         aria_label: "Pair mapping X",
@@ -1463,11 +1463,11 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                     }
                 }
             }
-            p { class: "m1-mechanical-help", "{mapping_note}" }
+            p { class: "text-muted-foreground text-sm leading-normal", "{mapping_note}" }
             if option.matched.is_empty() {
-                p { class: "m1-mechanical-help", "Matched features: {option.matched_features}" }
+                p { class: "text-muted-foreground text-sm leading-normal", "Matched features: {option.matched_features}" }
             } else {
-                p { class: "m1-mechanical-help",
+                p { class: "text-muted-foreground text-sm leading-normal",
                     "Matched features stay linked. Features without a match stay local to their half."
                 }
             }
@@ -1489,7 +1489,7 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                         .unwrap_or_else(|| "no geometry".to_owned());
                     let row_id = format!("pair-source-{key}");
                     rsx! {
-                        fieldset { key: "{row_id}", class: "m1-mechanical-pair-source",
+                        fieldset { key: "{row_id}",
                             "aria-label": "Source for {key}",
                             legend { "{feature_label(matched.kind)} {key} · {matched.second_feature_id}" }
                             SettingsSelect {
@@ -1520,12 +1520,12 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
             // The complete proposed result on both halves, read from Core for exactly
             // the choices reviewed above.
             if let Some(preview) = preview.clone() {
-                div { class: "m1-mechanical-pair-preview", aria_label: "Proposed result on both halves",
+                div { aria_label: "Proposed result on both halves",
                     for member in preview.members.iter() {
-                        div { class: "m1-mechanical-pair-preview-member", "data-instance": "{member.instance_id}",
+                        div { "data-instance": "{member.instance_id}",
                             h4 { "{member.instance_id}" }
                             if member.features.is_empty() {
-                                p { class: "m1-mechanical-help", "No mechanical features after linking." }
+                                p { class: "text-muted-foreground text-sm leading-normal", "No mechanical features after linking." }
                             } else {
                                 ul {
                                     for feature in member.features.iter() {
@@ -1540,14 +1540,14 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                     }
                 }
             } else if let Some(note) = preview_note.clone() {
-                p { class: "m1-mechanical-help",
+                p { class: "text-muted-foreground text-sm leading-normal",
                     "The complete proposed result is unavailable until you confirm: {note}"
                 }
             }
             Button {
                 variant: ButtonVariant::Secondary,
                 button_type: "button",
-                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 aria_label: "Link {option.instance_id} with {option.other_instance_id}",
                 disabled: blocked,
                 onclick: {
@@ -1603,9 +1603,9 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
     // Per-feature rejoin source choices, keyed by this half's durable feature id.
     let rejoin_sources = use_signal(std::collections::BTreeMap::<String, String>::new);
     rsx! {
-        section { class: "m1-mechanical-pair", aria_label: "Mirrored pair features",
+        section { aria_label: "Mirrored pair features",
             h3 { "Mirrored pair" }
-            p { class: "m1-mechanical-help",
+            p { class: "text-muted-foreground text-sm leading-normal",
                 "Shared mechanical features stay linked to the other half. Make one local, remove it on this half, or rejoin it from the other half."
             }
             for row in features.iter() {
@@ -1679,7 +1679,7 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                         MechanicalFeatureState::Omitted => "removed on this half",
                     };
                     rsx! {
-                        fieldset { key: "{key}", class: "m1-mechanical-pair-row", disabled: !props.editable,
+                        fieldset { key: "{key}", class: "m-0 border-0 border-b border-border py-2", disabled: !props.editable,
                             "aria-label": "Mirrored {feature_label(row.kind).to_lowercase()}",
                             legend { "{feature_label(row.kind)} · {state}" }
                             if let Some(message) = failure {
@@ -1690,7 +1690,7 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                     variant: ButtonVariant::Ghost,
                                     size: ButtonSize::Sm,
                                     button_type: "button",
-                                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                     aria_label: "Make local {row.feature_id}",
                                     disabled: local_blocked,
                                     onclick: {
@@ -1705,7 +1705,7 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                 Button {
                                     variant: ButtonVariant::Secondary,
                                     button_type: "button",
-                                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                     aria_label: "Remove on this half {row.feature_id}",
                                     disabled: omit_blocked,
                                     onclick: {
@@ -1744,11 +1744,11 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                     }
                                 }
                                 if let Some(geometry) = source_geometry.clone() {
-                                    p { class: "m1-mechanical-help",
+                                    p { class: "text-muted-foreground text-sm leading-normal",
                                         "Rejoin takes {geometry} from {chosen_source}."
                                     }
                                 } else {
-                                    p { class: "m1-mechanical-help",
+                                    p { class: "text-muted-foreground text-sm leading-normal",
                                         "The reviewed source half has no geometry for this feature, so it cannot be rejoined yet."
                                     }
                                 }
@@ -1756,7 +1756,7 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                     variant: ButtonVariant::Ghost,
                                     size: ButtonSize::Sm,
                                     button_type: "button",
-                                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                     aria_label: "Rejoin {row.feature_id} from {source_label}",
                                     disabled: rejoin_blocked,
                                     onclick: {
@@ -1830,7 +1830,7 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
         Collapsible { keep_mounted: true, default_open: true,
             CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Closure hardware · {hardware.thread}" }
             CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
-            p { class: "m1-mechanical-help", "Custom screw and insert dimensions. Review these against your hardware; the starting M2 dimensions are not a supplier preset." }
+            p { class: "text-muted-foreground text-sm leading-normal", "Custom screw and insert dimensions. Review these against your hardware; the starting M2 dimensions are not a supplier preset." }
             SettingsSelect {
                 label: "Insert size",
                 aria_label: "Insert size",
@@ -1978,7 +1978,7 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                         editable: props.editable,
                     } } }
                 }
-                p { class: "m1-mechanical-help", "Thread changes do not resize the insert. Countersunk lengths include the head. Incompatible dimensions appear in Mechanical diagnostics." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Thread changes do not resize the insert. Countersunk lengths include the head. Incompatible dimensions appear in Mechanical diagnostics." }
                  }
                 }
              }
@@ -2120,13 +2120,13 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
         Collapsible { keep_mounted: true, default_open: !hardware.is_empty() || !fits.is_empty(),
             CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Hardware & critical fits · {hardware.len()} hardware · {fits.len()} fits" }
             CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
-            div { class: "m1-mechanical-spec-group",
+            div { class: "mt-2.5 grid gap-2 border-t border-border pt-2.5 [&>header]:flex [&>header]:items-center [&>header]:justify-between [&>header]:gap-2",
                 header {
                     strong { "Hardware" }
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("hardware:add") || !props.editable || mount_choices.is_empty(),
                         onclick: {
                             let mut sequence = request_sequence;
@@ -2142,16 +2142,16 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                     }
                 }
                 if mount_choices.is_empty() {
-                    p { class: "m1-mechanical-help", "Add a suspension or closure mount to link a fastener specification to its generated feature." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Add a suspension or closure mount to link a fastener specification to its generated feature." }
                 }
                 for item in hardware.iter() {
-                    article { class: "m1-mechanical-spec-card", key: "{props.owner_key}:hardware:{item.id}",
+                    article { class: "grid min-w-0 gap-2 rounded-md border border-border bg-card p-2.5 [&>header]:flex [&>header]:items-center [&>header]:justify-between [&>header]:gap-2", key: "{props.owner_key}:hardware:{item.id}",
                         header {
                             strong { if item.designation.is_empty() { "Hardware item" } else { "{item.designation}" } }
                             Button {
                                 variant: ButtonVariant::Secondary,
                                 button_type: "button",
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Remove hardware {item.id}",
                                 disabled: mechanical_action_pending(&format!("hardware:{}:remove", item.id)) || !props.editable,
                                 onclick: {
@@ -2199,7 +2199,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                             intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field: MechanicalHardwareTextField::Thread },
                             editable: props.editable,
                         } } }
-                        div { class: "m1-mechanical-fit-points",
+                        div { class: "grid grid-cols-4 items-end gap-1.5 [@container_mechanical_(max-width:320px)]:grid-cols-2",
                             { rsx! { DimensionField {
                                 key: "{props.owner_key}:hardware:{item.id}:length",
                                 identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
@@ -2230,13 +2230,13 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                     }
                 }
             }
-            div { class: "m1-mechanical-spec-group",
+            div { class: "mt-2.5 grid gap-2 border-t border-border pt-2.5 [&>header]:flex [&>header]:items-center [&>header]:justify-between [&>header]:gap-2",
                 header {
                     strong { "Critical fits" }
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("critical-fit:add") || !props.editable,
                         onclick: {
                             let mut sequence = request_sequence;
@@ -2247,15 +2247,15 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                         "Add fit dimension"
                     }
                 }
-                p { class: "m1-mechanical-help", "Endpoints are document XY coordinates. Length is calculated from the saved endpoints." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Endpoints are document XY coordinates. Length is calculated from the saved endpoints." }
                 for (fit, measured_length) in fit_rows.iter() {
-                    article { class: "m1-mechanical-spec-card", key: "{props.owner_key}:fit:{fit.id}",
+                    article { class: "grid min-w-0 gap-2 rounded-md border border-border bg-card p-2.5 [&>header]:flex [&>header]:items-center [&>header]:justify-between [&>header]:gap-2", key: "{props.owner_key}:fit:{fit.id}",
                         header {
                             strong { if fit.label.is_empty() { "Fit dimension" } else { "{fit.label}" } }
                             Button {
                                 variant: ButtonVariant::Secondary,
                                 button_type: "button",
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Remove fit {fit.id}",
                                 disabled: mechanical_action_pending(&format!("critical-fit:{}:remove", fit.id)) || !props.editable,
                                 onclick: {
@@ -2307,7 +2307,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                             intent: MechanicalTextIntent::CriticalFit { fit_id: fit.id.clone(), field: MechanicalCriticalFitTextField::Tolerance },
                             editable: props.editable,
                         } } }
-                        div { class: "m1-mechanical-fit-points",
+                        div { class: "grid grid-cols-4 items-end gap-1.5 [@container_mechanical_(max-width:320px)]:grid-cols-2",
                             { rsx! { DimensionField {
                                 key: "{props.owner_key}:fit:{fit.id}:from-x",
                                 identity: props.identity.clone(),
@@ -2361,7 +2361,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
                             } } }
                         }
-                        output { class: "m1-mechanical-fit-result",
+                        output { class: "text-muted-foreground text-[11px] font-mono font-normal not-italic leading-[normal]",
                             "Measured {measured_length:.2} mm · {fit.tolerance}"
                         }
                     }
@@ -2478,7 +2478,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
         .collect::<Vec<_>>();
     let suggestions = &props.suggested_mounts;
     rsx! {
-        section { class: "m1-mechanical-option-group", aria_label: "Mounting and hardware",
+        section { aria_label: "Mounting and hardware",
             h3 { "Mounting & hardware" }
             if values.mount != MechanicalMount::Gasket {
                 MountCollectionControls {
@@ -2510,14 +2510,14 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                 CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Suggested mount locations · {suggestions.len()} candidates" }
                 CollapsibleContent { class: "data-[open=false]:hidden",
                 if suggestions.is_empty() {
-                    p { class: "m1-mechanical-help", "Resolve the current geometry to see clearance-tested mounting locations." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Resolve the current geometry to see clearance-tested mounting locations." }
                 } else if values.internal_gasket {
-                    p { class: "m1-mechanical-help", "Candidates clear the current openings and battery envelope. Adopting them is explicit; later edits keep the chosen coordinates fixed." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Candidates clear the current openings and battery envelope. Adopting them is explicit; later edits keep the chosen coordinates fixed." }
                     Button {
                         variant: ButtonVariant::Ghost,
                         size: ButtonSize::Sm,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("adopt-closure-positions") || !props.editable,
                         onclick: {
                             let mut sequence = props.request_sequence;
@@ -2529,8 +2529,8 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                         "Adopt closure positions"
                     }
                 } else {
-                    p { class: "m1-mechanical-help", "Clearance-tested positions on this board. Adopt them as suspension mounts or closure screws." }
-                    div { class: "m1-mechanical-mount-candidates",
+                    p { class: "text-muted-foreground text-sm leading-normal", "Clearance-tested positions on this board. Adopt them as suspension mounts or closure screws." }
+                    div {
                         for (index, mount) in suggestions.iter().enumerate() {
                             span { key: "{mount.id}", "{index + 1}: X {mount.at.x:.1}, Y {mount.at.y:.1} mm" }
                         }
@@ -2539,7 +2539,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                         variant: ButtonVariant::Ghost,
                         size: ButtonSize::Sm,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("suspension-mounts") || !props.editable,
                         onclick: {
                             let mut sequence = props.request_sequence;
@@ -2553,7 +2553,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("closure-mounts") || !props.editable,
                         onclick: {
                             let mut sequence = props.request_sequence;
@@ -2610,7 +2610,7 @@ fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
                 Button {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: mechanical_action_pending(&format!("{}-mounts", mount_collection_id(props.collection))) || !props.editable,
                     onclick: {
                         let mut sequence = props.request_sequence;
@@ -2653,7 +2653,7 @@ fn MountRow(props: MountRowProps) -> Element {
         mount_id: id.to_owned(),
     };
     rsx! {
-        fieldset { class: "m1-mechanical-mount-row", disabled: !props.editable,
+        fieldset { disabled: !props.editable,
             legend { "{label} {props.index}" }
             SettingsSelect {
                 label: "Mount type",
@@ -2701,7 +2701,7 @@ fn MountRow(props: MountRowProps) -> Element {
             Button {
                 variant: ButtonVariant::Secondary,
                 button_type: "button",
-                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 aria_label: "Remove {label} {props.index}",
                 disabled: mechanical_action_pending(&format!("mount:{}:{}:remove", mount_collection_id(props.collection), mount.id)) || !props.editable,
                 onclick: {
@@ -2734,12 +2734,12 @@ fn BatteryControls(props: BatteryControlsProps) -> Element {
     let battery = props.values.battery.as_ref();
     let request_sequence = props.request_sequence;
     rsx! {
-        section { class: "m1-mechanical-option-group", aria_label: "Openings and battery",
+        section { aria_label: "Openings and battery",
             h3 { "Openings & battery" }
-            section { class: "m1-mechanical-group", aria_label: "Battery",
+            section { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", aria_label: "Battery",
                 h4 { "Battery" }
                 if props.values.transport == HardwareTransport::Wireless {
-                    p { class: "m1-mechanical-help", "Included for wireless. Set your cell dimensions; the battery shares the space below the PCB with bottom foam." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Included for wireless. Set your cell dimensions; the battery shares the space below the PCB with bottom foam." }
                 } else {
                     FieldLabel { class: "min-h-control-touch", html_for: format!("case-battery-{}-include", dioxus::core::current_scope_id().0),
                         Checkbox {
@@ -2763,7 +2763,7 @@ fn BatteryControls(props: BatteryControlsProps) -> Element {
                     }
                 }
                 if let Some(battery) = battery {
-                    fieldset { class: "m1-mechanical-group m1-mechanical-battery-fields", disabled: !props.editable,
+                    fieldset { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", disabled: !props.editable,
                         legend { "Battery dimensions and cable · mm" }
                         DimensionField {
                             key: "{props.owner_key}:battery-width",
@@ -2882,13 +2882,13 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
         Collapsible { keep_mounted: true, default_open: false,
             CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Case openings · {openings.len()}" }
             CollapsibleContent { class: "data-[open=false]:hidden",
-            div { class: "m1-mechanical-openings",
-                div { class: "m1-mechanical-opening-title",
+            div { class: "grid min-w-0 gap-2.5",
+                div { class: "flex flex-wrap items-center justify-between gap-2",
                     strong { "Document-coordinate access openings" }
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("case-openings") || !props.editable,
                         onclick: {
                             let mut sequence = request_sequence;
@@ -2901,7 +2901,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                     }
                 }
                 if openings.is_empty() {
-                    p { class: "m1-mechanical-help", "No volumes configured." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "No volumes configured." }
                 }
                 for (opening_index, opening) in openings.iter().enumerate() {
                     {
@@ -2911,13 +2911,13 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                         let owner = owner_key.clone();
                         let opening_id = opening.id.clone();
                         rsx! {
-                            fieldset { class: "m1-mechanical-opening", key: "{owner}:opening:{opening_id}", disabled: !props.editable,
-                                div { class: "m1-mechanical-opening-title",
+                            fieldset { class: "m-0 grid min-w-0 gap-2.5 rounded-sm border border-border p-2.5", key: "{owner}:opening:{opening_id}", disabled: !props.editable,
+                                div { class: "flex flex-wrap items-center justify-between gap-2",
                                     strong { "Volume {opening_index + 1}" }
                                     Button {
                                         variant: ButtonVariant::Secondary,
                                         button_type: "button",
-                                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                         aria_label: "Remove volume {opening_index + 1}",
                                         disabled: mechanical_action_pending("case-openings") || !props.editable,
                                         onclick: {
@@ -2927,7 +2927,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                         "Remove"
                                     }
                                 }
-                                div { class: "m1-mechanical-opening-fields",
+                                div { class: "grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2.5",
                                     { rsx! { DimensionField {
                                         key: "{owner}:opening:{opening_id}:bottom-z",
                                         identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
@@ -2945,7 +2945,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                 }
                                 h4 { "XY footprint" }
                                 for (point_index, vertex) in opening.vertices.iter().enumerate() {
-                                    div { class: "m1-mechanical-opening-vertex",
+                                    div { class: "grid grid-cols-[72px_repeat(2,minmax(0,1fr))] items-end gap-2.5 [&>span]:pb-2 [&>span]:text-xs [&>span]:text-muted-foreground",
                                         span { "Vertex {point_index + 1}" }
                                         { rsx! { DimensionField {
                                             key: "{owner}:opening:{opening_id}:point:{point_index}:x",
@@ -2965,7 +2965,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                             variant: ButtonVariant::Ghost,
                                             size: ButtonSize::Sm,
                                             button_type: "button",
-                                            class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                             aria_label: "Remove access opening {opening_index + 1} vertex {point_index + 1}",
                                             disabled: mechanical_action_pending("case-openings") || !props.editable || opening.vertices.len() <= 3,
                                             onclick: {
@@ -2982,7 +2982,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                 Button {
                                     variant: ButtonVariant::Secondary,
                                     button_type: "button",
-                                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                     aria_label: "Add vertex to volume {opening_index + 1}",
                                     disabled: mechanical_action_pending("case-openings") || !props.editable,
                                     onclick: {
@@ -3097,12 +3097,12 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
             .collect::<Vec<_>>(),
     );
     rsx! {
-        section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
+        section { class: "grid gap-3 [&_h3]:m-0 [&_p]:m-0 [&_label]:grid-cols-1 [&_small]:text-xs [&_small]:leading-normal [&_small]:text-muted-foreground", aria_label: "Mechanical stack settings",
             Button {
                 variant: ButtonVariant::Ghost,
                 size: ButtonSize::Sm,
                 button_type: "button",
-                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 onclick: move |_| props.on_select_layer.call(String::new()),
                 "Assembly settings"
             }
@@ -3110,7 +3110,7 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
             if props.layer.is_previous {
                 div { role: "status", Callout { "Showing previous generated geometry. Measurements describe the prior accepted revision; settings below reflect the current configuration." } }
             }
-            fieldset { class: "m1-mechanical-group", disabled: !props.editable,
+            fieldset { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", disabled: !props.editable,
                 for (field, label, value) in fields {
                     DimensionField {
                         key: "{props.owner_key}:context:{props.layer.id}:{field.field_id()}",
@@ -3129,20 +3129,20 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
                 }
             }
             if let Some(thickness) = props.layer.resolved_body_thickness {
-                p { class: "m1-mechanical-help", "Resolved thickness {thickness:.2} mm." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Resolved thickness {thickness:.2} mm." }
             }
             if props.values.internal_gasket && matches!(props.layer.id.as_str(), "retainer" | "bottom") {
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     onclick: move |_| props.on_select_layer.call(String::new()),
                     "Edit shared closure hardware"
                 }
             }
             if !errors.is_empty() {
-                section { class: "m1-mechanical-group", aria_label: "Fit issues",
+                section { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", aria_label: "Fit issues",
                     h3 { "Fit issues" }
                     ItemGroup {
                         for finding in errors.iter() {
@@ -3157,7 +3157,7 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
                                         variant: ButtonVariant::Ghost,
                                         size: ButtonSize::Sm,
                                         button_type: "button",
-                                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                         aria_label: "Show finding {id}",
                                         onclick: move |_| on_show_finding.call(id.clone()),
                                         "Show"
@@ -3186,7 +3186,7 @@ fn gasket_fit_issues(
         return rsx! {};
     }
     rsx! {
-        section { class: "m1-mechanical-group", aria_label: "Fit issues",
+        section { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", aria_label: "Fit issues",
             h3 { "Fit issues" }
             ItemGroup {
                 for finding in errors {
@@ -3201,7 +3201,7 @@ fn gasket_fit_issues(
                                   variant: ButtonVariant::Ghost,
                                   size: ButtonSize::Sm,
                                   button_type: "button",
-                                  class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                  class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                   aria_label: "Show finding {id}",
                                   onclick: move |_| on_show_finding.call(id.clone()),
                                   "Show"
@@ -3296,18 +3296,18 @@ struct ManufacturingControlsProps {
 fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
     let version = "2026-09-24";
     rsx! {
-        section { class: "m1-mechanical-group", aria_label: "Manufacturing overrides",
+        section { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", aria_label: "Manufacturing overrides",
             h3 { "Manufacturing overrides" }
-            section { class: "m1-mechanical-profile", aria_label: "Per-part process overrides",
+            section { class: "grid gap-1.5", aria_label: "Per-part process overrides",
                 h4 { "Per-part process overrides {props.targets.iter().filter(|target| target.process.is_some()).count()}" }
                 for target in props.targets.iter() {
-                    div { class: "m1-mechanical-profile", key: "{target.part_id}",
+                    div { class: "grid gap-1.5", key: "{target.part_id}",
                         strong { "{target.name}" }
                         if let Some(process) = target.process.as_ref() {
                             Button {
                                 variant: ButtonVariant::Secondary,
                                 button_type: "button",
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Remove process override for {target.name}",
                                 disabled: mechanical_action_pending(&format!("process:{}:remove", target.part_id)) || !props.editable,
                                 onclick: {
@@ -3366,7 +3366,7 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                                 editable: props.editable,
                                 process_target: Some(target.part_id.clone()),
                             }
-                            p { class: "m1-mechanical-help", "Constraint set " code { "{process_constraint_version(process)}" } }
+                            p { class: "text-muted-foreground text-sm leading-normal", "Constraint set " code { "{process_constraint_version(process)}" } }
                             if !process.constraints_version.is_empty() && process.constraints_version != version {
                                 Alert { variant: AlertVariant::Destructive, "Unsupported constraint set. Diagnostics will block export." }
                             }
@@ -3374,7 +3374,7 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                             Button {
                                 variant: ButtonVariant::Secondary,
                                 button_type: "button",
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Add process override for {target.name}",
                                 disabled: mechanical_action_pending(&format!("process:{}:add", target.part_id)) || !props.editable,
                                 onclick: {
@@ -3389,12 +3389,12 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                         }
                     }
                 }
-                p { class: "m1-mechanical-help", "Supported constraint set: {version}." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Supported constraint set: {version}." }
             }
-            section { class: "m1-mechanical-profile", aria_label: "Stabilizer fit",
+            section { class: "grid gap-1.5", aria_label: "Stabilizer fit",
                 h4 { "Stabilizer fit {props.stabilizers.len()} wide keys" }
                 for stabilizer in props.stabilizers.iter() {
-                    div { class: "m1-mechanical-profile", key: "{stabilizer.part_id}",
+                    div { class: "grid gap-1.5", key: "{stabilizer.part_id}",
                         strong { "{stabilizer.reference} · {stabilizer.key_units}u" }
                         SettingsSelect {
                             label: "Stabilizer",
@@ -3417,11 +3417,11 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                                     SelectOption::<String> { index: 2usize, value: "plate-mount".to_owned(), text_value: "Custom plate mount".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Custom plate mount" }
                                 }
                         }
-                        p { class: "m1-mechanical-help", "Size and orientation follow the key layout." }
+                        p { class: "text-muted-foreground text-sm leading-normal", "Size and orientation follow the key layout." }
                     }
                 }
                 if props.stabilizers.is_empty() {
-                    p { class: "m1-mechanical-help", "No keys in this layout need stabilizers." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "No keys in this layout need stabilizers." }
                 }
             }
         }
@@ -3439,7 +3439,7 @@ pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
         return rsx! { p { role: "status", "Case settings are loading." } };
     };
     rsx! {
-        section { class: "m1-case-setup-basics", aria_label: "Basic case setup",
+        section { class: "grid gap-4 border-0 bg-transparent p-0", aria_label: "Basic case setup",
             SettingsSelect {
                 label: "Mounting style",
                 aria_label: "Case mounting style",
@@ -3806,7 +3806,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                     Button {
                         variant: ButtonVariant::Secondary, button_type: "button",
                         aria_label: "Remove profile {profile.name}",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending(&format!("profile:{}:remove", profile.definition_id)) || !props.editable,
                         onclick: {
                             let identity = props.identity.clone();
@@ -3832,7 +3832,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                 div { role: "status", Callout { "Choose a supported switch family to resolve the plate gap." } }
             }
             if props.targets.iter().any(|target| target.switch_profile) {
-                div { class: "m1-mechanical-profile-assignment",
+                div {
                     SettingsSelect {
                         label: "Library fit profile",
                         aria_label: "Library fit profile",
@@ -3874,7 +3874,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                         placeholder: "Choose a placed switch type…", options: props.targets.iter().filter(|target| target.switch_profile).cloned().collect(),
                     }
                 }
-                div { class: "m1-mechanical-profile-assignment",
+                div {
                     SettingsSelect {
                         label: "Library stabilizer profile",
                         aria_label: "Library stabilizer profile",
@@ -3973,7 +3973,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
     rsx! {
         section { class: "grid gap-3", aria_label: "Profile geometry",
             if let Some(port) = extraction_port.clone() {
-                section { class: "m1-mechanical-geometry-picker", aria_label: "Custom KiCad geometry",
+                section { aria_label: "Custom KiCad geometry",
                     div { class: "flex flex-wrap items-center justify-between gap-2",
                         strong { "Custom geometry layers" }
                         Button {
@@ -4013,9 +4013,9 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                         }
                     }
                     if let Some(loaded_geometry) = geometry_state() {
-                        p { class: "m1-mechanical-help", "Select exact primitives for plate cutouts, PCB holes, clearances or drawing guides, then apply the selected geometry." }
+                        p { class: "text-muted-foreground text-sm leading-normal", "Select exact primitives for plate cutouts, PCB holes, clearances or drawing guides, then apply the selected geometry." }
                         for primitive in loaded_geometry.primitives.iter() {
-                            div { class: "m1-mechanical-geometry-row", role: "group", aria_label: "Geometry {primitive.id}", key: "{primitive.id}",
+                            div { role: "group", aria_label: "Geometry {primitive.id}", key: "{primitive.id}",
                                 FieldLabel { class: "min-h-control-touch", html_for: format!("case-geometry-{}-{}", dioxus::core::current_scope_id().0, primitive.id),
                                     Checkbox {
                                         id: format!("case-geometry-{}-{}", dioxus::core::current_scope_id().0, primitive.id),
@@ -4173,7 +4173,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                 Button {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Add polygon to {props.title}",
                     disabled: !props.editable,
                     onclick: {
@@ -4204,12 +4204,12 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                     aria_label: "{props.title} contour {polygon_index + 1}",
                     key: "{props.title}:{polygon_index}",
                     disabled: !props.editable,
-                    div { class: "m1-mechanical-opening-title",
+                    div { class: "flex flex-wrap items-center justify-between gap-2",
                         strong { "Contour {polygon_index + 1}" }
                         Button {
                             variant: ButtonVariant::Secondary,
                             button_type: "button",
-                            class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             aria_label: "Remove contour {polygon_index + 1} from {props.title}",
                             disabled: !props.editable,
                             onclick: {
@@ -4303,7 +4303,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                             Button {
                                 variant: ButtonVariant::Ghost,
                                 size: ButtonSize::Sm,
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Remove {props.title} contour {polygon_index + 1} vertex {point_index + 1}",
                                 disabled: !props.editable || polygon.len() <= 3,
                                 onclick: {
@@ -4321,7 +4321,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: !props.editable,
                         aria_label: "Add vertex to {props.title} contour {polygon_index + 1}",
                         onclick: {
@@ -4365,7 +4365,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                 Button {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",
-                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Add volume to {props.title}",
                     disabled: !props.editable,
                     onclick: {
@@ -4398,12 +4398,12 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                     aria_label: "{props.title} volume {opening_index + 1}",
                     key: "{props.title}:{opening_index}",
                     disabled: !props.editable,
-                    div { class: "m1-mechanical-opening-title",
+                    div { class: "flex flex-wrap items-center justify-between gap-2",
                         strong { "Volume {opening_index + 1}" }
                         Button {
                             variant: ButtonVariant::Secondary,
                             button_type: "button",
-                            class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             aria_label: "Remove {props.title} volume {opening_index + 1}",
                             disabled: !props.editable,
                             onclick: {
@@ -4530,7 +4530,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                             Button {
                                 variant: ButtonVariant::Ghost,
                                 size: ButtonSize::Sm,
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Remove {props.title} volume {opening_index + 1} vertex {point_index + 1}",
                                 disabled: !props.editable || opening.points.len() <= 3,
                                 onclick: {
@@ -4548,7 +4548,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
-                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: !props.editable,
                         aria_label: "Add vertex to {props.title} volume {opening_index + 1}",
                         onclick: {
@@ -5209,7 +5209,7 @@ struct DiagnosticsProps {
 #[component]
 fn Diagnostics(props: DiagnosticsProps) -> Element {
     rsx! {
-        section { class: "m1-mechanical-group", aria_label: "Mechanical diagnostics",
+        section { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", aria_label: "Mechanical diagnostics",
             h3 { "Mechanical diagnostics · {props.findings.len()}" }
             if props.findings.is_empty() {
                 Callout { "No current mechanical findings." }
@@ -5226,7 +5226,7 @@ fn Diagnostics(props: DiagnosticsProps) -> Element {
                                 variant: ButtonVariant::Ghost,
                                 size: ButtonSize::Sm,
                                 button_type: "button",
-                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Show finding {id}",
                                 onclick: move |_| callback.call(id.clone()),
                                 "Show"
@@ -5904,7 +5904,7 @@ mod contextual_layer_tests {
             .click();
         rendered().await;
         let extraction_error = root
-            .query_selector(".m1-mechanical-geometry-picker [role='alert']")
+            .query_selector("[aria-label='Custom KiCad geometry'] [role='alert']")
             .unwrap()
             .and_then(|alert| alert.text_content());
         assert!(
@@ -7096,6 +7096,14 @@ mod contextual_layer_tests {
 
         // Reachable only for a legacy half, and it submits nothing on its own.
         let make_local = by_role_name(&root, "button", "Make construction local for left").unwrap();
+        let construction = make_local.closest("fieldset").unwrap().unwrap();
+        assert!(
+            construction
+                .class_name()
+                .split_whitespace()
+                .any(|class| class == "grid")
+        );
+        assert!(make_local.class_name().contains("min-h-control-touch"));
         assert!(
             element("#case-legacy-construction-last-request")
                 .text_content()
@@ -7107,9 +7115,7 @@ mod contextual_layer_tests {
         // The confirmation states the whole change before anything is submitted.
         make_local.click();
         rendered().await;
-        let confirmation = element(".m1-mechanical-legacy-construction")
-            .text_content()
-            .unwrap();
+        let confirmation = construction.text_content().unwrap();
         assert!(
             confirmation.contains("left")
                 && confirmation.contains("this half's local values")
@@ -7589,6 +7595,40 @@ mod contextual_layer_tests {
             .is_some(),
             "the fits disclosure names its counts"
         );
+        let outputs = root.query_selector_all("output").unwrap();
+        let measurement = (0..outputs.length())
+            .filter_map(|index| outputs.item(index))
+            .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
+            .find(|output| {
+                output
+                    .text_content()
+                    .is_some_and(|text| text.contains("Measured 10.00 mm"))
+            })
+            .expect("the measured fit is displayed");
+        let classes = measurement.get_attribute("class").unwrap_or_default();
+        for class in ["text-muted-foreground", "text-[11px]", "font-mono"] {
+            assert!(
+                classes.split_whitespace().any(|name| name == class),
+                "measurement uses {class}"
+            );
+        }
+        let paragraphs = root.query_selector_all("p").unwrap();
+        let help = (0..paragraphs.length())
+            .filter_map(|index| paragraphs.item(index))
+            .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
+            .find(|paragraph| {
+                paragraph
+                    .text_content()
+                    .is_some_and(|text| text.contains("Endpoints are document XY coordinates"))
+            })
+            .expect("the fit coordinate guidance is displayed");
+        let classes = help.get_attribute("class").unwrap_or_default();
+        for class in ["text-muted-foreground", "text-sm", "leading-normal"] {
+            assert!(
+                classes.split_whitespace().any(|name| name == class),
+                "guidance uses {class}"
+            );
+        }
         by_role_name(&root, "button", "Mount link for hardware hw-1")
             .unwrap()
             .click();
@@ -9165,7 +9205,7 @@ fn StackupPreview(values: MechanicalSettingsValues) -> Element {
         ("Bottom foam", values.bottom_foam_thickness),
         ("Bottom", values.bottom_thickness),
     ];
-    rsx! { figure { class: "m1-stackup-preview",
+    rsx! { figure { class: "m-0 mb-3 [&_svg]:block [&_svg]:max-h-[180px] [&_svg]:w-full [&_rect]:fill-surface [&_rect]:stroke-primary [&_rect]:[stroke-width:1] [&_text]:fill-foreground [&_text]:font-sans [&_text]:text-[11px] [&_figcaption]:text-xs [&_figcaption]:text-muted-foreground",
         svg { view_box: "0 0 240 156", role: "img", "aria-label": "Mechanical stackup preview",
             for (index, (name, thickness)) in rows.iter().enumerate().filter(|(_, (_, thickness))| *thickness > 0.0) {
                 g { "data-layer": *name,

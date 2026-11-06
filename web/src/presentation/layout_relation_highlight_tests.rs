@@ -155,7 +155,9 @@ fn highlighted_columns(root_id: &str) -> Vec<String> {
         .unwrap()
         .document()
         .unwrap()
-        .query_selector_all(&format!("#{root_id} .m1-matrix-key.is-relation-highlight"))
+        .query_selector_all(&format!(
+            "#{root_id} [data-matrix-id][data-relation-highlight='true']"
+        ))
         .unwrap();
     (0..list.length())
         .map(|index| {
@@ -248,7 +250,7 @@ async fn mount(root_id: &'static str) -> Probe {
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     wait_until("the Layout canvas draws the matrix keys", || {
-        count(root_id, ".m1-matrix-key") > 0
+        count(root_id, "[data-matrix-id][data-row][data-column]") > 0
     })
     .await;
     probe
@@ -290,16 +292,19 @@ async fn hovering_an_inherited_column_highlights_only_its_keys() {
         "hovering Column 4 marks exactly Column 4's keys (data-column 3)"
     );
     assert_eq!(
-        count(root_id, ".m1-matrix-key.is-selected"),
+        count(root_id, "[data-matrix-id][data-selected='true']"),
         ROWS,
         "the selected Column 3 keys keep the selection treatment"
     );
     dispatch(&reference, "pointerleave");
     wait_until("leaving the reference clears its highlight", || {
-        count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
+        count(root_id, "[data-matrix-id][data-relation-highlight='true']") == 0
     })
     .await;
-    assert_eq!(count(root_id, ".m1-matrix-key.is-relation-highlight"), 0);
+    assert_eq!(
+        count(root_id, "[data-matrix-id][data-relation-highlight='true']"),
+        0
+    );
     assert_eq!(
         probe.revision(),
         before,
@@ -347,10 +352,13 @@ async fn keyboard_focus_highlights_and_blur_clears() {
     );
     reference.blur().unwrap();
     wait_until("blurring the reference clears its highlight", || {
-        count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
+        count(root_id, "[data-matrix-id][data-relation-highlight='true']") == 0
     })
     .await;
-    assert_eq!(count(root_id, ".m1-matrix-key.is-relation-highlight"), 0);
+    assert_eq!(
+        count(root_id, "[data-matrix-id][data-relation-highlight='true']"),
+        0
+    );
 }
 
 #[wasm_bindgen_test]
@@ -359,21 +367,24 @@ async fn changing_the_selection_clears_the_highlight() {
     let probe = mount_column_relations(root_id).await;
     dispatch(&probe.inherited_by_reference(), "pointerenter");
     wait_until("hovering the reference highlights every key", || {
-        count(root_id, ".m1-matrix-key.is-relation-highlight") == ROWS
+        count(root_id, "[data-matrix-id][data-relation-highlight='true']") == ROWS
     })
     .await;
-    assert_eq!(count(root_id, ".m1-matrix-key.is-relation-highlight"), ROWS);
+    assert_eq!(
+        count(root_id, "[data-matrix-id][data-relation-highlight='true']"),
+        ROWS
+    );
     probe.select(objects::TreeContext::Key {
         matrix_id: MATRIX.into(),
         row: 0,
         column: 0,
     });
     wait_until("a selection change clears the Relations highlight", || {
-        count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
+        count(root_id, "[data-matrix-id][data-relation-highlight='true']") == 0
     })
     .await;
     assert_eq!(
-        count(root_id, ".m1-matrix-key.is-relation-highlight"),
+        count(root_id, "[data-matrix-id][data-relation-highlight='true']"),
         0,
         "a selection change clears the Relations highlight"
     );
@@ -385,10 +396,10 @@ async fn a_key_removed_while_highlighted_leaves_nothing_highlighted() {
     let probe = mount_column_relations(root_id).await;
     dispatch(&probe.inherited_by_reference(), "pointerenter");
     wait_until("hovering the reference highlights Column 4", || {
-        count(root_id, ".m1-matrix-key.is-relation-highlight") == ROWS
+        count(root_id, "[data-matrix-id][data-relation-highlight='true']") == ROWS
     })
     .await;
-    let keys_before = count(root_id, ".m1-matrix-key");
+    let keys_before = count(root_id, "[data-matrix-id][data-row][data-column]");
     let revision = probe.revision();
     probe
         .land(set_matrix_command(revision, matrix_json(removed_column(3))))
@@ -396,8 +407,8 @@ async fn a_key_removed_while_highlighted_leaves_nothing_highlighted() {
     wait_until(
         "the removed keys leave the canvas and their highlight",
         || {
-            count(root_id, ".m1-matrix-key") == keys_before - ROWS
-                && count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
+            count(root_id, "[data-matrix-id][data-row][data-column]") == keys_before - ROWS
+                && count(root_id, "[data-matrix-id][data-relation-highlight='true']") == 0
         },
     )
     .await;
@@ -406,12 +417,12 @@ async fn a_key_removed_while_highlighted_leaves_nothing_highlighted() {
         "the removal of Column 4's keys landed"
     );
     assert_eq!(
-        count(root_id, ".m1-matrix-key"),
+        count(root_id, "[data-matrix-id][data-row][data-column]"),
         keys_before - ROWS,
         "the removed keys leave the canvas"
     );
     assert_eq!(
-        count(root_id, ".m1-matrix-key.is-relation-highlight"),
+        count(root_id, "[data-matrix-id][data-relation-highlight='true']"),
         0,
         "the removed keys are not highlighted"
     );
@@ -427,16 +438,22 @@ async fn unmounting_the_actual_relations_reference_releases_its_highlight() {
     reference.focus().unwrap();
     wait_until(
         "actual Relations reference highlights its canvas keys",
-        || count(root_id, ".m1-matrix-key.is-relation-highlight") == ROWS,
+        || count(root_id, "[data-matrix-id][data-relation-highlight='true']") == ROWS,
     )
     .await;
     control(root_id, "tab", "Properties").unwrap().click();
     wait_until(
         "Properties unmounts the reference and releases its highlight",
-        || !reference.is_connected() && count(root_id, ".m1-matrix-key.is-relation-highlight") == 0,
+        || {
+            !reference.is_connected()
+                && count(root_id, "[data-matrix-id][data-relation-highlight='true']") == 0
+        },
     )
     .await;
-    assert_eq!(count(root_id, ".m1-matrix-key.is-selected"), ROWS);
+    assert_eq!(
+        count(root_id, "[data-matrix-id][data-selected='true']"),
+        ROWS
+    );
     assert_eq!(
         probe.revision(),
         revision,

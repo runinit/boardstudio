@@ -217,11 +217,11 @@ pub(super) fn Inspector() -> Element {
         })))
     };
     let (x, y) = draft();
-    rsx! { aside { class: "m1-inspector", "aria-label": "Inspect",
-        header { h2 { "Inspect" } }
-        h2 { "Position" }
+    rsx! { aside { class: "flex flex-col min-w-0 min-h-0 overflow-auto bg-transparent max-[760px]:overflow-visible", "aria-label": "Inspect",
+        header { class: "hidden", h2 { "Inspect" } }
+        h2 { class: "hidden", "Position" }
         if let Some(part) = selected {
-            p { "{part.reference}" }
+            p { class: "mx-4 text-muted-foreground", "{part.reference}" }
             div { onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) },
             Field {
             FieldLabel { html_for: "m1-position-x", "X (mm)" }
@@ -258,7 +258,7 @@ pub(super) fn Inspector() -> Element {
                 edit.y_changed = true;
                 submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py });
             }} } InputGroupText { "mm" } } } }
-            Button { disabled: apply_disabled(), onclick: submit, "Apply position" }
+            Button { class: "mx-4 mt-1", disabled: apply_disabled(), onclick: submit, "Apply position" }
             if let Some(message) = failure() { FieldError { "{message}" } }
             if numeric_edit.borrow().is_some() { div { role: "status", Callout { variant: CalloutVariant::Info, "Preview only. Press Enter or Apply position to save, or Escape to cancel." } } }
         } else { Callout { variant: CalloutVariant::Info, "Select a component to edit its position." } }

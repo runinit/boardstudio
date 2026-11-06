@@ -36,10 +36,10 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
     let Some(relations) = props.relations.as_ref() else {
         return rsx! {
             section {
-                class: "m1-layout-component-inspector",
+                class: "grid min-w-0 content-start gap-3 px-4 pt-3 pb-5 text-foreground [&_h2]:m-0 [&_h3]:m-0 [&_p]:m-0",
                 aria_labelledby: "m1-relations-heading",
                 h2 { id: "m1-relations-heading", "Relationships" }
-                p { class: "m1-layout-component-relation-summary",
+                p { class: "text-xs leading-normal",
                     "This selection is no longer available."
                 }
             }
@@ -47,7 +47,7 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
     };
     rsx! {
         section {
-            class: "m1-layout-component-inspector",
+            class: "grid min-w-0 content-start gap-3 px-4 pt-3 pb-5 text-foreground [&_h2]:m-0 [&_h3]:m-0 [&_p]:m-0",
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == " " {
                     event.stop_propagation();
@@ -59,7 +59,6 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
             aria_labelledby: "m1-relations-heading",
             h2 { id: "m1-relations-heading", "Relationships" }
             section {
-                class: "m1-relations-structure",
                 aria_labelledby: "m1-relations-structure-heading",
                 h3 { id: "m1-relations-structure-heading", "Structure" }
                 ul {
@@ -70,7 +69,6 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
             }
             if !relations.departures.is_empty() {
                 section {
-                    class: "m1-relations-departures",
                     aria_labelledby: "m1-relations-departures-heading",
                     h3 { id: "m1-relations-departures-heading", "Local adjustments" }
                     ul {
@@ -86,7 +84,6 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
             }
             if !relations.constraints.is_empty() {
                 section {
-                    class: "m1-relations-constraints",
                     aria_labelledby: "m1-relations-constraints-heading",
                     h3 { id: "m1-relations-constraints-heading", "Authored constraints" }
                     ul {
@@ -106,9 +103,9 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
 #[component]
 fn StructureRow(item: RelationItem, on_navigate: EventHandler<objects::TreeContext>) -> Element {
     rsx! {
-        li { class: "m1-relations-row", "data-relation-label": "{item.label}",
+        li { "data-relation-label": "{item.label}",
             Item { class: "p-0",
-                span { class: "m1-layout-component-matrix-note", "{item.label}" }
+                span { class: "text-xs leading-[1.45] text-muted-foreground", "{item.label}" }
                 " "
                 if let Some(target) = item.target.clone() {
                     RelationReference {
@@ -133,10 +130,9 @@ fn DepartureRow(
 ) -> Element {
     rsx! {
         li {
-            class: "m1-relations-row",
             "data-relation-departure": "{departure.parameter}",
             Item { class: "p-0",
-                span { class: "m1-layout-component-matrix-note", "{departure.parameter}" }
+                span { class: "text-xs leading-[1.45] text-muted-foreground", "{departure.parameter}" }
                 " "
                 if let Some(target) = departure.target.clone() {
                     RelationReference {
@@ -186,7 +182,6 @@ fn DepartureActionButton(
                 Button {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",
-                    class: "m1-inspector-secondary",
                     disabled: control.disabled,
                     aria_label: "{label}: {parameter}",
                     aria_describedby: described_by,
@@ -203,12 +198,11 @@ fn DepartureActionButton(
             if let Some(reason) = control.reason.as_deref() {
                 small {
                     id: "{reason_id}",
-                    class: "m1-empty-note m1-matrix-transform-unavailable",
                     "{reason}"
                 }
             }
             if let Some(message) = error.as_deref() {
-                Alert { class: "m1-matrix-transform-error",
+                Alert {
     variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
             }
         }
@@ -227,10 +221,9 @@ fn ConstraintRow(
     };
     rsx! {
         li {
-            class: "m1-relations-row",
             "data-relation-constraint": "{constraint.id}",
             Item { class: "p-0",
-                span { class: "m1-layout-component-matrix-note", "{kind}" }
+                span { class: "text-xs leading-[1.45] text-muted-foreground", "{kind}" }
                 " "
                 ReferenceButton {
                     reference: constraint.source.clone(),
@@ -244,7 +237,7 @@ fn ConstraintRow(
                     on_navigate,
                 }
                 if constraint.takes_precedence {
-                    small { class: "m1-empty-note", " Takes priority over the attachment to its key." }
+                    small { " Takes priority over the attachment to its key." }
                 }
             }
         }
@@ -326,7 +319,6 @@ fn RelationReference(props: RelationReferenceProps) -> Element {
             Button {
                 variant: ButtonVariant::Secondary,
                 button_type: "button",
-                class: "m1-inspector-secondary m1-relations-reference",
                 aria_describedby: described_by,
                 onpointerenter: move |_| highlight.show(&enter),
                 onpointerleave: move |_| highlight.release(&leave),
@@ -339,7 +331,7 @@ fn RelationReference(props: RelationReferenceProps) -> Element {
             }
         }
         if !parts.is_empty() {
-            span { id: "{description_id}", class: "m1-visually-hidden",
+            span { id: "{description_id}", class: "sr-only",
                 "Highlights the Layout canvas parts for {what}."
             }
         }
@@ -361,14 +353,17 @@ pub(super) fn RelationMatrixKey(
     on_pointer_down: EventHandler<PointerEvent>,
 ) -> Element {
     let RelationHighlight(highlight) = use_context::<RelationHighlight>();
-    let highlighted = part_id.as_ref().is_some_and(|id| {
-        highlight()
-            .as_ref()
-            .is_some_and(|part_ids| part_ids.contains(id))
-    });
+    let highlighted = !selected
+        && part_id.as_ref().is_some_and(|id| {
+            highlight()
+                .as_ref()
+                .is_some_and(|part_ids| part_ids.contains(id))
+        });
     rsx! {
         rect {
-            class: if selected { "m1-matrix-key is-selected" } else if highlighted { "m1-matrix-key is-relation-highlight" } else { "m1-matrix-key" },
+            class: if selected { "pointer-events-none fill-selection stroke-primary stroke-[0.42]" } else if highlighted { "pointer-events-none fill-geometry-fill-muted/55 stroke-geometry-part stroke-[0.42] [stroke-dasharray:1.2_0.8]" } else { "pointer-events-none fill-geometry-fill-muted/55 stroke-geometry-outline stroke-[0.28]" },
+            "data-selected": "{selected}",
+            "data-relation-highlight": "{highlighted}",
             x: "{x}",
             y: "{y}",
             width: "{width}",
@@ -386,13 +381,16 @@ pub(super) fn RelationMatrixKey(
 #[component]
 pub(super) fn RelationPartOutline(part_id: String, selected: bool, points: String) -> Element {
     let RelationHighlight(highlight) = use_context::<RelationHighlight>();
-    let highlighted = highlight()
-        .as_ref()
-        .is_some_and(|part_ids| part_ids.contains(&part_id));
+    let highlighted = !selected
+        && highlight()
+            .as_ref()
+            .is_some_and(|part_ids| part_ids.contains(&part_id));
     rsx! {
         polygon {
             points: "{points}",
-            class: if selected { "m1-part selected" } else if highlighted { "m1-part is-relation-highlight" } else { "m1-part" },
+            class: if selected { "cursor-grab fill-selection stroke-primary stroke-[0.8]" } else if highlighted { "cursor-grab fill-geometry-body stroke-geometry-part stroke-[0.8] [stroke-dasharray:1.2_0.8]" } else { "cursor-grab fill-geometry-body stroke-geometry-part stroke-[0.4]" },
+            "data-geometry": "part-outline",
+            "data-relation-highlight": "{highlighted}",
         }
     }
 }

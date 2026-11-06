@@ -366,7 +366,7 @@ pub(super) fn use_contextual_inspector_tab_reset(
 
 pub(super) fn objects(input: ObjectsInput) -> Element {
     rsx! {
-        div { class: "m1-layout-objects-content",
+        div { class: "block h-auto overflow-visible",
             objects::Objects {
                 selected_context: input.shared.selected_context,
                 on_select: input.shared.on_select,
@@ -392,13 +392,13 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
 pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
     let open = menu_open();
     rsx! {
-        div { class: "m1-layout-add-object",
+        div { class: "relative flex-none border-b border-border px-2.5 py-2 [&>button]:min-h-[38px] [&>button]:w-full",
             Button {
                 variant: ButtonVariant::Secondary,
                 button_type: "button",
                 id: "m1-add-object-trigger",
                 aria_label: "Add object",
-                class: "m1-layout-add-trigger max-[760px]:min-h-control-touch!",
+                class: "max-[760px]:min-h-control-touch!",
                 onkeydown: move |event: KeyboardEvent| {
                     if event.key().to_string() == " " {
                         // Preserve native Add activation before the window pan shortcut.
@@ -412,7 +412,7 @@ pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
                 onclick: move |_| menu_open.set(!menu_open()),
 
                 svg {
-                    class: "m1-add-icon",
+                    class: "size-4 fill-none stroke-current [stroke-linecap:round] [stroke-width:1.8]",
                     "aria-hidden": "true",
                     view_box: "0 0 16 16",
                     path { d: "M8 3v10M3 8h10" }
@@ -426,7 +426,7 @@ pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
 
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
     rsx! {
-            div { class: "m1-layout-toolbar-region",
+            div { class: "pointer-events-none absolute inset-0 z-[12] [container:layout-toolbar/inline-size] [&>*]:pointer-events-auto", "data-workspace-toolbar": "layout",
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == " " {
                     event.stop_propagation();
@@ -435,7 +435,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                     }
                 }
             },
-                div { class: "m1-canvas-toolbar",
+                div { class: "pointer-events-none! absolute inset-x-3 top-3 max-[760px]:inset-x-2 max-[760px]:top-2",
                     if !input.assembly_3d {
                         objects::LayoutCommandPill {
                             command_label: input.command_label,
@@ -455,7 +455,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                     }
                 }
                 if let Some(reason) = input.save_failure.as_ref() {
-                    Alert { class: "m1-save-error",
+                    Alert { class: "m-0 max-w-[min(44vw,440px)] text-xs text-destructive",
     variant: AlertVariant::Destructive,AlertDescription {  "Save failed: {reason}"  } }
                     if !input.save_conflict {
                         Button {
@@ -477,7 +477,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                         "Reload saved version"
                     }
                 }
-                div { class: "m1-layout-view-group board-tool-pill",
+                div { class: "absolute bottom-2 left-3 z-[11] flex gap-0.5 rounded-[8px] bg-toolbar p-[3px]",
                     ToggleGroup {
                         aria_label: "Design view",
                         horizontal: true,
@@ -511,7 +511,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                             }
                                             path { d: "M3 8h14M8 3v14" }
                                         }
-                                        span { class: "m1-visually-hidden", "2D" }
+                                        span { class: "sr-only", "2D" }
                                     }
                                 },
                             }
@@ -528,7 +528,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                         svg { view_box: "0 0 20 20", "aria-hidden": "true",
                                             path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" }
                                         }
-                                        span { class: "m1-visually-hidden", "3D assembly" }
+                                        span { class: "sr-only", "3D assembly" }
                                     }
                                 },
                             }
@@ -564,7 +564,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                                 }
                                                 path { d: "M2 7h3M2 13h3M15 7h3M15 13h3" }
                                             }
-                                            span { class: "m1-visually-hidden", "Footprints" }
+                                            span { class: "sr-only", "Footprints" }
                                         }
                                     },
                                 }
@@ -937,7 +937,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         }
         if input.key_size.projection.is_some() {
             Collapsible {
-                class: "m1-layout-key-size-section m1-matrix-transform-section",
+                class: "mx-4 mb-4 border-0",
                 keep_mounted: true,
                 open: Some(key_size_open()),
                 on_open_change: move |next| key_size_open.set(next),
@@ -978,7 +978,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                 on_escape: on_matrix_relationship_escape,
             }
             if input.findings_return_available {
-                div { class: "m1-layout-findings-return",
+                div { class: "flex items-center gap-2 text-sm text-muted-foreground",
                 onkeydown: move |event: KeyboardEvent| {
                     if event.key().to_string() == " " {
                         event.stop_propagation();
@@ -989,7 +989,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                 },
                     Button {
                         variant: ButtonVariant::Secondary,
-                        class: "m1-layout-findings-back max-[760px]:min-h-control-touch",
+                        class: "max-[760px]:min-h-control-touch",
                         id: "m1-layout-findings-back-to-selection",
                         button_type: "button",
                         onclick: move |_| input.on_findings_return.call(()),
@@ -1002,7 +1002,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             if show_context_header {
                 if let Some(title) = input.context_title.as_ref() {
                     section {
-                        class: if board_context_header { "m1-selected-context m1-board-context" } else { "m1-selected-context" },
+                        class: if board_context_header { "border-b border-border bg-card px-4 pt-6 pb-4 [&_h2]:m-0 [&_h2]:text-2xl [&_h2]:leading-tight [&_p]:mt-1.5 [&_p]:text-muted-foreground" } else { "border-b border-border bg-card px-4 pt-6 pb-4 [&_h2]:m-0 [&_h2]:text-xl [&_h2]:leading-tight [&_p]:mt-1.5 [&_p]:text-muted-foreground" },
                         "aria-label": "Selected context",
                         h2 { "{title}" }
                         if let Some(detail) = input.context_detail.as_ref() {

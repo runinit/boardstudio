@@ -231,7 +231,6 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
 
     rsx! {
             Collapsible {
-                class: "m1-layout-companion-placement",
                 attributes: vec![dioxus::events::onkeydown(move |event: KeyboardEvent| {
                     if event.key().to_string() == " " {
                         event.stop_propagation();
@@ -252,7 +251,7 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
                     hidden: !placement_section_open(),
                     inert: (!placement_section_open()).then_some(""),
 
-                    div { class: "m1-layout-component-fields",
+                    div {
                         {
                             let control_label = "Mode".to_owned();
                             let control_aria_label = "Mode".to_owned();
@@ -376,7 +375,6 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
                                 rsx! {
                                     Label {
                                         html_for: check_id.clone(),
-                                        class: "m1-layout-companion-placement-default",
                                         Checkbox {
                                             id: check_id.clone(),
                                             checked: Some(

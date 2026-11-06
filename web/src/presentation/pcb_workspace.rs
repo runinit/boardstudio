@@ -46,7 +46,7 @@ pub(super) struct ObjectsInput {
 
 pub(super) fn objects(input: ObjectsInput) -> Element {
     rsx! {
-        div { class: "m1-pcb-objects-content",
+        div {
         objects::Objects {
             selected_context: input.shared.selected_context,
             on_select: input.shared.on_select,
@@ -71,8 +71,8 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
 
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
     rsx! {
-        div { class: "m1-layout-toolbar-region m1-pcb-toolbar-region",
-        div { class: "m1-canvas-toolbar",
+        div { class: "pointer-events-none absolute inset-0 z-[12] [container:layout-toolbar/inline-size]", "data-workspace-toolbar": "pcb",
+        div { class: "pointer-events-none absolute inset-x-3 top-3 max-[760px]:inset-x-2 max-[760px]:top-2",
             objects::LayoutCommandPill {
                 command_label: input.command_label,
                 menu_owner_key: input.menu_owner_key,
@@ -95,9 +95,9 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
 pub(super) fn canvas(input: CanvasInput) -> Element {
     let handlers = input.handlers;
     rsx! {
-        section { class: "m1-pcb-workspace", "aria-label": "PCB workspace",
+        section { class: "flex min-h-0 min-w-0 flex-1", "aria-label": "PCB workspace",
             svg {
-                class: "m1-canvas m1-pcb-canvas",
+                class: "block h-full min-h-[250px] min-w-0 w-full flex-1 touch-none bg-canvas max-[760px]:min-h-0",
                 view_box: "{input.view_box}",
                 preserve_aspect_ratio: "xMidYMid meet",
                 tabindex: "0",
@@ -146,8 +146,8 @@ pub(super) fn PcbInspector(selected: bool, children: Element) -> Element {
     let mut wiring = use_signal(|| true);
     let mut position_open = use_signal(|| true);
     rsx! {
-        section { class: "m1-pcb-inspector", aria_label: "PCB inspector",
-            ToggleGroup { class: "m1-inspector-mode", aria_label: "PCB inspector mode", horizontal: true,
+        section { aria_label: "PCB inspector",
+            ToggleGroup { class: "mb-4 flex gap-0 border-b border-border", aria_label: "PCB inspector mode", horizontal: true,
                 pressed: Some([if wiring() { 1usize } else { 0usize }].into_iter().collect()),
                 on_pressed_change: move |pressed: std::collections::HashSet<usize>| {
                     if pressed.contains(&1) { wiring.set(true); }
@@ -157,7 +157,7 @@ pub(super) fn PcbInspector(selected: bool, children: Element) -> Element {
                 ToggleItem { index: 1usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Routing & nets" }
             }
             div { hidden: wiring(), inert: wiring().then_some(""),
-                Collapsible { open: position_open(), on_open_change: move |next| position_open.set(next), keep_mounted: true, class: "m1-inspector-section",
+                Collapsible { open: position_open(), on_open_change: move |next| position_open.set(next), keep_mounted: true, class: "border-0 border-t border-border py-4",
                     CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Position" }
                     CollapsibleContent { hidden: !position_open(), inert: (!position_open()).then_some(""), super::inspector::Inspector {} }
                 }

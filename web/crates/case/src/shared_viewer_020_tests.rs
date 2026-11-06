@@ -54,9 +54,9 @@ fn fixture() -> Element {
 fn inline_fixture() -> Element {
     rsx! {
         style { {include_str!("../../../assets/m1.css")} }
-        // Native inline controls use these maintained vanilla theme variables and legacy rules.
-        style { {include_str!("../../../tailwind.css").replacen("@import \"tailwindcss\";", "", 1)} }
-        section { class: "m1-case-panel m1-workspace-content", {viewer_fixture(true)} }
+        // Use the same generated utilities and theme tokens as the page.
+        style { {include_str!("../../../assets/tailwind.css")} }
+        section { class: "relative flex min-h-0 flex-col overflow-hidden bg-canvas", {viewer_fixture(true)} }
     }
 }
 
@@ -96,6 +96,14 @@ async fn viewer_slot_exclusions_preserve_actual_inline_controls_in_four_themes()
     })
     .await;
     let fit = control(&root, "button", "Fit");
+    assert_eq!(
+        fit.query_selector(".sr-only")
+            .unwrap()
+            .unwrap()
+            .text_content()
+            .as_deref(),
+        Some("Fit")
+    );
     // Copied controls carry data-slot so the legacy element rules skip them.
     assert_eq!(fit.get_attribute("data-slot").as_deref(), Some("button"));
     let shaded = control(&root, "button", "Shaded");
@@ -175,12 +183,15 @@ async fn viewer_slot_exclusions_preserve_actual_inline_controls_in_four_themes()
             let style =
                 |element: &web_sys::Element| window.get_computed_style(element).unwrap().unwrap();
             let fit_style = style(&fit);
+            let toolbar = fit
+                .closest("[role='group'][aria-label='Assembly camera']")
+                .unwrap()
+                .unwrap()
+                .parent_element()
+                .unwrap();
             assert_eq!(
-                fit.closest(".m1-case-view-toolbar.board-tool-pill")
-                    .unwrap()
-                    .unwrap()
-                    .class_name(),
-                "m1-case-view-toolbar board-tool-pill"
+                style(&toolbar).get_property_value("display").unwrap(),
+                "flex"
             );
             assert_eq!(
                 fit_style.get_property_value("border-top-width").unwrap(),
