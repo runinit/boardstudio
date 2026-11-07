@@ -1140,6 +1140,570 @@ def leg_keyboard_matrix(ctx: Ctx) -> None:
     end_session(d)
 
 
+# ---------------------------------------------------------------------------
+# Ticket 010: packaged Geometry tracer + diagnostic hold/fail + takeover + Layout.
+# Reuses the A/B stamping, server, session, state and adoption helpers above.
+# ---------------------------------------------------------------------------
+
+GEO_BASE_NAME = "Tracer 010"
+GEO_BASE_SOURCE = "// 010 baseline"
+GEO_DRAFT_SOURCE = "// 010 baseline\n// DRAFT-010"
+GEO_MESSAGE = "Geometry scripts has an unapplied edit"
+GEO_REMEDY = "Apply the script edit, or cancel the edit in the form"
+SAVE_IN_PROGRESS = "A save is still in progress"
+DID_NOT_COMPLETE = "The last save did not complete"
+
+ALL_010_LEGS = ["geometry-tracer", "persist-hold", "persist-fail", "persist-hold-fail",
+                "takeover-draft", "no-build"]
+
+
+def find_ref_retry(d: Driver, pattern: str, label: str, attempts: int = 6) -> str:
+    for _ in range(attempts):
+        ref = find_ref(d.snapshot(), pattern)
+        if ref is not None:
+            return ref
+        time.sleep(1)
+    d.fail(f"ref not found: {label} /{pattern}/")
+    raise Failure(label)
+
+
+def geo_values(d: Driver) -> dict:
+    return d.eval_file("geometry-draft.js") or {}
+
+
+def save_state(d: Driver) -> dict:
+    return d.eval_file("save-state.js") or {}
+
+
+def gate_snapshot(d: Driver) -> dict:
+    return d.eval_file("persist-gate.js") or {}
+
+
+def gate_arm(d: Driver, mode: str, reason: str = "diagnostic 010") -> None:
+    if mode == "hold":
+        d.eval_expr("window.__boardstudioPersistGate.arm_hold()")
+    elif mode == "fail":
+        d.eval_expr(f"window.__boardstudioPersistGate.arm_fail({json.dumps(reason)})")
+    elif mode == "hold-then-fail":
+        d.eval_expr(f"window.__boardstudioPersistGate.arm_hold_then_fail({json.dumps(reason)})")
+    else:
+        raise Failure(f"unknown gate mode {mode}")
+
+
+def gate_release(d: Driver) -> None:
+    d.eval_expr("window.__boardstudioPersistGate.release()")
+
+
+def gate_disarm(d: Driver) -> None:
+    d.eval_expr("window.__boardstudioPersistGate.disarm()")
+
+
+def wait_gate_entered(d: Driver, label: str, timeout_s: int = 30) -> dict:
+    deadline = time.time() + timeout_s
+    last: dict = {}
+    while time.time() < deadline:
+        last = gate_snapshot(d)
+        if last.get("entered") is True:
+            if last.get("acked") is not None:
+                d.fail(f"{label}: acknowledged before release", str(last))
+            return last
+        time.sleep(0.5)
+    d.fail(f"{label}: save never entered the gate", str(last))
+    raise Failure(f"{label}: no gate entry")
+
+
+def wait_gate_acked(d: Driver, label: str, timeout_s: int = 30) -> dict:
+    deadline = time.time() + timeout_s
+    last: dict = {}
+    while time.time() < deadline:
+        last = gate_snapshot(d)
+        if last.get("acked") is not None:
+            return last
+        time.sleep(0.5)
+    d.fail(f"{label}: released save never acknowledged", str(last))
+    raise Failure(f"{label}: no ack")
+
+
+def wait_save(d: Driver, label: str, want: str, timeout_s: int = 60) -> None:
+    ok = d.poll(f"{label}: save {want}",
+                f"!!document.querySelector('[aria-label=\"{want}\"]')", timeout_s)
+    d.check(f"{label}: save shows {want}", ok)
+
+
+def wait_save_stable(d: Driver, label: str, timeout_s: int = 60) -> None:
+    wait_save(d, label, "Saved locally", timeout_s)
+    time.sleep(2)
+    ss = save_state(d)
+    d.check(f"{label}: save stable (Saved, not Saving/Failed)",
+            ss.get("saved") is True and not ss.get("saving") and not ss.get("failed"), str(ss))
+    g = gate_snapshot(d)
+    d.note(f"{label}: gate after stable save: {g}")
+
+
+def dialog_accept(d: Driver) -> None:
+    d.run(["agent-browser", "dialog", "accept"])
+    time.sleep(1)
+
+
+def open_geometry_editor(d: Driver) -> None:
+    d.click_button("Add object")
+    opener = find_ref_retry(d, 'button "Geometry scripts', "Geometry opener")
+    d.run(["agent-browser", "click", opener])
+
+
+def close_all_toasts(d: Driver, label: str) -> None:
+    """Dismiss obscuring non-update toasts, preserving the update toast (if any).
+    Synthetic clicks are setup cleanup only; Update Now/Cancel assertions always
+    use trusted input."""
+    before = (d.state() or {}).get("toastUpdateNow")
+    d.eval_expr("Array.from(document.querySelectorAll('[data-slot=toast]'))"
+                ".filter(t=>!t.querySelector('[aria-label=\"Update Now\"]'))"
+                ".forEach(t=>{const c=t.querySelector('[aria-label=\"close\"]');"
+                " if(c) c.click();})")
+    time.sleep(1)
+    after = (d.state() or {}).get("toastUpdateNow")
+    d.check(f"{label}: update toast preserved", before == after,
+            f"before={before} after={after}")
+
+
+def select_baseline_script(d: Driver, label: str, name: str = GEO_BASE_NAME) -> None:
+    try:
+        d.run(["agent-browser", "click",
+                 find_ref_retry(d, 'button "Active script"', "Active script")])
+        time.sleep(1)
+        opt = find_ref_retry(d, 'option "' + name + '"', "script option")
+        d.run(["agent-browser", "click", opt])
+        time.sleep(1)
+    except Failure:
+        d.note(f"{label}: Active script selector not used; reading editor as-is")
+
+
+def create_baseline_script(d: Driver, label: str, name: str = GEO_BASE_NAME,
+                           source: str = GEO_BASE_SOURCE) -> None:
+    open_geometry_editor(d)
+    d.click_button("+ New script")
+    time.sleep(1)
+    d.run(["agent-browser", "fill", find_ref_retry(d, 'textbox "Name"', "Name"), name])
+    d.run(["agent-browser", "fill", find_ref_retry(d, 'textbox "Rhai source"', "Rhai"), source])
+    close_all_toasts(d, label)
+    d.click_button("Apply script")
+    wait_save(d, label, "Saved locally")
+    time.sleep(1)
+    gv = geo_values(d)
+    d.check(f"{label}: accepted baseline in editor",
+            gv.get("name") == name and gv.get("source") == source, str(gv))
+
+
+def set_geometry_draft(d: Driver, label: str, draft: str) -> None:
+    d.run(["agent-browser", "fill", find_ref_retry(d, 'textbox "Rhai source"', "Rhai draft"),
+             draft])
+    gv = geo_values(d)
+    d.check(f"{label}: draft text present, unapplied", gv.get("source") == draft, str(gv))
+    d.check(f"{label}: no invalid marker (no accidental blocker)", gv.get("invalid") == 0, str(gv))
+    ss = save_state(d)
+    d.check(f"{label}: still Saved with draft open (draft is local only)",
+            ss.get("saved") is True, str(ss))
+    d.cmd(f"{label}: trusted Tab out of Rhai source")
+    d.press("Tab")
+    gv = geo_values(d)
+    d.check(f"{label}: draft survives focus transfer (no blur commit)",
+            gv.get("source") == draft, str(gv))
+
+
+def expect_draft_deferral(d: Driver, label: str, mark: str) -> dict:
+    d.poll(f"{label}: deferral dialog", "!!document.querySelector('[role=alertdialog]')", 30)
+    s = d.state()
+    d.check(f"{label}: warning names Geometry scripts area",
+            GEO_MESSAGE in (s.get("dialogText") or ""), str(s.get("dialogText")))
+    d.check(f"{label}: warning names remedy",
+            GEO_REMEDY in (s.get("dialogText") or ""), str(s.get("dialogText")))
+    d.check(f"{label}: no reload, still A, B waiting",
+            s.get("loadMark") == mark and s.get("build") == "A"
+            and s.get("waiting") == "installed",
+            f"mark={s.get('loadMark')} build={s.get('build')} waiting={s.get('waiting')}")
+    d.check(f"{label}: editor alive", s.get("editorAlive") is True)
+    return s
+
+
+def cancel_preserves_draft(d: Driver, label: str, mark: str, draft: str) -> None:
+    d.click_button("Cancel")
+    time.sleep(1)
+    s = d.state()
+    d.check(f"{label}: warning closed", s.get("dialogText") is None)
+    d.check(f"{label}: focus returned to Update Now", s.get("focusOnUpdateNow") is True)
+    d.check(f"{label}: still A with B waiting, marker unchanged",
+            s.get("build") == "A" and s.get("waiting") == "installed"
+            and s.get("loadMark") == mark)
+    gv = geo_values(d)
+    d.check(f"{label}: exact draft preserved", gv.get("source") == draft, str(gv))
+
+
+def leg_geometry_tracer(ctx: Ctx) -> None:
+    d = ctx.d
+    d.cmd("LEG geometry-tracer: real Geometry draft defers toast+header, Apply+Saved adopts B")
+    ctx.server.swap(d, ctx.a, "serve A")
+    start_session(d, "010-tracer", route_url(d.port, "root"))
+    open_demo(d)
+    mark = set_marker(d)
+    s = d.state()
+    d.check("tracer A: controlled, no waiting, document A",
+            bool(s.get("controller")) and s.get("waiting") is None and s.get("build") == "A")
+    g0 = gate_snapshot(d)
+    d.check("tracer A: diagnostic gate present (diagnostic build)", g0.get("present") is True,
+            str(g0))
+    create_baseline_script(d, "tracer baseline")
+    set_geometry_draft(d, "tracer draft", GEO_DRAFT_SOURCE)
+    ctx.server.swap(d, ctx.b, "publish B at the same origin")
+    publish_and_wait_waiting(d, "tracer B published")
+    expect_waiting_state(d, "tracer A with B waiting", mark, "A")
+    gv = geo_values(d)
+    d.check("tracer: draft still present with B waiting",
+            gv.get("source") == GEO_DRAFT_SOURCE, str(gv))
+    d.cmd("toast pointer: click Update Now with draft open")
+    d.click_selector(UPDATE_NOW_TOAST)
+    expect_draft_deferral(d, "toast pointer defers", mark)
+    cancel_preserves_draft(d, "toast pointer cancel", mark, GEO_DRAFT_SOURCE)
+    d.cmd("toast keyboard: Tab to Update Now, Enter opens, Space cancels")
+    prep = d.eval_file("tab-prep.js")
+    d.check("toast keyboard: Update Now in tab sequence",
+            prep.get("found") is True and prep.get("positive") == 0, str(prep))
+    d.press("Tab")
+    focus = d.eval_file("focus-info.js")
+    d.check("toast keyboard: Tab lands on Update Now",
+            focus.get("label") == "Update Now" and focus.get("inToast") is True, str(focus))
+    d.press("Enter")
+    expect_draft_deferral(d, "toast Enter defers", mark)
+    d.press("Space")
+    time.sleep(1)
+    s = d.state()
+    d.check("toast Space-cancel: warning closed", s.get("dialogText") is None)
+    d.check("toast Space-cancel: focus on Update Now", s.get("focusOnUpdateNow") is True)
+    gv = geo_values(d)
+    d.check("toast Space-cancel: draft preserved", gv.get("source") == GEO_DRAFT_SOURCE)
+    d.cmd("toast keyboard: Space on Update Now opens, Enter on Cancel closes")
+    d.press("Space")
+    expect_draft_deferral(d, "toast Space defers", mark)
+    d.press("Enter")
+    time.sleep(1)
+    s = d.state()
+    d.check("toast Enter-cancel: closed and focus on Update Now",
+            s.get("dialogText") is None and s.get("focusOnUpdateNow") is True)
+    close_toast_with_keyboard(d)
+    s = expect_waiting_state(d, "toast dismissed", mark, "A")
+    d.check("header offered after dismissal", s.get("headerUpdateNow") is True)
+    d.cmd("header pointer: click Update Now with same draft")
+    d.click_selector(UPDATE_NOW_HEADER)
+    expect_draft_deferral(d, "header pointer defers", mark)
+    cancel_preserves_draft(d, "header pointer cancel", mark, GEO_DRAFT_SOURCE)
+    d.cmd("header keyboard: Tab to header Update Now, Enter opens, Space cancels")
+    prep = d.eval_file("tab-prep-header.js")
+    d.check("header keyboard: Update Now in tab sequence",
+            prep.get("found") is True and prep.get("positive") == 0, str(prep))
+    d.press("Tab")
+    focus = d.eval_file("focus-info.js")
+    d.check("header keyboard: Tab lands on header Update Now",
+            focus.get("label") == "Update Now" and not focus.get("inToast"), str(focus))
+    d.press("Enter")
+    expect_draft_deferral(d, "header Enter defers", mark)
+    d.press("Space")
+    time.sleep(1)
+    s = d.state()
+    d.check("header Space-cancel: closed, focus on Update Now, still A",
+            s.get("dialogText") is None and s.get("focusOnUpdateNow") is True
+            and s.get("build") == "A" and s.get("loadMark") == mark)
+    d.cmd("resolve: arm hold, Apply draft, capture revision, release, Saved")
+    close_all_toasts(d, "tracer resolve")
+    gate_arm(d, "hold")
+    d.click_button("Apply script")
+    entered = wait_gate_entered(d, "tracer Apply entered")
+    rev = entered.get("revision")
+    d.note(f"tracer intended revision: {rev} name={entered.get('document_name')}")
+    d.check("tracer: entered with revision and expected token",
+            rev is not None and entered.get("expected_token_present") is True, str(entered))
+    ss = save_state(d)
+    d.check("tracer held: Saving, no ack yet", ss.get("saving") is True, str(ss))
+    gate_release(d)
+    acked = wait_gate_acked(d, "tracer Apply acked")
+    d.check("tracer: released save completed", acked.get("acked") == "completed", str(acked))
+    wait_save(d, "tracer resolved", "Saved locally")
+    gv = geo_values(d)
+    d.check("tracer: applied value in editor", gv.get("source") == GEO_DRAFT_SOURCE, str(gv))
+    d.cmd("adopt from header (toast dismissed) after Apply+Saved")
+    d.click_selector(UPDATE_NOW_HEADER)
+    wait_for_adoption_reload(d, "tracer adopt")
+    expect_adopted(d, "tracer adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+    reopen_saved_project(d, "tracer adopted B")
+    open_geometry_editor(d)
+    select_baseline_script(d, "tracer")
+    gv = geo_values(d)
+    d.check("tracer: reopened project holds intended Name", gv.get("name") == GEO_BASE_NAME,
+            str(gv))
+    d.check("tracer: reopened project holds intended value at intended revision",
+            gv.get("source") == GEO_DRAFT_SOURCE, f"rev={rev} {gv}")
+    end_session(d)
+
+
+def expect_save_deferral(d: Driver, label: str, mark: str, message: str) -> dict:
+    d.poll(f"{label}: deferral dialog", "!!document.querySelector('[role=alertdialog]')", 30)
+    s = d.state()
+    d.check(f"{label}: warning names save cause",
+            message in (s.get("dialogText") or ""), str(s.get("dialogText")))
+    d.check(f"{label}: no reload, still A, B waiting",
+            s.get("loadMark") == mark and s.get("build") == "A"
+            and s.get("waiting") == "installed")
+    return s
+
+
+def cancel_save_deferral(d: Driver, label: str, mark: str) -> None:
+    d.click_button("Cancel")
+    time.sleep(1)
+    s = d.state()
+    d.check(f"{label}: warning closed", s.get("dialogText") is None)
+    d.check(f"{label}: still A with B waiting, marker unchanged",
+            s.get("build") == "A" and s.get("waiting") == "installed"
+            and s.get("loadMark") == mark)
+
+
+def leg_persist_hold(ctx: Ctx) -> None:
+    d = ctx.d
+    d.cmd("LEG persist-hold: held save defers as save-in-progress, release adopts, B reuses gate")
+    ctx.server.swap(d, ctx.a, "serve A")
+    start_session(d, "010-hold", route_url(d.port, "root"))
+    open_demo(d)
+    mark = set_marker(d)
+    g0 = gate_snapshot(d)
+    d.check("hold A: gate present", g0.get("present") is True, str(g0))
+    create_baseline_script(d, "hold baseline")
+    v1 = GEO_BASE_SOURCE + "\n// HOLD-010"
+    d.cmd("hold: arm, Apply v1 (held, no ack)")
+    gate_arm(d, "hold")
+    d.run(["agent-browser", "fill", find_ref_retry(d, 'textbox "Rhai source"', "Rhai v1"), v1])
+    close_all_toasts(d, "hold v1")
+    d.click_button("Apply script")
+    entered = wait_gate_entered(d, "hold v1 entered")
+    rev1 = entered.get("revision")
+    d.note(f"hold intended revision: {rev1}")
+    ss = save_state(d)
+    d.check("hold: Saving, no ack, no durable change yet",
+            ss.get("saving") is True and entered.get("acked") is None, str(ss))
+    ctx.server.swap(d, ctx.b, "publish B at the same origin")
+    publish_and_wait_waiting(d, "hold B published")
+    expect_waiting_state(d, "hold A with B waiting", mark, "A")
+    d.cmd("hold: Update Now defers as save-in-progress")
+    d.click_selector(UPDATE_NOW_TOAST)
+    expect_save_deferral(d, "hold defers", mark, SAVE_IN_PROGRESS)
+    cancel_save_deferral(d, "hold cancel", mark)
+    ss = save_state(d)
+    d.check("hold cancel: still Saving, still held", ss.get("saving") is True, str(ss))
+    d.cmd("hold: release, acked, Saved, adopt")
+    gate_release(d)
+    acked = wait_gate_acked(d, "hold v1 acked")
+    d.check("hold: released save completed", acked.get("acked") == "completed", str(acked))
+    wait_save(d, "hold resolved", "Saved locally")
+    gv = geo_values(d)
+    d.check("hold: applied v1 in editor", gv.get("source") == v1, str(gv))
+    d.click_selector(UPDATE_NOW_TOAST)
+    wait_for_adoption_reload(d, "hold adopt")
+    expect_adopted(d, "hold adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+    reopen_saved_project(d, "hold adopted B")
+    open_geometry_editor(d)
+    select_baseline_script(d, "hold")
+    gv = geo_values(d)
+    d.note(f"hold B editor: {gv}")
+    d.check("hold: B reopens intended value", v1 in (gv.get("source") or ""), f"rev={rev1} {gv}")
+    d.cmd("hold: gate consumed again after takeover in B")
+    g1 = gate_snapshot(d)
+    d.check("hold B: gate present in B", g1.get("present") is True, str(g1))
+    v2 = v1 + "\n// HOLD-B-010"
+    gate_arm(d, "hold")
+    d.run(["agent-browser", "fill", find_ref_retry(d, 'textbox "Rhai source"', "Rhai v2"), v2])
+    close_all_toasts(d, "hold B v2")
+    d.click_button("Apply script")
+    entered2 = wait_gate_entered(d, "hold B v2 entered")
+    d.check("hold B: second hold entered", entered2.get("entered") is True, str(entered2))
+    gate_release(d)
+    acked2 = wait_gate_acked(d, "hold B v2 acked")
+    d.check("hold B: second hold completed", acked2.get("acked") == "completed", str(acked2))
+    wait_save(d, "hold B resolved", "Saved locally")
+    gv = geo_values(d)
+    d.check("hold B: v2 saved in B", gv.get("source") == v2, str(gv))
+    end_session(d)
+
+
+def leg_persist_fail(ctx: Ctx) -> None:
+    d = ctx.d
+    d.cmd("LEG persist-fail: failed save defers as did-not-complete, explicit retry adopts")
+    ctx.server.swap(d, ctx.a, "serve A")
+    start_session(d, "010-fail", route_url(d.port, "root"))
+    open_demo(d)
+    mark = set_marker(d)
+    create_baseline_script(d, "fail baseline")
+    v1 = GEO_BASE_SOURCE + "\n// FAIL-010"
+    d.cmd("fail: arm fail, Apply v1 (fails, no durable write)")
+    gate_arm(d, "fail", "diagnostic quota")
+    d.run(["agent-browser", "fill", find_ref_retry(d, 'textbox "Rhai source"', "Rhai v1"), v1])
+    close_all_toasts(d, "fail v1")
+    d.click_button("Apply script")
+    ok = d.poll("fail: save Failed", "!!document.querySelector('[aria-label=\"Local save failed\"]')", 30)
+    d.check("fail: save shows Failed", ok)
+    g1 = gate_snapshot(d)
+    d.check("fail: gate acked aborted", (g1.get("acked") or "").startswith("aborted"), str(g1))
+    ctx.server.swap(d, ctx.b, "publish B at the same origin")
+    publish_and_wait_waiting(d, "fail B published")
+    expect_waiting_state(d, "fail A with B waiting", mark, "A")
+    d.cmd("fail: Update Now defers as did-not-complete")
+    d.click_selector(UPDATE_NOW_TOAST)
+    expect_save_deferral(d, "fail defers", mark, DID_NOT_COMPLETE)
+    cancel_save_deferral(d, "fail cancel", mark)
+    d.cmd("fail: explicit recovery via Reload saved version, then re-apply")
+    d.click_button("Reload saved version")
+    dialog_accept(d)
+    wait_save(d, "fail recovered", "Saved locally")
+    gv = geo_values(d)
+    if not gv.get("open"):
+        open_geometry_editor(d)
+        select_baseline_script(d, "fail recovered")
+        gv = geo_values(d)
+    d.check("fail: reloaded to baseline", gv.get("source") == GEO_BASE_SOURCE, str(gv))
+    v2 = GEO_BASE_SOURCE + "\n// RETRY-010"
+    d.run(["agent-browser", "fill", find_ref_retry(d, 'textbox "Rhai source"', "Rhai v2"), v2])
+    close_all_toasts(d, "fail retry")
+    d.click_button("Apply script")
+    wait_save(d, "fail retry", "Saved locally")
+    gv = geo_values(d)
+    d.check("fail: retry value in editor", gv.get("source") == v2, str(gv))
+    d.click_selector(UPDATE_NOW_TOAST)
+    wait_for_adoption_reload(d, "fail adopt")
+    expect_adopted(d, "fail adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+    reopen_saved_project(d, "fail adopted B")
+    open_geometry_editor(d)
+    select_baseline_script(d, "fail")
+    gv = geo_values(d)
+    d.check("fail: B reopens retry value", gv.get("source") == v2, str(gv))
+    end_session(d)
+
+
+def leg_persist_hold_fail(ctx: Ctx) -> None:
+    d = ctx.d
+    d.cmd("LEG persist-hold-fail: single-armed hold-then-fail, release fails atomically, retry adopts")
+    ctx.server.swap(d, ctx.a, "serve A")
+    start_session(d, "010-holdfail", route_url(d.port, "root"))
+    open_demo(d)
+    mark = set_marker(d)
+    create_baseline_script(d, "holdfail baseline")
+    v1 = GEO_BASE_SOURCE + "\n// HOLDFAIL-010"
+    d.cmd("holdfail: arm hold-then-fail, Apply v1 (held)")
+    gate_arm(d, "hold-then-fail", "diagnostic quota")
+    d.run(["agent-browser", "fill", find_ref_retry(d, 'textbox "Rhai source"', "Rhai v1"), v1])
+    close_all_toasts(d, "holdfail v1")
+    d.click_button("Apply script")
+    entered = wait_gate_entered(d, "holdfail v1 entered")
+    d.check("holdfail: held, no ack yet", entered.get("acked") is None, str(entered))
+    ctx.server.swap(d, ctx.b, "publish B at the same origin")
+    publish_and_wait_waiting(d, "holdfail B published")
+    expect_waiting_state(d, "holdfail A with B waiting", mark, "A")
+    d.cmd("holdfail: Update Now defers as save-in-progress while held")
+    d.click_selector(UPDATE_NOW_TOAST)
+    expect_save_deferral(d, "holdfail held defers", mark, SAVE_IN_PROGRESS)
+    cancel_save_deferral(d, "holdfail held cancel", mark)
+    d.cmd("holdfail: release enters failure atomically (no re-arm)")
+    gate_release(d)
+    acked = wait_gate_acked(d, "holdfail v1 acked")
+    d.check("holdfail: released into failure atomically",
+            (acked.get("acked") or "").startswith("aborted") and acked.get("released") is True,
+            str(acked))
+    ok = d.poll("holdfail: save Failed", "!!document.querySelector('[aria-label=\"Local save failed\"]')", 30)
+    d.check("holdfail: save shows Failed after release", ok)
+    d.cmd("holdfail: Update Now defers as did-not-complete after failure")
+    d.click_selector(UPDATE_NOW_TOAST)
+    expect_save_deferral(d, "holdfail failed defers", mark, DID_NOT_COMPLETE)
+    cancel_save_deferral(d, "holdfail failed cancel", mark)
+    d.cmd("holdfail: explicit recovery via Reload saved version, then re-apply")
+    d.click_button("Reload saved version")
+    dialog_accept(d)
+    wait_save(d, "holdfail recovered", "Saved locally")
+    gv = geo_values(d)
+    if not gv.get("open"):
+        open_geometry_editor(d)
+        select_baseline_script(d, "holdfail recovered")
+        gv = geo_values(d)
+    d.check("holdfail: reloaded to baseline", gv.get("source") == GEO_BASE_SOURCE, str(gv))
+    v2 = GEO_BASE_SOURCE + "\n// HOLDFAIL-RETRY-010"
+    d.run(["agent-browser", "fill", find_ref_retry(d, 'textbox "Rhai source"', "Rhai v2"), v2])
+    close_all_toasts(d, "holdfail retry")
+    d.click_button("Apply script")
+    wait_save(d, "holdfail retry", "Saved locally")
+    d.click_selector(UPDATE_NOW_TOAST)
+    wait_for_adoption_reload(d, "holdfail adopt")
+    expect_adopted(d, "holdfail adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+    reopen_saved_project(d, "holdfail adopted B")
+    open_geometry_editor(d)
+    select_baseline_script(d, "holdfail")
+    gv = geo_values(d)
+    d.check("holdfail: B reopens retry value", gv.get("source") == v2, str(gv))
+    end_session(d)
+
+
+def leg_takeover_draft(ctx: Ctx) -> None:
+    d = ctx.d
+    d.cmd("LEG takeover-draft: one packaged new-draft-during-takeover (tracer shape)")
+    ctx.server.swap(d, ctx.a, "serve A")
+    start_session(d, "010-takeover", route_url(d.port, "root"))
+    open_demo(d)
+    mark = set_marker(d)
+    create_baseline_script(d, "takeover baseline")
+    ctx.server.swap(d, ctx.b, "publish B at the same origin")
+    publish_and_wait_waiting(d, "takeover B published")
+    expect_waiting_state(d, "takeover clean with B waiting", mark, "A")
+    ss = save_state(d)
+    d.check("takeover: clean Saved before new draft", ss.get("saved") is True, str(ss))
+    v1 = GEO_BASE_SOURCE + "\n// TAKEOVER-010"
+    d.cmd("takeover: create draft while B waits")
+    set_geometry_draft(d, "takeover draft", v1)
+    d.cmd("takeover: Update Now defers the new draft")
+    d.click_selector(UPDATE_NOW_TOAST)
+    expect_draft_deferral(d, "takeover defers", mark)
+    cancel_preserves_draft(d, "takeover cancel", mark, v1)
+    d.cmd("takeover: Apply+Saved (unarmed), adopt")
+    close_all_toasts(d, "takeover resolve")
+    d.click_button("Apply script")
+    wait_save_stable(d, "takeover resolved")
+    d.click_selector(UPDATE_NOW_TOAST)
+    wait_for_adoption_reload(d, "takeover adopt")
+    expect_adopted(d, "takeover adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+    reopen_saved_project(d, "takeover adopted B")
+    open_geometry_editor(d)
+    select_baseline_script(d, "takeover")
+    gv = geo_values(d)
+    d.check("takeover: B reopens takeover value", gv.get("source") == v1, str(gv))
+    end_session(d)
+
+
+def leg_no_build(ctx: Ctx) -> None:
+    d = ctx.d
+    d.cmd("LEG no-build: no new build published, no Update Now, no adoption")
+    ctx.server.swap(d, ctx.a, "serve A only")
+    start_session(d, "010-nobuild", route_url(d.port, "root"))
+    open_demo(d)
+    mark = set_marker(d)
+    s = d.state()
+    d.check("no-build A: controlled, no waiting, document A",
+            bool(s.get("controller")) and s.get("waiting") is None and s.get("build") == "A")
+    d.check("no-build A: no Update Now offered",
+            not s.get("toastUpdateNow") and not s.get("headerUpdateNow"))
+    result = d.eval_file("update-check.js")
+    d.check("no-build: update check finds no waiting", result.get("waiting") is None, str(result))
+    d.check("no-build: no notice shown", result.get("notice") is not True, str(result))
+    time.sleep(3)
+    s = d.state()
+    d.check("no-build: still A, no waiting, no reload",
+            s.get("build") == "A" and s.get("waiting") is None and s.get("loadMark") == mark)
+    d.check("no-build: still no Update Now",
+            not s.get("toastUpdateNow") and not s.get("headerUpdateNow"))
+    d.check("no-build: editor alive", s.get("editorAlive") is True)
+    end_session(d)
+
+
 def worker_has_adopt_protocol(build: Path) -> bool:
     """True when the packaged worker wasm imports skipWaiting (the 019 adoption path)."""
     import base64
@@ -1159,6 +1723,12 @@ LEGS = {
     "late-adopt": leg_late_adopt,
     "draft-safety": leg_draft_safety,
     "keyboard-matrix": leg_keyboard_matrix,
+    "geometry-tracer": leg_geometry_tracer,
+    "persist-hold": leg_persist_hold,
+    "persist-fail": leg_persist_fail,
+    "persist-hold-fail": leg_persist_hold_fail,
+    "takeover-draft": leg_takeover_draft,
+    "no-build": leg_no_build,
 }
 
 
@@ -1198,12 +1768,75 @@ def scenario_pre(driver: Driver, server: Server, legacy_a: Path, legacy_b: Path,
 
 
 # ---------------------------------------------------------------------------
+# 010 RED: a real pre-tracer packaged pair (002 builds) has Update Now but no
+# draft deferral. The tracer assertions must FAIL here (adoption + loss) and
+# PASS on current builds. Control only: no 008 code exists in those builds.
+# ---------------------------------------------------------------------------
+
+def scenario_pre010(driver: Driver, server: Server, legacy_a: Path, legacy_b: Path) -> None:
+    driver.cmd("010 RED: pre-tracer A/B must defer the Geometry draft (it cannot)")
+    server.swap(driver, legacy_a, "serve pre-tracer A")
+    served_a = serve_version(driver.port)
+    start_session(driver, "010-pre", route_url(driver.port, "root"))
+    open_demo(driver)
+    mark = set_marker(driver)
+    server.swap(driver, legacy_b, "publish pre-tracer B")
+    served_b = serve_version(driver.port)
+    driver.check("pre-tracer A and B are distinct releases", served_a != served_b,
+                 f"A={served_a} B={served_b}")
+    driver.check("control build has the adoption protocol (019 present)",
+                 worker_has_adopt_protocol(legacy_b))
+    g0 = gate_snapshot(driver)
+    driver.check("control build lacks the diagnostic gate (pre-009)",
+                 g0.get("present") is not True, str(g0))
+    create_baseline_script(driver, "pre010 baseline")
+    set_geometry_draft(driver, "pre010 draft", GEO_DRAFT_SOURCE)
+    publish_and_wait_waiting(driver, "pre010 B published")
+    expect_waiting_state(driver, "pre010 A with B waiting", mark, "A")
+    d = driver
+    d.cmd("RED: toast Update Now must defer (pre-tracer adopts instead)")
+    d.click_selector(UPDATE_NOW_TOAST)
+    outcome = None
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        s = d.state()
+        if s.get("dialogText"):
+            outcome = "dialog"
+            break
+        if s.get("loadMark") != mark:
+            outcome = "reloaded"
+            break
+        time.sleep(0.5)
+    d.note(f"pre010 toast outcome: {outcome}")
+    d.check("RED: toast defers with Geometry warning", outcome == "dialog", str(outcome))
+    if outcome == "dialog":
+        s = d.state()
+        d.check("RED: warning names Geometry area", GEO_MESSAGE in (s.get("dialogText") or ""))
+        d.click_button("Cancel")
+        time.sleep(1)
+        gv = geo_values(d)
+        d.check("RED: Cancel preserves draft", gv.get("source") == GEO_DRAFT_SOURCE, str(gv))
+    elif outcome == "reloaded":
+        wait_for_adoption_reload(d, "pre010 loss")
+        reopen_saved_project(d, "pre010 adopted")
+        open_geometry_editor(d)
+        select_baseline_script(d, "pre010")
+        gv = geo_values(d)
+        d.check("RED: draft preserved after adoption (it is lost pre-tracer)",
+                gv.get("source") == GEO_DRAFT_SOURCE, str(gv))
+    else:
+        d.fail("pre010: neither dialog nor reload within 20s")
+    end_session(driver)
+
+
+# ---------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("mode", choices=["pre", "post"],
-                        help="pre: pre-019 RED control; post: 019 GREEN legs")
+    parser.add_argument("mode", choices=["pre", "post", "pre010"],
+                        help="pre: pre-019 RED control; post: GREEN legs; "
+                             "pre010: pre-tracer (002) RED for the 010 Geometry assertions")
     parser.add_argument("--port", type=int, default=4733)
     parser.add_argument("--src-dir", type=Path, default=ROOT / "web" / "target" / "site-019-a",
                         help="one real build-web.py output (--routes root,subpath)")
@@ -1211,6 +1844,12 @@ def main(argv: list[str] | None = None) -> int:
                         help="ephemeral stamped A/B copies (git-ignored web/target)")
     parser.add_argument("--legacy-a-dir", type=Path, default=ROOT / "web" / "target" / "site-018-a")
     parser.add_argument("--legacy-b-dir", type=Path, default=ROOT / "web" / "target" / "site-018-b")
+    parser.add_argument("--legacy010-a-dir", type=Path,
+                        default=ROOT / "web" / "target" / "site-002-ab" / "a",
+                        help="pre-tracer A for pre010 RED (immutable 002 artifact)")
+    parser.add_argument("--legacy010-b-dir", type=Path,
+                        default=ROOT / "web" / "target" / "site-002-ab" / "b",
+                        help="pre-tracer B for pre010 RED (immutable 002 artifact)")
     parser.add_argument("--legs", default=",".join(ALL_LEGS), help="comma-separated subset of legs")
     parser.add_argument("--serve-log", type=Path,
                         default=ROOT / ".evidence" / "ui-integration-recovery" / "019-adoption-serve.log")
@@ -1226,9 +1865,14 @@ def main(argv: list[str] | None = None) -> int:
     if unknown:
         print(f"unknown legs: {unknown}", flush=True)
         return 2
-    needed = [args.legacy_a_dir, args.legacy_b_dir] if args.mode == "pre" else [args.src_dir]
+    if args.mode == "pre":
+        needed = [args.legacy_a_dir, args.legacy_b_dir]
+    elif args.mode == "pre010":
+        needed = [args.legacy010_a_dir, args.legacy010_b_dir]
+    else:
+        needed = [args.src_dir]
     for build in needed:
-        for route in (["root"] if args.mode == "pre" else ROUTES):
+        for route in (["root"] if args.mode in ("pre", "pre010") else ROUTES):
             if not (site_dir(build, route) / "service-worker.js").is_file():
                 print(f"incomplete packaged build, missing {site_dir(build, route)}/service-worker.js",
                       flush=True)
@@ -1236,12 +1880,20 @@ def main(argv: list[str] | None = None) -> int:
     driver = Driver(args.port, sys.stdout)
     args.serve_log.parent.mkdir(parents=True, exist_ok=True)
     args.serve_log.write_text("")
-    first = args.legacy_a_dir if args.mode == "pre" else args.src_dir
+    if args.mode == "pre":
+        first = args.legacy_a_dir
+    elif args.mode == "pre010":
+        first = args.legacy010_a_dir
+    else:
+        first = args.src_dir
     server = Server(first, args.port, args.serve_log)
     try:
         if args.mode == "pre":
             server.start()
             scenario_pre(driver, server, args.legacy_a_dir, args.legacy_b_dir, sys.stdout)
+        elif args.mode == "pre010":
+            server.start()
+            scenario_pre010(driver, server, args.legacy010_a_dir, args.legacy010_b_dir)
         else:
             a, b = args.work_dir / "a", args.work_dir / "b"
             stamp_build(args.src_dir, a, "A", sys.stdout)
