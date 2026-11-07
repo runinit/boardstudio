@@ -4444,6 +4444,42 @@ async fn mounted_companion_revert_to_baseline_clears_the_key() {
 }
 
 #[wasm_bindgen_test]
+async fn mounted_companion_refused_pair_apply_preserves_pair_intent() {
+    let (runtime, root, signals, refuse) = mounted_companion_draft_safety().await;
+    companion_click(&root, "checkbox", "Also set the pair default");
+    refuse.set(true);
+    companion_click(&root, "button", "Apply placement");
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    wait_until("the pair request refusal reaches the form", || {
+        root.query_selector("[role='alert']")
+            .unwrap()
+            .is_some_and(|alert| {
+                alert
+                    .text_content()
+                    .unwrap_or_default()
+                    .contains("cannot carry a companion tweak")
+            })
+    })
+    .await;
+    assert_eq!(
+        by_role_name(&root, "checkbox", "Also set the pair default")
+            .unwrap()
+            .get_attribute("aria-checked")
+            .as_deref(),
+        Some("true"),
+        "failed admission must preserve the pair action parameter for retry"
+    );
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("the pair draft defers", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_blockers_contain_companion(&companion_deferred_blockers(&runtime));
+    assert_eq!(signals.adoptions.get(), 0);
+    root.remove();
+}
+
+#[wasm_bindgen_test]
 async fn mounted_companion_refused_apply_keeps_blocking() {
     let (runtime, root, signals, refuse) = mounted_companion_draft_safety().await;
     choose_inspector_option(&root, "Mode", "Mirror with tweak").await;
