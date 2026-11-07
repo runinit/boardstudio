@@ -1,7 +1,8 @@
 # 008: Draft-owner registry and Geometry scripts tracer at both Update Now checkpoints
 
-Status: claimed
+Status: resolved
 Type: build
+Assignee: Coordinator (closure)
 Parent: [Draft-safe update adoption spec](../spec.md)
 Blocked by: none — can start immediately
 
@@ -37,7 +38,8 @@ Parent then read the complete combined source diff and independently passed five
 packaged legs, including both literal Retry → direct Update Now paths and Layout
 (`010-coordinator-retry.log`). The narrower driver-proof follow-up and outstanding
 010 acceptance limits are recorded in [010](010-packaged-a-to-b-proof.md).
-This ticket remains CLAIMED pending that composite checkpoint.
+That composite checkpoint is now accepted; the final Answer below supersedes
+historical CLAIMED/review-pending statements.
 Matching Dioxus v0.7.10 docs (not Leptos) verified through Context7:
 `use_reactive` supplies non-signal dependencies; `peek` avoids subscriptions.
 Native Gortex named read + explore(task) both succeeded; post-edit contract is
@@ -164,6 +166,19 @@ owner-canonically encoded baseline per admission key.
 - [x] Unresolved state is judged per admission key against the live-projected baseline (or mount-default snapshot where no accepted value exists), using owner-canonical equality; reverting to the baseline clears the key.
 - [x] Poll-prune drops dead entries rather than treating them as blockers, with a one-time diagnostic whose log/surface is named in the ticket's completion record.
 - [x] RED first: the mounted equivalents of the confirmed draft-loss assertions fail for the expected reason before the fix, then pass (GREEN) — report at the RED and mounted-GREEN stopping points before proceeding.
-- [ ] **Partial:** mounted tests cover valid explicit-submit and realistic invalid never-submitted, DOM-unmarked drafts; both entry points; update-dialog Cancel preserves exact value/focus; Apply landing, baseline reversion and actual Back retirement; unrelated submission never clears; failure/older settlement preserve newer input. Helper regressions cover completed/failed/refused terminal memory. Existing accepted-value restoration remains unchanged. Mounted tab stops/focus and synthetic Enter/Space non-interception pass. Coordinator packaged runs now verify **trusted pointer and trusted Tab/Enter/Space at both entries**, including actual header Space activation (`010-coordinator-oracles.log`). The composite [010](010-packaged-a-to-b-proof.md) checkpoint remains pending its documented timing/cleanup/review limits, rather than missing trusted-input evidence. Geometry has no Cancel/Reset form controls.
+- [x] Mounted tests cover valid explicit-submit and realistic invalid never-submitted, DOM-unmarked drafts; both entry points; update-dialog Cancel preserves exact value/focus; Apply landing, baseline reversion and actual Back retirement; unrelated submission never clears; failure/older settlement preserve newer input. Helper regressions cover completed/failed/refused terminal memory. Existing accepted-value restoration remains unchanged. Mounted tab stops/focus and synthetic Enter/Space non-interception pass. Coordinator packaged runs verify **trusted pointer and trusted Tab/Enter/Space at both entries**, including actual header Space activation (`010-coordinator-oracles.log`). The composite [010](010-packaged-a-to-b-proof.md#answer) checkpoint, including held-save timing, independent reviews and cleanup, is accepted. Geometry has no Cancel/Reset form controls.
 - [x] Deferral copy follows the settled per-key label+remedy rule; no injected invalid marker, save label or worker label is used as evidence.
 - [x] Focused quick/build/browser checks for touched crates pass; evidence logs are stored per the plan's evidence conventions.
+
+## Answer
+
+Coordinator acceptance (2026-11-07): registry/tracer `10df36141` plus terminal
+record correction `02ec0b636` and Retry reconciliation `be39738b` are reviewed and
+independently verified. The earlier complete-diff and rejecting-path checks are
+recorded in [execution](../execution.md#verified-evidence-to-date); the latest
+Geometry/helper/notification reruns are **6/16/30 passed**, respectively.
+The final complete code reviews through `c5a876ec` and packaged trusted-input,
+literal Retry, held-save/newer-input and cleanup evidence are in
+[010](010-packaged-a-to-b-proof.md#answer). All criteria above are now met.
+This resolves the tracer slice, not all-14 coverage, optimized validation,
+015 mutations/full gate/final review or the parent adoption umbrella.

@@ -1,6 +1,6 @@
 # 010: Packaged A→B draft-safety proof
 
-Status: claimed
+Status: resolved
 Type: build
 Parent: [Draft-safe update adoption spec](../spec.md)
 Assignee: Coordinator (010 verification)
@@ -13,16 +13,19 @@ Sole implementation/required diagnostic packaged-build/browser owner from
 `scripts/verify-update-adoption.py`, directly necessary existing 010 payloads
 (none changed yet), this ticket and 008, plus Geometry production/local tests
 as recorded in 008. Literal Retry save is mandatory: replace the two existing
-Reload+re-apply routes, not an added duplicate matrix. Preserve pre-fix
-`web/target/site-010-src` and existing A/B; build corrected app into a NEW
-output. No other owner/Runtime/registry changes or subagents. Preserve dirty
+Reload+re-apply routes, not an added duplicate matrix. Pre-fix
+`web/target/site-010-src` and A/B were preserved for RED/coordinator reruns;
+corrected output was separate. These disposable outputs were removed only after
+verification completed, as attested in the final Answer. No other owner/Runtime/
+registry changes or subagents. Preserve dirty
 `CODING_STANDARDS.md` and coordinator untracked research.
 
 The Retry correction is committed as `be39738b`; coordinator verifier follow-ups
 through `c5a876ec`, corrected packaged checks and complete independent code reviews
 pass as recorded below. Historical Reload + re-apply controls still do not count
-as Retry acceptance. Ticket stays CLAIMED: required cleanup is not proved in full.
-Optimized validation and final 015 obligations also remain due, not waived.
+as Retry acceptance. Required cleanup is now complete, all eight criteria are
+accepted, and the final Answer supersedes historical CLAIMED/blocker statements.
+Optimized validation and final 015 obligations remain due, not waived.
 
 ## What to build
 
@@ -386,13 +389,12 @@ coordinator experiments above remain the behavioral evidence. No structural
 attachment freshness certification or post-permit Geometry race proof is inferred.
 JS focus/update-check setup is not a substitute for trusted activation.
 
-These are diagnostic **fast** assets, not proof of optimized/wasm-opt equivalence.
-Optimized validation, all-14 owner coverage, 015 mutation/full gate and final
-closure review remain later obligations. They do not excuse the **current cleanup
-blocker**. The seven behavioral criteria below are verified, but the cleanup
-criterion is open: 010 is not resolved and 012–014 expansion has not started.
-Coordinator next traces default-profile lifecycle and known owned outputs;
-no unidentified or live profile may be deleted to manufacture acceptance.
+These runs used diagnostic **fast** assets, not proof of optimized/wasm-opt
+equivalence. The sole cleanup blocker at the review cut is now discharged by the
+coordinator's final Answer below, without a production correction or a fabricated
+new reviewer verdict. Optimized validation, all-14 owner coverage, 015 mutation/
+full gate and final closure review remain later obligations. No 012–014 owner
+expansion or parent umbrella closure is claimed by this checkpoint.
 
 ## Acceptance criteria
 
@@ -403,4 +405,63 @@ no unidentified or live profile may be deleted to manufacture acceptance.
 - [x] Exactly one packaged new-draft-during-takeover leg, reusing the tracer scenario's shape: a draft created while adoption waits defers Update Now again.
 - [x] Loaded-B proof: the loaded document and the served binary both identify B (not manifests or labels), the navigation is the adoption reload, and the reopened project holds the intended value at the intended revision.
 - [x] Sole-client/other-tab, offline-asset continuity and subpath-isolation legs inherited from the parent adoption acceptance pass; failed-install and no-new-build negative controls do not adopt.
-- [ ] Disposable fixtures, profiles and databases are cleaned up; evidence logs are stored per the plan's evidence conventions. This ticket does not close the parent adoption umbrella.
+- [x] Disposable fixtures, profiles and databases are cleaned up; evidence logs are stored per the plan's evidence conventions. This ticket does not close the parent adoption umbrella.
+
+## Answer
+
+Coordinator acceptance (2026-11-07): all eight criteria are met. The complete
+independent reviews and coordinator functional evidence above stand; cleanup was
+the sole checkpoint blocker. Resolving it does not turn a conditional review
+snapshot into a new reviewer PASS or establish optimized behavior.
+
+### Final cleanup attestation
+
+- Installed package/binary report **agent-browser 0.39.1**. Its matching release
+  [temporary-profile implementation](https://github.com/vercel-labs/agent-browser/blob/v0.39.1/cli/src/native/cdp/chrome.rs)
+  creates `agent-browser-chrome-<UUID>` without a configured profile and removes
+  it in `ChromeProcess::drop` after terminating/waiting for owned Chrome;
+  [BrowserManager close](https://github.com/vercel-labs/agent-browser/blob/v0.39.1/cli/src/native/browser.rs)
+  awaits that owned process lifecycle. Configured persistent paths are different
+  and still require explicit owned-path cleanup. This is a source-contract check,
+  not a binary-provenance certification.
+- A bounded live check reused the existing normal Layout archive/import and
+  server helpers, with a unique private session and **no profile/restore/CDP
+  override or config**. The CLI CDP endpoint matched the new profile's
+  `DevToolsActivePort`; `ps` observed the exact profile's live Chrome processes.
+  Import reached Saved and created real `Default/IndexedDB`. After acknowledged
+  close, every exact-profile Chrome process was gone and the whole default
+  profile/IndexedDB directory was absent, with **no manual profile deletion**.
+  The owned import fixture was removed and port 4744 was free.
+  Log: `010-cleanup-lifecycle.log` (serve log alongside).
+- Two earlier ownership-instrumentation setups failed before import because
+  environment/procfs PID matching was insufficient; both closed and removed their
+  fixture. They are retained in `010-cleanup-lifecycle-setup.log` and
+  `010-cleanup-lifecycle-endpoint-setup.log`, not counted as behavioral RED or
+  silently discarded. The successful check used the existing driver's `ps` seam.
+- `010-cleanup-attestation.log` inventories **33 recorded temporary fixture,
+  profile and export roots**, all independently absent, including the old
+  duplicate-close Layout paths and the latest explicit takeover/Layout profiles.
+  Historical default profile addresses were not logged per run; no retrospective
+  PID claim is made. Read-only scans under both actual temp roots, `/tmp` and
+  `/home/chris/.cache/tmp`, found **no remaining** version-specific default/copied
+  browser profile directories or `boardstudio-010-*` roots. No unidentified or
+  live profile was deleted. Session metadata reports no active sessions.
+- The same log records original ownership receipts, ignored/untracked-source
+  checks, expected package-directory shapes and absence of process-argv users
+  **before** deleting these 15 exact disposable output roots under `web/target/`:
+  `site-010-src`, `site-010-ab`, `site-010-layout-ab`, `site-010-retry-ab`,
+  `site-010-layout-red-ab`, `site-010-layout-final-ab`, `site-008-retry-red-ab`,
+  `site-008-retry-red-final-ab`, `site-008-retry-src`, `site-008-retry-green-ab`,
+  `site-008-retry-layout-ab`, `site-010-parent-retry-ab.6OMkRE`,
+  `site-010-parent-oracles-ab.BDadHu`, `site-010-parent-takeover-ab.Rag4QM`,
+  `site-010-parent-controls-ab.v8njsk`. A separate post-cleanup check confirmed
+  all 15 absent, immutable `site-002-ab` retained and port 4744 free.
+  Cargo/provider caches and unrelated files were not touched. Evidence logs remain
+  in `.evidence/update-draft-safety/`, with no source copies or custom manifests.
+
+The 008/009 dependencies and reviewed 011 slice are resolved alongside this
+composite acceptance. Next is 012 under the approved execution order, not another
+packaged matrix or optional driver cleanup. The reproducible commands above now
+require regenerating deleted disposable outputs; 015 must build fresh assets for
+optimized/full verification. All-14 coverage, mutations, full gate/final reviews,
+Class B risk tracking and umbrella 019 remain open.

@@ -50,13 +50,13 @@ standards findings remain gates; optional review cleanup is not extra scope.
 
 | Ticket | State | Next acceptance evidence / owner |
 | --- | --- | --- |
-| [008 Registry and Geometry tracer](issues/008-registry-and-geometry-tracer.md) | Retry correction reviewed and independently verified; claimed | Geometry 6/6, helpers 16/16, notifications 30/30; real trusted package proof below, final 010 checkpoint outstanding |
-| [009 Persistence adapter](issues/009-diagnostic-gated-persistence-adapter.md) | Both required corrections reviewed; ready for packaged integration | Coordinator adapter 10/10 plus Runtime held-save 1/1; not 010 acceptance |
-| [011 Layout owners](issues/011-layout-explicit-submit-owners.md) | Corrected implementation reviewed; claimed pending closure bookkeeping | Spec and Standards PASS at `16b85737`; coordinator full corrective diff read and focused 106/106 passed |
-| [010 Packaged A→B proof](issues/010-packaged-a-to-b-proof.md) | Behavior verified and independently reviewed; claimed, cleanup BLOCKED | Seven behavioral criteria pass through `c5a876ec`; complete Spec review identifies remaining profile/database/output cleanup as the checkpoint gate |
-| [012 Parts owners](issues/012-parts-single-draft-owners.md) | Not started; held behind 010 checkpoint | Fresh owner-cluster agent after packaged proof |
-| [013 PCB owners](issues/013-pcb-placement-attach-assembly-net-owners.md) | Not started; held behind 010 checkpoint | Fresh owner-cluster agent after packaged proof |
-| [014 Creation forms](issues/014-creation-form-owners.md) | Not started; held behind 010 checkpoint | Fresh owner-cluster agent after packaged proof |
+| [008 Registry and Geometry tracer](issues/008-registry-and-geometry-tracer.md) | Resolved | Reviewed corrections; coordinator Geometry 6/6, helpers 16/16, notifications 30/30; composite 010 accepted |
+| [009 Persistence adapter](issues/009-diagnostic-gated-persistence-adapter.md) | Resolved | Reviewed corrections; coordinator adapter 10/10, Runtime 1/1, tooling 9/9; real packaged integration and cleanup in 010 |
+| [011 Layout owners](issues/011-layout-explicit-submit-owners.md) | Resolved | Spec/Standards PASS at `16b85737`; coordinator complete diffs and 106/106; packaged Layout proof in 010 |
+| [010 Packaged A→B proof](issues/010-packaged-a-to-b-proof.md) | Resolved; composite checkpoint accepted | Complete code reviews through `c5a876ec`, seven behavioral criteria and final owned profile/database/output cleanup pass |
+| [012 Parts owners](issues/012-parts-single-draft-owners.md) | Ready; not started | Next fresh owner-cluster agent under existing authorization |
+| [013 PCB owners](issues/013-pcb-placement-attach-assembly-net-owners.md) | Not started; queued after 012 | Fresh owner-cluster agent, serialized source/build ownership |
+| [014 Creation forms](issues/014-creation-form-owners.md) | Not started; queued after 013 | Fresh owner-cluster agent, no creation-policy change |
 | [015 Coverage and closure](issues/015-coverage-mutation-and-closure.md) | Not started | Coordinator owns full build/gate; all specified evidence and reviews remain required |
 
 This sequencing checkpoint does not change ticket scope or waive formal dependencies.
@@ -137,10 +137,19 @@ explicit composite acceptance debt. No partial owner coverage is final acceptanc
   `606c173e-4055-4dcc-bf78-89eb3064527a` disclosed partial driver coverage and is
   not used as complete certification. Both final axes cover all changed source;
   no new production correction or optional cleanup is requested.
-- 010 remains claimed: unidentified historical/default profile cleanup and
-  retained diagnostic-output deletion are **current criterion-8 blockers**, not
-  optional suggestions. Coordinator traces only known owned paths/lifecycle;
-  never delete unidentified/live state. Seven behavioral criteria are checked in
-  010. Optimized validation, all-14 coverage and 015 integrated gate/mutations/
-  final review remain later debts, not waivers. No 012–014 expansion or parent
-  umbrella closure claimed.
+- Final coordinator cleanup discharges that sole checkpoint blocker:
+  `010-cleanup-lifecycle.log` matches a private CLI CDP endpoint to its temporary
+  profile, observes real app IndexedDB and exact live Chrome processes, then proves
+  close removes both processes and disk state. Two failed ownership-instrumentation
+  setups are retained, not behavioral RED. `010-cleanup-attestation.log` proves
+  33 recorded temporary roots absent, zero default/copied-profile residuals in
+  both temp roots, no active sessions, and deletion of 15 exact log-attributed,
+  ignored diagnostic outputs after no-use checks. No unidentified/live state was
+  deleted; immutable 002 and Cargo/provider caches were retained. Independent
+  postcheck confirms all 15 absent and port 4744 free.
+- **010 composite accepted; 008/009/011 closure bookkeeping complete.** Each
+  owning ticket has its acceptance mapping and final Answer; the historical
+  conditional review snapshot remains truthful. 012 is next, not yet started.
+  Optimized validation, all-14 coverage and 015 integrated gate/mutations/final
+  review remain due; deleted disposable packages must be rebuilt for those runs.
+  No final all-owner acceptance or parent umbrella closure is claimed.

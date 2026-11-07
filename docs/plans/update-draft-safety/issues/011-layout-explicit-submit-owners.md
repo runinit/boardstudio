@@ -1,8 +1,8 @@
 # 011: Layout explicit-submit owners
 
-Status: claimed
+Status: resolved
 Type: build
-Assignee: FreshPiSol-011-approved
+Assignee: Coordinator (closure)
 Parent: [Draft-safe update adoption spec](../spec.md)
 Blocked by: [Draft-owner registry and Geometry scripts tracer at both Update Now checkpoints](008-registry-and-geometry-tracer.md)
 
@@ -21,9 +21,9 @@ update currently clobbers an open constraint draft.
 - [x] Each owner defers Update Now with a real valid unapplied draft and with a realistic invalid unsubmitted draft, at both entry points, via the mounted Update Now seam.
 - [x] Each owner's deferral message names its editing area and per-key remedy; resolution happens only through that form's own controls.
 - [x] The Layout constraint draft is protected while open: an accepted update landing does not silently discard the designer's unapplied constraint draft, and the owner's unresolved judgement follows the settled baseline rules.
-- [ ] Per-key behaviour follows the contract: landing updates the baseline, failure/refusal never clears, revert-to-baseline clears, newer typing re-raises, older settlement never clears newer input.
+- [x] Per-key behaviour follows the contract: landing updates the baseline, failure/refusal never clears, revert-to-baseline clears, newer typing re-raises, older settlement never clears newer input.
 - [x] Hidden or keep-mounted instances of these owners keep blocking; unmount or scope change retires them.
-- [ ] Each adapter change carries its own RED/GREEN evidence through the mounted seam; focused checks pass and evidence logs follow the plan's conventions.
+- [x] Each adapter change carries its own RED/GREEN evidence through the mounted seam; focused checks pass and evidence logs follow the plan's conventions.
 
 ## Approved correction handoff (2026-11-07) — claimed, awaiting fresh reviews
 
@@ -310,3 +310,18 @@ belongs to 010. Stopping-point reports filed in notes
 - Trusted-input claims stay reserved for 010: entry buttons in the new
   fixtures call the production gate openers directly (real opener, fixture
   chrome), consistent with 008's scope split.
+
+## Answer
+
+Coordinator acceptance (2026-11-07): original `043787ba5`, isolated Pair RED
+`94b9acf` and approved correction `16b85737` have complete Spec and Standards
+PASS with no Required changes. Coordinator read both full source diffs and
+independently reran **106 executed / 0 failed**, including rejecting/binding
+paths (`011-coordinator-corrected-browser.log`). The five required corrections
+and distinct RED/GREEN cases are recorded in the approved handoff above;
+all six criteria are met. Historical claimed/pending statements are superseded.
+[010](010-packaged-a-to-b-proof.md#answer) additionally proves the real imported
+Layout constraint with trusted input and exact A/B durable export, with cleanup
+complete. This does not expand the Pair-only amendment or certify new mutation
+kills: fresh integrated mutations, optimized/full gate and final review remain
+015 obligations. Parent umbrella 019 stays open.

@@ -1,6 +1,6 @@
 # 009: Diagnostic gated-persistence adapter for packaged builds
 
-Status: claimed
+Status: resolved
 Type: build
 Parent: [Draft-safe update adoption spec](../spec.md)
 Assignee: Pi Spark (009 implementation)
@@ -18,13 +18,13 @@ as part of this ticket.
 
 ## Acceptance criteria
 
-- [ ] Arm hold: the save is entered with the intended name/revision, reports Saving, receives no acknowledgement and makes no durable change until released.
-- [ ] Release completes the save and reports Saved at the intended revision; the reopened value is correct.
-- [ ] Arm fail reports Failed, defers adoption as did-not-complete, and an explicit retry succeeds.
-- [ ] Hold-then-fail is a single armed mode: releasing the hold enters failure atomically (not two re-armed gates).
-- [ ] Persistence is judged by the real store's completion/abort acknowledgements, not request-success callbacks, save labels or worker labels.
-- [ ] The adapter is diagnostic-only and build-gated; a normal packaged build contains no armed gate. Diagnostic build identity is distinguishable and attested, and disposable fixtures/databases are cleaned up with the cleanup attested in the completion record.
-- [ ] Focused checks for touched crates pass; evidence logs are stored per the plan's evidence conventions.
+- [x] Arm hold: the save is entered with the intended name/revision, reports Saving, receives no acknowledgement and makes no durable change until released.
+- [x] Release completes the save and reports Saved at the intended revision; the reopened value is correct.
+- [x] Arm fail reports Failed, defers adoption as did-not-complete, and an explicit retry succeeds.
+- [x] Hold-then-fail is a single armed mode: releasing the hold enters failure atomically (not two re-armed gates).
+- [x] Persistence is judged by the real store's completion/abort acknowledgements, not request-success callbacks, save labels or worker labels.
+- [x] The adapter is diagnostic-only and build-gated; a normal packaged build contains no armed gate. Diagnostic build identity is distinguishable and attested, and disposable fixtures/databases are cleaned up with the cleanup attested in the completion record.
+- [x] Focused checks for touched crates pass; evidence logs are stored per the plan's evidence conventions.
 
 ## Implementation (009 delegate, 2026-11-07, HEAD `02ec0b6`)
 
@@ -212,3 +212,18 @@ private test module. Its tests operation reports 0/5 helper coverage because the
 Optional findings were deliberately left alone: fail-arm entered identity, mid-hold
 rearm/disarm semantics, compile-presence versus packaged identity, and arm/reset
 repetition. No new production mode, member visibility or window API was added.
+
+## Answer
+
+Coordinator acceptance (2026-11-07): `86bd4620b` and required correction
+`764a4dd54` are accepted after independent Spec/Standards review and coordinator
+reruns: adapter **10/10**, Runtime held-save **1/1**, tooling **9/9**. See
+[execution](../execution.md#verified-evidence-to-date) and
+`009-coordinator-sol-{gate,runtime}.log`, `009-coordinator-tooling.log`.
+The normal-package gate-absence proof above is reused, not claimed as a new run.
+[010](010-packaged-a-to-b-proof.md#answer) supplies actual packaged hold/release,
+both literal Retry paths, gate reuse in B, exact durable revisions and final
+profile/database/output cleanup. All seven criteria are met; historical
+review-pending statements above are superseded. Diagnostic fast runs do not
+establish optimized equivalence; that and final integrated verification remain
+015 obligations. No shipping feature flag or persistence policy changed.

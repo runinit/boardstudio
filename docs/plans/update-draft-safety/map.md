@@ -69,6 +69,8 @@ proof. Reaching this destination does not implement the fix or close the adoptio
 
 - **2026-11-07 later Pair amendment:** [004 Answer](issues/004-choose-draft-safety-interface.md#later-user-amendment-sticky-pair-action-parameter-2026-11-07) records explicit user approval to preserve sticky Pair after Apply and advance only that binding's Pair safety baseline from its own successfully submitted parameter. Failure/refusal and later changes still block; all accepted fields remain live-projected per poll. No generalized action-parameter exception.
 
+- **2026-11-07 authorized implementation checkpoint:** [008 registry/tracer](issues/008-registry-and-geometry-tracer.md#answer), [009 diagnostic adapter](issues/009-diagnostic-gated-persistence-adapter.md#answer), [011 Layout owners](issues/011-layout-explicit-submit-owners.md#answer) and [010 packaged A→B proof](issues/010-packaged-a-to-b-proof.md#answer) are reviewed and coordinator-accepted, including literal Retry, held-save/newer-input timing and final owned profile/database/output cleanup. The later implementation authorization and next 012→013→014→015 order live in [execution](execution.md); all-14/optimized/mutation/full-gate/final-review obligations and umbrella 019 remain open.
+
 ## Not yet specified
 
 - (Graduated 2026-11-07: the census's named unread regions and untraced lifetimes
