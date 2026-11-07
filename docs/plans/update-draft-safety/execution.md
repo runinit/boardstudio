@@ -50,10 +50,10 @@ standards findings remain gates; optional review cleanup is not extra scope.
 
 | Ticket | State | Next acceptance evidence / owner |
 | --- | --- | --- |
-| [008 Registry and Geometry tracer](issues/008-registry-and-geometry-tracer.md) | Reviewed implementation; trusted-input acceptance remains partial | Standards PASS and Spec conditional handoff; 010 owes real trusted activation/package proof |
+| [008 Registry and Geometry tracer](issues/008-registry-and-geometry-tracer.md) | Retry correction reviewed and independently verified; claimed | Geometry 6/6, helpers 16/16, notifications 30/30; real trusted package proof below, final 010 checkpoint outstanding |
 | [009 Persistence adapter](issues/009-diagnostic-gated-persistence-adapter.md) | Both required corrections reviewed; ready for packaged integration | Coordinator adapter 10/10 plus Runtime held-save 1/1; not 010 acceptance |
 | [011 Layout owners](issues/011-layout-explicit-submit-owners.md) | Corrected implementation reviewed; claimed pending closure bookkeeping | Spec and Standards PASS at `16b85737`; coordinator full corrective diff read and focused 106/106 passed |
-| [010 Packaged A→B proof](issues/010-packaged-a-to-b-proof.md) | NEXT; reviewed prerequisites available | Fresh Pi Contributor max agent; real packaged tracer, existing held/failure and inherited adoption controls |
+| [010 Packaged A→B proof](issues/010-packaged-a-to-b-proof.md) | Five packaged legs independently GREEN; claimed | Header-Space/exact-revision oracle follow-up passes; focused takeover-timing adjudication and fresh follow-up review remain due |
 | [012 Parts owners](issues/012-parts-single-draft-owners.md) | Not started; held behind 010 checkpoint | Fresh owner-cluster agent after packaged proof |
 | [013 PCB owners](issues/013-pcb-placement-attach-assembly-net-owners.md) | Not started; held behind 010 checkpoint | Fresh owner-cluster agent after packaged proof |
 | [014 Creation forms](issues/014-creation-form-owners.md) | Not started; held behind 010 checkpoint | Fresh owner-cluster agent after packaged proof |
@@ -106,6 +106,22 @@ explicit composite acceptance debt. No partial owner coverage is final acceptanc
   is optional, not extra implementation scope. Contract-attachment freshness and
   final mutation/full-gate closure are not certified by these focused checks.
   Logs: `011-approved-*.log`, `011-coordinator-corrected-browser.log`.
-- No fresh packaged draft-safe GREEN or final integrated gate has been claimed.
-  Historical attempts and detailed dispositions remain in the owning tickets;
-  they are not current completion evidence.
+- 010: `c899b0f69` + Layout `99eafb644` + Geometry Retry `be39738b` now have
+  fresh Spec/Standards PASS (Standards discloses partial driver coverage), full
+  coordinator combined-diff read, independent Geometry **6/6**, helpers **16/16**,
+  notifications **30/30**, and **five packaged legs / zero failures** from corrected
+  diagnostic assets. Both literal Retry paths adopt B directly and reopen exact r3;
+  Layout reopens exact r1/value. Logs: `008-coordinator-retry-*.log`,
+  `010-coordinator-retry.log`.
+- Coordinator then closed two verifier gaps without changing the app: actual
+  header-Space activation and exact reopened project/source/revision for tracer
+  and hold (reuse the existing Retry export oracle). **Four affected existing
+  legs / zero failures**, `010-coordinator-oracles.log`; wrong project, revision
+  and source are rejected by `010-coordinator-export-oracle.log`. This small
+  follow-up needs fresh review. See 010 for identities and reproducible arguments.
+- 010 remains claimed: its current takeover leg types before the first Update Now
+  click, whereas spec story 23 describes typing while adoption waits on a held
+  save. Focused consequential adjudication/necessary bounded correction is next,
+  not authorization for a production timing hook or a duplicate matrix. Historical
+  cleanup, optimized validation and 015 integrated gate/mutations remain explicit
+  debts. No final acceptance, 012–014 expansion or parent umbrella closure claimed.

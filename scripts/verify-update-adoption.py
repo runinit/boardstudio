@@ -1575,6 +1575,15 @@ def leg_geometry_tracer(ctx: Ctx) -> None:
     d.check("header Space-cancel: closed, focus on Update Now, still A",
             s.get("dialogText") is None and s.get("focusOnUpdateNow") is True
             and s.get("build") == "A" and s.get("loadMark") == mark)
+    d.cmd("header keyboard: Space on Update Now opens, Enter on Cancel closes")
+    d.press("Space")
+    expect_draft_deferral(d, "header Space defers", mark)
+    d.press("Enter")
+    time.sleep(1)
+    s = d.state()
+    d.check("header Enter-cancel: closed, focus returned, exact draft preserved",
+            s.get("dialogText") is None and s.get("focusOnUpdateNow") is True
+            and geo_values(d).get("source") == GEO_DRAFT_SOURCE)
     d.cmd("resolve: arm hold, Apply draft, capture revision, release, Saved")
     close_all_toasts(d, "tracer resolve")
     gate_arm(d, "hold")
@@ -1582,8 +1591,9 @@ def leg_geometry_tracer(ctx: Ctx) -> None:
     entered = wait_gate_entered(d, "tracer Apply entered")
     rev = entered.get("revision")
     d.note(f"tracer intended revision: {rev} name={entered.get('document_name')}")
-    d.check("tracer: entered with revision and expected token",
-            rev is not None and entered.get("expected_token_present") is True, str(entered))
+    d.check("tracer: entered intended project/revision with expected token",
+            bool(entered.get("document_id")) and rev == 3
+            and entered.get("expected_token_present") is True, str(entered))
     ss = save_state(d)
     d.check("tracer held: Saving, no ack yet", ss.get("saving") is True, str(ss))
     gate_release(d)
@@ -1602,8 +1612,9 @@ def leg_geometry_tracer(ctx: Ctx) -> None:
     gv = geo_values(d)
     d.check("tracer: reopened project holds intended Name", gv.get("name") == GEO_BASE_NAME,
             str(gv))
-    d.check("tracer: reopened project holds intended value at intended revision",
-            gv.get("source") == GEO_DRAFT_SOURCE, f"rev={rev} {gv}")
+    d.check("tracer: reopened editor holds intended value",
+            gv.get("source") == GEO_DRAFT_SOURCE, str(gv))
+    check_reopened_geometry_save(d, "tracer-B", entered, GEO_DRAFT_SOURCE)
     end_session(d)
 
 
@@ -1674,7 +1685,11 @@ def leg_persist_hold(ctx: Ctx) -> None:
     select_baseline_script(d, "hold")
     gv = geo_values(d)
     d.note(f"hold B editor: {gv}")
-    d.check("hold: B reopens intended value", v1 in (gv.get("source") or ""), f"rev={rev1} {gv}")
+    d.check("hold: B reopens intended value", gv.get("source") == v1, str(gv))
+    d.check("hold: intended save is revision 3", rev1 == 3, str(entered))
+    check_reopened_geometry_save(d, "hold-B", entered, v1)
+    open_geometry_editor(d)
+    select_baseline_script(d, "hold after export")
     d.cmd("hold: gate consumed again after takeover in B")
     g1 = gate_snapshot(d)
     d.check("hold B: gate present in B", g1.get("present") is True, str(g1))
@@ -1721,14 +1736,15 @@ def retry_geometry_save(d: Driver, label: str, failed: dict, intended: str) -> d
     return entered
 
 
-def check_reopened_retry(d: Driver, label: str, entered: dict, intended: str) -> None:
+def check_reopened_geometry_save(d: Driver, label: str, entered: dict, intended: str) -> None:
     # Only AFTER direct adoption: normal project export independently observes the
-    # exact saved revision, not a save label or the retry gate's proposed document.
-    with tempfile.TemporaryDirectory(prefix="boardstudio-010-retry-export-", dir="/tmp") as path:
+    # exact saved revision, not a save label or the gate's proposed document.
+    with tempfile.TemporaryDirectory(prefix="boardstudio-010-geometry-export-", dir="/tmp") as path:
         document = export_project_document(d, Path(path), label)
         script = next((s for s in document["scripts"] if s["name"] == GEO_BASE_NAME), None)
         d.check(f"{label}: exact reopened saved project/source/revision",
-                document["id"] == entered.get("document_id") and document["revision"] == 3
+                document["id"] == entered.get("document_id")
+                and document["revision"] == entered.get("revision")
                 and script is not None and script["source"] == intended,
                 f"id={document['id']} revision={document['revision']} script={script}")
 
@@ -1770,7 +1786,7 @@ def leg_persist_fail(ctx: Ctx) -> None:
     select_baseline_script(d, "fail")
     gv = geo_values(d)
     d.check("fail: B reopens retry value", gv.get("source") == v1, str(gv))
-    check_reopened_retry(d, "fail-B", entered, v1)
+    check_reopened_geometry_save(d, "fail-B", entered, v1)
     end_session(d)
 
 
@@ -1821,7 +1837,7 @@ def leg_persist_hold_fail(ctx: Ctx) -> None:
     select_baseline_script(d, "holdfail")
     gv = geo_values(d)
     d.check("holdfail: B reopens retry value", gv.get("source") == v1, str(gv))
-    check_reopened_retry(d, "holdfail-B", entered, v1)
+    check_reopened_geometry_save(d, "holdfail-B", entered, v1)
     end_session(d)
 
 

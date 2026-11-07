@@ -6,6 +6,24 @@ Parent: [Draft-safe update adoption spec](../spec.md)
 Assignee: Pi Spark (010 implementation)
 Blocked by: [Draft-owner registry and Geometry scripts tracer at both Update Now checkpoints](008-registry-and-geometry-tracer.md), [Diagnostic gated-persistence adapter for packaged builds](009-diagnostic-gated-persistence-adapter.md)
 
+## Focused Retry escalation ownership (2026-11-07; CLAIMED)
+
+Sole implementation/required diagnostic packaged-build/browser owner from
+`99eafb6447ef389fc651f8200addf7abcf2171b5`. Own existing
+`scripts/verify-update-adoption.py`, directly necessary existing 010 payloads
+(none changed yet), this ticket and 008, plus Geometry production/local tests
+as recorded in 008. Literal Retry save is mandatory: replace the two existing
+Reload+re-apply routes, not an added duplicate matrix. Preserve pre-fix
+`web/target/site-010-src` and existing A/B; build corrected app into a NEW
+output. No other owner/Runtime/registry changes or subagents. Preserve dirty
+`CODING_STANDARDS.md` and coordinator untracked research.
+
+The Retry correction is committed as `be39738b`; fresh corrected packaged proof
+and independent coordinator checks pass as recorded below. Historical Reload +
+re-apply controls still do not count as Retry acceptance. Ticket stays CLAIMED:
+coordinator harness-proof follow-up, takeover timing adjudication, cleanup limits,
+optimized validation and final 015 obligations are not silently waived.
+
 ## What to build
 
 The packaged tracer proof: the confirmed Geometry scripts A→B draft loss
@@ -235,9 +253,69 @@ claim is made. Existing signatures remain unchanged. Full diff self-read at
 handoff; no production Rust or other payload changed, and coordinator-owned
 untracked research remains untouched/uncommitted.
 
-Optimized behavior is not yet validated. Fresh Spec+Standards review and
-coordinator independent reject-control reruns/full 015 gate remain DUE. No
-acceptance boxes advanced; 010 remains CLAIMED with the Retry blocker.
+That focused follow-up stopped at `99eafb644` with Retry blocked. The later
+correction and coordinator evidence below supersede that blocker, not the
+optimized/cleanup/final-gate debts.
+
+## Coordinator verification and proof follow-up (2026-11-07; CLAIMED)
+
+- Source correction: `be39738b10b985d0529b6ee53a1677f513502b4d` reconciles the
+  still-clean Geometry form after literal Retry while preserving newer typing.
+  Existing fail/hold-fail legs now perform **Retry save → direct Update Now**,
+  without Export/navigation/reselection/re-apply repairing the form first.
+- Fresh independent Pi Contributor medium Spec and Standards reviews of
+  `21d3e7a706868afbe269266cd03e37d7dcbb6143...be39738b10b985d0529b6ee53a1677f513502b4d`
+  report **PASS**, no required changes. Spec task `26ee2d43-6db3-45fc-a273-3fef65d6b7d0`;
+  Standards `112978f3-03d1-429c-b267-dec2c3319e6e`. Standards explicitly reviewed
+  only part of the large driver; neither report certifies structural freshness.
+  Coordinator subsequently read the **complete combined changed source**.
+- Independent mounted verification: Geometry **6/6**, pending helpers **16/16**,
+  notifications **30 executed / 0 failed**, logs
+  `008-coordinator-retry-{geometry,helpers,notifications}.log`.
+- Independent package run: `post --src-dir web/target/site-008-retry-src
+  --work-dir web/target/site-010-parent-retry-ab.6OMkRE --port 4744
+  --legs persist-fail,persist-hold-fail,geometry-tracer,persist-hold,layout-constraint`,
+  `010-coordinator-retry.log`: **five legs, zero failures**. Root A
+  `boardstudio-f8d3dd85e0a765d4-1794079543893225514`, B
+  `boardstudio-39e57057593af741-1794079544682455057`. Literal Retry's reopened normal
+  exports independently prove projects `cb00e22a-1935-49d9-8b00-cab6f9fd570e` and
+  `cbdecba3-f40d-4972-ade4-9adfe4b0d7bf`, both r3 with their exact intended source.
+  Layout's A/B documents are equal at `layout-010`, r1, U2→U1 offset (7.25,0).
+  Owned Layout profile `/tmp/boardstudio-010-layout-1jsnu1h_` was observed with
+  IndexedDB, its Chrome process exited, and its directory was deleted; sessions
+  ended and port freed. This does not prove deletion of unidentified old profiles.
+- Full read found two small **verifier gaps**, not production failures: header
+  Space activated Cancel but not Update Now; tracer/hold printed the captured
+  revision without independently reading B's reopened revision. Coordinator added
+  the missing header Space → deferral → Enter Cancel steps and reused the existing
+  export oracle (renamed `check_reopened_geometry_save`) for tracer and hold as well
+  as Retry. All four establish expected r3 separately, then check exact project,
+  source and revision. Hold still consumes the gate again in B. No new matrix,
+  production API or app build. The export oracle rejects wrong project, revision
+  and source in `010-coordinator-export-oracle.log`.
+- Tightened affected rerun: same src, `--work-dir
+  web/target/site-010-parent-oracles-ab.BDadHu --port 4744 --legs
+  geometry-tracer,persist-hold,persist-fail,persist-hold-fail`,
+  `010-coordinator-oracles.log`: **four existing legs, zero failures**, including
+  header Space deferral and all four exact B exports at r3. Root A
+  `boardstudio-f8d3dd85e0a765d4-1794080101343591108`, B
+  `boardstudio-39e57057593af741-1794080102196326775`. Python compile/diff checks pass.
+  Native impact/detect/tests/guards/contract run; no graph-covered tests or guards,
+  contract WARN (behavioral lower-bound blast). Signature verification's claimed
+  old arity 1 is lossy Python extraction: actual old and renamed helper both have
+  the same four parameters; both original callers were updated and executed.
+- **Remaining timing question:** `leg_takeover_draft` currently creates a draft
+  while B waits, **before** the first Update Now click. Spec story 23 describes a
+  new draft while adoption waits on a held save; S2 and this ticket require one
+  packaged takeover-time case (S1 is mounted-primary). A focused consequential
+  check must adjudicate that difference and, if needed, strengthen the existing
+  single leg, not add a duplicate matrix or a production timing hook. The small
+  coordinator verifier follow-up also needs fresh review.
+
+These are diagnostic **fast** assets, not proof of optimized/wasm-opt equivalence.
+Optimized validation, unidentified historical-profile/diagnostic-output cleanup,
+015 mutation/full gate and final closure review remain due. Acceptance boxes are
+not advanced; 010 is not resolved and 012–014 expansion has not started.
 
 ## Acceptance criteria
 

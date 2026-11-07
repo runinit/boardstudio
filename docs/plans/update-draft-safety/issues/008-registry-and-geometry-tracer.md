@@ -1,9 +1,49 @@
 # 008: Draft-owner registry and Geometry scripts tracer at both Update Now checkpoints
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Parent: [Draft-safe update adoption spec](../spec.md)
 Blocked by: none — can start immediately
+
+## Focused Retry reconciliation ownership (2026-11-07; CLAIMED)
+
+Sole implementation/packaged-build/browser owner for the fresh 010 escalation;
+base `99eafb6447ef389fc651f8200addf7abcf2171b5`. Exact production/test ownership:
+`web/crates/ui-shared/src/geometry_scripts.rs`, existing local
+`queued_script_tests` module (native Gortex verified before edits). Also own
+`scripts/verify-update-adoption.py` and 008/010 ticket progress. No registry,
+Runtime, public API or other owner edits. Preserve unrelated dirty
+`CODING_STANDARDS.md` and untracked coordinator research.
+
+Isolated real RED: `successful_save_retry_reconciles_the_rolled_back_clean_script`
+accepts intended source at r1 after `Event::RetrySave`, but the still-mounted
+source remains empty. Log `008-retry-clean-red.log`: exactly 1 executed failure
+at the source-equality assertion, not a compilation failure/cascaded panic.
+GREEN `008-retry-clean-green.log`: 1/1. Command for both:
+`wasm-pack test --headless --chrome --mode no-install web/crates/ui-shared --lib -- successful_save_retry_reconciles_the_rolled_back_clean_script --nocapture`.
+The effect now observes accepted value as well as owner identity, following it
+only if this same owner's draft equals its previously observed accepted value.
+This reconciles failure rollback after explicit successful retry, without
+changing pending helpers, failure restoration or the live registry predicate.
+Completed at `be39738b10b985d0529b6ee53a1677f513502b4d`: the additional
+`successful_save_retry_preserves_newer_input_while_saving` regression and clean
+Retry regression pass. The clean-value guard mutation is killed
+(`008-retry-newer-red.log`); no registry or failure-restoration policy changed.
+Coordinator independently reran Geometry **6/6**, pending helpers **16/16** and
+notifications **30 executed / 0 failed** in `008-coordinator-retry-{geometry,helpers,notifications}.log`.
+Fresh Spec and Standards reviews of `21d3e7a..be39738b` report PASS, no required
+changes; Standards discloses partial driver coverage, not structural certification.
+Parent then read the complete combined source diff and independently passed five
+packaged legs, including both literal Retry → direct Update Now paths and Layout
+(`010-coordinator-retry.log`). The narrower driver-proof follow-up and outstanding
+010 acceptance limits are recorded in [010](010-packaged-a-to-b-proof.md).
+This ticket remains CLAIMED pending that composite checkpoint.
+Matching Dioxus v0.7.10 docs (not Leptos) verified through Context7:
+`use_reactive` supplies non-signal dependencies; `peek` avoids subscriptions.
+Native Gortex named read + explore(task) both succeeded; post-edit contract is
+WARN (lower-bound behavioral impact), no configured guards, graph test coverage
+absent. Later review and coordinator evidence above supersede that pending state;
+final integrated verification still belongs to 015.
 
 ## Progress (implementation, 2026-11-07; NOT resolved — awaiting coordinator review)
 
@@ -124,6 +164,6 @@ owner-canonically encoded baseline per admission key.
 - [x] Unresolved state is judged per admission key against the live-projected baseline (or mount-default snapshot where no accepted value exists), using owner-canonical equality; reverting to the baseline clears the key.
 - [x] Poll-prune drops dead entries rather than treating them as blockers, with a one-time diagnostic whose log/surface is named in the ticket's completion record.
 - [x] RED first: the mounted equivalents of the confirmed draft-loss assertions fail for the expected reason before the fix, then pass (GREEN) — report at the RED and mounted-GREEN stopping points before proceeding.
-- [ ] **Partial:** mounted tests cover valid explicit-submit and realistic invalid never-submitted, DOM-unmarked drafts; both entry points; update-dialog Cancel preserves exact value/focus; Apply landing, baseline reversion and actual Back retirement; unrelated submission never clears; failure/older settlement preserve newer input. Helper regressions cover completed/failed/refused terminal memory. Existing accepted-value restoration remains unchanged. Mounted tab stops/focus and synthetic Enter/Space non-interception pass, but **trusted pointer and trusted Tab/Enter/Space activation remain pending in [010](010-packaged-a-to-b-proof.md)**. Geometry has no Cancel/Reset form controls.
+- [ ] **Partial:** mounted tests cover valid explicit-submit and realistic invalid never-submitted, DOM-unmarked drafts; both entry points; update-dialog Cancel preserves exact value/focus; Apply landing, baseline reversion and actual Back retirement; unrelated submission never clears; failure/older settlement preserve newer input. Helper regressions cover completed/failed/refused terminal memory. Existing accepted-value restoration remains unchanged. Mounted tab stops/focus and synthetic Enter/Space non-interception pass. Coordinator packaged runs now verify **trusted pointer and trusted Tab/Enter/Space at both entries**, including actual header Space activation (`010-coordinator-oracles.log`). The composite [010](010-packaged-a-to-b-proof.md) checkpoint remains pending its documented timing/cleanup/review limits, rather than missing trusted-input evidence. Geometry has no Cancel/Reset form controls.
 - [x] Deferral copy follows the settled per-key label+remedy rule; no injected invalid marker, save label or worker label is used as evidence.
 - [x] Focused quick/build/browser checks for touched crates pass; evidence logs are stored per the plan's evidence conventions.
