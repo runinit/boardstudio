@@ -36,7 +36,7 @@ Core workflow:
 
 ### Issue tracker
 
-Committed Markdown tickets under `docs/plans/<plan>/issues/`. See `docs/agents/issue-tracker.md`.
+Committed Markdown tickets under `docs/plans/<plan>/issues/`. Authoring, implementing or reviewing a ticket: follow its proof-map, review-report and completion-record protocol in [issue tracker](docs/agents/issue-tracker.md#building-and-verifying-a-ticket).
 
 ### Triage labels
 

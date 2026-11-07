@@ -18,7 +18,45 @@ tickets live in `docs/plans/typed-core-edits/issues/`.
 
 ## Building and verifying a ticket
 
-The ticket's acceptance list names what to run.
+The ticket's acceptance list names what to run. Authoring, implementing or reviewing a ticket
+follows the protocol below; the tests it specifies follow
+[test economy](../../CODING_STANDARDS.md#test-economy).
+
+### Proof map
+
+Before implementation, the ticket maps each requirement to proof rows, one per distinct
+observable failure story:
+
+`requirement — precondition (critical timing) → exact action → independent oracle · tier · status`
+
+- A row is a claim to prove, not a test to write. Reuse sufficient existing evidence first;
+  parameterize equivalent inputs; keep one row per timing, ownership, admission or failure path
+  that can fail independently, never the cross product.
+- The oracle is observable outside the code under test (rendered or saved state, a spec literal,
+  a reopened result), not a restatement of the implementation.
+- Tier is the cheapest faithful to the boundary: `native`, `mounted` or `packaged`.
+- Status is `planned`, `reused` (cite the evidence), `RED` or `GREEN` (cite the log), or
+  `proof gap`: new proof that passes the existing product. Record a proof gap as GREEN; a RED is
+  observed, never fabricated.
+
+### Review reports
+
+- Standards and Spec each end with their own verdict: `PASS`, `PARTIAL` or `CHANGES REQUIRED`.
+  A separate acceptance readiness line says `READY` or `BLOCKED` and lists every unmet mandatory
+  criterion. Changing a mandatory criterion requires explicit user approval; reviewer wording or
+  ticket ownership does not waive it.
+- State the fixed diff endpoints (`base..head` commits) and list every changed file, with hunks
+  where a file was read in parts, as read or unread. Changed source that is unread or truncated
+  caps its axes at `PARTIAL`. Git inventories are mechanical; judging that what was read covers
+  the criteria stays the reviewer's.
+- A complete review of source unchanged since its endpoints stands; review only the delta.
+
+### Completion record
+
+Keep it small: current `HEAD`; checks newly executed versus reused (log pointers); unmet gates and
+retained cleanup; pointers; next action. The ticket's `## Answer` and the logs hold the detail; do
+not restate historical receipts. Native source counts and test-graph coverage show reach, not
+behaviour: behaviour needs a proof row's oracle.
 
 ## When a skill says "publish to the issue tracker"
 

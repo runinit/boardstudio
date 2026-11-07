@@ -24,3 +24,34 @@ umbrella or claim its final acceptance.
 - [ ] Class B remains an explicit, revocable risk acceptance with its recorded revocation trigger; no Class B adapter is added and no Class B loss is waived by this closure.
 - [ ] Full project check gate passes with its receipt recorded; one combined spec-and-standards review is completed and its findings resolved.
 - [ ] Evidence is logs-only in the evidence directory, reporting results and relevant failures; the completion record names the diagnostic surface chosen for dead-entry pruning and the cleanup attestations from the packaged legs.
+
+## Proof map
+
+Follows the [proof map protocol](../../../agents/issue-tracker.md#proof-map); the rows restate the
+criteria above and add none. They cite 008–014 evidence and do not repeat any owner matrix. The
+optimized and full gates are `pending`; every other row `planned`.
+
+- P1 All 14 — the settled census of 14 Class A owners ([006 handoff](006-agree-verification-and-implementation-handoff.md#answer))
+  against the adapters registered at the closing `HEAD` → one audit row per owner naming its passing
+  mounted deferral evidence from 008–014. Oracle: the census, not the registry's own list; an owner
+  without passing evidence is a blocker. Native source counts and test-graph reach are not behavioural
+  proof. Class B: no adapter added, risk acceptance and revocation trigger intact. Tier `native` audit
+  over `mounted` evidence.
+- P2 Copy remedies — the per-(owner, admission key) label and remedy table → compared with the
+  settled copy rule → every key names its consuming action, initial and installed copy stay
+  distinct. Oracle: the copy rule and the table, reviewed. Tier `native`.
+- P3 Packaged Layout constraint — a real unapplied Layout constraint draft in the packaged build →
+  trusted Update Now, then Cancel → the update defers and the draft stays intact. Oracle: packaged
+  deferral and unchanged draft. The coordinator decides whether the accepted 010 Layout leg already
+  meets this oracle (`reused`) before adding a leg (`planned`). Tier `packaged`.
+- P4 Mutation — weakened-gate mutants over registry polling, pruning and the per-key unresolved
+  branches → `scripts/mutation-check.py` → each mutant fails a test. Oracle: the tool's killed and
+  survived report; a survivor is not caught and blocks. Tier `native`/`mounted`.
+- P5 Optimized and full gate — coordinator-owned: rebuild the disposable packages deleted after 010 →
+  optimized validation, then the full `python3 scripts/check.py` gate → receipt recorded. Oracle: the
+  gate's own result. `pending`.
+- P6 Final review — one combined Standards and Spec review per the
+  [review-report protocol](../../../agents/issue-tracker.md#review-reports) on fixed endpoints with every
+  changed file read. Acceptance is `READY` only when P1–P5 and the evidence criteria hold, including
+  the dead-entry pruning diagnostic surface and the packaged-leg cleanup attestations in a small
+  completion record.

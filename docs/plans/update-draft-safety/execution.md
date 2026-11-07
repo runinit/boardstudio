@@ -54,10 +54,24 @@ standards findings remain gates; optional review cleanup is not extra scope.
 | [009 Persistence adapter](issues/009-diagnostic-gated-persistence-adapter.md) | Resolved | Reviewed corrections; coordinator adapter 10/10, Runtime 1/1, tooling 9/9; real packaged integration and cleanup in 010 |
 | [011 Layout owners](issues/011-layout-explicit-submit-owners.md) | Resolved | Spec/Standards PASS at `16b85737`; coordinator complete diffs and 106/106; packaged Layout proof in 010 |
 | [010 Packaged A→B proof](issues/010-packaged-a-to-b-proof.md) | Resolved; composite checkpoint accepted | Complete code reviews through `c5a876ec`, seven behavioral criteria and final owned profile/database/output cleanup pass |
-| [012 Parts owners](issues/012-parts-single-draft-owners.md) | Ready; not started | Next fresh owner-cluster agent under existing authorization |
+| [012 Parts owners](issues/012-parts-single-draft-owners.md) | Ready; not started; paused until the A/B/C preparation below completes | Next fresh owner-cluster agent under existing authorization, after that preparation |
 | [013 PCB owners](issues/013-pcb-placement-attach-assembly-net-owners.md) | Not started; queued after 012 | Fresh owner-cluster agent, serialized source/build ownership |
 | [014 Creation forms](issues/014-creation-form-owners.md) | Not started; queued after 013 | Fresh owner-cluster agent, no creation-policy change |
 | [015 Coverage and closure](issues/015-coverage-mutation-and-closure.md) | Not started | Coordinator owns full build/gate; all specified evidence and reviews remain required |
+
+## Verification-reliability preparation
+
+User-approved A→B→C, finishing before 012 starts. It improves how remaining tickets are proved and
+reviewed; it is not Parts scope and changes no product, acceptance threshold or dependency.
+The canonical protocol (proof map, review reports, completion record) is in
+[issue tracker](../../agents/issue-tracker.md#building-and-verifying-a-ticket).
+
+- **A, protocol and proof maps:** implemented on baseline `36735ff9b`; coordinator diff and
+  documentation checks complete; independent Standards and Spec reviews pending. It adds the
+  protocol, a sharper `AGENTS.md` pointer, and proof maps in 012–015 that restate their approved
+  owner distinctions.
+- **B, C:** not started.
+- **012:** paused until A, B and C are complete; 013–015 stay queued behind it.
 
 This sequencing checkpoint does not change ticket scope or waive formal dependencies.
 The reviewed 008 implementation can feed dependent work while 010 discharges its
@@ -78,6 +92,8 @@ explicit composite acceptance debt. No partial owner coverage is final acceptanc
   reruns rejecting guardrails, and starts fresh read-only Spec and Standards
   reviews pinned to the completed change. Required findings are fixed; no premature
   resolved status. Optional suggestions do not expand the task.
+- Proof maps, review reports and completion records follow the
+  [canonical protocol](../../agents/issue-tracker.md#building-and-verifying-a-ticket).
 - Full-suite/full-build runs belong to the coordinator at 015, not concurrent
   delegates. Preserve all required checks and approvals; report blocked gates.
 - Evidence logs only under `.evidence/`. No source copies, custom manifests or
