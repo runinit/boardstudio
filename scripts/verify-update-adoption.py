@@ -81,7 +81,9 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -135,6 +137,7 @@ class Driver:
         self.log = log
         self.failures: list[str] = []
         self.env = dict(os.environ)
+        self.session_closed = True
 
     def cmd(self, text: str) -> None:
         print(f"--- cmd: {text} ---", file=self.log, flush=True)
@@ -448,18 +451,25 @@ def new_session(prefix: str) -> str:
 def start_session(driver: Driver, prefix: str, url: str) -> None:
     session = new_session(prefix)
     driver.env = dict(os.environ, AGENT_BROWSER_SESSION=session)
+    driver.session_closed = False
     driver.cmd(f"session: {session} (fresh isolated browser profile)")
     driver.run(["agent-browser", "open", url])
     driver.run(["agent-browser", "wait", "--text", "Your keyboards"], timeout=90)
 
 
 def end_session(driver: Driver) -> None:
+    # A second close can start a new daemon/browser and recreate a just-deleted
+    # explicit disk profile. Leg cleanup and main's finally share this guard.
+    if driver.session_closed:
+        return
     try:
-        driver.cmd("$ agent-browser close")
-        subprocess.run(["agent-browser", "close"], cwd=ROOT, env=driver.env,
-                       capture_output=True, timeout=60)
-    except (OSError, subprocess.SubprocessError):
-        pass
+        closed = driver.run(["agent-browser", "close"])
+        if "Browser closed" in closed:
+            driver.session_closed = True
+        else:
+            driver.fail("session cleanup: browser close unconfirmed")
+    except (OSError, subprocess.SubprocessError) as error:
+        driver.fail("session cleanup: close failed", str(error))
 
 
 def find_ref(snapshot: str, pattern: str) -> str | None:
@@ -1154,7 +1164,7 @@ SAVE_IN_PROGRESS = "A save is still in progress"
 DID_NOT_COMPLETE = "The last save did not complete"
 
 ALL_010_LEGS = ["geometry-tracer", "persist-hold", "persist-fail", "persist-hold-fail",
-                "takeover-draft", "no-build"]
+                "takeover-draft", "no-build", "layout-constraint"]
 
 
 def find_ref_retry(d: Driver, pattern: str, label: str, attempts: int = 6) -> str:
@@ -1336,6 +1346,160 @@ def cancel_preserves_draft(d: Driver, label: str, mark: str, draft: str) -> None
             and s.get("loadMark") == mark)
     gv = geo_values(d)
     d.check(f"{label}: exact draft preserved", gv.get("source") == draft, str(gv))
+
+
+def export_project_document(d: Driver, directory: Path, label: str) -> dict:
+    """Observe the accepted document through the user's normal portable export."""
+    d.click_button("Export")
+    ref = find_ref_retry(d, r'button "Download \.boardstudio project"', "project download")
+    archive = directory / f"{label}.boardstudio"
+    d.run(["agent-browser", "download", ref, str(archive)])
+    with zipfile.ZipFile(archive) as bundle:
+        document = json.loads(bundle.read("project.json"))
+    d.note(f"{label}: exported project id={document['id']} revision={document['revision']}")
+    d.click_button("Back to Layout")
+    return document
+
+
+def layout_fixture(path: Path) -> None:
+    """Minimal data only: normal archive import/Runtime acceptance mounts the UI.
+
+    Mirrors ProjectDoc::empty's v7 schema plus a board and two standalone parts;
+    unlike matrix/key demos these satisfy layout_component_inspector_projection.
+    """
+    document = dict(
+        format="boardstudio/v2", formatVersion=7, id="layout-010", name="Layout 010",
+        revision=0, parameters={},
+        definitions=[dict(id="component", name="Fixture controller", kind="controller",
+                          courtyard=[dict(x=x, y=y) for x, y in
+                                     [(-2, -2), (2, -2), (2, 2), (-2, 2)]], pads=[])],
+        parts=[dict(id=id, definitionId="component", reference=ref,
+                    pose=dict(at=dict(x=x, y=3), rotation=0), side="front")
+               for id, ref, x in [("target", "U1", 4), ("source", "U2", 10)]],
+        boards=[dict(id="board", name="Main board", partIds=["target", "source"],
+                     outlineIds=[], netIds=[], thickness=1.6, traces=[], vias=[])],
+        matrices=[], nets=[], outline=[], caseBodies=[], materials=[], assets=[],
+        scripts=[], constraints=[])
+    with zipfile.ZipFile(path, "w") as bundle:
+        bundle.writestr("project.json", json.dumps(document))
+
+
+def select_layout_constraint(d: Driver) -> dict:
+    ref = find_ref_retry(d, r'button "U1 Fixture controller', "standalone U1 Objects button")
+    d.run(["agent-browser", "click", ref])
+    form = d.eval_file("layout-constraint.js") or {}
+    if not form.get("present"):
+        raise Failure("selected standalone part did not mount Layout constraint")
+    if not form.get("expanded"):
+        d.click_selector('[aria-label="Layout constraint"]')
+    return d.eval_file("layout-constraint.js") or {}
+
+
+def leg_layout_constraint(ctx: Ctx) -> None:
+    d = ctx.d
+    d.cmd("LEG layout-constraint: normal import, real draft deferral, saved constraint in B")
+    ctx.server.swap(d, ctx.a, "serve A")
+    # Explicitly owned disk profile: includes IDB/cache/worker, removed only after
+    # successful close. Never clear workers/caches to obtain GREEN.
+    directory = Path(tempfile.mkdtemp(prefix="boardstudio-010-layout-", dir="/tmp"))
+    try:
+        fixture = directory / "layout.boardstudio"
+        layout_fixture(fixture)
+        session = new_session("010-layout")
+        d.env = dict(os.environ, AGENT_BROWSER_SESSION=session,
+                     AGENT_BROWSER_PROFILE=str(directory / "profile"))
+        d.cmd(f"session {session}: owned profile {directory / 'profile'}")
+        d.session_closed = False
+        d.run(["agent-browser", "open", route_url(d.port, "root")])
+        d.run(["agent-browser", "wait", "--text", "Your keyboards"])
+        d.run(["agent-browser", "upload", "#library-import-file", str(fixture)])
+        d.wait_main_board()
+        wait_save(d, "layout import", "Saved locally")
+        form = select_layout_constraint(d)
+        d.check("layout: real empty constraint mounted", form.get("saveLabel") == "Add constraint"
+                and form.get("x") == "0", str(form))
+        mark = set_marker(d)
+        d.run(["agent-browser", "fill", '[aria-label="Offset X (mm)"]', "7.25"])
+        d.press("Tab")
+        form = d.eval_file("layout-constraint.js") or {}
+        d.check("layout: valid unapplied draft survives blur", form.get("x") == "7.25"
+                and form.get("invalid") == 0 and save_state(d).get("saved") is True, str(form))
+        ctx.server.swap(d, ctx.b, "publish B at the same origin")
+        publish_and_wait_waiting(d, "layout B published")
+        for label, selector in [("toast", UPDATE_NOW_TOAST), ("header", UPDATE_NOW_HEADER)]:
+            if label == "header":
+                close_toast_with_keyboard(d)
+            d.click_selector(selector)
+            dialog = d.poll(f"layout {label}: draft defers",
+                            "!!document.querySelector('[role=alertdialog]')", 15)
+            d.check(f"layout {label}: unresolved draft blocks adoption", dialog)
+            if not dialog:
+                d.note(f"layout missing deferral outcome: {d.state()}")
+                raise Failure("Layout draft adopted instead of deferring")
+            state = d.state()
+            d.check(f"layout {label}: named owner and resolution remedy",
+                    "Layout constraint has an unapplied edit" in (state.get("dialogText") or "")
+                    and "Save or remove the constraint, or restore its saved values"
+                    in (state.get("dialogText") or ""), str(state.get("dialogText")))
+            d.click_button("Cancel")
+            state = expect_waiting_state(d, f"layout {label} Cancel", mark, "A")
+            form = d.eval_file("layout-constraint.js") or {}
+            d.check(f"layout {label}: Cancel preserves exact draft and focus",
+                    form.get("x") == "7.25" and state.get("focusOnUpdateNow") is True, str(form))
+        close_all_toasts(d, "layout resolve")
+        gate_arm(d, "hold")
+        d.click_button("Add constraint")
+        entered = wait_gate_entered(d, "layout Add constraint")
+        d.check("layout: held intended project/revision with no ack",
+                entered.get("document_id") == "layout-010" and entered.get("revision") == 1
+                and entered.get("acked") is None and save_state(d).get("saving") is True,
+                str(entered))
+        d.click_selector(UPDATE_NOW_HEADER)
+        expect_save_deferral(d, "layout held", mark, SAVE_IN_PROGRESS)
+        cancel_save_deferral(d, "layout held Cancel", mark)
+        gate_release(d)
+        ack = wait_gate_acked(d, "layout Add constraint")
+        d.check("layout: real store completed after release", ack.get("acked") == "completed",
+                str(ack))
+        wait_save(d, "layout resolved", "Saved locally")
+        saved_a = export_project_document(d, directory, "layout-A")
+        d.check("layout A: exact accepted constraint and revision",
+                saved_a["revision"] == 1 and len(saved_a["constraints"]) == 1
+                and saved_a["constraints"][0].get("source") == {"kind": "part", "partId": "source"}
+                and saved_a["constraints"][0].get("target") == {"kind": "part", "partId": "target"}
+                and saved_a["constraints"][0].get("relation") == {
+                    "kind": "offset", "offset": {"x": 7.25, "y": 0}, "rotation": 0},
+                str(saved_a["constraints"]))
+        d.click_selector(UPDATE_NOW_HEADER)
+        wait_for_adoption_reload(d, "layout adopt")
+        expect_adopted(d, "layout adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+        reopen_saved_project(d, "layout adopted B")
+        form = select_layout_constraint(d)
+        d.check("layout B: reopened real form holds saved constraint",
+                form.get("x") == "7.25" and form.get("saveLabel") == "Save constraint", str(form))
+        saved_b = export_project_document(d, directory, "layout-B")
+        d.check("layout B: exact reopened project/value/revision matches A",
+                saved_b == saved_a and saved_b["id"] == "layout-010", str(saved_b["constraints"]))
+    finally:
+        end_session(d)
+        if d.session_closed:
+            deadline = time.monotonic() + 15
+            profile_arg = f"--user-data-dir={directory / 'profile'}"
+            while True:
+                live = [line for line in subprocess.check_output(
+                    ["ps", "-eo", "pid,args"], text=True).splitlines() if profile_arg in line]
+                if not live or time.monotonic() >= deadline:
+                    break
+                time.sleep(0.5)
+            d.note(f"layout profile Chrome processes after close: {live}")
+            if not live:
+                d.note(f"layout profile IndexedDB before deletion: {list(directory.rglob('IndexedDB'))}")
+                shutil.rmtree(directory)
+                d.check("layout owned fixture/profile/database removed", not directory.exists())
+            else:
+                d.fail("layout cleanup: profile still in use; retain owned directory", str(directory))
+        else:
+            d.fail("layout cleanup: close unconfirmed; retain owned directory", str(directory))
 
 
 def leg_geometry_tracer(ctx: Ctx) -> None:
@@ -1729,6 +1893,7 @@ LEGS = {
     "persist-hold-fail": leg_persist_hold_fail,
     "takeover-draft": leg_takeover_draft,
     "no-build": leg_no_build,
+    "layout-constraint": leg_layout_constraint,
 }
 
 
