@@ -73,12 +73,19 @@ The canonical protocol (proof map, review reports, completion record) is in
   blocks on the unresolved origin-baseline decision. Coordinator diff and documentation checks
   pass; A is complete. The reviews' original conditional/changes-required verdicts are retained,
   not restated as new reviewer PASSes. Review tasks: Standards `768d3dca`, Spec `a5503305`.
-- **B, browser lifecycle:** candidate implemented; independent Spec/Standards reviews pending.
-  Coordinator verified 16 lifecycle tests, 64 check-tool tests and the complete tooling gate.
-  Additional RED/GREEN guards cover absent ownership, retained-profile rollover, failed close
-  status, unknown process state, removal failure and profile paths containing spaces. Evidence:
-  `.evidence/update-draft-safety/abc-b-coordinator-*.log`. Real-browser acceptance remains due in
-  the single integrated lifecycle smoke after C; no new real-browser proof is claimed here.
+- **B, browser lifecycle:** code/unit checkpoint `6764109e` accepted. Independent Standards
+  (`51139f25`) and Spec (`1f11c52f`) PASS, no Critical/Required findings; both read all four changed
+  files to EOF and the full diff. Earlier partial reviews are not counted as full certification.
+  Coordinator verified 16 lifecycle tests, 64 check-tool tests, the complete tooling gate and
+  718-file documentation-link check. Additional RED/GREEN guards cover absent ownership,
+  retained-profile rollover, failed close status, unknown process state, removal failure and
+  profile paths containing spaces. Evidence under `.evidence/update-draft-safety/`:
+  `abc-b-coordinator-red.log`, `abc-b-coordinator-red-io-path.log`,
+  `abc-b-coordinator-green.log`, `abc-b-coordinator-test-check.log`,
+  `abc-b-coordinator-tooling.log`, `abc-b-coordinator-doclinks.log`.
+  Optional suggestions are not acceptance blockers. No new real-browser proof is claimed:
+  the single integrated smoke after C must show Chrome using the exact private profile before
+  close, then its process/profile/IndexedDB removal. Overall A/B/C acceptance remains pending.
 - **C, generated-output cleanup:** not started.
 - **012:** paused until A, B and C are complete; 013–015 stay queued behind it.
 
