@@ -1694,6 +1694,45 @@ def leg_persist_hold(ctx: Ctx) -> None:
     end_session(d)
 
 
+def retry_geometry_save(d: Driver, label: str, failed: dict, intended: str) -> dict:
+    """Literal Retry, with no navigation/reselection/export to repair the mounted form."""
+    d.cmd(f"{label}: literal Retry save, held at real persistence entry")
+    d.check(f"{label}: failure rolled the form back", geo_values(d).get("source") == GEO_BASE_SOURCE)
+    gate_arm(d, "hold")
+    d.click_button("Retry save")
+    entered = wait_gate_entered(d, f"{label} Retry entered")
+    d.check(f"{label}: retry holds intended revision with no acknowledgement",
+            bool(entered.get("document_id")) and entered.get("document_name") == "Split 42"
+            and entered.get("revision") == 3 and entered.get("expected_token_present") is True
+            and entered.get("acked") is None and save_state(d).get("saving") is True,
+            str(entered))
+    # Immediate fail deliberately never enters persistence, so its snapshot has
+    # no document metadata. Hold-then-fail did enter and must retain that identity.
+    if failed.get("entered"):
+        d.check(f"{label}: retry retains failed attempt's exact project/revision",
+                entered.get("document_id") == failed.get("document_id")
+                and entered.get("revision") == failed.get("revision"), str(failed))
+    gate_release(d)
+    ack = wait_gate_acked(d, f"{label} Retry acked")
+    d.check(f"{label}: real retry store completed", ack.get("acked") == "completed", str(ack))
+    wait_save(d, f"{label} Retry", "Saved locally")
+    gv = geo_values(d)
+    d.check(f"{label}: retry reconciles still-mounted form", gv.get("source") == intended, str(gv))
+    return entered
+
+
+def check_reopened_retry(d: Driver, label: str, entered: dict, intended: str) -> None:
+    # Only AFTER direct adoption: normal project export independently observes the
+    # exact saved revision, not a save label or the retry gate's proposed document.
+    with tempfile.TemporaryDirectory(prefix="boardstudio-010-retry-export-", dir="/tmp") as path:
+        document = export_project_document(d, Path(path), label)
+        script = next((s for s in document["scripts"] if s["name"] == GEO_BASE_NAME), None)
+        d.check(f"{label}: exact reopened saved project/source/revision",
+                document["id"] == entered.get("document_id") and document["revision"] == 3
+                and script is not None and script["source"] == intended,
+                f"id={document['id']} revision={document['revision']} script={script}")
+
+
 def leg_persist_fail(ctx: Ctx) -> None:
     d = ctx.d
     d.cmd("LEG persist-fail: failed save defers as did-not-complete, explicit retry adopts")
@@ -1719,31 +1758,19 @@ def leg_persist_fail(ctx: Ctx) -> None:
     d.click_selector(UPDATE_NOW_TOAST)
     expect_save_deferral(d, "fail defers", mark, DID_NOT_COMPLETE)
     cancel_save_deferral(d, "fail cancel", mark)
-    d.cmd("fail: explicit recovery via Reload saved version, then re-apply")
-    d.click_button("Reload saved version")
-    dialog_accept(d)
-    wait_save(d, "fail recovered", "Saved locally")
-    gv = geo_values(d)
-    if not gv.get("open"):
-        open_geometry_editor(d)
-        select_baseline_script(d, "fail recovered")
-        gv = geo_values(d)
-    d.check("fail: reloaded to baseline", gv.get("source") == GEO_BASE_SOURCE, str(gv))
-    v2 = GEO_BASE_SOURCE + "\n// RETRY-010"
-    d.run(["agent-browser", "fill", find_ref_retry(d, 'textbox "Rhai source"', "Rhai v2"), v2])
-    close_all_toasts(d, "fail retry")
-    d.click_button("Apply script")
-    wait_save(d, "fail retry", "Saved locally")
-    gv = geo_values(d)
-    d.check("fail: retry value in editor", gv.get("source") == v2, str(gv))
+    entered = retry_geometry_save(d, "fail", g1, v1)
+    d.cmd("fail: direct Retry → Update Now (no export/navigation/reselection/re-apply)")
     d.click_selector(UPDATE_NOW_TOAST)
     wait_for_adoption_reload(d, "fail adopt")
+    if d.state().get("build") != "B":
+        raise Failure("literal Retry did not permit direct adoption")
     expect_adopted(d, "fail adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
     reopen_saved_project(d, "fail adopted B")
     open_geometry_editor(d)
     select_baseline_script(d, "fail")
     gv = geo_values(d)
-    d.check("fail: B reopens retry value", gv.get("source") == v2, str(gv))
+    d.check("fail: B reopens retry value", gv.get("source") == v1, str(gv))
+    check_reopened_retry(d, "fail-B", entered, v1)
     end_session(d)
 
 
@@ -1782,29 +1809,19 @@ def leg_persist_hold_fail(ctx: Ctx) -> None:
     d.click_selector(UPDATE_NOW_TOAST)
     expect_save_deferral(d, "holdfail failed defers", mark, DID_NOT_COMPLETE)
     cancel_save_deferral(d, "holdfail failed cancel", mark)
-    d.cmd("holdfail: explicit recovery via Reload saved version, then re-apply")
-    d.click_button("Reload saved version")
-    dialog_accept(d)
-    wait_save(d, "holdfail recovered", "Saved locally")
-    gv = geo_values(d)
-    if not gv.get("open"):
-        open_geometry_editor(d)
-        select_baseline_script(d, "holdfail recovered")
-        gv = geo_values(d)
-    d.check("holdfail: reloaded to baseline", gv.get("source") == GEO_BASE_SOURCE, str(gv))
-    v2 = GEO_BASE_SOURCE + "\n// HOLDFAIL-RETRY-010"
-    d.run(["agent-browser", "fill", find_ref_retry(d, 'textbox "Rhai source"', "Rhai v2"), v2])
-    close_all_toasts(d, "holdfail retry")
-    d.click_button("Apply script")
-    wait_save(d, "holdfail retry", "Saved locally")
+    entered = retry_geometry_save(d, "holdfail", acked, v1)
+    d.cmd("holdfail: direct Retry → Update Now (no export/navigation/reselection/re-apply)")
     d.click_selector(UPDATE_NOW_TOAST)
     wait_for_adoption_reload(d, "holdfail adopt")
+    if d.state().get("build") != "B":
+        raise Failure("literal Retry did not permit direct adoption")
     expect_adopted(d, "holdfail adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
     reopen_saved_project(d, "holdfail adopted B")
     open_geometry_editor(d)
     select_baseline_script(d, "holdfail")
     gv = geo_values(d)
-    d.check("holdfail: B reopens retry value", gv.get("source") == v2, str(gv))
+    d.check("holdfail: B reopens retry value", gv.get("source") == v1, str(gv))
+    check_reopened_retry(d, "holdfail-B", entered, v1)
     end_session(d)
 
 

@@ -260,17 +260,27 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
             None::<(String, SessionEpoch, Option<(String, bool)>)>,
         ))
     });
+    let observed_accepted = use_hook(|| Rc::new(std::cell::RefCell::new(None::<String>)));
     let accepted_active = active_script.cloned();
-    use_effect(use_reactive((&accepted_identity,), {
+    let accepted_value = active_script
+        .map(|script| encode_script_draft(&script.name, &script.source, script.enabled))
+        .unwrap_or_else(|| encode_script_draft("", "", true));
+    use_effect(use_reactive((&accepted_identity, &accepted_value), {
         let observed_identity = observed_identity.clone();
+        let observed_accepted = observed_accepted.clone();
         let mut name = name;
         let mut source = source;
         let mut enabled = enabled;
         let mut draft = draft;
-        move |(identity,)| {
+        move |(identity, accepted_value)| {
             let owner_changed = observed_identity.borrow().as_ref() != Some(&identity);
-            *observed_identity.borrow_mut() = Some(identity.clone());
-            if owner_changed {
+            // Retry save has no new field ticket: failure already drained it and
+            // restored the old accepted value. Follow the new accepted value only
+            // while that same owner's form is still clean; never replace newer input.
+            let was_clean = observed_accepted.borrow().as_ref() == Some(&*draft.peek());
+            *observed_identity.borrow_mut() = Some(identity);
+            *observed_accepted.borrow_mut() = Some(accepted_value);
+            if owner_changed || was_clean {
                 let (accepted_name, accepted_source, accepted_enabled) = accepted_active
                     .as_ref()
                     .map(|script| (script.name.clone(), script.source.clone(), script.enabled))
@@ -880,6 +890,91 @@ mod queued_script_tests {
         assert!(
             script_field_failure().is_none(),
             "script A failure must not be attached to active script B"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn successful_save_retry_reconciles_the_rolled_back_clean_script() {
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document()).await;
+        let probe = mount_editor(runtime.clone()).await;
+        select_script("Script 1").await;
+        flush(&probe).await;
+        type_source("// intended retry");
+        flush(&probe).await;
+        support::fail_next_persist(&runtime, "quota");
+        click_apply();
+        support::run_pending(&runtime).await;
+        flush(&probe).await;
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        assert_eq!(
+            source_value(),
+            "",
+            "failure keeps the existing rollback policy"
+        );
+        assert!(script_field_failure().is_some());
+
+        runtime.submit(boardstudio_application::Event::RetrySave {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        flush(&probe).await;
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document.revision, 1);
+        assert_eq!(accepted.document.scripts[0].source, "// intended retry");
+        assert_eq!(
+            source_value(),
+            "// intended retry",
+            "Retry save must reconcile the still-mounted clean form"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn successful_save_retry_preserves_newer_input_while_saving() {
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document()).await;
+        let probe = mount_editor(runtime.clone()).await;
+        select_script("Script 1").await;
+        flush(&probe).await;
+        type_source("// intended retry");
+        flush(&probe).await;
+        support::fail_next_persist(&runtime, "quota");
+        click_apply();
+        support::run_pending(&runtime).await;
+        flush(&probe).await;
+        assert_eq!(source_value(), "");
+
+        let (entered, release) = support::gate_next_persist(&runtime);
+        runtime.submit(boardstudio_application::Event::RetrySave {
+            operation_id: runtime.operation(),
+        });
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        flush(&probe).await;
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("geometry-script-owner-test")
+            .unwrap();
+        assert!(
+            !crate::test_role::by_role_name(&root, "textbox", "Rhai source")
+                .unwrap()
+                .has_attribute("disabled"),
+            "typing during retry Saving is a real UI path"
+        );
+        type_source("// newer unsent input");
+        flush(&probe).await;
+        release.send(()).unwrap();
+        support::run_pending(&runtime).await;
+        flush(&probe).await;
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document.revision, 1);
+        assert_eq!(accepted.document.scripts[0].source, "// intended retry");
+        assert_eq!(
+            source_value(),
+            "// newer unsent input",
+            "retry landing must leave the newer draft divergent from accepted"
         );
     }
 
