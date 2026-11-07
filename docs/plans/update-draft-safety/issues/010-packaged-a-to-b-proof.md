@@ -3,7 +3,7 @@
 Status: claimed
 Type: build
 Parent: [Draft-safe update adoption spec](../spec.md)
-Assignee: Pi Spark (010 implementation)
+Assignee: Coordinator (010 verification)
 Blocked by: [Draft-owner registry and Geometry scripts tracer at both Update Now checkpoints](008-registry-and-geometry-tracer.md), [Diagnostic gated-persistence adapter for packaged builds](009-diagnostic-gated-persistence-adapter.md)
 
 ## Focused Retry escalation ownership (2026-11-07; CLAIMED)
@@ -304,13 +304,61 @@ optimized/cleanup/final-gate debts.
   contract WARN (behavioral lower-bound blast). Signature verification's claimed
   old arity 1 is lossy Python extraction: actual old and renamed helper both have
   the same four parameters; both original callers were updated and executed.
-- **Remaining timing question:** `leg_takeover_draft` currently creates a draft
-  while B waits, **before** the first Update Now click. Spec story 23 describes a
-  new draft while adoption waits on a held save; S2 and this ticket require one
-  packaged takeover-time case (S1 is mounted-primary). A focused consequential
-  check must adjudicate that difference and, if needed, strengthen the existing
-  single leg, not add a duplicate matrix or a production timing hook. The small
-  coordinator verifier follow-up also needs fresh review.
+- **Timing adjudication and correction:** fresh Pi Sol/high task
+  `e48884a1-159e-41c0-a074-a2989bcf07cb` confirmed that the original takeover leg
+  typed before its first Update Now attempt and missed story 23's held-save
+  timing. It made no edits: three bounded native impacts returned `view_building`.
+  Coordinator's later native impact/edit was admitted; the existing single leg
+  is now strengthened as described below. No production defect is inferred.
+
+### Held-save waiting-intent proof (coordinator, 2026-11-07)
+
+The single `takeover-draft` now holds a real Geometry Apply at r3, attempts
+Update Now and observes save-in-progress deferral, cancels, then enters newer
+valid text **while that earlier save remains held and unacknowledged**. Releasing
+r3 preserves the newer text; after Saved, a second Update Now attempt names the
+Geometry draft and defers again, so Saving cannot mask a broken draft guard.
+Cancel preserves exact text/focus/build. Applying the newer text captures the
+same project at independently expected **r4**, completes, then directly adopts B
+and checks the normal reopened export's exact project/source/revision.
+This is the specified held-save/waiting-intent story, **not** a post-permit
+worker-probe race. S1 remains primary for the true takeover window; existing
+`mounted_work_begun_during_the_takeover_delays_the_reload_until_it_settles`
+(`notifications.rs:1262`) covers pending Core work, not specifically Geometry.
+No new production timing hook, registry/API change or duplicate leg was added.
+Current behavior passes; no artificial production RED is claimed.
+
+- `010-coordinator-takeover.log`: `--src-dir web/target/site-008-retry-src
+  --work-dir web/target/site-010-parent-takeover-ab.Rag4QM --port 4744 --legs
+  takeover-draft,layout-constraint`, **two legs, zero failures**. Root A
+  `boardstudio-f8d3dd85e0a765d4-1794081453072804692`, B
+  `boardstudio-39e57057593af741-1794081453862773779`. Reopened project
+  `ab51d143-82ac-40cb-9e0f-1efd8d820706`, r4, exact `// TAKEOVER-HELD-010`
+  plus `// TAKEOVER-NEWER-010` source; actual document/requested binary B, reload,
+  B-only cache. Layout still has equal A/B r1 documents.
+- Both legs use explicit owned profiles. The existing Layout cleanup is shared
+  rather than copied: close once, await the exact owned profile's Chrome exit,
+  then delete only its fixture/profile directory. `start_session` accepts an
+  optional private-harness profile path; existing three-argument calls retain
+  their behavior. Both `/tmp/boardstudio-010-takeover-yi6h_ze3` and
+  `/tmp/boardstudio-010-layout-v9bpr3pq` contained IndexedDB and were removed after
+  no matching Chrome remained. `010-coordinator-profile-controls.log` verifies
+  default/explicit startup compatibility and rejection of directory deletion
+  when close is unconfirmed or the owned Chrome is still live.
+- Because startup is shared, the five inherited adoption controls plus no-build
+  were rerun on the corrected app: `010-coordinator-controls.log`, **six legs,
+  zero failures**, `--work-dir web/target/site-010-parent-controls-ab.v8njsk
+  --port 4744 --legs adopt,second-editor,subpath,failed-install,unavailable-target,no-build`.
+  Root A `boardstudio-f8d3dd85e0a765d4-1794081522695393567`, B
+  `boardstudio-39e57057593af741-1794081523474864779`. Other-editor deferral,
+  offline A bytes, subpath isolation, failed-install/no-build non-adoption and
+  repaired target adoption pass. No new app build or worker/cache cleanup.
+- Native impact/verify/detect/tests/guards/contract ran. Coverage is actual
+  packaged execution, not graph test edges (0/4); no guards, contract WARN,
+  lower-bound shared-startup blast. The parser's old arity 1 is lossy; the real
+  helper changes from three parameters to four with a default, and compatibility
+  probes plus existing packaged three-argument callers pass. Fresh combined
+  Spec/Standards rechecks of both coordinator verifier corrections are still due.
 
 These are diagnostic **fast** assets, not proof of optimized/wasm-opt equivalence.
 Optimized validation, unidentified historical-profile/diagnostic-output cleanup,

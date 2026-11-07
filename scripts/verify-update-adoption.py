@@ -448,9 +448,12 @@ def new_session(prefix: str) -> str:
     return session
 
 
-def start_session(driver: Driver, prefix: str, url: str) -> None:
+def start_session(driver: Driver, prefix: str, url: str, profile: Path | None = None) -> None:
     session = new_session(prefix)
     driver.env = dict(os.environ, AGENT_BROWSER_SESSION=session)
+    if profile is not None:
+        driver.env["AGENT_BROWSER_PROFILE"] = str(profile)
+        driver.note(f"owned browser profile: {profile}")
     driver.session_closed = False
     driver.cmd(f"session: {session} (fresh isolated browser profile)")
     driver.run(["agent-browser", "open", url])
@@ -470,6 +473,30 @@ def end_session(driver: Driver) -> None:
             driver.fail("session cleanup: browser close unconfirmed")
     except (OSError, subprocess.SubprocessError) as error:
         driver.fail("session cleanup: close failed", str(error))
+
+
+def cleanup_owned_profile(driver: Driver, directory: Path, label: str) -> None:
+    """Remove only this fixture's directory after its own Chrome has exited."""
+    end_session(driver)
+    if not driver.session_closed:
+        driver.fail(f"{label} cleanup: close unconfirmed; retain owned directory", str(directory))
+        return
+    deadline = time.monotonic() + 15
+    profile_arg = f"--user-data-dir={directory / 'profile'}"
+    while True:
+        live = [line for line in subprocess.check_output(
+            ["ps", "-eo", "pid,args"], text=True).splitlines()
+                if profile_arg in line.split()[1:]]
+        if not live or time.monotonic() >= deadline:
+            break
+        time.sleep(0.5)
+    driver.note(f"{label} profile Chrome processes after close: {live}")
+    if live:
+        driver.fail(f"{label} cleanup: profile still in use; retain owned directory", str(directory))
+        return
+    driver.note(f"{label} profile IndexedDB before deletion: {list(directory.rglob('IndexedDB'))}")
+    shutil.rmtree(directory)
+    driver.check(f"{label} owned fixture/profile/database removed", not directory.exists())
 
 
 def find_ref(snapshot: str, pattern: str) -> str | None:
@@ -1405,13 +1432,7 @@ def leg_layout_constraint(ctx: Ctx) -> None:
     try:
         fixture = directory / "layout.boardstudio"
         layout_fixture(fixture)
-        session = new_session("010-layout")
-        d.env = dict(os.environ, AGENT_BROWSER_SESSION=session,
-                     AGENT_BROWSER_PROFILE=str(directory / "profile"))
-        d.cmd(f"session {session}: owned profile {directory / 'profile'}")
-        d.session_closed = False
-        d.run(["agent-browser", "open", route_url(d.port, "root")])
-        d.run(["agent-browser", "wait", "--text", "Your keyboards"])
+        start_session(d, "010-layout", route_url(d.port, "root"), directory / "profile")
         d.run(["agent-browser", "upload", "#library-import-file", str(fixture)])
         d.wait_main_board()
         wait_save(d, "layout import", "Saved locally")
@@ -1481,25 +1502,7 @@ def leg_layout_constraint(ctx: Ctx) -> None:
         d.check("layout B: exact reopened project/value/revision matches A",
                 saved_b == saved_a and saved_b["id"] == "layout-010", str(saved_b["constraints"]))
     finally:
-        end_session(d)
-        if d.session_closed:
-            deadline = time.monotonic() + 15
-            profile_arg = f"--user-data-dir={directory / 'profile'}"
-            while True:
-                live = [line for line in subprocess.check_output(
-                    ["ps", "-eo", "pid,args"], text=True).splitlines() if profile_arg in line]
-                if not live or time.monotonic() >= deadline:
-                    break
-                time.sleep(0.5)
-            d.note(f"layout profile Chrome processes after close: {live}")
-            if not live:
-                d.note(f"layout profile IndexedDB before deletion: {list(directory.rglob('IndexedDB'))}")
-                shutil.rmtree(directory)
-                d.check("layout owned fixture/profile/database removed", not directory.exists())
-            else:
-                d.fail("layout cleanup: profile still in use; retain owned directory", str(directory))
-        else:
-            d.fail("layout cleanup: close unconfirmed; retain owned directory", str(directory))
+        cleanup_owned_profile(d, directory, "layout")
 
 
 def leg_geometry_tracer(ctx: Ctx) -> None:
@@ -1843,37 +1846,73 @@ def leg_persist_hold_fail(ctx: Ctx) -> None:
 
 def leg_takeover_draft(ctx: Ctx) -> None:
     d = ctx.d
-    d.cmd("LEG takeover-draft: one packaged new-draft-during-takeover (tracer shape)")
+    d.cmd("LEG takeover-draft: newer input while an Update Now attempt waits on a held save")
     ctx.server.swap(d, ctx.a, "serve A")
-    start_session(d, "010-takeover", route_url(d.port, "root"))
-    open_demo(d)
-    mark = set_marker(d)
-    create_baseline_script(d, "takeover baseline")
-    ctx.server.swap(d, ctx.b, "publish B at the same origin")
-    publish_and_wait_waiting(d, "takeover B published")
-    expect_waiting_state(d, "takeover clean with B waiting", mark, "A")
-    ss = save_state(d)
-    d.check("takeover: clean Saved before new draft", ss.get("saved") is True, str(ss))
-    v1 = GEO_BASE_SOURCE + "\n// TAKEOVER-010"
-    d.cmd("takeover: create draft while B waits")
-    set_geometry_draft(d, "takeover draft", v1)
-    d.cmd("takeover: Update Now defers the new draft")
-    d.click_selector(UPDATE_NOW_TOAST)
-    expect_draft_deferral(d, "takeover defers", mark)
-    cancel_preserves_draft(d, "takeover cancel", mark, v1)
-    d.cmd("takeover: Apply+Saved (unarmed), adopt")
-    close_all_toasts(d, "takeover resolve")
-    d.click_button("Apply script")
-    wait_save_stable(d, "takeover resolved")
-    d.click_selector(UPDATE_NOW_TOAST)
-    wait_for_adoption_reload(d, "takeover adopt")
-    expect_adopted(d, "takeover adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
-    reopen_saved_project(d, "takeover adopted B")
-    open_geometry_editor(d)
-    select_baseline_script(d, "takeover")
-    gv = geo_values(d)
-    d.check("takeover: B reopens takeover value", gv.get("source") == v1, str(gv))
-    end_session(d)
+    directory = Path(tempfile.mkdtemp(prefix="boardstudio-010-takeover-", dir="/tmp"))
+    try:
+        start_session(d, "010-takeover", route_url(d.port, "root"), directory / "profile")
+        open_demo(d)
+        mark = set_marker(d)
+        create_baseline_script(d, "takeover baseline")
+        ctx.server.swap(d, ctx.b, "publish B at the same origin")
+        publish_and_wait_waiting(d, "takeover B published")
+        expect_waiting_state(d, "takeover clean with B waiting", mark, "A")
+        held_value = GEO_BASE_SOURCE + "\n// TAKEOVER-HELD-010"
+        newer_value = held_value + "\n// TAKEOVER-NEWER-010"
+        set_geometry_draft(d, "takeover first edit", held_value)
+        close_all_toasts(d, "takeover first Apply")
+        gate_arm(d, "hold")
+        d.click_button("Apply script")
+        entered = wait_gate_entered(d, "takeover first Apply")
+        d.check("takeover: intended r3 is held with no acknowledgement",
+                bool(entered.get("document_id")) and entered.get("revision") == 3
+                and entered.get("acked") is None and save_state(d).get("saving") is True,
+                str(entered))
+        d.click_selector(UPDATE_NOW_TOAST)
+        expect_save_deferral(d, "takeover first attempt", mark, SAVE_IN_PROGRESS)
+        cancel_save_deferral(d, "takeover first attempt Cancel", mark)
+        # The earlier attempt is deferred, not a post-permit worker-probe race.
+        # Real input arrives before its outstanding save is released.
+        d.run(["agent-browser", "fill", find_ref_retry(d, 'textbox "Rhai source"', "newer takeover input"),
+               newer_value])
+        d.press("Tab")
+        gv = geo_values(d)
+        held = gate_snapshot(d)
+        d.check("takeover: newer valid input exists while the earlier save remains unanswered",
+                gv.get("source") == newer_value and gv.get("invalid") == 0
+                and held.get("acked") is None and held.get("released") is False
+                and save_state(d).get("saving") is True, f"draft={gv} gate={held}")
+        gate_release(d)
+        ack = wait_gate_acked(d, "takeover older Apply")
+        d.check("takeover: older save completed", ack.get("acked") == "completed", str(ack))
+        wait_save(d, "takeover older Apply", "Saved locally")
+        d.check("takeover: older landing preserves newer input",
+                geo_values(d).get("source") == newer_value, str(geo_values(d)))
+        d.click_selector(UPDATE_NOW_TOAST)
+        expect_draft_deferral(d, "takeover newer draft defers again after save settles", mark)
+        cancel_preserves_draft(d, "takeover newer draft Cancel", mark, newer_value)
+        close_all_toasts(d, "takeover resolve newer draft")
+        gate_arm(d, "hold")
+        d.click_button("Apply script")
+        final_entry = wait_gate_entered(d, "takeover newer Apply")
+        d.check("takeover: newer draft submits the same project at intended r4",
+                final_entry.get("document_id") == entered.get("document_id")
+                and final_entry.get("revision") == 4 and final_entry.get("acked") is None,
+                str(final_entry))
+        gate_release(d)
+        final_ack = wait_gate_acked(d, "takeover newer Apply")
+        d.check("takeover: newer save completed", final_ack.get("acked") == "completed", str(final_ack))
+        wait_save(d, "takeover resolved", "Saved locally")
+        d.click_selector(UPDATE_NOW_TOAST)
+        wait_for_adoption_reload(d, "takeover adopt")
+        expect_adopted(d, "takeover adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+        reopen_saved_project(d, "takeover adopted B")
+        open_geometry_editor(d)
+        select_baseline_script(d, "takeover")
+        d.check("takeover: B reopens the newer value", geo_values(d).get("source") == newer_value)
+        check_reopened_geometry_save(d, "takeover-B", final_entry, newer_value)
+    finally:
+        cleanup_owned_profile(d, directory, "takeover")
 
 
 def leg_no_build(ctx: Ctx) -> None:

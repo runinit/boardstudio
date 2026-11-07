@@ -53,7 +53,7 @@ standards findings remain gates; optional review cleanup is not extra scope.
 | [008 Registry and Geometry tracer](issues/008-registry-and-geometry-tracer.md) | Retry correction reviewed and independently verified; claimed | Geometry 6/6, helpers 16/16, notifications 30/30; real trusted package proof below, final 010 checkpoint outstanding |
 | [009 Persistence adapter](issues/009-diagnostic-gated-persistence-adapter.md) | Both required corrections reviewed; ready for packaged integration | Coordinator adapter 10/10 plus Runtime held-save 1/1; not 010 acceptance |
 | [011 Layout owners](issues/011-layout-explicit-submit-owners.md) | Corrected implementation reviewed; claimed pending closure bookkeeping | Spec and Standards PASS at `16b85737`; coordinator full corrective diff read and focused 106/106 passed |
-| [010 Packaged A→B proof](issues/010-packaged-a-to-b-proof.md) | Five packaged legs independently GREEN; claimed | Header-Space/exact-revision oracle follow-up passes; focused takeover-timing adjudication and fresh follow-up review remain due |
+| [010 Packaged A→B proof](issues/010-packaged-a-to-b-proof.md) | Packaged proof verified; claimed pending fresh rechecks | Header Space, exact revisions, held-save/newer-draft r4, Layout cleanup and six inherited/negative controls pass; remaining limits below are not waived |
 | [012 Parts owners](issues/012-parts-single-draft-owners.md) | Not started; held behind 010 checkpoint | Fresh owner-cluster agent after packaged proof |
 | [013 PCB owners](issues/013-pcb-placement-attach-assembly-net-owners.md) | Not started; held behind 010 checkpoint | Fresh owner-cluster agent after packaged proof |
 | [014 Creation forms](issues/014-creation-form-owners.md) | Not started; held behind 010 checkpoint | Fresh owner-cluster agent after packaged proof |
@@ -119,9 +119,18 @@ explicit composite acceptance debt. No partial owner coverage is final acceptanc
   legs / zero failures**, `010-coordinator-oracles.log`; wrong project, revision
   and source are rejected by `010-coordinator-export-oracle.log`. This small
   follow-up needs fresh review. See 010 for identities and reproducible arguments.
-- 010 remains claimed: its current takeover leg types before the first Update Now
-  click, whereas spec story 23 describes typing while adoption waits on a held
-  save. Focused consequential adjudication/necessary bounded correction is next,
-  not authorization for a production timing hook or a duplicate matrix. Historical
-  cleanup, optimized validation and 015 integrated gate/mutations remain explicit
-  debts. No final acceptance, 012–014 expansion or parent umbrella closure claimed.
+- Fresh consequential Sol/high adjudication confirmed the takeover timing gap;
+  that agent was blocked before editing by three native `view_building` impacts.
+  Coordinator's later native edit strengthened the **existing single leg**:
+  held r3 → Update Now deferral → newer input while held → r3 landing preserves
+  newer input → Geometry-specific deferral again → resolve r4 → B/exact reopen.
+  This is waiting-intent proof, not a claim of a post-permit worker-probe race.
+  Takeover + Layout **2/2** and inherited/negative controls **6/6** pass on the
+  corrected diagnostic app (`010-coordinator-takeover.log`,
+  `010-coordinator-controls.log`). Shared owned-profile cleanup rejects unconfirmed
+  close/live Chrome and both explicit profiles/IndexedDB were removed; default
+  startup compatibility is checked (`010-coordinator-profile-controls.log`).
+- 010 remains claimed pending fresh combined Spec/Standards rechecks. Historical
+  cleanup, retained diagnostic-output deletion, optimized validation and 015
+  integrated gate/mutations remain explicit debts. No final acceptance,
+  012–014 expansion or parent umbrella closure claimed.
