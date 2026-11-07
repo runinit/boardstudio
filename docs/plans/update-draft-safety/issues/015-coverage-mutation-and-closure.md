@@ -29,7 +29,7 @@ umbrella or claim its final acceptance.
 
 Follows the [proof map protocol](../../../agents/issue-tracker.md#proof-map); the rows restate the
 criteria above and add none. They cite 008–014 evidence and do not repeat any owner matrix. The
-optimized and full gates are `pending`; every other row `planned`.
+optimized and full gates remain unexecuted; every row is `planned`.
 
 - P1 All 14 — the settled census of 14 Class A owners ([006 handoff](006-agree-verification-and-implementation-handoff.md#answer))
   against the adapters registered at the closing `HEAD` → one audit row per owner naming its passing
@@ -49,7 +49,7 @@ optimized and full gates are `pending`; every other row `planned`.
   survived report; a survivor is not caught and blocks. Tier `native`/`mounted`.
 - P5 Optimized and full gate — coordinator-owned: rebuild the disposable packages deleted after 010 →
   optimized validation, then the full `python3 scripts/check.py` gate → receipt recorded. Oracle: the
-  gate's own result. `pending`.
+  gate's own result. `planned`.
 - P6 Final review — one combined Standards and Spec review per the
   [review-report protocol](../../../agents/issue-tracker.md#review-reports) on fixed endpoints with every
   changed file read. Acceptance is `READY` only when P1–P5 and the evidence criteria hold, including

@@ -55,7 +55,7 @@ standards findings remain gates; optional review cleanup is not extra scope.
 | [011 Layout owners](issues/011-layout-explicit-submit-owners.md) | Resolved | Spec/Standards PASS at `16b85737`; coordinator complete diffs and 106/106; packaged Layout proof in 010 |
 | [010 Packaged A→B proof](issues/010-packaged-a-to-b-proof.md) | Resolved; composite checkpoint accepted | Complete code reviews through `c5a876ec`, seven behavioral criteria and final owned profile/database/output cleanup pass |
 | [012 Parts owners](issues/012-parts-single-draft-owners.md) | Ready; not started; paused until the A/B/C preparation below completes | Next fresh owner-cluster agent under existing authorization, after that preparation |
-| [013 PCB owners](issues/013-pcb-placement-attach-assembly-net-owners.md) | Not started; queued after 012 | Fresh owner-cluster agent, serialized source/build ownership |
+| [013 PCB owners](issues/013-pcb-placement-attach-assembly-net-owners.md) | Not started; ready for human; queued after 012 | Matrix-origin baseline decision required before implementation; source/build ownership stays serialized |
 | [014 Creation forms](issues/014-creation-form-owners.md) | Not started; queued after 013 | Fresh owner-cluster agent, no creation-policy change |
 | [015 Coverage and closure](issues/015-coverage-mutation-and-closure.md) | Not started | Coordinator owns full build/gate; all specified evidence and reviews remain required |
 
@@ -66,10 +66,13 @@ reviewed; it is not Parts scope and changes no product, acceptance threshold or 
 The canonical protocol (proof map, review reports, completion record) is in
 [issue tracker](../../agents/issue-tracker.md#building-and-verifying-a-ticket).
 
-- **A, protocol and proof maps:** implemented on baseline `36735ff9b`; coordinator diff and
-  documentation checks complete; independent Standards and Spec reviews pending. It adds the
-  protocol, a sharper `AGENTS.md` pointer, and proof maps in 012–015 that restate their approved
-  owner distinctions.
+- **A, protocol and proof maps:** implemented in `3c1ff8c`, independently reviewed with full
+  seven-file coverage. Standards found one required status-label correction; Spec found one
+  required assembly-settlement correction. Both are corrected in the follow-up: 015 uses
+  `planned`; 013 distinguishes Place retirement from mounted Matrix settlement and explicitly
+  blocks on the unresolved origin-baseline decision. Coordinator diff and documentation checks
+  pass; A is complete. The reviews' original conditional/changes-required verdicts are retained,
+  not restated as new reviewer PASSes. Review tasks: Standards `768d3dca`, Spec `a5503305`.
 - **B, C:** not started.
 - **012:** paused until A, B and C are complete; 013–015 stay queued behind it.
 
