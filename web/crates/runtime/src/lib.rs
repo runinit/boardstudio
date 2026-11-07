@@ -13,6 +13,8 @@ pub mod bundled_models;
 pub mod case_generation_lifecycle;
 pub mod case_model_lifecycle;
 pub mod case_preview;
+#[cfg(all(target_arch = "wasm32", feature = "diagnostic-persist-gate"))]
+pub(crate) mod diagnostic_persistence;
 pub mod draft_owners;
 pub mod edit_ticket;
 pub(crate) mod export_lease;

@@ -156,7 +156,8 @@ def embed_offline_worker(site: Path, worker_dir: Path = OFFLINE_WORKER) -> None:
 
 
 def build(output: Path, *, release: bool = True, prepare_providers: bool = True,
-          routes: tuple[str, ...] = DEFAULT_ROUTES, fast: bool = False) -> Path:
+          routes: tuple[str, ...] = DEFAULT_ROUTES, fast: bool = False,
+          diagnostic_persist_gate: bool = False) -> Path:
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     if prepare_providers:
@@ -167,8 +168,11 @@ def build(output: Path, *, release: bool = True, prepare_providers: bool = True,
         prefix = ROUTES[route]
         if public.exists():
             shutil.rmtree(public)
+        # Diagnostic packaged verification only (ticket 009): the space-separated
+        # feature list forwards the gated-persistence adapter into the page build.
+        features = "page diagnostic-persist-gate" if diagnostic_persist_gate else "page"
         command = ["dx", "build", "--web", "--base-path", prefix,
-                   "--no-default-features", "--features", "page", "--cargo-args=--locked"]
+                   "--no-default-features", "--features", features, "--cargo-args=--locked"]
         if release:
             command.insert(3, "--release")
         run(command, cwd=WEB)
@@ -208,6 +212,9 @@ def main(argv: list[str] | None = None) -> int:
                              "to Pages) and/or root (/)")
     parser.add_argument("--providers-only", action="store_true",
                         help="build runtime providers for `python3 scripts/dev-web.py` without packaging routes")
+    parser.add_argument("--diagnostic-persist-gate", action="store_true",
+                        help="diagnostic packaged verification only (ticket 009): build the page "
+                             "with the gated-persistence adapter; never used for normal builds")
     args = parser.parse_args(argv)
     routes = tuple(dict.fromkeys(name.strip() for name in args.routes.split(",") if name.strip()))
     unknown = [name for name in routes if name not in ROUTES]
@@ -218,7 +225,8 @@ def main(argv: list[str] | None = None) -> int:
             prepare_runtime_providers(args.fast)
         else:
             build(args.output, release=not (args.debug or args.fast),
-                  prepare_providers=not args.skip_providers, routes=routes, fast=args.fast)
+                  prepare_providers=not args.skip_providers, routes=routes, fast=args.fast,
+                  diagnostic_persist_gate=args.diagnostic_persist_gate)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"build-web: {error}", file=sys.stderr)
         return error.returncode if isinstance(error, subprocess.CalledProcessError) else 1

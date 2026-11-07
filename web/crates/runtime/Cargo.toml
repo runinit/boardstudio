@@ -9,6 +9,9 @@ description = "BoardStudio page runtime: browser services, model delivery and pr
 [features]
 # Exposes the `#[cfg(test)]` helpers the page's own tests drive (enabled by its dev-dependency).
 test-support = []
+# Diagnostic-only gated persistence adapter for packaged verification (ticket 009).
+# Never enabled in normal builds; the module is compiled out without it.
+diagnostic-persist-gate = []
 
 [dependencies]
 boardstudio-application = { path = "../../../application" }

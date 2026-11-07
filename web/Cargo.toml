@@ -25,6 +25,9 @@ core-worker = ["dep:boardstudio_core", "dep:serde_json"]
 cad-worker = ["boardstudio-web-host/cad-worker", "dep:boardstudio_core", "dep:serde_json", "dep:sha2"]
 service-worker = []
 test-harness = ["boardstudio-web-host/test-harness"]
+# Diagnostic packaged verification only (ticket 009): enables the gated-persistence
+# adapter in boardstudio-web-runtime. Never enabled in normal builds.
+diagnostic-persist-gate = ["boardstudio-web-runtime/diagnostic-persist-gate"]
 
 [dependencies]
 boardstudio-application = { path = "../application", optional = true }

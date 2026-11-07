@@ -54,6 +54,48 @@ class BuildWebTests(unittest.TestCase):
         self.assertTrue(all("--no-opt" not in command for command in builds(False)))
         self.assertTrue(all("--release" in command for command in builds(True)))
 
+    def test_diagnostic_persist_gate_flag_forwards_the_runtime_feature(self):
+        # Ticket 009: only the diagnostic flag adds the gated-persistence feature
+        # to the page build; ordinary builds keep exactly `--features page`.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            web = root / "web"
+            public = web / "target/dx/boardstudio-web/debug/web/public"
+            (web / "assets").mkdir(parents=True)
+            (web / "assets/workbench-base.css").write_text("body{}")
+            (root / "catalogue/modules").mkdir(parents=True)
+            (root / "catalogue/modules/imported-modules.json").write_text('{"modules":[]}')
+            (root / "cad/wasm/pkg").mkdir(parents=True)
+            (root / "cad/wasm/pkg/cad.js").write_text("export {}")
+            (root / "renderer/pkg").mkdir(parents=True)
+            (root / "renderer/pkg/renderer.js").write_text("export {}")
+            for name in ("core-worker", "cad-worker"):
+                provider = web / "target/providers" / name
+                provider.mkdir(parents=True)
+                (provider / f"{name}.js").write_text("export {}")
+            calls = []
+
+            def fake_run(command, *, cwd=BUILD.ROOT, env=None):
+                calls.append(command)
+                public.mkdir(parents=True, exist_ok=True)
+                (public / "index.html").write_text("shell")
+
+            def fake_embed(site):
+                (site / "service-worker.js").write_text("worker")
+
+            with patch.object(BUILD, "ROOT", root), patch.object(BUILD, "WEB", web), \
+                 patch.object(BUILD, "dx_public", lambda _release: public), patch.object(BUILD, "run", fake_run), \
+                 patch.object(BUILD, "embed_offline_worker", fake_embed):
+                BUILD.build(root / "normal", prepare_providers=False, fast=True)
+                BUILD.build(root / "diagnostic", prepare_providers=False, fast=True,
+                            diagnostic_persist_gate=True)
+
+            features = [command[command.index("--features") + 1]
+                        for command in calls if "--features" in command]
+            self.assertEqual(features, ["page", "page diagnostic-persist-gate"])
+            for command in calls:
+                self.assertIn("--no-default-features", command)
+
     def test_model_staging_command_runs_with_the_staging_cli(self):
         import subprocess
         with tempfile.TemporaryDirectory() as directory:

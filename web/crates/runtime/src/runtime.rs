@@ -472,7 +472,12 @@ impl Runtime {
             operation_outcomes: crate::operation_outcomes::OperationOutcomes::default(),
             core: RefCell::new(core_executor_factory.clone()()?),
             core_executor_factory: RefCell::new(core_executor_factory),
+            #[cfg(not(feature = "diagnostic-persist-gate"))]
             persistence: RefCell::new(Rc::new(store.clone())),
+            // Diagnostic packaged verification only (ticket 009): the gate wraps the
+            // real store at this composition point; the worker and Session are untouched.
+            #[cfg(feature = "diagnostic-persist-gate")]
+            persistence: RefCell::new(crate::diagnostic_persistence::wrap_store(store.clone())),
             store,
             storage_session: RefCell::default(),
             storage_initializing: Cell::new(restore_active_project),
