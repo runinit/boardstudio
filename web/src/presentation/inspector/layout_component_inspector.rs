@@ -1,5 +1,6 @@
 //! Contextual Properties and Relationships for one accepted standalone Layout part.
 use crate::presentation::layout_workspace::LayoutInspectorTab;
+use crate::runtime::Runtime;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{
     Constraint, ConstraintRelation, Follow, HalfExceptionState, MirrorAxis, OffsetAxes,
@@ -23,6 +24,7 @@ use boardstudio_web_ui_shared::ui::{
     input_group::{InputGroup, InputGroupInput},
 };
 
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -268,6 +270,137 @@ pub(crate) fn offset_values(
     }
 }
 
+/// Ticket 011: one number the way `save_constraint` parses it. A finite parse
+/// encodes as its exact round-trip text; anything else encodes distinctly from
+/// every valid baseline, so realistic invalid drafts stay unresolved.
+fn constraint_number_canonical(raw: &str) -> String {
+    match raw.parse::<f64>() {
+        Ok(value) if value.is_finite() => format!("v:{value}"),
+        _ => format!("x:{raw}"),
+    }
+}
+
+fn mirror_axis_canonical(axis: &MirrorAxis) -> &'static str {
+    match axis {
+        MirrorAxis::Vertical => "vertical",
+        MirrorAxis::Horizontal => "horizontal",
+    }
+}
+
+/// Ticket 011: the constraint form's submittable state in the shape the Save
+/// button submits it. Only the active kind's fields participate downstream.
+struct ConstraintFormState<'a> {
+    kind: ConstraintKind,
+    source_part_id: &'a str,
+    axes: OffsetAxes,
+    offset_x: &'a str,
+    offset_y: &'a str,
+    rotation: &'a str,
+    mirror_axis: &'a MirrorAxis,
+    mirror_coordinate: &'a str,
+    mirror_line_x: &'a str,
+    mirror_line_y: &'a str,
+    mirror_line_angle: &'a str,
+}
+
+/// Ticket 011: the canonical constraint draft — exactly the state the Save
+/// button submits, with each number parsed the way `save_constraint` parses
+/// it. Only the active kind's fields participate, so stray text in an inactive
+/// kind never blocks. Formatting variants of one value ("1.0" vs "1") are
+/// the same draft; invalid text never equals a valid baseline.
+fn constraint_draft_canonical(state: ConstraintFormState<'_>) -> String {
+    let kind_name = match state.kind {
+        ConstraintKind::Offset => "offset",
+        ConstraintKind::Mirror => "mirror",
+        ConstraintKind::MirrorLine => "mirror-line",
+    };
+    match state.kind {
+        ConstraintKind::Offset => format!(
+            "{kind_name}|{source}|{axes}|{x}|{y}|{rotation}",
+            source = state.source_part_id,
+            axes = offset_axes_value(state.axes),
+            x = constraint_number_canonical(state.offset_x),
+            y = constraint_number_canonical(state.offset_y),
+            rotation = constraint_number_canonical(state.rotation),
+        ),
+        ConstraintKind::Mirror => format!(
+            "{kind_name}|{source}|{axis}|{coordinate}",
+            source = state.source_part_id,
+            axis = mirror_axis_canonical(state.mirror_axis),
+            coordinate = constraint_number_canonical(state.mirror_coordinate),
+        ),
+        ConstraintKind::MirrorLine => format!(
+            "{kind_name}|{source}|{x}|{y}|{angle}",
+            source = state.source_part_id,
+            x = constraint_number_canonical(state.mirror_line_x),
+            y = constraint_number_canonical(state.mirror_line_y),
+            angle = constraint_number_canonical(state.mirror_line_angle),
+        ),
+    }
+}
+
+/// Ticket 011: the canonical baseline for the constraint form: the accepted
+/// constraint driving the part (or the mount defaults when none exists)
+/// encoded through the same canonicalizer as the live draft, so equality
+/// means what the owning form means by "unchanged".
+fn constraint_baseline_canonical(
+    constraint: Option<&Constraint>,
+    board_parts: &[BoardPartChoice],
+    part_id: &str,
+) -> String {
+    let kind = match constraint {
+        Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
+        Some(Constraint::Framed {
+            relation: ConstraintRelation::MirrorLine { .. },
+            ..
+        }) => ConstraintKind::MirrorLine,
+        _ => ConstraintKind::Offset,
+    };
+    let drafts = offset_drafts(constraint, board_parts, part_id);
+    let (mirror_axis, mirror_coordinate, mirror_line_x, mirror_line_y, mirror_line_angle) =
+        match constraint {
+            Some(Constraint::Mirror {
+                axis, coordinate, ..
+            }) => (
+                axis.clone(),
+                coordinate.to_string(),
+                "0".to_owned(),
+                "0".to_owned(),
+                "90".to_owned(),
+            ),
+            Some(Constraint::Framed {
+                relation: ConstraintRelation::MirrorLine { at, angle },
+                ..
+            }) => (
+                MirrorAxis::Vertical,
+                "0".to_owned(),
+                at.x.to_string(),
+                at.y.to_string(),
+                angle.to_string(),
+            ),
+            _ => (
+                MirrorAxis::Vertical,
+                "0".to_owned(),
+                "0".to_owned(),
+                "0".to_owned(),
+                "90".to_owned(),
+            ),
+        };
+    constraint_draft_canonical(ConstraintFormState {
+        kind,
+        source_part_id: &drafts.source_part_id,
+        axes: drafts.axes,
+        offset_x: &drafts.offset_x,
+        offset_y: &drafts.offset_y,
+        rotation: &drafts.rotation,
+        mirror_axis: &mirror_axis,
+        mirror_coordinate: &mirror_coordinate,
+        mirror_line_x: &mirror_line_x,
+        mirror_line_y: &mirror_line_y,
+        mirror_line_angle: &mirror_line_angle,
+    })
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComponentPositionAxis {
     X,
@@ -429,6 +562,191 @@ fn position_commit_value(draft: &str, locked: bool) -> Option<f64> {
         return None;
     }
     draft.parse::<f64>().ok().filter(|value| value.is_finite())
+}
+
+#[cfg(test)]
+mod constraint_canonical_tests {
+    use super::{constraint_baseline_canonical, constraint_draft_canonical};
+    use boardstudio_core::model::{Constraint, MirrorAxis, OffsetAxes, Vec2};
+
+    fn board_parts() -> Vec<super::BoardPartChoice> {
+        vec![
+            super::BoardPartChoice {
+                id: "selected-part".into(),
+                reference: "S".into(),
+                matrix_key: false,
+            },
+            super::BoardPartChoice {
+                id: "source-part".into(),
+                reference: "R".into(),
+                matrix_key: false,
+            },
+        ]
+    }
+
+    fn offset_draft(offset_x: &str) -> String {
+        constraint_draft_canonical(super::ConstraintFormState {
+            kind: super::ConstraintKind::Offset,
+            source_part_id: "source-part",
+            axes: OffsetAxes::Board,
+            offset_x,
+            offset_y: "-4",
+            rotation: "5",
+            mirror_axis: &MirrorAxis::Vertical,
+            mirror_coordinate: "0",
+            mirror_line_x: "0",
+            mirror_line_y: "0",
+            mirror_line_angle: "90",
+        })
+    }
+
+    fn offset_state(
+        kind: super::ConstraintKind,
+        source: &str,
+        axes: OffsetAxes,
+        offset_x: &str,
+    ) -> String {
+        constraint_draft_canonical(super::ConstraintFormState {
+            kind,
+            source_part_id: source,
+            axes,
+            offset_x,
+            offset_y: "-4",
+            rotation: "5",
+            mirror_axis: &MirrorAxis::Vertical,
+            mirror_coordinate: "0",
+            mirror_line_x: "0",
+            mirror_line_y: "0",
+            mirror_line_angle: "90",
+        })
+    }
+
+    fn offset_baseline(x: f64) -> String {
+        constraint_baseline_canonical(
+            Some(&Constraint::Offset {
+                id: "c".into(),
+                source_part_id: "source-part".into(),
+                target_part_id: "selected-part".into(),
+                offset: Vec2 { x, y: -4.0 },
+                rotation: 5.0,
+            }),
+            &board_parts(),
+            "selected-part",
+        )
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn formatting_variants_of_one_value_compare_equal() {
+        assert_eq!(offset_draft("1.0"), offset_baseline(1.0));
+        assert_eq!(offset_draft("1.00"), offset_baseline(1.0));
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn invalid_or_non_finite_text_never_matches_a_valid_baseline() {
+        let baseline = offset_baseline(1.0);
+        for raw in ["not-a-number", "", "NaN", "inf", "-inf"] {
+            assert_ne!(offset_draft(raw), baseline, "{raw:?} must stay unresolved");
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn changed_values_sources_and_axes_compare_unequal() {
+        let baseline = offset_baseline(1.0);
+        assert_ne!(offset_draft("2"), baseline);
+        assert_ne!(
+            offset_state(
+                super::ConstraintKind::Offset,
+                "other-part",
+                OffsetAxes::Board,
+                "1"
+            ),
+            baseline
+        );
+        assert_ne!(
+            offset_state(
+                super::ConstraintKind::Offset,
+                "source-part",
+                OffsetAxes::Part,
+                "1"
+            ),
+            baseline
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn inactive_kind_fields_never_block() {
+        // Stray text in the mirror fields while the Offset kind is active is
+        // not submitted by Save, so it must not defer.
+        let baseline = offset_baseline(1.0);
+        assert_eq!(
+            constraint_draft_canonical(super::ConstraintFormState {
+                kind: super::ConstraintKind::Offset,
+                source_part_id: "source-part",
+                axes: OffsetAxes::Board,
+                offset_x: "1",
+                offset_y: "-4",
+                rotation: "5",
+                mirror_axis: &MirrorAxis::Horizontal,
+                mirror_coordinate: "not-a-number",
+                mirror_line_x: "nope",
+                mirror_line_y: "nil",
+                mirror_line_angle: "nah",
+            }),
+            baseline
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn no_accepted_constraint_falls_back_to_mount_defaults() {
+        let baseline = constraint_baseline_canonical(None, &board_parts(), "selected-part");
+        assert_eq!(
+            constraint_draft_canonical(super::ConstraintFormState {
+                kind: super::ConstraintKind::Offset,
+                source_part_id: "source-part",
+                axes: OffsetAxes::Board,
+                offset_x: "0",
+                offset_y: "0",
+                rotation: "0",
+                mirror_axis: &MirrorAxis::Vertical,
+                mirror_coordinate: "0",
+                mirror_line_x: "0",
+                mirror_line_y: "0",
+                mirror_line_angle: "90",
+            }),
+            baseline
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn mirror_baseline_round_trips_through_the_canonical_form() {
+        let baseline = constraint_baseline_canonical(
+            Some(&Constraint::Mirror {
+                id: "m".into(),
+                source_part_id: "source-part".into(),
+                target_part_id: "selected-part".into(),
+                axis: MirrorAxis::Horizontal,
+                coordinate: 2.5,
+            }),
+            &board_parts(),
+            "selected-part",
+        );
+        assert_eq!(
+            constraint_draft_canonical(super::ConstraintFormState {
+                kind: super::ConstraintKind::Mirror,
+                source_part_id: "source-part",
+                axes: OffsetAxes::Board,
+                offset_x: "0",
+                offset_y: "0",
+                rotation: "0",
+                mirror_axis: &MirrorAxis::Horizontal,
+                mirror_coordinate: "2.50",
+                mirror_line_x: "9",
+                mirror_line_y: "9",
+                mirror_line_angle: "9",
+            }),
+            baseline
+        );
+    }
 }
 
 #[cfg(test)]
@@ -762,6 +1080,27 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         )
     });
     let mut error = props.error;
+    // Ticket 011: the canonical value the constraint Save button last submitted
+    // (set only on the validated path), the previously seen accepted baseline
+    // for the clean-gated resync, the count of drained landings for the
+    // constraint admission key, and the draft-owner registry guard. The guard
+    // is registered only when a Runtime is in context; fixtures without one
+    // keep the pre-011 behaviour (production always provides it, as the
+    // Geometry editor's registration proves).
+    let draft_owner_runtime = try_use_context::<Rc<Runtime>>();
+    let mut submitted_constraint = use_signal(|| None::<String>);
+    let constraint_baseline_seen = use_signal(|| None::<String>);
+    let mut constraint_landed_nonce = use_signal(|| 0u64);
+    let constraint_landed_seen = use_signal(|| None::<u64>);
+    let draft_owner_guard =
+        use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let draft_owner_scope = draft_owner_runtime.as_ref().and_then(|runtime| {
+        runtime
+            .model()
+            .accepted
+            .as_ref()
+            .map(|snapshot| (snapshot.document.id.clone(), snapshot.session_epoch))
+    });
     // Ticket 13: column-vocabulary drafts. They reset from the accepted
     // anchor whenever a committed edit bumps the revision; typing never
     // commits until Enter or blur.
@@ -972,8 +1311,16 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         previous_margin.set(Some((identity_margin.clone(), value)));
     }));
     let accepted_constraint = (identity.clone(), initial_constraint.clone());
-    use_effect(use_reactive((&accepted_constraint,), {
-        move |((_, constraint),)| {
+    let landed_nonce_value = constraint_landed_nonce();
+    use_effect(use_reactive((&accepted_constraint, &landed_nonce_value), {
+        let board_parts = board_parts.clone();
+        let part_id = part_id.clone();
+        let mut constraint_baseline_seen = constraint_baseline_seen;
+        let mut constraint_landed_seen = constraint_landed_seen;
+        let submitted_constraint = submitted_constraint;
+        move |((_, constraint), nonce)| {
+            // Section chrome always follows the accepted document; the draft
+            // fields below only follow while clean (see below).
             constraint_open.set(constraint.is_some());
             constraint_kind.set(match constraint.as_ref() {
                 Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
@@ -983,36 +1330,75 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 }) => ConstraintKind::MirrorLine,
                 _ => ConstraintKind::Offset,
             });
-            let drafts = offset_drafts(constraint.as_ref(), &board_parts, &part_id);
-            source_part_id.set(drafts.source_part_id);
-            offset_axes.set(drafts.axes);
-            offset_x.set(drafts.offset_x);
-            offset_y.set(drafts.offset_y);
-            rotation.set(drafts.rotation);
-            match constraint {
-                Some(Constraint::Mirror {
-                    axis, coordinate, ..
-                }) => {
-                    mirror_axis.set(axis.clone());
-                    mirror_coordinate.set(coordinate.to_string());
+            // Ticket 011: settlement-time draft preservation. The resync runs
+            // while the live form still matches the previously seen baseline
+            // (a clean form follows a new accepted value). It also runs when
+            // the matching own submission just landed: an own Save or axes
+            // conversion landing re-expresses the numbers, so the form
+            // follows the landed result — but only while the screen still
+            // shows exactly what was submitted, so newer typing across an
+            // older settlement is never clobbered. Any other divergence is
+            // an open draft that survives the accepted update — including
+            // the 007 clobber — until its own Save/Remove lands or the
+            // designer reverts it. The seen baseline always advances to the
+            // current accepted value so a later revert compares against the
+            // latest.
+            let live = constraint_draft_canonical(ConstraintFormState {
+                kind: *constraint_kind.peek(),
+                source_part_id: &source_part_id.peek(),
+                axes: *offset_axes.peek(),
+                offset_x: &offset_x.peek(),
+                offset_y: &offset_y.peek(),
+                rotation: &rotation.peek(),
+                mirror_axis: &mirror_axis.peek(),
+                mirror_coordinate: &mirror_coordinate.peek(),
+                mirror_line_x: &mirror_line_x.peek(),
+                mirror_line_y: &mirror_line_y.peek(),
+                mirror_line_angle: &mirror_line_angle.peek(),
+            });
+            let current =
+                constraint_baseline_canonical(constraint.as_ref(), &board_parts, &part_id);
+            let clean = constraint_baseline_seen
+                .peek()
+                .as_ref()
+                .is_none_or(|seen| *seen == live);
+            let just_landed = constraint_landed_seen.peek().as_ref() != Some(&nonce);
+            constraint_landed_seen.set(Some(nonce));
+            let follows_own_landing =
+                just_landed && submitted_constraint.peek().as_ref() == Some(&live);
+            if clean || follows_own_landing {
+                let drafts = offset_drafts(constraint.as_ref(), &board_parts, &part_id);
+                source_part_id.set(drafts.source_part_id);
+                offset_axes.set(drafts.axes);
+                offset_x.set(drafts.offset_x);
+                offset_y.set(drafts.offset_y);
+                rotation.set(drafts.rotation);
+                match constraint {
+                    Some(Constraint::Mirror {
+                        axis, coordinate, ..
+                    }) => {
+                        mirror_axis.set(axis.clone());
+                        mirror_coordinate.set(coordinate.to_string());
+                    }
+                    Some(Constraint::Framed {
+                        relation: ConstraintRelation::MirrorLine { at, angle },
+                        ..
+                    }) => {
+                        mirror_line_x.set(at.x.to_string());
+                        mirror_line_y.set(at.y.to_string());
+                        mirror_line_angle.set(angle.to_string());
+                    }
+                    _ => {
+                        mirror_axis.set(MirrorAxis::Vertical);
+                        mirror_coordinate.set("0".to_owned());
+                        mirror_line_x.set("0".to_owned());
+                        mirror_line_y.set("0".to_owned());
+                        mirror_line_angle.set("90".to_owned());
+                    }
                 }
-                Some(Constraint::Framed {
-                    relation: ConstraintRelation::MirrorLine { at, angle },
-                    ..
-                }) => {
-                    mirror_line_x.set(at.x.to_string());
-                    mirror_line_y.set(at.y.to_string());
-                    mirror_line_angle.set(angle.to_string());
-                }
-                _ => {
-                    mirror_axis.set(MirrorAxis::Vertical);
-                    mirror_coordinate.set("0".to_owned());
-                    mirror_line_x.set("0".to_owned());
-                    mirror_line_y.set("0".to_owned());
-                    mirror_line_angle.set("90".to_owned());
-                }
+                error.set(None);
             }
-            error.set(None);
+            constraint_baseline_seen.set(Some(current));
         }
     }));
     let reset_properties_drafts = {
@@ -1100,7 +1486,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         margin_failure,
     );
     let accepted_projection = projection.clone();
-    pending.settle(owner_is_live, move |key| match key {
+    let settle_results = pending.settle(owner_is_live, move |key| match key {
         super::super::layout_component_edits::InspectorField::X => {
             format!("{:.2}", accepted_projection.position.x)
         }
@@ -1114,9 +1500,159 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             .unwrap_or_default(),
         _ => String::new(),
     });
+    // Ticket 011: the owner's own Remove landing resolves the draft — reset
+    // the form to the no-constraint defaults. Failure or refusal drains no
+    // Landed result, so the open draft is preserved and keeps blocking.
+    // A Landed Save (or axes conversion, which shares the Constraint key)
+    // bumps the landing nonce so the accepted-constraint effect can follow
+    // the landed result while the screen still shows the submitted value.
+    let mut constraint_landed = false;
+    let mut remove_landed = false;
+    for result in &settle_results {
+        match result {
+            PendingEditResult::Landed {
+                key: super::super::layout_component_edits::InspectorField::Constraint,
+                ..
+            } => constraint_landed = true,
+            PendingEditResult::Landed {
+                key: super::super::layout_component_edits::InspectorField::RemoveConstraint,
+                ..
+            } => remove_landed = true,
+            _ => {}
+        }
+    }
+    if constraint_landed {
+        constraint_landed_nonce.set(constraint_landed_nonce() + 1);
+    }
+    if remove_landed {
+        let defaults = offset_drafts(None, &board_parts, &part_id);
+        constraint_kind.set(ConstraintKind::Offset);
+        source_part_id.set(defaults.source_part_id);
+        offset_axes.set(defaults.axes);
+        offset_x.set(defaults.offset_x);
+        offset_y.set(defaults.offset_y);
+        rotation.set(defaults.rotation);
+        mirror_axis.set(MirrorAxis::Vertical);
+        mirror_coordinate.set("0".to_owned());
+        mirror_line_x.set("0".to_owned());
+        mirror_line_y.set("0".to_owned());
+        mirror_line_angle.set("90".to_owned());
+        error.set(None);
+        submitted_constraint.set(None);
+    }
     let retired_pending = pending.clone();
     use_drop(move || {
         retired_pending.settle(false, |_| String::new());
+    });
+    // Ticket 011: register the constraint admission key with the Runtime-owned
+    // draft registry. Unresolved = the live form differs from the live-projected
+    // accepted constraint under owner-canonical equality, and no in-flight
+    // Save for this key carries the current draft value. Invalid text never
+    // equals the always-valid baseline, so realistic invalid drafts defer.
+    // Hidden and keep-mounted instances keep blocking through the same guard;
+    // genuine unmount retires explicitly, and the gate's poll-prune drops
+    // anything left dead. Registration is skipped without a Runtime context.
+    use_effect(use_reactive((&draft_owner_scope,), {
+        let draft_owner_runtime = draft_owner_runtime.clone();
+        let constraint_kind = constraint_kind;
+        let source_part_id = source_part_id;
+        let offset_axes = offset_axes;
+        let offset_x = offset_x;
+        let offset_y = offset_y;
+        let rotation = rotation;
+        let mirror_axis = mirror_axis;
+        let mirror_coordinate = mirror_coordinate;
+        let mirror_line_x = mirror_line_x;
+        let mirror_line_y = mirror_line_y;
+        let mirror_line_angle = mirror_line_angle;
+        let submitted_constraint = submitted_constraint;
+        let pending = pending.clone();
+        let board_parts = board_parts.clone();
+        let part_id = part_id.clone();
+        let mut draft_owner_guard = draft_owner_guard;
+        let draft_owner_scope = draft_owner_scope.clone();
+        move |(scope,)| {
+            let _ = scope;
+            let Some(runtime) = draft_owner_runtime.clone() else {
+                return;
+            };
+            let retired = draft_owner_guard.write().take();
+            if let Some(retired) = retired {
+                runtime.retire_draft_owner(retired);
+            }
+            let Some(scope) = draft_owner_scope.clone() else {
+                return;
+            };
+            let probe_runtime = runtime.clone();
+            let probe_pending = pending.clone();
+            let probe_board_parts = board_parts.clone();
+            let probe_part_id = part_id.clone();
+            let probe_scope = scope.clone();
+            let is_unresolved = std::rc::Rc::new(move || {
+                let live = constraint_draft_canonical(ConstraintFormState {
+                    kind: *constraint_kind.peek(),
+                    source_part_id: &source_part_id.peek(),
+                    axes: *offset_axes.peek(),
+                    offset_x: &offset_x.peek(),
+                    offset_y: &offset_y.peek(),
+                    rotation: &rotation.peek(),
+                    mirror_axis: &mirror_axis.peek(),
+                    mirror_coordinate: &mirror_coordinate.peek(),
+                    mirror_line_x: &mirror_line_x.peek(),
+                    mirror_line_y: &mirror_line_y.peek(),
+                    mirror_line_angle: &mirror_line_angle.peek(),
+                });
+                let model = probe_runtime.model();
+                let Some(snapshot) = model.accepted.as_ref() else {
+                    return false;
+                };
+                if snapshot.document.id != probe_scope.0 || snapshot.session_epoch != probe_scope.1
+                {
+                    return false;
+                }
+                let baseline = match snapshot.document.constraint_driving_part(&probe_part_id) {
+                    Ok(constraint) => constraint_baseline_canonical(
+                        constraint,
+                        &probe_board_parts,
+                        &probe_part_id,
+                    ),
+                    // An unverifiable store cannot prove the draft clean.
+                    Err(_) => return true,
+                };
+                if live == baseline {
+                    return false;
+                }
+                if probe_pending
+                    .is_pending(&super::super::layout_component_edits::InspectorField::Constraint)
+                    && submitted_constraint.peek().as_ref() == Some(&live)
+                {
+                    return false;
+                }
+                true
+            });
+            draft_owner_guard.set(Some(runtime.register_draft_owner(
+                boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                    project_scope: scope,
+                    workspace: "Layout",
+                    owner: "layout-constraint",
+                    admission_key: "save",
+                    area: "Layout constraint".to_owned(),
+                    remedy: "Save or remove the constraint, or restore its saved values".to_owned(),
+                    is_unresolved,
+                },
+            )));
+        }
+    }));
+    use_drop({
+        let draft_owner_runtime = draft_owner_runtime.clone();
+        let mut draft_owner_guard = draft_owner_guard;
+        move || {
+            if let Some(retired) = draft_owner_guard.write().take()
+                && let Some(runtime) = draft_owner_runtime.clone()
+            {
+                runtime.retire_draft_owner(retired);
+            }
+        }
     });
 
     let last_enter_commit = use_hook(|| Rc::new(RefCell::new(None::<PositionEnterCommit>)));
@@ -1346,6 +1882,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     let mut choose_offset_axes = {
         let latest_capture = latest_capture;
         let action = props.on_action;
+        let mut submitted_constraint = submitted_constraint;
         let saved_offset_id = projection
             .active_constraint
             .as_ref()
@@ -1355,6 +1892,22 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         move |to: OffsetAxes| {
             offset_axes.set(to);
             if let Some(constraint_id) = saved_offset_id.as_ref() {
+                // Ticket 011: the conversion submits through the Constraint
+                // key, so the submitted draft is recorded here too: the
+                // landed conversion re-expresses the numbers.
+                submitted_constraint.set(Some(constraint_draft_canonical(ConstraintFormState {
+                    kind: constraint_kind(),
+                    source_part_id: &source_part_id(),
+                    axes: to,
+                    offset_x: &offset_x(),
+                    offset_y: &offset_y(),
+                    rotation: &rotation(),
+                    mirror_axis: &mirror_axis(),
+                    mirror_coordinate: &mirror_coordinate(),
+                    mirror_line_x: &mirror_line_x(),
+                    mirror_line_y: &mirror_line_y(),
+                    mirror_line_angle: &mirror_line_angle(),
+                })));
                 action.call(LayoutComponentInspectorAction::ConvertOffsetAxes {
                     owner: latest_capture(),
                     constraint_id: constraint_id.clone(),
@@ -1369,6 +1922,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         let mirror_line_x = mirror_line_x;
         let mirror_line_y = mirror_line_y;
         let mirror_line_angle = mirror_line_angle;
+        let mut submitted_constraint = submitted_constraint;
         let retain_legacy_form = projection
             .active_constraint
             .as_ref()
@@ -1472,6 +2026,22 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 }
             };
             error.set(None);
+            // Ticket 011: remember the submitted draft so the in-flight
+            // exemption covers exactly the current value: newer typing still
+            // defers, and the exemption dies with the pending record.
+            submitted_constraint.set(Some(constraint_draft_canonical(ConstraintFormState {
+                kind: constraint_kind(),
+                source_part_id: &source,
+                axes: offset_axes(),
+                offset_x: &offset_x(),
+                offset_y: &offset_y(),
+                rotation: &rotation(),
+                mirror_axis: &mirror_axis(),
+                mirror_coordinate: &mirror_coordinate(),
+                mirror_line_x: &mirror_line_x(),
+                mirror_line_y: &mirror_line_y(),
+                mirror_line_angle: &mirror_line_angle(),
+            })));
             action.call(LayoutComponentInspectorAction::SetConstraint {
                 owner: owner.clone(),
                 source_part_id: source,
@@ -1485,9 +2055,13 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         .map(|constraint| constraint.id().to_owned());
     let remove_constraint = {
         let latest_capture = latest_capture;
+        let mut submitted_constraint = submitted_constraint;
         let action = props.on_action;
         move |_| {
             if let Some(constraint_id) = active_constraint_id.as_ref() {
+                // Ticket 011: a removal carries no draft value; drop any
+                // older submitted memory so it can never exempt newer input.
+                submitted_constraint.set(None);
                 action.call(LayoutComponentInspectorAction::RemoveConstraint {
                     owner: latest_capture(),
                     constraint_id: constraint_id.clone(),

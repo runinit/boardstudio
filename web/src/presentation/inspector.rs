@@ -90,6 +90,89 @@ pub(super) fn Inspector() -> Element {
                 .settle(false, |_| (String::new(), String::new()));
         }
     });
+    // Ticket 011: register the single Apply admission key with the Runtime-owned
+    // draft registry. Unresolved = the live draft differs from the live-projected
+    // accepted position under owner-canonical (parsed) equality, and no in-flight
+    // submission for this key carries the current draft. Invalid text never equals
+    // the always-parseable accepted baseline, so realistic invalid drafts defer.
+    // Previews are transient Session state, not the safety predicate. Hidden and
+    // keep-mounted instances keep blocking through the same guard; genuine unmount
+    // retires explicitly, and the gate's poll-prune drops anything left dead.
+    let draft_owner_guard =
+        use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let draft_owner_scope = runtime
+        .model()
+        .accepted
+        .as_ref()
+        .map(|snapshot| (snapshot.document.id.clone(), snapshot.session_epoch));
+    use_effect(use_reactive((&draft_owner_scope,), {
+        let runtime = runtime.clone();
+        let draft = draft;
+        let mut draft_owner_guard = draft_owner_guard;
+        let draft_owner_scope = draft_owner_scope.clone();
+        move |(scope,)| {
+            let _ = scope;
+            let retired = draft_owner_guard.write().take();
+            if let Some(retired) = retired {
+                runtime.retire_draft_owner(retired);
+            }
+            let Some(scope) = draft_owner_scope.clone() else {
+                return;
+            };
+            let probe_runtime = runtime.clone();
+            let probe_pending = pending.peek().clone();
+            let probe_scope = scope.clone();
+            let is_unresolved = std::rc::Rc::new(move || {
+                let live = draft.peek().clone();
+                let model = probe_runtime.model();
+                let Some(snapshot) = model.accepted.as_ref() else {
+                    return false;
+                };
+                if snapshot.document.id != probe_scope.0 || snapshot.session_epoch != probe_scope.1
+                {
+                    return false;
+                }
+                let Some(part) = model
+                    .selected_part_ids
+                    .first()
+                    .and_then(|id| snapshot.document.parts.iter().find(|part| &part.id == id))
+                else {
+                    return false;
+                };
+                if position_draft_equals_baseline(&live, (part.pose.at.x, part.pose.at.y)) {
+                    return false;
+                }
+                if probe_pending.submitted_draft(&()).as_ref() == Some(&live) {
+                    return false;
+                }
+                true
+            });
+            draft_owner_guard.set(Some(
+                runtime.register_draft_owner(
+                    boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                        project_scope: scope,
+                        workspace: "Layout",
+                        owner: "legacy-position",
+                        admission_key: "apply",
+                        area: "Legacy position".to_owned(),
+                        remedy: "Press Enter or Apply position to save, or press Escape to cancel"
+                            .to_owned(),
+                        is_unresolved,
+                    },
+                ),
+            ));
+        }
+    }));
+    use_drop({
+        let runtime = runtime.clone();
+        let mut draft_owner_guard = draft_owner_guard;
+        move || {
+            let retired = draft_owner_guard.write().take();
+            if let Some(retired) = retired {
+                runtime.retire_draft_owner(retired);
+            }
+        }
+    });
     let key = selected
         .as_ref()
         .map(|p| (p.id.clone(), p.pose.at.x, p.pose.at.y));
@@ -287,6 +370,52 @@ fn submit_position(
         *current.borrow_mut() = Some(edit);
     } else {
         current.borrow_mut().take();
+    }
+}
+
+/// Ticket 011: owner-canonical equality for the legacy position draft. The commit
+/// path parses both axes, so two texts submitting the same finite pair are the
+/// same draft ("1.0" vs "1"); anything unparseable or non-finite never equals
+/// the always-parseable accepted baseline, so invalid text stays unresolved.
+fn position_draft_equals_baseline(draft: &(String, String), baseline: (f64, f64)) -> bool {
+    let (Ok(x), Ok(y)) = (draft.0.parse::<f64>(), draft.1.parse::<f64>()) else {
+        return false;
+    };
+    x.is_finite() && y.is_finite() && x == baseline.0 && y == baseline.1
+}
+
+#[cfg(test)]
+mod position_draft_canonical_tests {
+    use super::position_draft_equals_baseline;
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn formatting_variants_of_one_value_compare_equal() {
+        assert!(position_draft_equals_baseline(
+            &("1.0".into(), "-4.50".into()),
+            (1.0, -4.5)
+        ));
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn invalid_or_non_finite_text_never_matches() {
+        for raw in ["not-a-number", "", "NaN", "inf", "-inf"] {
+            assert!(
+                !position_draft_equals_baseline(&(raw.into(), "0".into()), (0.0, 0.0)),
+                "{raw:?} must stay unresolved"
+            );
+            assert!(
+                !position_draft_equals_baseline(&("0".into(), raw.into()), (0.0, 0.0)),
+                "{raw:?} must stay unresolved"
+            );
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn changed_values_compare_unequal() {
+        assert!(!position_draft_equals_baseline(
+            &("2".into(), "0".into()),
+            (1.0, 0.0)
+        ));
     }
 }
 

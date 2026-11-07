@@ -5,10 +5,14 @@ use super::inspector::{
 use super::*;
 use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SessionEpoch};
 use boardstudio_core::model::{
-    Board, Constraint, ConstraintEndpoint, ConstraintRelation, Layout, LayoutMirrorLink, Matrix,
-    MatrixCell, MatrixScene, MatrixSceneCell, MirroredCorrespondence, MirroredItemKind,
-    PartDefinition, PartKind, PartOutline, Pose2, ProjectDoc, Readiness, SceneDelta, Side, Vec2,
+    Board, CompanionPlacementTarget, Constraint, ConstraintEndpoint, ConstraintRelation, Layout,
+    LayoutMirrorLink, Matrix, MatrixCell, MatrixScene, MatrixSceneCell, MirroredCompanionMode,
+    MirroredCorrespondence, MirroredItemKind, PartDefinition, PartKind, PartOutline, Pose2,
+    ProjectDoc, Readiness, SceneDelta, Side, Vec2,
 };
+use boardstudio_web_host::host::{UpdateSignals, UpdateWatch};
+use boardstudio_web_host::offline::{AdoptError, UpdateSnapshot};
+use boardstudio_web_runtime::update_safety::{UpdateBlocker, UpdateDialog, UpdateOpener};
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -3731,6 +3735,29 @@ fn companion_placement_runtime_host() -> Element {
     let projection = use_context::<inspector::CompanionPlacementProjection>();
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let refuse_as_invalid_pair_tweak = use_context::<Rc<std::cell::Cell<bool>>>();
+    // Mirror the production parent: rebuild the placed mode/tweak from the
+    // live accepted document on every render so adapters that track the
+    // accepted baseline see landings. Owner identity stays mount-stable so
+    // the helper's liveness tracking matches the static-projection tests.
+    let mut projection = projection.clone();
+    if let Some(snapshot) = runtime.model().accepted.as_ref() {
+        projection.mode = Some(companion_pair_mode(&runtime));
+        projection.mixed_mode = false;
+        projection.tweak = snapshot
+            .document
+            .hardware
+            .as_ref()
+            .and_then(|hardware| hardware.pairs.first())
+            .and_then(|pair| pair.halves.as_ref())
+            .and_then(|halves| {
+                halves.correspondences.iter().find(|link| {
+                    link.kind == boardstudio_core::model::MirroredItemKind::Part
+                        && link.source_id == "selected-part"
+                })
+            })
+            .and_then(|link| link.companion_tweak);
+        projection.mixed_tweak = false;
+    }
     let generation = use_signal(|| 0u64);
     let _ = generation();
     use_hook(|| {
@@ -3918,7 +3945,9 @@ async fn companion_placement_mounted_edit_undo_and_core_refusal() {
     })
     .await;
 
-    companion_click(&root, "checkbox", "Also set the pair default");
+    // Ticket 011: the first Apply's landing reset the pair default to
+    // unchecked, so there is nothing to toggle here; the refusal is forced by
+    // the scripted invalid pair tweak below, exactly as before.
     choose_inspector_option(&root, "Mode", "Mirror with tweak").await;
     wait_until("the tweak fields mount", || {
         ["X tweak (mm)", "Y tweak (mm)", "Rotation tweak (degrees)"]
@@ -4044,5 +4073,589 @@ async fn stabiliser_companion_placement_shows_a_disabled_mode_and_core_reason() 
             .contains("Stabilisers keep their mirrored-X position")
     );
     assert!(by_role_name(&root, "button", "Apply placement").is_none());
+    root.remove();
+}
+
+// ==== Ticket 011: companion placement draft-safety seam ====
+//
+// The form mounts through the proven companion builders (real projection
+// patching, real `submit_layout_component_edit` dispatch) beside fixture
+// Update Now entry controls calling the production gate openers. The
+// deferral is observed through the production `Runtime::update_dialog()`
+// state and scripted `UpdateSignals` adoptions; the area/remedy copy is
+// asserted on the production `UpdateBlocker::UnresolvedDraft` values that
+// feed 008's `blocker_message`.
+
+struct CompanionDraftSafetySignals {
+    snapshot: Rc<RefCell<UpdateSnapshot>>,
+    adoptions: Rc<std::cell::Cell<u32>>,
+}
+
+impl CompanionDraftSafetySignals {
+    fn new(snapshot: UpdateSnapshot) -> Self {
+        Self {
+            snapshot: Rc::new(RefCell::new(snapshot)),
+            adoptions: Rc::new(std::cell::Cell::new(0)),
+        }
+    }
+}
+
+impl UpdateSignals for CompanionDraftSafetySignals {
+    fn snapshot(&self) -> UpdateSnapshot {
+        *self.snapshot.borrow()
+    }
+
+    fn watch(&self, on_change: Rc<dyn Fn()>) -> Box<dyn UpdateWatch> {
+        struct Stop;
+        impl UpdateWatch for Stop {
+            fn stop(&mut self) {}
+        }
+        let _ = on_change;
+        Box::new(Stop)
+    }
+
+    fn adopt_waiting(
+        &self,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), AdoptError>>>> {
+        let adoptions = self.adoptions.clone();
+        Box::pin(async move {
+            adoptions.set(adoptions.get() + 1);
+            Ok(())
+        })
+    }
+
+    fn reload(&self) {}
+}
+
+// The Update Now entry points are exercised through the production gate
+// openers directly: the toast and header buttons are thin chrome over
+// `Runtime::begin_update(opener)` (008 proves that chrome), and the opener
+// is the entry-point distinction at the gate.
+
+async fn mounted_companion_draft_safety() -> (
+    Rc<crate::runtime::Runtime>,
+    web_sys::Element,
+    Rc<CompanionDraftSafetySignals>,
+    Rc<std::cell::Cell<bool>>,
+) {
+    mounted_companion_draft_safety_with(companion_draft_safety_host).await
+}
+
+async fn mounted_companion_draft_safety_with(
+    make: fn() -> Element,
+) -> (
+    Rc<crate::runtime::Runtime>,
+    web_sys::Element,
+    Rc<CompanionDraftSafetySignals>,
+    Rc<std::cell::Cell<bool>>,
+) {
+    let runtime = crate::runtime::project_name_test_support::new_runtime();
+    crate::runtime::project_name_test_support::install(
+        &runtime,
+        boardstudio_application::Session::new(),
+        boardstudio_core::CoreEngine::new(),
+    );
+    crate::runtime::project_name_test_support::install_memory_persistence(&runtime);
+    runtime.submit(boardstudio_application::Event::Open {
+        operation_id: runtime.operation(),
+        document: runtime_document(configure_mirrored_part_pair),
+    });
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    runtime.submit(boardstudio_application::Event::SelectParts {
+        operation_id: runtime.operation(),
+        part_ids: vec!["selected-part".into()],
+        range_part_ids: Vec::new(),
+        mode: boardstudio_application::SelectionMode::Replace,
+    });
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    let model = runtime.model();
+    let snapshot = model.accepted.as_ref().expect("fixture opened");
+    let scope = runtime.scope().expect("fixture scope");
+    let mut projection = companion_placement_component_projection(None);
+    projection.owner.scope = scope.clone();
+    projection.owner.context = objects::ScopedTreeContext {
+        scope,
+        context: objects::context_for_part(&model, "selected-part").expect("selected part context"),
+    };
+    projection.owner.selected_part_ids = model.selected_part_ids.clone();
+    projection.owner.snapshot_token = snapshot.token;
+    projection.owner.revision = snapshot.document.revision;
+    projection.targets = vec![CompanionPlacementTarget::Item {
+        item_kind: boardstudio_core::model::MirroredItemKind::Part,
+        mirror_id: "source-part".into(),
+    }];
+    let reject_pair_tweak = Rc::new(std::cell::Cell::new(false));
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let signals = Rc::new(CompanionDraftSafetySignals::new(UpdateSnapshot {
+        waiting: true,
+        installing: false,
+        controlled: true,
+    }));
+    runtime.observe_update_waiting(signals.clone());
+    let dom = VirtualDom::new(make);
+    dom.provide_root_context(runtime.clone());
+    dom.provide_root_context(projection);
+    dom.provide_root_context(reject_pair_tweak.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the companion placement control mounts", || {
+        by_role_name(&root, "button", "Companion placement").is_some()
+    })
+    .await;
+    companion_click(&root, "button", "Companion placement");
+    (runtime, root, signals, reject_pair_tweak)
+}
+
+fn companion_deferred_blockers(runtime: &Rc<crate::runtime::Runtime>) -> Vec<UpdateBlocker> {
+    match runtime.update_dialog() {
+        Some(UpdateDialog::Deferred { blockers }) => blockers,
+        other => panic!("expected a deferred update dialog, got {other:?}"),
+    }
+}
+
+fn assert_companion_deferral(blockers: &[UpdateBlocker]) {
+    assert_eq!(
+        blockers.len(),
+        1,
+        "only the companion placement draft defers: {blockers:?}"
+    );
+    match &blockers[0] {
+        UpdateBlocker::UnresolvedDraft { area, remedy } => {
+            assert_eq!(area, "Companion placement");
+            assert_eq!(
+                remedy,
+                "Apply the placement, or restore the saved values in the form"
+            );
+        }
+        other => panic!("expected the companion placement draft blocker, got {other:?}"),
+    }
+}
+
+fn assert_blockers_contain_companion(blockers: &[UpdateBlocker]) {
+    assert!(
+        blockers.iter().any(|blocker| matches!(
+            blocker,
+            UpdateBlocker::UnresolvedDraft { area, remedy }
+            if area == "Companion placement"
+                && remedy == "Apply the placement, or restore the saved values in the form"
+        )),
+        "the companion placement draft stays blocking: {blockers:?}"
+    );
+}
+
+fn companion_pair_mode(runtime: &Rc<crate::runtime::Runtime>) -> MirroredCompanionMode {
+    runtime
+        .model()
+        .accepted
+        .unwrap()
+        .document
+        .hardware
+        .as_ref()
+        .unwrap()
+        .pairs[0]
+        .halves
+        .as_ref()
+        .unwrap()
+        .companion_mode
+}
+
+fn type_companion_tweak(root: &web_sys::Element, name: &str, value: &str) {
+    let input = by_role_name(root, "spinbutton", name)
+        .unwrap_or_else(|| panic!("the {name} field mounts"))
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap();
+    input.set_value(value);
+    let init = web_sys::EventInit::new();
+    init.set_bubbles(true);
+    input
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+        .unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_valid_draft_defers_update_now_at_the_toast() {
+    let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
+    choose_inspector_option(&root, "Mode", "Duplicate position").await;
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("the deferral warning mounts", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_companion_deferral(&companion_deferred_blockers(&runtime));
+    assert_eq!(signals.adoptions.get(), 0, "the draft never adopts");
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_valid_draft_defers_update_now_at_the_header() {
+    let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
+    choose_inspector_option(&root, "Mode", "Duplicate position").await;
+    runtime.begin_update(UpdateOpener::Header);
+    wait_until("the deferral warning mounts", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_companion_deferral(&companion_deferred_blockers(&runtime));
+    assert_eq!(signals.adoptions.get(), 0, "the draft never adopts");
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_invalid_tweak_defers_update_now() {
+    let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
+    choose_inspector_option(&root, "Mode", "Mirror with tweak").await;
+    wait_until("the tweak fields mount", || {
+        by_role_name(&root, "spinbutton", "X tweak (mm)").is_some()
+    })
+    .await;
+    // Realistic invalid text: Apply refuses it, so no submission exists.
+    type_companion_tweak(&root, "X tweak (mm)", "not-a-number");
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("the deferral warning mounts", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_companion_deferral(&companion_deferred_blockers(&runtime));
+    assert_eq!(signals.adoptions.get(), 0, "the invalid draft never adopts");
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_invalid_tweak_defers_update_now_at_the_header() {
+    let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
+    choose_inspector_option(&root, "Mode", "Mirror with tweak").await;
+    wait_until("the tweak fields mount", || {
+        by_role_name(&root, "spinbutton", "X tweak (mm)").is_some()
+    })
+    .await;
+    type_companion_tweak(&root, "X tweak (mm)", "not-a-number");
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    runtime.begin_update(UpdateOpener::Header);
+    wait_until("the deferral warning mounts", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_companion_deferral(&companion_deferred_blockers(&runtime));
+    assert_eq!(signals.adoptions.get(), 0, "the invalid draft never adopts");
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_pair_tweak_refusal_defers_update_now() {
+    let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
+    choose_inspector_option(&root, "Mode", "Mirror with tweak").await;
+    wait_until("the tweak fields mount", || {
+        by_role_name(&root, "spinbutton", "X tweak (mm)").is_some()
+    })
+    .await;
+    for (name, value) in [
+        ("X tweak (mm)", "0.5"),
+        ("Y tweak (mm)", "0.25"),
+        ("Rotation tweak (degrees)", "2"),
+    ] {
+        type_companion_tweak(&root, name, value);
+    }
+    // A pair default cannot carry a position tweak: Apply refuses, so no
+    // submission exists for this realistic combination.
+    companion_click(&root, "checkbox", "Also set the pair default");
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("the deferral warning mounts", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_companion_deferral(&companion_deferred_blockers(&runtime));
+    assert_eq!(signals.adoptions.get(), 0, "the refused draft never adopts");
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_apply_landing_clears_the_deferral() {
+    use boardstudio_web_ui_shared::test_wait::wait_until_step;
+    let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
+    choose_inspector_option(&root, "Mode", "Duplicate position").await;
+    // The pair default rides along so the submission lands (established
+    // fixture pattern); the click resets the box so the landed form reads
+    // clean against the baseline.
+    companion_click(&root, "checkbox", "Also set the pair default");
+    companion_click(&root, "button", "Apply placement");
+    wait_until_step("the apply lands", async || {
+        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        companion_pair_mode(&runtime) == MirroredCompanionMode::DuplicatePosition
+    })
+    .await;
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("the landed apply adopts", || signals.adoptions.get() == 1).await;
+    assert!(
+        runtime.update_dialog().is_none(),
+        "no deferral remains after landing"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_in_flight_apply_exempts_only_the_current_draft() {
+    let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
+    choose_inspector_option(&root, "Mode", "Duplicate position").await;
+    // No pair default here: the live draft must match the submitted draft
+    // exactly for the in-flight exemption to cover it.
+    companion_click(&root, "button", "Apply placement");
+    // The Apply is in flight and the draft still matches it: the draft leg
+    // reports resolved, so only the pending-work leg defers adoption.
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("the pending-work warning mounts", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_eq!(
+        companion_deferred_blockers(&runtime),
+        vec![UpdateBlocker::PendingWork],
+        "only the in-flight submission blocks"
+    );
+    assert_eq!(
+        signals.adoptions.get(),
+        0,
+        "the in-flight edit never adopts"
+    );
+    // Settle the flight without checking the landing: the exemption dies
+    // with the pending record either way.
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_revert_to_baseline_clears_the_key() {
+    let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
+    choose_inspector_option(&root, "Mode", "Duplicate position").await;
+    choose_inspector_option(&root, "Mode", "Literal mirror").await;
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    runtime.begin_update(UpdateOpener::Header);
+    wait_until("the reverted draft adopts", || signals.adoptions.get() == 1).await;
+    assert!(
+        runtime.update_dialog().is_none(),
+        "no deferral remains after revert"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_refused_apply_keeps_blocking() {
+    let (runtime, root, signals, refuse) = mounted_companion_draft_safety().await;
+    choose_inspector_option(&root, "Mode", "Mirror with tweak").await;
+    wait_until("the tweak fields mount", || {
+        by_role_name(&root, "spinbutton", "X tweak (mm)").is_some()
+    })
+    .await;
+    for (name, value) in [
+        ("X tweak (mm)", "0.5"),
+        ("Y tweak (mm)", "0.25"),
+        ("Rotation tweak (degrees)", "2"),
+    ] {
+        type_companion_tweak(&root, name, value);
+    }
+    // The checkbox stays unchecked here on purpose: the scripted invalid pair
+    // tweak below forces the resolver refusal (the form-level pair refusal
+    // would disable Apply and never reach the resolver). The draft is
+    // preserved and the accepted placement is unchanged.
+    refuse.set(true);
+    companion_click(&root, "button", "Apply placement");
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    refuse.set(false);
+    wait_until("the resolver refusal reaches the form", || {
+        root.query_selector("[role='alert']")
+            .unwrap()
+            .is_some_and(|alert| {
+                alert
+                    .text_content()
+                    .unwrap_or_default()
+                    .contains("cannot carry a companion tweak")
+            })
+    })
+    .await;
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("the deferral warning mounts", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_blockers_contain_companion(&companion_deferred_blockers(&runtime));
+    assert_eq!(signals.adoptions.get(), 0, "the refused draft never adopts");
+    assert_eq!(
+        by_role_name(&root, "spinbutton", "X tweak (mm)")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+            .value(),
+        "0.5",
+        "the refused draft text survives"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_accepted_update_preserves_the_open_draft() {
+    use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+    let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
+    choose_inspector_option(&root, "Mode", "Mirror with tweak").await;
+    wait_until("the tweak fields mount", || {
+        by_role_name(&root, "spinbutton", "X tweak (mm)").is_some()
+    })
+    .await;
+    // An open tweak draft over the saved literal-mirror placement.
+    type_companion_tweak(&root, "X tweak (mm)", "0.5");
+    // An accepted update moves the placement underneath the open draft:
+    // the draft must survive, not be rewritten.
+    let snapshot = runtime
+        .model()
+        .accepted
+        .expect("an accepted document is open");
+    let mut document = (*snapshot.document).clone();
+    document
+        .hardware
+        .as_mut()
+        .expect("the fixture links a mirrored pair")
+        .pairs[0]
+        .halves
+        .as_mut()
+        .expect("the fixture pair links halves")
+        .companion_mode = MirroredCompanionMode::DuplicatePosition;
+    crate::runtime::project_name_test_support::submit_fixed_command(
+        &runtime,
+        EditCommand {
+            base_revision: document.revision,
+            transaction_id: "011-unrelated-companion-bump".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![document.id.clone()],
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(document),
+            },
+        },
+    );
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    assert_eq!(
+        companion_pair_mode(&runtime),
+        MirroredCompanionMode::DuplicatePosition,
+        "the accepted update lands underneath the draft"
+    );
+    assert_eq!(
+        by_role_name(&root, "spinbutton", "X tweak (mm)")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+            .value(),
+        "0.5",
+        "the accepted update never rewrites the open draft"
+    );
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("the deferral warning mounts", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_blockers_contain_companion(&companion_deferred_blockers(&runtime));
+    assert_eq!(
+        signals.adoptions.get(),
+        0,
+        "the preserved draft never adopts"
+    );
+    root.remove();
+}
+
+// Ticket 011: the draft-safety host toggles mounting for the retirement leg
+// and rebuilds the placed mode/tweak from the live accepted document on every
+// render (mirroring the production parent) so the gate baseline tracks
+// landings. Targets stay selection-derived and the owner identity stays
+// mount-stable (the helper's liveness tracking is not under test here).
+fn companion_draft_safety_host() -> Element {
+    let mut show = use_signal(|| true);
+    rsx! {
+        if show() {
+            {companion_placement_runtime_host()}
+        }
+        button {
+            onclick: move |_| show.set(!show()),
+            "Toggle companion view"
+        }
+    }
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_unmount_retires_the_registration() {
+    let (runtime, root, signals, _) =
+        mounted_companion_draft_safety_with(companion_draft_safety_host).await;
+    choose_inspector_option(&root, "Mode", "Duplicate position").await;
+    by_role_name(&root, "button", "Toggle companion view")
+        .unwrap()
+        .click();
+    wait_until("the companion editor unmounts", || {
+        by_role_name(&root, "button", "Companion placement").is_none()
+    })
+    .await;
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("the retired owner adopts", || signals.adoptions.get() == 1).await;
+    assert!(
+        runtime.update_dialog().is_none(),
+        "no deferral remains after unmount"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_collapsed_instance_keeps_blocking() {
+    let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
+    choose_inspector_option(&root, "Mode", "Duplicate position").await;
+    // Collapsed but keep-mounted: the out-of-sight draft stays protected.
+    companion_click(&root, "button", "Companion placement");
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("the deferral warning mounts", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_companion_deferral(&companion_deferred_blockers(&runtime));
+    assert_eq!(signals.adoptions.get(), 0, "a hidden owner still blocks");
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_cancel_preserves_value_without_reload() {
+    let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
+    choose_inspector_option(&root, "Mode", "Duplicate position").await;
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("the deferral warning mounts", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_companion_deferral(&companion_deferred_blockers(&runtime));
+    let href_before = web_sys::window()
+        .unwrap()
+        .location()
+        .href()
+        .unwrap_or_default();
+    runtime.cancel_update_dialog();
+    assert!(
+        runtime.update_dialog().is_none(),
+        "cancellation clears the warning"
+    );
+    assert_eq!(
+        web_sys::window()
+            .unwrap()
+            .location()
+            .href()
+            .unwrap_or_default(),
+        href_before,
+        "cancellation never reloads"
+    );
+    assert!(
+        by_role_name(&root, "button", "Mode")
+            .unwrap()
+            .text_content()
+            .unwrap_or_default()
+            .contains("Duplicate position"),
+        "cancellation preserves the drafted mode"
+    );
+    assert_eq!(signals.adoptions.get(), 0, "cancellation never adopts");
     root.remove();
 }
