@@ -53,7 +53,7 @@ standards findings remain gates; optional review cleanup is not extra scope.
 | [008 Registry and Geometry tracer](issues/008-registry-and-geometry-tracer.md) | Retry correction reviewed and independently verified; claimed | Geometry 6/6, helpers 16/16, notifications 30/30; real trusted package proof below, final 010 checkpoint outstanding |
 | [009 Persistence adapter](issues/009-diagnostic-gated-persistence-adapter.md) | Both required corrections reviewed; ready for packaged integration | Coordinator adapter 10/10 plus Runtime held-save 1/1; not 010 acceptance |
 | [011 Layout owners](issues/011-layout-explicit-submit-owners.md) | Corrected implementation reviewed; claimed pending closure bookkeeping | Spec and Standards PASS at `16b85737`; coordinator full corrective diff read and focused 106/106 passed |
-| [010 Packaged A→B proof](issues/010-packaged-a-to-b-proof.md) | Packaged proof verified; claimed pending fresh rechecks | Header Space, exact revisions, held-save/newer-draft r4, Layout cleanup and six inherited/negative controls pass; remaining limits below are not waived |
+| [010 Packaged A→B proof](issues/010-packaged-a-to-b-proof.md) | Behavior verified and independently reviewed; claimed, cleanup BLOCKED | Seven behavioral criteria pass through `c5a876ec`; complete Spec review identifies remaining profile/database/output cleanup as the checkpoint gate |
 | [012 Parts owners](issues/012-parts-single-draft-owners.md) | Not started; held behind 010 checkpoint | Fresh owner-cluster agent after packaged proof |
 | [013 PCB owners](issues/013-pcb-placement-attach-assembly-net-owners.md) | Not started; held behind 010 checkpoint | Fresh owner-cluster agent after packaged proof |
 | [014 Creation forms](issues/014-creation-form-owners.md) | Not started; held behind 010 checkpoint | Fresh owner-cluster agent after packaged proof |
@@ -117,8 +117,8 @@ explicit composite acceptance debt. No partial owner coverage is final acceptanc
   header-Space activation and exact reopened project/source/revision for tracer
   and hold (reuse the existing Retry export oracle). **Four affected existing
   legs / zero failures**, `010-coordinator-oracles.log`; wrong project, revision
-  and source are rejected by `010-coordinator-export-oracle.log`. This small
-  follow-up needs fresh review. See 010 for identities and reproducible arguments.
+  and source are rejected by `010-coordinator-export-oracle.log`. This follow-up
+  is included in the complete final rechecks below; 010 records reproducible runs.
 - Fresh consequential Sol/high adjudication confirmed the takeover timing gap;
   that agent was blocked before editing by three native `view_building` impacts.
   Coordinator's later native edit strengthened the **existing single leg**:
@@ -130,7 +130,17 @@ explicit composite acceptance debt. No partial owner coverage is final acceptanc
   `010-coordinator-controls.log`). Shared owned-profile cleanup rejects unconfirmed
   close/live Chrome and both explicit profiles/IndexedDB were removed; default
   startup compatibility is checked (`010-coordinator-profile-controls.log`).
-- 010 remains claimed pending fresh combined Spec/Standards rechecks. Historical
-  cleanup, retained diagnostic-output deletion, optimized validation and 015
-  integrated gate/mutations remain explicit debts. No final acceptance,
-  012–014 expansion or parent umbrella closure claimed.
+- Complete combined rechecks through `c5a876ec`: Standards task
+  `e7e3846c-37d3-47ed-b122-ae6d86ac2a77` **PASS, no Required code changes**;
+  fresh Spec completeness task `6ec0a0e3-cf9e-44d7-b03c-b9dce5603cc4`
+  **code correct, checkpoint BLOCKED on mandatory cleanup**. Initial Spec task
+  `606c173e-4055-4dcc-bf78-89eb3064527a` disclosed partial driver coverage and is
+  not used as complete certification. Both final axes cover all changed source;
+  no new production correction or optional cleanup is requested.
+- 010 remains claimed: unidentified historical/default profile cleanup and
+  retained diagnostic-output deletion are **current criterion-8 blockers**, not
+  optional suggestions. Coordinator traces only known owned paths/lifecycle;
+  never delete unidentified/live state. Seven behavioral criteria are checked in
+  010. Optimized validation, all-14 coverage and 015 integrated gate/mutations/
+  final review remain later debts, not waivers. No 012–014 expansion or parent
+  umbrella closure claimed.

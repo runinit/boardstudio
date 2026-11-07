@@ -18,11 +18,11 @@ Reload+re-apply routes, not an added duplicate matrix. Preserve pre-fix
 output. No other owner/Runtime/registry changes or subagents. Preserve dirty
 `CODING_STANDARDS.md` and coordinator untracked research.
 
-The Retry correction is committed as `be39738b`; fresh corrected packaged proof
-and independent coordinator checks pass as recorded below. Historical Reload +
-re-apply controls still do not count as Retry acceptance. Ticket stays CLAIMED:
-coordinator harness-proof follow-up, takeover timing adjudication, cleanup limits,
-optimized validation and final 015 obligations are not silently waived.
+The Retry correction is committed as `be39738b`; coordinator verifier follow-ups
+through `c5a876ec`, corrected packaged checks and complete independent code reviews
+pass as recorded below. Historical Reload + re-apply controls still do not count
+as Retry acceptance. Ticket stays CLAIMED: required cleanup is not proved in full.
+Optimized validation and final 015 obligations also remain due, not waived.
 
 ## What to build
 
@@ -357,21 +357,50 @@ Current behavior passes; no artificial production RED is claimed.
   packaged execution, not graph test edges (0/4); no guards, contract WARN,
   lower-bound shared-startup blast. The parser's old arity 1 is lossy; the real
   helper changes from three parameters to four with a default, and compatibility
-  probes plus existing packaged three-argument callers pass. Fresh combined
-  Spec/Standards rechecks of both coordinator verifier corrections are still due.
+  probes plus existing packaged three-argument callers pass. Complete independent
+  combined rechecks through `c5a876ec` are recorded below.
+
+### Independent combined rechecks (2026-11-07)
+
+Pinned range: `21d3e7a706868afbe269266cd03e37d7dcbb6143` →
+`c5a876eca89bca50f5bb72835b5c07c531ae5f93`, including both coordinator
+verifier corrections. Fresh Pi Contributor/medium, read-only:
+
+- **Standards PASS**, task `e7e3846c-37d3-47ed-b122-ae6d86ac2a77`:
+  complete changed-hunk coverage, all six payloads, Geometry effect/two tests and
+  receipt deltas; no Required changes. Driver size is an optional/FYI inspection
+  signal, not authorization for cleanup or a framework extraction.
+- Initial Spec task `606c173e-4055-4dcc-bf78-89eb3064527a` found no error in
+  the latest follow-ups but disclosed unread driver/governing-ticket ranges.
+  Its conditional result is **not** counted as the complete combined review.
+- **Complete Spec code review: correct in-scope behavior; CHECKPOINT BLOCKED**,
+  fresh task `6ec0a0e3-cf9e-44d7-b03c-b9dce5603cc4`. Read the entire added driver
+  cluster/CLI, all six payloads, Geometry effect/two tests, and governing
+  003/006/009/015. Stories 8/14/15/23/25 and S2 are implemented without scope creep.
+  Required remaining gate: this ticket's cleanup criterion and 003's deletion
+  protocol. Only the two explicit profiles above have complete removal evidence;
+  unidentified historical/default profiles and retained diagnostic output do not.
+
+All reviewers changed no files and ran no builds/browser checks/mutations;
+coordinator experiments above remain the behavioral evidence. No structural
+attachment freshness certification or post-permit Geometry race proof is inferred.
+JS focus/update-check setup is not a substitute for trusted activation.
 
 These are diagnostic **fast** assets, not proof of optimized/wasm-opt equivalence.
-Optimized validation, unidentified historical-profile/diagnostic-output cleanup,
-015 mutation/full gate and final closure review remain due. Acceptance boxes are
-not advanced; 010 is not resolved and 012–014 expansion has not started.
+Optimized validation, all-14 owner coverage, 015 mutation/full gate and final
+closure review remain later obligations. They do not excuse the **current cleanup
+blocker**. The seven behavioral criteria below are verified, but the cleanup
+criterion is open: 010 is not resolved and 012–014 expansion has not started.
+Coordinator next traces default-profile lifecycle and known owned outputs;
+no unidentified or live profile may be deleted to manufacture acceptance.
 
 ## Acceptance criteria
 
-- [ ] The packaged regression assertion from [Establish a real-editor draft-loss probe](002-establish-real-editor-draft-loss-probe.md) is RED before the tracer fix is present in the packaged build and GREEN after, with A/B build identities recorded.
-- [ ] Toast entry point: trusted pointer and trusted Tab/Enter/Space defer; Cancel preserves the exact draft text and the running build stays A.
-- [ ] Header entry point after toast dismissal defers the same draft the same way.
-- [ ] Held-persistence legs: with the diagnostic adapter armed in A, Update Now defers as save-in-progress with no durable change; after release and acknowledgement, adoption proceeds; the same gate is consumed again after takeover in B. Fail and hold-then-fail legs defer as did-not-complete and recover via explicit retry.
-- [ ] Exactly one packaged new-draft-during-takeover leg, reusing the tracer scenario's shape: a draft created while adoption waits defers Update Now again.
-- [ ] Loaded-B proof: the loaded document and the served binary both identify B (not manifests or labels), the navigation is the adoption reload, and the reopened project holds the intended value at the intended revision.
-- [ ] Sole-client/other-tab, offline-asset continuity and subpath-isolation legs inherited from the parent adoption acceptance pass; failed-install and no-new-build negative controls do not adopt.
+- [x] The packaged regression assertion from [Establish a real-editor draft-loss probe](002-establish-real-editor-draft-loss-probe.md) is RED before the tracer fix is present in the packaged build and GREEN after, with A/B build identities recorded.
+- [x] Toast entry point: trusted pointer and trusted Tab/Enter/Space defer; Cancel preserves the exact draft text and the running build stays A.
+- [x] Header entry point after toast dismissal defers the same draft the same way.
+- [x] Held-persistence legs: with the diagnostic adapter armed in A, Update Now defers as save-in-progress with no durable change; after release and acknowledgement, adoption proceeds; the same gate is consumed again after takeover in B. Fail and hold-then-fail legs defer as did-not-complete and recover via explicit retry.
+- [x] Exactly one packaged new-draft-during-takeover leg, reusing the tracer scenario's shape: a draft created while adoption waits defers Update Now again.
+- [x] Loaded-B proof: the loaded document and the served binary both identify B (not manifests or labels), the navigation is the adoption reload, and the reopened project holds the intended value at the intended revision.
+- [x] Sole-client/other-tab, offline-asset continuity and subpath-isolation legs inherited from the parent adoption acceptance pass; failed-install and no-new-build negative controls do not adopt.
 - [ ] Disposable fixtures, profiles and databases are cleaned up; evidence logs are stored per the plan's evidence conventions. This ticket does not close the parent adoption umbrella.
