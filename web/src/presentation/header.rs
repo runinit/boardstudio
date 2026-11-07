@@ -2,7 +2,7 @@
 use boardstudio_web_ui_shared::{
     project_menu::ThemePicker,
     ui::{
-        button::{Button, ButtonVariant},
+        button::{Button, ButtonVariant, keep_space_for_activation},
         icons::ChevronDown,
         kbd::Kbd,
         popover::{Popover, PopoverContent, PopoverTrigger},
@@ -26,6 +26,10 @@ pub(super) fn Header(
     on_redo: EventHandler<()>,
     on_export: EventHandler<()>,
     panel_controls: Element,
+    /// Ticket 019: a waiting build the Toast already announced. The caller shows
+    /// this notice once the Toast is dismissed and hides it when no update waits.
+    update_available: bool,
+    on_update: EventHandler<()>,
 ) -> Element {
     let query = use_hook(|| {
         web_sys::window().and_then(|w| w.match_media("(max-width: 1250px)").ok().flatten())
@@ -147,6 +151,16 @@ pub(super) fn Header(
                 span { "BoardStudio" }
             }
             {project_menu}
+            if update_available {
+                div { class: "header-update",
+                    span { class: "header-update-dot", "aria-hidden": "true" }
+                    span { class: "header-update-label", role: "status", "Update Available" }
+                    Button { variant: ButtonVariant::Ghost, aria_label: "Update Now",
+                        onclick: move |_| on_update.call(()),
+                        onkeydown: move |event: KeyboardEvent| keep_space_for_activation(&event),
+                        "Update Now" }
+                }
+            }
             if !compact() { {commands.clone()} }
             if compact() { {save_status} }
             if compact() {
@@ -162,5 +176,114 @@ pub(super) fn Header(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_web_ui_model::state::{AppearanceState, PreferenceStorageWarning, ThemeState};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use boardstudio_web_ui_shared::test_wait::wait_until;
+    use std::cell::Cell;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    /// Ticket 019: the persistent header-bar notice with a working Update Now.
+    /// It renders in the header root (both compact and full layouts) whenever
+    /// the caller reports a waiting update, and stays out of the mobile menu.
+    #[derive(Clone)]
+    struct UpdateProbe {
+        available: bool,
+        fired: Rc<Cell<u32>>,
+    }
+
+    fn update_fixture() -> Element {
+        let probe = use_context::<UpdateProbe>();
+        // ThemePicker renders in the full layout, so provide its contexts: the
+        // shared shard may run this fixture at desktop width when an earlier
+        // test leaves the viewport wide.
+        let preference_warning = use_signal(|| false);
+        use_context_provider(|| PreferenceStorageWarning(preference_warning));
+        let appearance = use_signal(|| "light");
+        use_context_provider(|| AppearanceState(appearance));
+        let theme = use_signal(|| "original");
+        use_context_provider(|| ThemeState(theme));
+        let workspace = use_signal(|| "Layout");
+        let settings_open = use_signal(|| false);
+        let palette_open = use_signal(|| false);
+        let fired = probe.fired.clone();
+        rsx! {
+            Header {
+                project_menu: rsx! {},
+                workspace,
+                show_workspaces: true,
+                has_project: true,
+                save_state: "saved",
+                settings_open,
+                palette_open,
+                on_search: EventHandler::new(move |_| {}),
+                on_undo: EventHandler::new(move |_| {}),
+                on_redo: EventHandler::new(move |_| {}),
+                on_export: EventHandler::new(move |_| {}),
+                panel_controls: rsx! {},
+                update_available: probe.available,
+                on_update: EventHandler::new(move |_| fired.set(fired.get() + 1)),
+            }
+        }
+    }
+
+    fn update_root(available: bool) -> (web_sys::Element, Rc<Cell<u32>>) {
+        let fired = Rc::new(Cell::new(0));
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(update_fixture);
+        dom.provide_root_context(UpdateProbe {
+            available,
+            fired: fired.clone(),
+        });
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        (root, fired)
+    }
+
+    #[wasm_bindgen_test]
+    async fn header_update_notice_offers_a_working_update_now() {
+        let (root, fired) = update_root(true);
+        wait_until("the header notice mounts", || {
+            by_role_name(&root, "button", "Update Now").is_some()
+        })
+        .await;
+        let notice = by_role_name(&root, "status", "Update Available").unwrap();
+        assert!(
+            notice.closest(".workbench-header").unwrap().is_some(),
+            "the notice lives in the header bar"
+        );
+        assert!(
+            notice.closest(".header-mobile-menu").unwrap().is_none(),
+            "the notice is not buried in the mobile menu"
+        );
+        let update = by_role_name(&root, "button", "Update Now").unwrap();
+        assert_eq!(update.tab_index(), 0, "Update Now is a keyboard tab stop");
+        update.focus().unwrap();
+        assert!(update.matches(":focus").unwrap());
+        update.click();
+        wait_until("Update Now fires", || fired.get() == 1).await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn header_update_notice_is_absent_without_a_waiting_update() {
+        let (root, fired) = update_root(false);
+        wait_until("the header mounts", || {
+            by_role_name(&root, "img", "BoardStudio").is_some()
+        })
+        .await;
+        assert!(by_role_name(&root, "button", "Update Now").is_none());
+        assert!(by_role_name(&root, "status", "Update Available").is_none());
+        assert_eq!(fired.get(), 0);
+        root.remove();
     }
 }

@@ -139,3 +139,16 @@ Stagger cancel, Stagger handle, Ctrl Offset and Matrix move scenarios and their 
 complete runner still fails later at the Case collision scenario (`Case mounting style` is no longer a native select), so
 there is no success receipt and the full browser gate stays open. Details and identities:
 [ui-integration-recovery 008](../../ui-integration-recovery/issues/008-restore-drag-save-undo-proof.md#answer).
+
+2026-11-06 (addendum, ui-integration-recovery 022): the bounded packaged smoke now
+passes all 17 drag/save/Undo/reload and collision/provider checks, including the
+overflowing Case viewer, qualified fixture and unavailable-PCB uncertainty.
+The original native-select failure was reproduced; the harness now drives the
+shared accessible Select, dismisses the setup guide and observes current shared
+panel/provenance/alert structure. No product source or semantic assertion was
+relaxed. Final run `20261106T233935Z-abbc5bec9637` has a success receipt validated
+against fresh source/build bytes and browser identity. Earlier failures above
+remain history. This is not the full default/browser gate: 022's independent
+spec+standards review, 010's combined verification and human acceptance remain
+open. Commands, identities, RED/GREEN and rejection controls:
+[022 implementation checkpoint](../../ui-integration-recovery/issues/022-restore-collision-provider-browser-proof.md#implementation-checkpoint-2026-11-06).

@@ -274,6 +274,24 @@ impl PartialEq for CadScene {
     }
 }
 
+/// Whether a live, enabled field outside the update warning is marked invalid:
+/// a Draft value its panel refuses to commit. It exists only in the page, so no
+/// engine owner can report it; the shared field controls expose it as
+/// `aria-invalid` (ticket 019).
+fn visible_invalid_draft() -> bool {
+    web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| {
+            document
+                .query_selector(
+                    "input[aria-invalid=true]:not([disabled]), textarea[aria-invalid=true]:not([disabled]), select[aria-invalid=true]:not([disabled]), [role=combobox][aria-invalid=true], [role=textbox][aria-invalid=true], [role=spinbutton][aria-invalid=true]",
+                )
+                .ok()
+                .flatten()
+        })
+        .is_some()
+}
+
 fn browser_uuid() -> Result<String, String> {
     let crypto = Reflect::get(&js_sys::global(), &JsValue::from_str("crypto"))
         .map_err(|error| format!("Could not access browser project identity service: {error:?}"))?;
@@ -346,6 +364,11 @@ pub struct Runtime {
     notifications: RefCell<Vec<RuntimeNotification>>,
     update_waiting: Cell<bool>,
     update_observer: RefCell<Option<Box<dyn UpdateWatch>>>,
+    update_signals: RefCell<Option<Rc<dyn UpdateSignals>>>,
+    update_dismissed: Cell<bool>,
+    update_dialog: RefCell<Option<crate::update_safety::UpdateDialog>>,
+    update_phase: Cell<crate::update_safety::UpdatePhase>,
+    update_opener: Cell<crate::update_safety::UpdateOpener>,
     open_sequence: Cell<u64>,
     project_deletion_pending: Cell<bool>,
     project_deletion_open: Cell<Option<OperationId>>,
@@ -459,6 +482,11 @@ impl Runtime {
             notifications: RefCell::default(),
             update_waiting: Cell::new(false),
             update_observer: RefCell::new(None),
+            update_signals: RefCell::new(None),
+            update_dismissed: Cell::new(false),
+            update_dialog: RefCell::new(None),
+            update_phase: Cell::new(crate::update_safety::UpdatePhase::Idle),
+            update_opener: Cell::new(crate::update_safety::UpdateOpener::Toast),
             open_sequence: Cell::new(0),
             project_deletion_pending: Cell::new(false),
             project_deletion_open: Cell::new(None),
@@ -833,18 +861,27 @@ impl Runtime {
         self.update_waiting.get()
     }
     fn set_update_waiting(&self, waiting: bool) {
-        if self.update_waiting.get() != waiting {
-            self.update_waiting.set(waiting);
-            self.changed();
+        if self.update_waiting.get() == waiting {
+            return;
         }
+        self.update_waiting.set(waiting);
+        if !waiting {
+            // A cleared wait ends the notice cycle: dismissal and any warning
+            // belong to the previous wait, never to the next one.
+            self.update_dismissed.set(false);
+            self.update_dialog.borrow_mut().take();
+        }
+        self.changed();
     }
     /// Observe real release lifecycle signals and keep the waiting state the
     /// shell notice renders. Replaces any previous observer so repeated
-    /// observations never stack listeners or duplicate the notice.
+    /// observations never stack listeners or duplicate the notice. Retains the
+    /// signals so activation can recheck the real waiting state and adopt.
     pub fn observe_update_waiting(self: &Rc<Self>, signals: Rc<dyn UpdateSignals>) {
         if let Some(mut previous) = self.update_observer.borrow_mut().take() {
             previous.stop();
         }
+        *self.update_signals.borrow_mut() = Some(signals.clone());
         let runtime = Rc::downgrade(self);
         let watched = signals.clone();
         self.update_observer
@@ -859,6 +896,145 @@ impl Runtime {
         self.set_update_waiting(boardstudio_web_host::offline::is_update_waiting(
             signals.snapshot(),
         ));
+    }
+    /// Whether the waiting-update Toast was dismissed. The header notice shows
+    /// while this is set and a wait is still outstanding; a cleared wait
+    /// resets it, so dismissal is never stored across page loads.
+    pub fn update_notice_dismissed(&self) -> bool {
+        self.update_dismissed.get()
+    }
+    /// The deferral warning the bridge shows, if adoption must wait.
+    pub fn update_dialog(&self) -> Option<crate::update_safety::UpdateDialog> {
+        self.update_dialog.borrow().clone()
+    }
+    /// Which production control started the current adoption flow.
+    pub fn update_opener(&self) -> crate::update_safety::UpdateOpener {
+        self.update_opener.get()
+    }
+    /// Record the Toast's dismissal so the header notice takes over. Dismissal
+    /// never reloads and never adopts; the waiting state is untouched.
+    pub fn dismiss_update_notice(&self) {
+        if self.update_waiting.get() && !self.update_dismissed.get() {
+            self.update_dismissed.set(true);
+            self.changed();
+        }
+    }
+    /// Close the deferral warning. Cancellation preserves the editor and every
+    /// value; the update keeps waiting until the user resolves the cause and
+    /// chooses Update Now again.
+    pub fn cancel_update_dialog(&self) {
+        if self.update_dialog.borrow_mut().take().is_some() {
+            self.changed();
+        }
+    }
+    fn update_safety_inputs(&self) -> crate::update_safety::UpdateSafetyInputs {
+        let model = self.model();
+        crate::update_safety::UpdateSafetyInputs {
+            lifecycle: model.lifecycle,
+            durability: model.durability.clone(),
+            accepted_revision: model
+                .accepted
+                .as_ref()
+                .map(|accepted| accepted.document.revision),
+            session_pending_work: self.session.borrow().has_pending_work(),
+            save_started_or_retained: self.pending_document.borrow().is_some(),
+            save_conflict: self.save_conflict.get(),
+            storage_initializing: self.storage_initializing.get(),
+            storage_failed: self.storage_error.borrow().is_some(),
+            invalid_draft: visible_invalid_draft(),
+        }
+    }
+    /// Start adopting the waiting build from the `opener` control. Rechecks the
+    /// real waiting state and refresh safety at activation: a stale notification
+    /// clears silently, detected risk opens a cancel-only warning, and only a
+    /// settled sole client adopts. Anything but an idle phase ignores further
+    /// activation, so repeated clicks cannot adopt twice.
+    pub fn begin_update(self: &Rc<Self>, opener: crate::update_safety::UpdateOpener) {
+        use crate::update_safety::{UpdateDialog, UpdatePhase};
+        if self.update_phase.get() != UpdatePhase::Idle {
+            return;
+        }
+        let Some(signals) = self.update_signals.borrow().clone() else {
+            self.set_update_waiting(false);
+            return;
+        };
+        if !boardstudio_web_host::offline::is_update_waiting(signals.snapshot()) {
+            self.set_update_waiting(false);
+            return;
+        }
+        match crate::update_safety::update_safety(&self.update_safety_inputs()) {
+            Err(blockers) => {
+                self.update_opener.set(opener);
+                *self.update_dialog.borrow_mut() = Some(UpdateDialog::Deferred { blockers });
+                self.changed();
+            }
+            Ok(()) => {
+                self.update_opener.set(opener);
+                self.update_phase.set(UpdatePhase::Checking);
+                self.changed();
+                let this = self.clone();
+                spawn_local(async move {
+                    this.run_update_adoption().await;
+                });
+            }
+        }
+    }
+    async fn run_update_adoption(self: &Rc<Self>) {
+        use crate::update_safety::{UpdateDialog, UpdatePhase};
+        use boardstudio_web_host::offline::AdoptError;
+        let Some(signals) = self.update_signals.borrow().clone() else {
+            self.update_phase.set(UpdatePhase::Idle);
+            self.changed();
+            return;
+        };
+        if !boardstudio_web_host::offline::is_update_waiting(signals.snapshot()) {
+            self.set_update_waiting(false);
+            self.update_phase.set(UpdatePhase::Idle);
+            self.changed();
+            return;
+        }
+        self.update_phase.set(UpdatePhase::Adopting);
+        self.changed();
+        // The worker decides whether other open editors allow adoption, at the
+        // moment it would skip waiting; the page never asks first, so no editor
+        // can open between a probe and the takeover.
+        match signals.adopt_waiting().await {
+            Ok(()) => self.reload_when_safe(signals).await,
+            Err(AdoptError::OtherTabs) => {
+                self.update_phase.set(UpdatePhase::Idle);
+                *self.update_dialog.borrow_mut() = Some(UpdateDialog::OtherTabs);
+                self.changed();
+            }
+            Err(AdoptError::Failed(error)) => {
+                self.update_phase.set(UpdatePhase::Idle);
+                self.report(format!(
+                    "The update could not be adopted: {error}. Try Update Now again."
+                ));
+            }
+        }
+    }
+    /// The waiting worker has taken over. Edits can begin while that async
+    /// takeover runs, so the reload rechecks every refresh-safety owner and
+    /// waits (never discards) until they settle again. The page keeps running
+    /// its loaded build in the meantime and reports why it has not reloaded.
+    async fn reload_when_safe(self: &Rc<Self>, signals: Rc<dyn UpdateSignals>) {
+        use crate::update_safety::UpdatePhase;
+        let mut told = false;
+        loop {
+            if crate::update_safety::update_safety(&self.update_safety_inputs()).is_ok() {
+                // The page is going away; scripted tests record the call instead.
+                signals.reload();
+                return;
+            }
+            if !told {
+                told = true;
+                self.update_phase.set(UpdatePhase::Installed);
+                self.report(
+                    "The update is installed. This page reloads once your work is saved and any invalid fields are fixed.",
+                );
+            }
+            TimeoutFuture::new(250).await;
+        }
     }
     pub fn embed_used_models(&self) -> bool {
         self.archive_export_options.embed_used_models()

@@ -15,11 +15,14 @@ does not close this umbrella until every acceptance criterion below has evidence
 The Decisions and original Comments remain authoritative and unchanged.
 
 - [018: Notify the editor when a build is waiting](018-notify-waiting-build.md):
-  unblocked detection-to-notification slice; does not alone complete Refresh.
+  resolved; detection-to-notification slice, does not alone complete Refresh.
 - [019: Adopt the waiting build through protected Refresh](019-adopt-build-safely.md):
-  blocked by 018; complete action, work/cache safety and real adoption evidence.
+  018 dependency met; implementation complete (2026-11-07) and **pending independent
+  review**, not resolved. Complete action, work/cache safety and real adoption
+  evidence are recorded in its Evidence section; full gate and review outstanding.
 
-Both children must complete before this umbrella can close. Neither changes
+Both children must complete before this umbrella can close; this umbrella's
+acceptance boxes stay unchecked until 019 is reviewed and resolved. Neither changes
 the scope or blockers of 010/011.
 
 ## What to build

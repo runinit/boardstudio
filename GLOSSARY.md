@@ -411,6 +411,12 @@ Re-enabling it resumes its prior bindings as the same input.
 **Draft value**:
 A value typed into a field that has not yet become part of the accepted document.
 
+**Unresolved draft**:
+A Draft value that differs from the accepted value it would replace and has not
+been submitted as a Pending edit. It exists only where the user is working, so
+nothing outside that place can see it yet.
+_Avoid_: unsaved changes, dirty state
+
 **Pending edit**:
 An edit the user has committed that has neither landed nor failed. Queued pending
 edits are resolved against the accepted document when they run, so each applies

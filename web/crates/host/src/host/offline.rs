@@ -1,6 +1,11 @@
+use crate::offline::AdoptError;
+use futures_channel::oneshot;
+use js_sys::Array;
+use std::cell::RefCell;
+use std::pin::Pin;
 use std::rc::Rc;
 use wasm_bindgen::{JsCast, JsValue, closure::Closure};
-use wasm_bindgen_futures::JsFuture;
+use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{RegistrationOptions, ServiceWorker, ServiceWorkerRegistration};
 
 /// Registers the Rust-owned service worker for a root or slash-terminated deployment prefix.
@@ -49,6 +54,18 @@ pub trait UpdateSignals: 'static {
     /// Keeps no registry itself: the caller owns the returned guard and drops
     /// the previous one, so repeated observations never stack listeners.
     fn watch(&self, on_change: Rc<dyn Fn()>) -> Box<dyn UpdateWatch>;
+    /// Ask the waiting worker to take over and wait until this page's
+    /// controller changes. The worker, not the page, decides whether adoption
+    /// is safe for other open editors: it re-checks its own window clients at
+    /// the moment it would skip waiting, so no editor can open between a
+    /// page-side probe and activation. Resolves `Err(OtherTabs)` when the worker
+    /// declines, and `Err(Failed)` when it never takes over. Never reloads:
+    /// the caller rechecks refresh safety once the controller has changed and
+    /// then calls [`UpdateSignals::reload`], so work that began during the
+    /// takeover is never discarded.
+    fn adopt_waiting(&self) -> Pin<Box<dyn std::future::Future<Output = Result<(), AdoptError>>>>;
+    /// Reload this page onto the adopted build.
+    fn reload(&self);
 }
 
 /// Removes the registration listeners installed by [`UpdateSignals::watch`].
@@ -166,4 +183,103 @@ impl UpdateSignals for ServiceWorkerRegistration {
     fn watch(&self, on_change: Rc<dyn Fn()>) -> Box<dyn UpdateWatch> {
         Box::new(RegistrationWatch::observe(self, on_change))
     }
+
+    fn adopt_waiting(&self) -> Pin<Box<dyn std::future::Future<Output = Result<(), AdoptError>>>> {
+        let registration = self.clone();
+        Box::pin(adopt_waiting_registration(registration))
+    }
+
+    fn reload(&self) {
+        if let Some(window) = web_sys::window() {
+            let _ = window.location().reload();
+        }
+    }
+}
+
+/// Ask the waiting worker to take over, then wait for this page's controller to
+/// change. The reply port carries the worker's own decision, made against its
+/// live window clients when it would skip waiting (see `service_worker.rs`), so
+/// the page never decides safety for other editors. A legacy or unresponsive
+/// worker answers nothing; the bounded waits report that instead of reloading.
+async fn adopt_waiting_registration(
+    registration: ServiceWorkerRegistration,
+) -> Result<(), AdoptError> {
+    let failed = |message: &str| AdoptError::Failed(message.to_string());
+    let Some(waiting) = registration.waiting() else {
+        return Err(failed("no waiting build is ready to adopt"));
+    };
+    let Some(window) = web_sys::window() else {
+        return Err(failed("the page is gone; the update cannot finish"));
+    };
+    let container = window.navigator().service_worker();
+    // Attach the takeover listener before asking, so a fast takeover is never missed.
+    let (took_sender, took_receiver) = oneshot::channel();
+    let took_sender = Rc::new(RefCell::new(Some(took_sender)));
+    let changed = took_sender.clone();
+    let on_change = Closure::<dyn FnMut(web_sys::Event)>::new(move |_| {
+        if let Some(sender) = changed.borrow_mut().take() {
+            let _ = sender.send(true);
+        }
+    });
+    container
+        .add_event_listener_with_callback("controllerchange", on_change.as_ref().unchecked_ref())
+        .map_err(|_| failed("the takeover listener could not be attached"))?;
+    let channel = web_sys::MessageChannel::new()
+        .map_err(|_| failed("the waiting build could not be reached"))?;
+    let (reply_sender, reply_receiver) = oneshot::channel();
+    let reply_sender = Rc::new(RefCell::new(Some(reply_sender)));
+    let replied = reply_sender.clone();
+    let on_reply =
+        Closure::<dyn FnMut(web_sys::MessageEvent)>::new(move |event: web_sys::MessageEvent| {
+            if let Some(sender) = replied.borrow_mut().take() {
+                let _ = sender.send(event.data().as_string());
+            }
+        });
+    let port = channel.port1();
+    port.set_onmessage(Some(on_reply.as_ref().unchecked_ref()));
+    let transfers = Array::new();
+    transfers.push(&channel.port2());
+    let posted = waiting.post_message_with_transferable(
+        &JsValue::from_str(crate::offline::ADOPT_WAITING_MESSAGE),
+        &transfers,
+    );
+    let outcome = if posted.is_err() {
+        Err(failed("the waiting build could not be reached"))
+    } else {
+        let no_reply = reply_sender.clone();
+        spawn_local(async move {
+            gloo_timers::future::TimeoutFuture::new(5_000).await;
+            if let Some(sender) = no_reply.borrow_mut().take() {
+                let _ = sender.send(None);
+            }
+        });
+        match reply_receiver.await.ok().flatten().as_deref() {
+            Some(crate::offline::ADOPT_DECLINED) => Err(AdoptError::OtherTabs),
+            Some(crate::offline::ADOPT_ACCEPTED) => {
+                let no_takeover = took_sender.clone();
+                spawn_local(async move {
+                    gloo_timers::future::TimeoutFuture::new(10_000).await;
+                    if let Some(sender) = no_takeover.borrow_mut().take() {
+                        let _ = sender.send(false);
+                    }
+                });
+                if took_receiver.await.unwrap_or(false) {
+                    Ok(())
+                } else {
+                    Err(failed("the waiting build did not take over"))
+                }
+            }
+            _ => Err(failed("the waiting build did not answer")),
+        }
+    };
+    let _ = container.remove_event_listener_with_callback(
+        "controllerchange",
+        on_change.as_ref().unchecked_ref(),
+    );
+    port.set_onmessage(None);
+    port.close();
+    channel.port2().close();
+    drop(on_reply);
+    drop(on_change);
+    outcome
 }

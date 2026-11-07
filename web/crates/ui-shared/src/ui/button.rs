@@ -908,6 +908,28 @@ mod attribute_tests {
 /// Explicit attributes support public trigger composition. Button owns its structural/style and
 /// typed scalar attributes; id falls back to the vector, descriptions combine tokens, and raw
 /// listeners run before typed owner listeners. Other attributes pass through on both branches.
+/// Keep Space for a control's native activation. The Layout workspace listens for
+/// Space on `window` and calls `preventDefault` on every Space keydown that is not
+/// aimed at a text field (hold Space and drag to pan), which cancels a button's
+/// Space activation. A control that must be activatable with Space while that
+/// listener is installed (a notification action, a modal dialog) stops the NATIVE
+/// event before it reaches the window; its default action is left untouched.
+/// (Dioxus `stop_propagation` only stops virtual-DOM bubbling on web, so it cannot
+/// do this.)
+pub fn keep_space_for_activation(event: &KeyboardEvent) {
+    #[cfg(target_arch = "wasm32")]
+    {
+        use dioxus_web::WebEventExt as _;
+        if event.key() == Key::Character(" ".to_string())
+            && let Some(native) = event.data().try_as_web_event()
+        {
+            native.stop_propagation();
+        }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = event;
+}
+
 #[component]
 pub fn Button(
     #[props(into, optional)] class: Option<String>,

@@ -37,7 +37,13 @@ pub fn AlertDialog(props: AlertDialogRootProps) -> Element {
             alert_dialog::AlertDialogContent {
                 class: "relative bg-background rounded-2xl shadow-lg p-6 w-full max-w-[calc(100%-2rem)] sm:max-w-lg max-h-[85vh] fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] z-100 flex flex-col gap-4",
                 "data-slot": "alert-dialog-content",
-                {props.children}
+                // A modal dialog never pans the canvas: keep Space for its buttons.
+                // `display: contents` keeps the content's flex layout unchanged.
+                div {
+                    style: "display: contents",
+                    onkeydown: move |event: KeyboardEvent| super::button::keep_space_for_activation(&event),
+                    {props.children}
+                }
             }
         }
     }

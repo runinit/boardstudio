@@ -29,6 +29,7 @@ pub mod pending_edits;
 pub mod portable_archive;
 #[cfg(test)]
 mod qualification_assessment_tests;
+pub mod update_safety;
 
 #[cfg(target_arch = "wasm32")]
 pub mod case_gesture_preview;

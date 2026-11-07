@@ -1320,7 +1320,14 @@
   "portable_archive::tests::selected_closure_matches_react_reference_buckets_and_deduplicates",
   "qualification_assessment_tests::qualified_default_plane_and_mixed_bands_keep_accuracy_separate_from_threshold",
   "qualification_assessment_tests::shared_cylinder_budget_controls_do_not_treat_selected_deflection_as_a_certificate",
-  "qualification_assessment_tests::unknown_contact_retains_scalar_diagnostic_and_unknown_containment_only_blocks_clear"
+  "qualification_assessment_tests::unknown_contact_retains_scalar_diagnostic_and_unknown_containment_only_blocks_clear",
+  "update_safety::tests::an_invalid_draft_blocks_an_otherwise_settled_project",
+  "update_safety::tests::engine_work_blocks_even_with_a_saved_document",
+  "update_safety::tests::failed_or_conflicted_saves_never_count_as_safe",
+  "update_safety::tests::independent_blockers_collect_together",
+  "update_safety::tests::saving_never_counts_as_safe",
+  "update_safety::tests::settled_states_are_safe",
+  "update_safety::tests::storage_and_recovery_block_with_their_own_reasons"
  ],
  "boardstudio_web_ui_model": [
   "instance_selection::tests::automatic_navigation_waits_for_real_session_open_and_save",
@@ -2446,6 +2453,9 @@
  "reset_switch_smd_side_qualification": [
   "boss_model_default_and_explicit_model_transforms_are_preserved",
   "land_pattern_contacts_layers_bosses_and_poses_match_independent_oracle"
+ ],
+ "session_pending_work": [
+  "pending_work_covers_queued_active_and_unanswered_save"
  ],
  "text_literal_escaping": [
   "bare_references_stay_atoms_until_quoting_is_needed",

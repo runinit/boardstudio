@@ -682,6 +682,16 @@ impl Session {
             instance_id: self.model.active_instance_id.clone(),
         })
     }
+    /// Whether committed edits are still moving through the engine: queued intents
+    /// or an executing Core request. Ticket 019's refresh safety gate reads this
+    /// because Durability alone cannot see a submitted edit that has not yet
+    /// produced its save; the save leg itself stays owned by Durability (plus the
+    /// Runtime's retained save buffer), so the two signals never double-count.
+    /// Derived previews and re-runnable generation/export jobs are not counted:
+    /// losing them costs a retry, not work.
+    pub fn has_pending_work(&self) -> bool {
+        !self.queue.is_empty() || self.active_core.is_some()
+    }
     /// Whether an asynchronous export is still owned by this session and its
     /// captured document, board, instance, and snapshot remain current.
     /// Checking membership also closes the cancellation window before a host

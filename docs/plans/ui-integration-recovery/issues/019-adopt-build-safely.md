@@ -71,7 +71,185 @@ source revisions, both build identities and .evidence/ log paths. Keep builds
 serialized per target and leave the live preview alone. A blocked real scenario
 is an explicit incomplete criterion, not a mounted-test substitute.
 
+## Evidence (2026-11-07)
+
+Status: implementation complete, **pending independent spec+standards review**. No
+closure is claimed; the acceptance boxes above stay unchecked until that review and
+the coordinator's full gate. `.evidence/` is git-ignored, so these paths are local to
+the shared checkout. Source identity: HEAD `366d52100d9dbf6686a9cd9dfdf02f0262a13eed`
+plus uncommitted 019 work (tracked-019-diff sha256 `58aa9326…a151`;
+`019-adoption-identity-pre-build2.txt`).
+
+**Slices A-D** (RED/GREEN observed in-session; no per-slice log was saved, so
+the in-session results below are the coordinator's record, and the slice E reruns
+re-exercise C and D):
+
+- A: `Session::has_pending_work`; `application/tests/session_pending_work.rs`, 1 test
+  (`pending_work_covers_queued_active_and_unanswered_save`).
+- B: pure gate `web/crates/runtime/src/update_safety.rs`, 6 native unit tests.
+- C: generic `ToastActionSlot` in ui-shared toast; 2 mounted `toast_action` tests.
+- D: Header `update_available`/`on_update` notice; 2 mounted `header_update` tests.
+
+**Slice E** (Runtime orchestration, bridge, mounted safety tests; notes
+`.evidence/ui-integration-recovery/019-efix-notes.log`):
+
+| Check | Result | Log |
+|---|---|---|
+| Cancel-focus reproducer | 1/1 | `019-efix-focus1b.log` |
+| `notifications::tests` (7 new + all 018) | 14/14 | `019-efix-5.log` |
+| `header_update` | 2/2 | `019-efix-6-header.log` |
+| ui-shared `toast_action` | 2/2 | `019-efix-7-toast.log` |
+| full-page `mounted_` | 41/41, no cascade | `019-efix-8-mounted.log` |
+
+Pre-fix failures kept as history, not evidence: `019-efix-notifications.log` and
+`019-efix-notifications2.log` (8 passed / 6 failed) and `019-efix-focus1.log`.
+Coordinator reran the reproducer and the save-failed deferral guardrail (both ok).
+
+**Packaged A/B** (`scripts/verify-update-adoption.py` + `scripts/verify-update-adoption-payloads/`;
+notes `019-adoption-notes.log`, build `019-adoption-build-a.log`):
+
+| Run | Result | Log |
+|---|---|---|
+| GREEN `post`, run 2 | 194 PASS / 0 FAIL | `019-adoption-green2.log` |
+| GREEN `post`, run 3 | 196 PASS / 0 FAIL | `019-adoption-green3.log` |
+| RED `pre` (018 pair, no 019) | 6 PASS / 3 FAIL, rc=1: toast Update Now, header Update Now, adoption | `019-adoption-red1.log` |
+| RED `pre`, coordinator rerun | exit 1, same 3 FAILs | `019-adoption-red-coord.log` |
+
+Legs: adopt, second-editor (cancel-only "Please close any other open tabs", offline
+A asset served from A's cache, adoption after the second editor closes), subpath
+isolation, failed-install (script-error and missing-asset), unavailable-target.
+Earlier runs are harness history: `019-adoption-smoke1.log` (44/2), `-smoke2.log` (0
+failures), `-green1.log` (128/23) and `-iter2.log` (64/11).
+
+A/B identities (stamped copies of one `--fast` build; packaged diff asserted to be
+exactly `index.html` + `service-worker.js` per route):
+
+- root A `boardstudio-7a42a81855d780f7-<ns>`, B `boardstudio-fa8cd6cd0283ac83-<ns>`
+- subpath A `boardstudio-544117cdac5e969f-<ns>`, B `boardstudio-1397d93191557955-<ns>`
+
+**Carried risks:**
+
+- `--fast` builds only; non-fast fails in wasm-opt (wasm-pack 0.15.0 TOML error), so
+  the shipped optimized build is unexercised.
+- The packaged run omits the draft + pending-save cancel case and settle/save under a
+  pending-save gate; mounted tests cover them.
+- Deferral scope is any same-origin window, including a subpath editor (conservative).
+- Draft detection gap: component-local signals, no global registry; recorded in
+  `update_safety.rs` and the ADR-0022 amendment.
+- Pre-existing and out of scope, unchanged: a heuristically fresh HTTP cache can make
+  the precache fetch a stale `index.html`; a failed asset install leaves its own
+  incomplete cache until the next activation.
+- The two Open-PCB mounted tests' pre-change status is unconfirmed (no clean-HEAD baseline).
+- RED is a control against pre-019 builds, not a revert in the same tree.
+- Running version/time display is **omitted**, as in 018: the notice carries no identity.
+- `scripts/check-native-tests-baseline.json` is **not yet updated** for the new native
+  tests (`session_pending_work` binary, `boardstudio_web_runtime` `update_safety::tests`);
+  `check.py test --update-native-baseline` after the full gate must record them.
+- ADR-0022 amendment dated 2026-11-07 records the mechanism; the full `check.py` gate
+  and the review are outstanding.
+
 ## Comments
+
+- 2026-11-07: Independent Standards and Spec review identified two standards
+  concerns and five spec concerns. Review fixes replace the page-side client
+  probe with a worker-authoritative check, recheck safety before reload, detect
+  visible `aria-invalid` drafts, narrow toast matching, and expand keyboard and
+  packaged coverage. The standards probe duplication was removed; title-based
+  toast matching remains a constrained heuristic. **Review remains incomplete:**
+  drafts without blur commit or `aria-invalid` remain undetectable; the packaged
+  pending-save scenario uses mounted coverage instead of a real held save; the
+  invalid field is injected; worker restart and navigating-client cache races
+  remain unproven. See `.evidence/ui-integration-recovery/019-rev-notes.log` for
+  full dispositions and further limitations. The delegate's final packaged run
+  reported 339/339 passing (`019-rev-green-final.log`), and its quick gate passed
+  (`019-rev-check-quick4.log`). Coordinator independently reran the pre-fix
+  late-adoption rejection: exit 1 with seven expected failures
+  (`019-review-coordinator-red.log`), then the full `scripts/check.py` gate:
+  all six steps passed (`019-review-coordinator-full.log`). Other suggested
+  mutation/rejection reruns remain outstanding; no closure is claimed. Earlier
+  evidence below describes the superseded page-probe implementation.
+
+- 2026-11-07: FULL GATE GREEN, implementation phase complete (review not started,
+  no closure claimed). `scripts/check.py` exit 0, all steps passed
+  (repo/tooling/build/lint/test/browser, 440s; log
+  `.evidence/ui-integration-recovery/019-check-full5.log`). Gate fallout fixed:
+  (1) stale `test-build-web.py` skipWaiting assertion rewritten to the approved
+  contract (install/activate skip-free, one gated occurrence; 8/8 + negative
+  control); (2) rustfmt applied to owned 019 files only; (3) slice-D header
+  fixture given the 3 theme providers (full-shard viewport pollution exposed
+  the missing AppearanceState; isolation had passed). Native baseline updated
+  with ONLY 019's 7 test names (full regen reverted: it swept ~40 unrelated
+  entries from other lanes' uncommitted tests); `check.py test` green. Wasm
+  baseline needs nothing (debt ratchet; 019 adds only `wasm_bindgen` tests).
+  Coordinator direct changes this phase: header fixture, fmt, baseline JSON.
+  Stopping at the phase boundary for independent review + approval.
+
+- 2026-11-07: Packaged A/B adoption proof accepted GREEN. Driver
+  `scripts/verify-update-adoption.py` + 7 payloads: GREEN `post` run twice (194
+  and 196 PASS, 0 FAIL) across adopt / second-editor / subpath / failed-install
+  / unavailable-target legs; RED `pre` control against the 018 pair fails only on
+  the 3 missing-019 behaviors (toast Update Now, header Update Now, adoption).
+  A/B are stamped copies of one `--fast` packaged build (root+subpath); packaged
+  diff asserted exactly `index.html` + `service-worker.js` per route; identities
+  and hashes in `.evidence/ui-integration-recovery/019-adoption-notes.log`.
+  Coordinator independently reran RED `pre` (exit 1, same 3 FAILs;
+  `019-adoption-red-coord.log`). Carried risks: `--fast` builds only (non-fast
+  fails in wasm-opt, wasm-pack 0.15.0 TOML error); packaged run omits the
+  draft+pending-save cancel case (mounted tests cover it); deferral scope is any
+  same-origin window; pre-existing stale-shell + failed-asset-cache observations
+  out of 019 scope and unchanged. Next: docs slice (ADR-0022, evidence, 013
+  reconciliation, native baseline), then full gate + phase-boundary report.
+
+- 2026-11-07: Slice E accepted GREEN. Sonnet coding delegate fixed the Cancel-focus
+  failure: the `UpdateWarningDialog` effect captured its first-render closure, so the
+  open->close transition never fired; it now reads `version()` plus live runtime
+  state. Same-file test fixes: fixture `version` read, `switch_to_pcb`
+  compact-header helper (headless Chrome is 780px, below the 1250px breakpoint),
+  dismissal check on `[data-slot=toast]`. Results: reproducer 1/1,
+  `notifications::tests` 14/14 (7 new + all 018), `header_update` 2/2, ui-shared
+  `toast_action` 2/2, full-page `mounted_` 41/41 with no cascade. Evidence:
+  `.evidence/ui-integration-recovery/019-efix-*.log` (notes: `019-efix-notes.log`).
+  Coordinator independently reran the reproducer and the save-failed deferral
+  guardrail (both ok) and verified only `notifications.rs` changed in that run.
+  Open risk: the two Open-PCB tests' pre-change status is unconfirmed (no
+  clean-HEAD baseline). Next slice: packaged A/B adoption driver.
+
+- 2026-11-07: Implementation checkpoint, coordinator handoff (status unchanged:
+  no closure claimed, no commit/push; independent spec+standards review still pending).
+  Slices A-D GREEN with RED/GREEN evidence in-session: (A) `Session::has_pending_work`
+  + `application/tests/session_pending_work.rs`; (B) pure gate
+  `web/crates/runtime/src/update_safety.rs` + 6 native unit tests; (C) generic
+  `ToastActionSlot` in ui-shared toast wrapper + 2 mounted tests; (D) Header
+  `update_available`/`on_update` notice + 2 mounted tests + `web/assets/header.css`.
+  Slice E (Runtime orchestration + bridge + mounted safety tests) is IN PROGRESS and
+  BLOCKED on one focus failure: `mounted_update_now_warns_and_cancels_while_an_edit_is_pending`
+  fails at the cancel-focus assertion (`notifications.rs:964`): after Cancel,
+  `document.activeElement` is `body`, not the toast Update Now. The toast action
+  Button was missing `aria-label` (header's had it); adding it did NOT fix the
+  failure, so the cause is elsewhere (effect timing vs AlertDialog unmount focus
+  handling, or the focus query). Dialog open/warn/cancel-preserve behavior itself
+  works. Combined `mounted_` page-suite run also showed a 22-test cascade (render
+  waits timing out in unrelated modules) after that failure; unresolved whether the
+  failing test's leftover wedges the page or it is load flake; rerun the
+  notifications-only subset after the focus fix to separate the causes.
+  Owned 019 files (uncommitted, shared checkout): `application/src/session.rs`,
+  `application/tests/session_pending_work.rs`, `web/crates/runtime/src/update_safety.rs`,
+  `web/crates/runtime/src/{lib,runtime}.rs`, `web/crates/host/src/{offline,host/offline}.rs`,
+  `web/crates/ui-shared/src/ui/toast.rs`,
+  `web/crates/ui-shared/src/toolbar_toggle_slider_toast_tests.rs`,
+  `web/src/{service_worker.rs,presentation.rs,presentation/header.rs,presentation/notifications.rs}`,
+  `web/assets/header.css`. Untouched unrelated work preserved: 026-merge-gate.md,
+  022 ticket, plan map, `drag_smoke.rs`, untracked `ui-triage.md`.
+  Remaining slices: E completion (7 mounted tests + 018 regressions green),
+  packaged A/B adoption driver (pre-019 RED / post GREEN, second-editor deferral +
+  offline continuity, subpath isolation, failed-install control), ADR-0022 dated
+  amendment, native test baseline update, full `check.py` gate, 013 reconciliation.
+  Design record (mechanism documented before applying): opt-in sole-client-gated
+  `skipWaiting` + `controllerchange` reload via `ADOPT_WAITING_MESSAGE`; ordinary
+  delayed activation untouched; `STORAGE_WINDOW_QUERY` reuse for the sole-client
+  probe; cancel-only warnings (no discard path); draft-detection gap recorded in
+  `update_safety.rs` docs (component-local draft signals, no global registry).
+  Next: coordinator delegates disjoint coding/testing tasks to fresh-context agents.
 
 - 2026-11-06: Published through to-tickets at the user's explicit request.
   The two slices are intentionally notification first, then the complete guarded

@@ -1,6 +1,24 @@
 /// Storage startup protocol; unknown workers and extra windows defer collection.
 pub const STORAGE_WINDOW_QUERY: &str = "boardstudio-storage-windows-v1";
 pub const STORAGE_WINDOW_ALONE: &str = "boardstudio-storage-alone-v1";
+/// Ticket 019 adoption protocol: posted to the waiting worker, with a reply
+/// port, to ask it to take over now. The worker checks its own live window
+/// clients at that moment: it answers `ADOPT_DECLINED` when any other editor is
+/// open, and otherwise calls `skipWaiting` and answers `ADOPT_ACCEPTED`. The
+/// page reloads only after its controller changes and refresh safety is
+/// rechecked.
+pub const ADOPT_WAITING_MESSAGE: &str = "boardstudio-adopt-waiting-v1";
+pub const ADOPT_ACCEPTED: &str = "boardstudio-adopt-accepted-v1";
+pub const ADOPT_DECLINED: &str = "boardstudio-adopt-declined-v1";
+
+/// Why a waiting build could not be adopted.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AdoptError {
+    /// The worker found another open editor and declined. Nothing changed.
+    OtherTabs,
+    /// The worker never answered or never took over.
+    Failed(String),
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OfflineManifest {

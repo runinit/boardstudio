@@ -14,8 +14,23 @@ SPEC.loader.exec_module(BUILD)
 
 class BuildWebTests(unittest.TestCase):
     def test_offline_worker_waits_for_old_clients_before_activation(self):
+        # Ordinary install/activate never rushes old clients. The only
+        # skip_waiting is the opt-in ADOPT_WAITING_MESSAGE branch (ticket 019,
+        # ADR-0022 amendment), reached only when the worker's own live client
+        # check found the requesting page alone; an adopted activation also
+        # skips cache cleanup when another window appeared since.
         worker = (BUILD.ROOT / "web/src/service_worker.rs").read_text()
-        self.assertNotIn("skip_waiting", worker)
+        install = worker[worker.index("async fn install_policy"):worker.index("async fn activate_policy")]
+        activate = worker[worker.index("async fn activate_policy"):worker.index("async fn cached_fetch")]
+        self.assertNotIn("skip_waiting", install)
+        self.assertNotIn("skip_waiting", activate)
+        self.assertEqual(worker.count("skip_waiting"), 1)
+        skip = worker.index("skip_waiting")
+        handler = worker[worker.index("ADOPT_WAITING_MESSAGE"):skip]
+        self.assertIn("only_window(&source.id())", handler)
+        self.assertIn("if alone", handler)
+        self.assertIn("keep_old_caches", activate)
+        self.assertIn("only_window(&adopter)", activate)
         self.assertIn("clients().claim()", worker)
 
     def test_provider_commands_use_retained_build_steps(self):

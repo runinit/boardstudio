@@ -3,11 +3,11 @@ use dioxus::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_test::*;
 
-use crate::test_role::by_role_name;
+use crate::test_role::{all_by_role_name, by_role_name};
 use crate::test_wait::wait_until;
 use crate::ui::{
     slider::Slider,
-    toast::{ToastOptions, ToastProvider, use_toast},
+    toast::{ToastActionSlot, ToastOptions, ToastProvider, use_toast},
     toggle_group::{ToggleGroup, ToggleItem},
     toolbar::{Toolbar, ToolbarButton, ToolbarSeparator},
 };
@@ -521,5 +521,267 @@ async fn toast_is_an_announcement_with_reachable_dismiss() {
         by_role_name(&root, "status", "Saved").is_none()
     })
     .await;
+    root.remove();
+}
+
+/// Ticket 019: a generic action slot lets one named toast carry a working
+/// action (the update notice's "Update Now") through the shared Toast seam
+/// without changing transient result toasts. Counters live outside the render
+/// so the test reads behavior, not component state.
+#[derive(Clone, Default)]
+struct ActionCounters {
+    actions: std::rc::Rc<std::cell::Cell<u32>>,
+    dismissals: std::rc::Rc<std::cell::Cell<u32>>,
+}
+
+#[component]
+fn ActionTriggers() -> Element {
+    let toasts = use_toast();
+    rsx! {
+        button { onclick: move |_| {
+            toasts.info("Update Available".into(), ToastOptions::new().permanent(true));
+        }, "Show update" }
+        button { onclick: move |_| {
+            toasts.success("Saved".into(), ToastOptions::new().permanent(true));
+        }, "Show other" }
+        // A look-alike: the same words as the notice, but a transient result.
+        button { onclick: move |_| {
+            toasts.success("Update Available".into(), ToastOptions::new());
+        }, "Show look-alike" }
+    }
+}
+
+fn action_app() -> Element {
+    let counters = use_context::<ActionCounters>();
+    let fired = counters.actions.clone();
+    let dismissed = counters.dismissals.clone();
+    let slot = ToastActionSlot {
+        toast_title: "Update Available".to_string(),
+        action_label: "Update Now".to_string(),
+        on_action: Callback::new(move |_| fired.set(fired.get() + 1)),
+        on_dismiss: Callback::new(move |_| dismissed.set(dismissed.get() + 1)),
+    };
+    rsx! { ToastProvider { action_slot: slot, ActionTriggers {} } }
+}
+
+fn action_root() -> (web_sys::Element, ActionCounters) {
+    let counters = ActionCounters::default();
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(action_app);
+    dom.provide_root_context(counters.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    (root, counters)
+}
+
+#[wasm_bindgen_test]
+async fn toast_action_slot_renders_a_working_action_only_on_the_matched_toast() {
+    let (root, counters) = action_root();
+    wait_until("action triggers mount", || {
+        by_role_name(&root, "button", "Show update").is_some()
+    })
+    .await;
+    control(&root, "button", "Show update").click();
+    control(&root, "button", "Show other").click();
+    wait_until("both toasts mount", || {
+        by_role_name(&root, "status", "Update Available").is_some()
+            && by_role_name(&root, "status", "Saved").is_some()
+    })
+    .await;
+    assert_eq!(
+        all_by_role_name(&root, "button", "Update Now").len(),
+        1,
+        "only the matched toast carries the action"
+    );
+    let update = control(&root, "button", "Update Now");
+    assert_eq!(update.tab_index(), 0, "the action is a keyboard tab stop");
+    update.focus().unwrap();
+    assert!(update.matches(":focus").unwrap());
+    update.click();
+    wait_until("the action callback fires", || counters.actions.get() == 1).await;
+    assert_eq!(counters.dismissals.get(), 0, "acting is not dismissing");
+    // The transient toast keeps its stock shape: announcement plus close only.
+    let other = control(&root, "status", "Saved");
+    assert_eq!(
+        other.query_selector_all("button").unwrap().length(),
+        1,
+        "unmatched toasts keep only their close control"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn toast_action_slot_reports_dismissal_only_for_the_matched_toast() {
+    let (root, counters) = action_root();
+    wait_until("action triggers mount", || {
+        by_role_name(&root, "button", "Show update").is_some()
+    })
+    .await;
+    control(&root, "button", "Show update").click();
+    control(&root, "button", "Show other").click();
+    wait_until("both toasts mount", || {
+        by_role_name(&root, "status", "Update Available").is_some()
+            && by_role_name(&root, "status", "Saved").is_some()
+    })
+    .await;
+    // Dismiss the unmatched toast first: no report, notice stays.
+    let other = control(&root, "status", "Saved");
+    other
+        .query_selector("button")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    wait_until("the unmatched toast leaves", || {
+        by_role_name(&root, "status", "Saved").is_none()
+    })
+    .await;
+    assert_eq!(counters.dismissals.get(), 0);
+    assert!(by_role_name(&root, "status", "Update Available").is_some());
+    // Dismissing the matched toast removes it and reports once.
+    let matched = control(&root, "status", "Update Available");
+    matched
+        .query_selector("button[aria-label='close']")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    wait_until("the matched toast leaves", || {
+        by_role_name(&root, "status", "Update Available").is_none()
+    })
+    .await;
+    assert_eq!(counters.dismissals.get(), 1);
+    assert_eq!(counters.actions.get(), 0, "dismissing is not acting");
+    root.remove();
+}
+
+/// The slot identifies its notice by kind, not by words alone: a transient
+/// result toast that happens to share the notice's title never gains the
+/// action, and cannot report a dismissal that belongs to the notice.
+#[wasm_bindgen_test]
+async fn toast_action_slot_ignores_a_look_alike_transient_toast() {
+    let (root, counters) = action_root();
+    wait_until("action triggers mount", || {
+        by_role_name(&root, "button", "Show look-alike").is_some()
+    })
+    .await;
+    control(&root, "button", "Show look-alike").click();
+    wait_until("the look-alike toast mounts", || {
+        by_role_name(&root, "status", "Update Available").is_some()
+    })
+    .await;
+    assert!(
+        all_by_role_name(&root, "button", "Update Now").is_empty(),
+        "a transient toast sharing the title carries no action"
+    );
+    let look_alike = control(&root, "status", "Update Available");
+    look_alike
+        .query_selector("button")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    wait_until("the look-alike leaves", || {
+        by_role_name(&root, "status", "Update Available").is_none()
+    })
+    .await;
+    assert_eq!(
+        counters.dismissals.get(),
+        0,
+        "closing a look-alike never reports the notice as dismissed"
+    );
+    root.remove();
+}
+
+/// Keyboard semantics that need no trusted input: the action is a native,
+/// enabled button (so the browser itself maps Enter and Space to activation and
+/// puts it in the tab sequence) that precedes the close control. Real Tab,
+/// Enter and Space presses run in the packaged `keyboard-matrix` leg.
+#[wasm_bindgen_test]
+async fn toast_action_is_a_native_button_ahead_of_close_in_tab_order() {
+    let (root, _) = action_root();
+    wait_until("action triggers mount", || {
+        by_role_name(&root, "button", "Show update").is_some()
+    })
+    .await;
+    control(&root, "button", "Show update").click();
+    wait_until("the notice mounts", || {
+        by_role_name(&root, "button", "Update Now").is_some()
+    })
+    .await;
+    let action = control(&root, "button", "Update Now");
+    assert_eq!(action.tag_name(), "BUTTON");
+    assert_eq!(action.get_attribute("type").as_deref(), Some("button"));
+    assert!(!action.has_attribute("disabled"));
+    assert_eq!(action.tab_index(), 0, "natural tab stop, never reordered");
+    let close = root
+        .query_selector("[data-slot=toast] button[aria-label='close']")
+        .unwrap()
+        .unwrap();
+    assert!(
+        action.compare_document_position(&close) & web_sys::Node::DOCUMENT_POSITION_FOLLOWING != 0,
+        "Update Now comes before close in the tab sequence"
+    );
+    root.remove();
+}
+
+/// Dispatch a bubbling, cancelable Space keydown on `target` and report whether
+/// anything (here the production Layout Space-to-pan window listener) consumed
+/// its default, which would cancel the button's native Space activation.
+pub(crate) fn space_keydown_is_consumed(target: &web_sys::HtmlElement) -> bool {
+    let init = web_sys::KeyboardEventInit::new();
+    init.set_key(" ");
+    init.set_code("Space");
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    let event =
+        web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap();
+    target.dispatch_event(&event).unwrap();
+    event.default_prevented()
+}
+
+/// With the Layout workspace active, its window-level Space-to-pan listener
+/// calls `preventDefault` on every Space keydown whose target is not a text
+/// field, which cancels native Space activation of any button. The update
+/// action must keep Space for activation (found by the packaged keyboard run).
+#[wasm_bindgen_test]
+async fn toast_action_keeps_space_for_activation_under_the_layout_pan_listener() {
+    let space_down = std::rc::Rc::new(std::cell::Cell::new(false));
+    let listener =
+        boardstudio_web_ui_model::canvas_interaction::LayoutSpacePanWindowListener::install(
+            std::rc::Rc::new(|| true),
+            space_down.clone(),
+        )
+        .expect("the production pan listener installs");
+    let (root, _) = action_root();
+    wait_until("action triggers mount", || {
+        by_role_name(&root, "button", "Show update").is_some()
+    })
+    .await;
+    control(&root, "button", "Show update").click();
+    wait_until("the notice mounts", || {
+        by_role_name(&root, "button", "Update Now").is_some()
+    })
+    .await;
+    let action = control(&root, "button", "Update Now");
+    assert!(
+        !space_keydown_is_consumed(&action),
+        "Space on Update Now must stay available for native activation"
+    );
+    assert!(!space_down.get(), "Space on Update Now never starts a pan");
+    // Unrelated chrome keeps the pan behaviour: the fix is scoped to the action.
+    assert!(space_keydown_is_consumed(&control(
+        &root,
+        "button",
+        "Show update"
+    )));
+    drop(listener);
     root.remove();
 }

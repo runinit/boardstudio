@@ -276,7 +276,7 @@ struct WorkspaceRoutingSlots {
 
 #[allow(non_snake_case)]
 pub fn App() -> Element {
-    rsx! { notifications::NotificationProvider { WorkbenchApp {} } }
+    rsx! { WorkbenchApp {} }
 }
 
 #[component]
@@ -672,7 +672,11 @@ fn WorkbenchApp() -> Element {
         on_redo,
         on_export,
     );
+    // The notification provider lives inside the workbench (not around it) so the
+    // ticket-019 Toast action slot can reach the Runtime above; the rendered order
+    // is unchanged (provider, then stylesheets, then the workbench main).
     rsx! {
+        notifications::NotificationProvider {
         link { rel: "stylesheet", href: "assets/workbench-base.css" }
         link { rel: "stylesheet", href: "assets/header.css" }
         link { rel: "stylesheet", href: "assets/command-palette.css" }
@@ -705,6 +709,11 @@ fn WorkbenchApp() -> Element {
                 panel_controls: rsx! {
                     if runtime.model().accepted.is_some() && workspace() != "Export" { panels::CompactPanelControls {} }
                 },
+                update_available: runtime.update_waiting() && runtime.update_notice_dismissed(),
+                on_update: {
+                    let runtime = runtime.clone();
+                    EventHandler::new(move |_| runtime.begin_update(boardstudio_web_runtime::update_safety::UpdateOpener::Header))
+                },
             }
             command_palette::CommandPalette { state: palette }
             if runtime.model().accepted.is_some() {
@@ -720,6 +729,7 @@ fn WorkbenchApp() -> Element {
             if !new_keyboard_error().is_empty() {
                 p { role: "alert", class: "m-0 flex-none truncate border-t border-border bg-card px-3 py-[5px] text-xs text-muted-foreground", "{new_keyboard_error()}" }
             }
+        }
         }
     }
 }
