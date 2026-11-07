@@ -357,11 +357,14 @@ where
         self.shared.edits.borrow().is_pending(key)
     }
 
-    /// The draft the key's latest edit was submitted with, if a submission
-    /// record is held. Draft-owner adapters compare the live draft against
-    /// this so an in-flight submission for the current value reads resolved
-    /// while newer typing still reads unresolved.
+    /// The draft the key's latest edit was submitted with, only while pending.
+    /// Draft-owner adapters compare the live draft against this so a pending
+    /// submission for the current value reads resolved while newer typing still
+    /// reads unresolved. Terminal records awaiting settlement do not qualify.
     pub fn submitted_draft(&self, key: &K) -> Option<D> {
+        if !self.is_pending(key) {
+            return None;
+        }
         self.submission_of(key).and_then(|(text, _, _)| text)
     }
 
@@ -798,6 +801,101 @@ mod mounted_tests {
             label.text_content().as_deref() == Some(expected.to_string().as_str())
         })
         .await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn only_in_flight_submissions_exempt_the_current_draft_before_settle() {
+        let runtime = opened_runtime("Original").await;
+        let helpers = PendingEditSignals::<Field>::new();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let outcome = support::observe_next(&runtime);
+        helpers.begin_field(
+            &runtime,
+            Field::Name,
+            "terminal-window",
+            None,
+            rename_resolver("Renamed"),
+            "divergent draft",
+        );
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        assert_eq!(
+            helpers.submitted_draft(&Field::Name).as_deref(),
+            Some("divergent draft")
+        );
+        assert_eq!(
+            helpers.submitted_draft(&Field::Other),
+            None,
+            "unrelated keys never exempt the draft"
+        );
+        release.send(()).unwrap();
+        settle_until(
+            &runtime,
+            "the submission lands before helper settlement",
+            || outcome.borrow().is_some(),
+        )
+        .await;
+        assert!(!helpers.is_pending(&Field::Name));
+        assert_eq!(
+            helpers.submitted_draft(&Field::Name),
+            None,
+            "a completed record cannot exempt a still-divergent live draft before settle drains it"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn failed_submission_does_not_exempt_a_divergent_draft_before_settle() {
+        let runtime = opened_runtime("Original").await;
+        let helpers = PendingEditSignals::<Field>::new();
+        support::fail_next_core_reply(&runtime, "terminal-window failure");
+        let outcome = support::observe_next(&runtime);
+        helpers.begin_field(
+            &runtime,
+            Field::Name,
+            "terminal-window",
+            None,
+            rename_resolver("Rejected"),
+            "divergent draft",
+        );
+        settle_until(
+            &runtime,
+            "the submission fails before helper settlement",
+            || outcome.borrow().is_some(),
+        )
+        .await;
+        assert!(!helpers.is_pending(&Field::Name));
+        assert_eq!(
+            helpers.submitted_draft(&Field::Name),
+            None,
+            "a failed record cannot suppress an unresolved draft before settle drains it"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn refused_submission_does_not_exempt_a_divergent_draft_before_settle() {
+        let runtime = opened_runtime("Original").await;
+        let helpers = PendingEditSignals::<Field>::new();
+        let outcome = support::observe_next(&runtime);
+        helpers.begin_field(
+            &runtime,
+            Field::Name,
+            "terminal-window",
+            None,
+            EditResolver::new("refused", |_| Resolution::Retire("target gone".into())),
+            "divergent draft",
+        );
+        settle_until(
+            &runtime,
+            "the submission is refused before helper settlement",
+            || outcome.borrow().is_some(),
+        )
+        .await;
+        assert!(!helpers.is_pending(&Field::Name));
+        assert_eq!(
+            helpers.submitted_draft(&Field::Name),
+            None,
+            "a refused record cannot suppress an unresolved draft before settle drains it"
+        );
     }
 
     #[wasm_bindgen_test]

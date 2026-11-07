@@ -1454,7 +1454,9 @@ mod tests {
                 "Hide geometry editor"
             }
             if editor_visible() {
-                GeometryScriptsEditor { on_back: EventHandler::new(move |_| {}) }
+                GeometryScriptsEditor {
+                    on_back: EventHandler::new(move |_| editor_visible.set(false)),
+                }
             } else { p { role: "status", "Geometry editor unmounted" } }
         }
     }
@@ -1937,6 +1939,69 @@ mod tests {
         .await;
         by_role_name(&root, "button", "Update Now").unwrap().click();
         wait_until("the retired owner adopts", || signals.adoptions.get() == 1).await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_geometry_back_retires_the_draft_owner() {
+        let runtime = opened_geometry_runtime().await;
+        let (root, _) = update_root(&runtime, geometry_update_fixture);
+        let signals = FakeUpdateSignals::new(waiting_update());
+        runtime.observe_update_waiting(Rc::new(signals.clone()));
+        shown_update_button(&root).await;
+        select_script_named(&root, "Script 1").await;
+        type_source(&root, "// abandoned via Back");
+        by_role_name(&root, "button", "Update Now").unwrap().click();
+        shown_cancel_button(&root).await;
+        assert_geometry_deferral_copy(&geometry_deferral_text(&root));
+        assert_eq!(signals.adoptions.get(), 0);
+        by_role_name(&root, "button", "Cancel").unwrap().click();
+        wait_until("cancellation closes the warning", || {
+            by_role_name(&root, "button", "Cancel").is_none()
+        })
+        .await;
+        by_role_name(&root, "button", "Back to selection")
+            .unwrap()
+            .click();
+        wait_until("Back leaves the editor", || {
+            by_role_name(&root, "status", "Geometry editor unmounted").is_some()
+        })
+        .await;
+        by_role_name(&root, "button", "Update Now").unwrap().click();
+        wait_until("Back retires the draft owner", || {
+            signals.adoptions.get() == 1
+        })
+        .await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_geometry_unrelated_submission_never_clears_the_draft() {
+        let runtime = opened_geometry_runtime().await;
+        let (root, _) = update_root(&runtime, geometry_update_fixture);
+        let signals = FakeUpdateSignals::new(waiting_update());
+        runtime.observe_update_waiting(Rc::new(signals.clone()));
+        shown_update_button(&root).await;
+        select_script_named(&root, "Script 1").await;
+        type_source(&root, "// unapplied through unrelated rename");
+        let document = runtime.model().accepted.unwrap().document.clone();
+        pnsupport::submit_fixed_command(&runtime, rename_command(&document, "Renamed"));
+        pnsupport::run_pending(&runtime).await;
+        assert_eq!(runtime.model().accepted.unwrap().document.name, "Renamed");
+        assert_eq!(source_value(&root), "// unapplied through unrelated rename");
+        by_role_name(&root, "button", "Update Now").unwrap().click();
+        shown_cancel_button(&root).await;
+        assert_geometry_deferral_copy(&geometry_deferral_text(&root));
+        assert_eq!(
+            signals.adoptions.get(),
+            0,
+            "an unrelated edit never resolves Apply"
+        );
+        by_role_name(&root, "button", "Cancel").unwrap().click();
+        wait_until("cancellation closes the warning", || {
+            by_role_name(&root, "button", "Cancel").is_none()
+        })
+        .await;
         root.remove();
     }
 

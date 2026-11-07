@@ -1,6 +1,9 @@
 # 008: Draft-owner registry and Geometry scripts tracer at both Update Now checkpoints
 
 Status: ready-for-agent
+Type: build
+Parent: [Draft-safe update adoption spec](../spec.md)
+Blocked by: none — can start immediately
 
 ## Progress (implementation, 2026-11-07; NOT resolved — awaiting coordinator review)
 
@@ -32,9 +35,75 @@ poll-prune drops dead entries (one-time `web_sys::console::warn_1`
   non-interception proven at both checkpoints; synthetic key events do not
   synthesize native clicks (repo-proven button contract), so trusted-key
   activation belongs to packaged runs (010+).
-Type: build
-Parent: [Draft-safe update adoption spec](../spec.md)
-Blocked by: none — can start immediately
+
+### Escalation RED → GREEN (2026-11-07; awaiting fresh review)
+
+Standing implementation authorization covers GREEN; this is a checkpoint,
+not ticket closure. Preserved the three prior RED regressions and their
+`.evidence/update-draft-safety/008-sol-red-isolated.log`: each isolated
+command executed one test and failed the expected `Some("divergent draft")`
+versus `None` assertion after the edit stopped pending, before helper drain.
+
+- **Fixed terminal-record suppression:** `submitted_draft` now returns a
+  value only while `is_pending(key)` is true. Completed, failed and refused
+  records awaiting `settle` no longer exempt a divergent draft. No signature,
+  field-restoration, resolver, key-equality or JSON representation changes.
+- RED and GREEN command template (run once per test, serialized):
+  `wasm-pack test --headless --chrome --mode no-install web/crates/ui-shared --lib -- <test-name> --nocapture`.
+  Tests: `only_in_flight_submissions_exempt_the_current_draft_before_settle`,
+  `failed_submission_does_not_exempt_a_divergent_draft_before_settle`,
+  `refused_submission_does_not_exempt_a_divergent_draft_before_settle`.
+  GREEN: **3/3**, one executed per launch, log
+  `.evidence/update-draft-safety/008-sol-green-isolated.log`.
+- Focused existing checks using the same command template with module filters:
+  `pending_edit_helpers::mounted_tests` **16/16**;
+  `geometry_scripts::` **4/4**. Log:
+  `.evidence/update-draft-safety/008-sol-focused-ui.log`.
+- Added mounted `mounted_geometry_back_retires_the_draft_owner` and
+  `mounted_geometry_unrelated_submission_never_clears_the_draft` through the
+  existing Update Now seam. The fixture now honors the real editor's Back
+  callback by unmounting it. `python3 scripts/run-wasm-tests.py --files web/src/presentation/notifications.rs`:
+  **30 executed, 0 failed** (previous coordinator run: 28/28), log
+  `.evidence/update-draft-safety/008-sol-notifications.log`.
+- `rustfmt --check --edition 2024 web/crates/ui-shared/src/pending_edit_helpers.rs web/src/presentation/notifications.rs`
+  passed; log `.evidence/update-draft-safety/008-sol-fmt.log`.
+  `git diff --check` passed. No full gate/build rerun: coordinator owns 015.
+
+### Per-finding dispositions (not resolved before review)
+
+1. **Terminal submitted memory:** reproduced RED, fixed and GREEN above.
+   The authoritative 004 predicate is live != baseline AND no same-key
+   pending submission carries live; stale memory alone is not pending work.
+2. **Failure/refusal policy:** intentionally unchanged. `apply_to_field`
+   restores accepted text if live still equals submitted; then no divergent
+   draft remains. Newer text survives and still blocks (mounted failure and
+   older-settlement tests pass). The terminal-window tests cover refusal as
+   well as failure without inventing a requirement to retain reverted text.
+   Legitimate `Resolution::Unchanged` still lands; no resolver path changed.
+3. **ScriptActionKey identity collapse:** no reproduced regression.
+   `on_select_script` calls `pending.settle(false, ...)` before switching;
+   `held_script_failure_is_retired_when_active_script_changes` passes in the
+   4/4 Geometry subset. Do not change equality alone: the editor binds its
+   single Apply field/disabled Signals with the empty-id wildcard.
+4. **New creation owner:** infeasible as a pre-acceptance editable form.
+   `+ New script` immediately submits `new_script_resolver`; editable fields
+   render only for an accepted `active_script`. Existing queued-New test
+   passes. No imaginary creation-form owner added.
+5. **Cancel/Reset coverage:** Geometry has neither control. Its real
+   `Back to selection` callback and Escape callback leave the editor.
+   Added Back retirement coverage rather than inventing buttons; Escape
+   reaches the same callback (trusted activation remains packaged work).
+   Existing baseline-revert, genuine-unmount and hidden-mounted tests pass.
+6. **Unrelated submission:** added project-rename submission plus observed
+   accepted rename, exact source preservation and Geometry-specific Update
+   Now deferral; **GREEN** in the 30-test notification run.
+7. **Trusted input claim:** corrected the composite checkbox below to
+   partial. Mounted code proves tab stops/focus and synthetic Enter/Space
+   non-interception, not trusted pointer or native key activation. Trusted
+   pointer + Tab/Enter/Space at toast/header remain open in 010.
+8. **Ticket metadata:** Type/Parent/Blocked by now precede Progress within
+   the first 12 lines. Status remains ready-for-agent, awaiting the
+   coordinator's independent failure-path rerun and fresh combined recheck.
 
 ## What to build
 
@@ -55,6 +124,6 @@ owner-canonically encoded baseline per admission key.
 - [x] Unresolved state is judged per admission key against the live-projected baseline (or mount-default snapshot where no accepted value exists), using owner-canonical equality; reverting to the baseline clears the key.
 - [x] Poll-prune drops dead entries rather than treating them as blockers, with a one-time diagnostic whose log/surface is named in the ticket's completion record.
 - [x] RED first: the mounted equivalents of the confirmed draft-loss assertions fail for the expected reason before the fix, then pass (GREEN) — report at the RED and mounted-GREEN stopping points before proceeding.
-- [x] Mounted tests cover: valid explicit-submit draft defers; realistic invalid draft defers (including never-submitted, DOM-unmarked); trusted pointer and Tab/Enter/Space at both entry points; Cancel preserves exact draft value and focus; resolution only via the owner's own Apply or Cancel/Reset; landing updates the baseline, failure/refusal never clears, newer typing re-raises, an older settlement never clears newer input.
+- [ ] **Partial:** mounted tests cover valid explicit-submit and realistic invalid never-submitted, DOM-unmarked drafts; both entry points; update-dialog Cancel preserves exact value/focus; Apply landing, baseline reversion and actual Back retirement; unrelated submission never clears; failure/older settlement preserve newer input. Helper regressions cover completed/failed/refused terminal memory. Existing accepted-value restoration remains unchanged. Mounted tab stops/focus and synthetic Enter/Space non-interception pass, but **trusted pointer and trusted Tab/Enter/Space activation remain pending in [010](010-packaged-a-to-b-proof.md)**. Geometry has no Cancel/Reset form controls.
 - [x] Deferral copy follows the settled per-key label+remedy rule; no injected invalid marker, save label or worker label is used as evidence.
 - [x] Focused quick/build/browser checks for touched crates pass; evidence logs are stored per the plan's evidence conventions.
