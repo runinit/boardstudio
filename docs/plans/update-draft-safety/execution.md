@@ -86,7 +86,23 @@ The canonical protocol (proof map, review reports, completion record) is in
   Optional suggestions are not acceptance blockers. No new real-browser proof is claimed:
   the single integrated smoke after C must show Chrome using the exact private profile before
   close, then its process/profile/IndexedDB removal. Overall A/B/C acceptance remains pending.
-- **C, generated-output cleanup:** not started.
+- **C, generated-output cleanup:** candidate implemented; independent Spec/Standards reviews
+  pending. Fresh command-owned workspaces refuse existing, symlinked, unusable and input-overlapping
+  paths before writes. Normal/caught-failure cleanup waits for browser/profile/server safety;
+  uncertain cleanup retains paths and fails. `--keep-artifacts` is diagnostic-only, never acceptance
+  (exit 3 without failures). Geometry exports now share session ownership and retention; coordinator
+  RED/GREEN corrected their premature deletion. Coordinator verified 31 focused tests, seven named
+  refusal/failure/retention guards and the full tooling gate. Evidence under
+  `.evidence/update-draft-safety/`: `abc-c-coordinator-focused.log`, `abc-c-coordinator-guards.log`,
+  `abc-c-coordinator-export-red.log`, `abc-c-coordinator-export-green.log`,
+  `abc-c-coordinator-tooling.log`, `abc-c-coordinator-lifecycle.log`.
+  The single integrated real-browser smoke passed using existing `site-019-fix` read-only as input:
+  main created/stamped its A/B workspace, Chrome ran on the exact private profile before close,
+  normal project import created IndexedDB, normal export observed the imported project, and one
+  confirmed close removed profile/database/fixture/export. Repeated cleanup issued no second close;
+  main removed its generated workspace and released port 4746. No rebuild, input deletion, cache
+  clearing or worker unregister was used. This lifecycle proof is not a new product matrix or any
+  015/019 closure. Overall A/B/C acceptance awaits the complete independent reviews.
 - **012:** paused until A, B and C are complete; 013–015 stay queued behind it.
 
 This sequencing checkpoint does not change ticket scope or waive formal dependencies.

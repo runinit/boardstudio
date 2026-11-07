@@ -67,6 +67,18 @@ Every command and every raw browser observation is echoed; stdout is the
 complete evidence log (redirect it to .evidence/). The driver owns its server
 processes, refuses to start when its port is occupied, and verifies the port
 is free afterwards. It never touches foreign processes.
+
+Generated outputs and exit status (post mode): the stamped A/B copies, worker copies and
+broken variants live in one output workspace this run creates (`--work-dir`, a path that
+does not exist yet, or a new directory under web/target); leg fixtures, exports and browser
+profiles live in private directories made by `make_session_dir`/`start_session`. An existing,
+symlinked, input-overlapping or unusable workspace is refused (exit 2) before anything is
+written. The run deletes only the directories it created: on completion and after caught
+failures once the browser close is confirmed and no Chrome uses the exact profile; otherwise
+it retains them, prints `RETAINED` paths and fails. It never deletes `--src-dir`, the legacy
+packages, caches or logs. Exit 0 means every assertion held AND every output was removed;
+`--keep-artifacts` keeps outputs for diagnosis, prints `DIAGNOSTIC ONLY` paths and exits 3,
+never 0. A SIGKILLed run is not recovered: remove its leftovers by hand.
 """
 
 from __future__ import annotations
@@ -132,9 +144,13 @@ def route_url(port: int, route: str) -> str:
 
 
 class Driver:
-    def __init__(self, port: int, log):
+    def __init__(self, port: int, log, keep_artifacts: bool = False):
         self.port = port
         self.log = log
+        # --keep-artifacts: owned outputs are kept (after the same close checks) for
+        # diagnosis; the run can then never be an acceptance pass.
+        self.keep_artifacts = keep_artifacts
+        self.kept: list[Path] = []
         self.failures: list[str] = []
         self.env = dict(os.environ)
         self.session_closed = True
@@ -258,6 +274,48 @@ class Driver:
         self.run(["agent-browser", "tab", "close", label])
 
 
+def workspace_refusal(work_dir: Path | None, protected: list[Path]) -> str:
+    """Why this run must not create its output workspace, or "" when it may.
+
+    The workspace is created and deleted by this command, so it must not exist yet (not
+    even as an empty directory or a symlink), must sit in an existing real directory and
+    must not be inside an input or the evidence-log tree. Nothing is written or deleted
+    to make a path acceptable.
+    """
+    if work_dir is None:
+        parent = ROOT / "web" / "target"
+    else:
+        path = work_dir if work_dir.is_absolute() else Path.cwd() / work_dir
+        if ".." in path.parts:
+            return f"refusing output workspace {work_dir}: path contains '..'"
+        if os.path.lexists(path):
+            kind = "symbolic link" if path.is_symlink() else "directory" if path.is_dir() else "file"
+            return (f"refusing output workspace {path}: already exists ({kind}); "
+                    "it must be a new path this command creates and removes")
+        parent = path.parent
+    try:
+        real_parent = parent.resolve(strict=True)
+    except OSError:
+        real_parent = None
+    if real_parent is None or not real_parent.is_dir():
+        return f"refusing output workspace: parent {parent} is not an existing directory"
+    for guarded in protected:
+        real = guarded.resolve()
+        if real_parent == real or real in real_parent.parents:
+            return f"refusing output workspace: it would overlap {guarded}"
+    return ""
+
+
+def create_workspace(work_dir: Path | None) -> Path:
+    """Create the fresh workspace; the returned real path is the only tree this run deletes."""
+    if work_dir is None:
+        return Path(tempfile.mkdtemp(prefix="site-019-ab-", dir=ROOT / "web" / "target")).resolve()
+    path = work_dir if work_dir.is_absolute() else Path.cwd() / work_dir
+    workspace = path.parent.resolve(strict=True) / path.name
+    workspace.mkdir()
+    return workspace
+
+
 def port_free(port: int) -> bool:
     with socket.socket() as sock:
         sock.settimeout(2)
@@ -375,8 +433,6 @@ def extract_worker(site: Path, into: Path) -> Path:
 def stamp_build(src: Path, dst: Path, label: str, log) -> None:
     """Copy a real packaged build, stamp its identity, re-embed its worker."""
     build_web = load_build_web()
-    if dst.exists():
-        shutil.rmtree(dst)
     for route in ROUTES:
         site = site_dir(dst, route)
         site.parent.mkdir(parents=True, exist_ok=True)
@@ -491,16 +547,34 @@ def new_session(prefix: str) -> str:
     return session
 
 
+UNRESOLVED = "previous browser/profile cleanup unresolved; retain it before starting another session"
+
+
+def cleanup_unresolved(driver: Driver) -> bool:
+    return not driver.session_closed or driver.owned_profile is not None
+
+
+def make_session_dir(driver: Driver, prefix: str) -> Path:
+    """Create the directory one session (and its caller's fixtures) lives in.
+
+    The driver records it at once, so the cleanup that follows the session, including a
+    session that never started, may delete it; nothing else is ever recorded or deleted.
+    """
+    if cleanup_unresolved(driver) or driver.session_dir is not None:
+        raise Failure(UNRESOLVED)
+    driver.session_dir = Path(tempfile.mkdtemp(prefix=prefix))
+    return driver.session_dir
+
+
 def start_session(driver: Driver, prefix: str, url: str, profile: Path | None = None) -> None:
     refusal = inherited_settings_refusal()
     if refusal:
         raise Failure(refusal)
-    if not driver.session_closed or driver.owned_profile is not None:
-        raise Failure("previous browser/profile cleanup unresolved; retain it before starting another session")
+    if cleanup_unresolved(driver):
+        raise Failure(UNRESOLVED)
     session = new_session(prefix)
     if profile is None:
-        driver.session_dir = Path(tempfile.mkdtemp(prefix="boardstudio-verify-session-"))
-        profile = driver.session_dir / "profile"
+        profile = make_session_dir(driver, "boardstudio-verify-session-") / "profile"
     driver.env = dict(os.environ, AGENT_BROWSER_SESSION=session,
                       AGENT_BROWSER_PROFILE=str(profile))
     driver.owned_profile = profile
@@ -540,6 +614,11 @@ def close_browser(driver: Driver) -> None:
 
 def cleanup_owned_profile(driver: Driver, directory: Path, label: str) -> None:
     """Remove only this fixture's directory after its own Chrome has exited."""
+    if driver.owned_profile is None and driver.session_dir == directory:
+        # Made for a session that never started: no browser can be using it.
+        if remove_owned_tree(driver, directory, label):
+            driver.session_dir = None
+        return
     if driver.owned_profile != directory / "profile":
         driver.fail(f"{label} cleanup: directory not owned by this session; retain it",
                     str(directory))
@@ -569,17 +648,26 @@ def cleanup_owned_profile(driver: Driver, directory: Path, label: str) -> None:
         driver.fail(f"{label} cleanup: profile still in use; retain owned directory", str(directory))
         return
     driver.note(f"{label} profile IndexedDB before deletion: {list(directory.rglob('IndexedDB'))}")
+    if remove_owned_tree(driver, directory, label):
+        driver.owned_profile = None
+        if driver.session_dir == directory:
+            driver.session_dir = None
+
+
+def remove_owned_tree(driver: Driver, directory: Path, label: str) -> bool:
+    """The one place an invocation-owned directory is deleted; True once it is released."""
+    if driver.keep_artifacts:
+        driver.kept.append(directory)
+        driver.note(f"{label} kept for diagnosis (--keep-artifacts): {directory}")
+        return True
     try:
         shutil.rmtree(directory)
     except OSError as error:
         driver.fail(f"{label} cleanup: removal failed; retain owned directory",
                     f"{directory}: {error}")
-        return
+        return False
     driver.check(f"{label} owned fixture/profile/database removed", not directory.exists())
-    if not directory.exists():
-        driver.owned_profile = None
-        if driver.session_dir == directory:
-            driver.session_dir = None
+    return not directory.exists()
 
 
 def find_ref(snapshot: str, pattern: str) -> str | None:
@@ -1511,7 +1599,7 @@ def leg_layout_constraint(ctx: Ctx) -> None:
     ctx.server.swap(d, ctx.a, "serve A")
     # Explicitly owned disk profile: includes IDB/cache/worker, removed only after
     # successful close. Never clear workers/caches to obtain GREEN.
-    directory = Path(tempfile.mkdtemp(prefix="boardstudio-010-layout-", dir="/tmp"))
+    directory = make_session_dir(d, "boardstudio-010-layout-")
     try:
         fixture = directory / "layout.boardstudio"
         layout_fixture(fixture)
@@ -1825,14 +1913,17 @@ def retry_geometry_save(d: Driver, label: str, failed: dict, intended: str) -> d
 def check_reopened_geometry_save(d: Driver, label: str, entered: dict, intended: str) -> None:
     # Only AFTER direct adoption: normal project export independently observes the
     # exact saved revision, not a save label or the gate's proposed document.
-    with tempfile.TemporaryDirectory(prefix="boardstudio-010-geometry-export-", dir="/tmp") as path:
-        document = export_project_document(d, Path(path), label)
-        script = next((s for s in document["scripts"] if s["name"] == GEO_BASE_NAME), None)
-        d.check(f"{label}: exact reopened saved project/source/revision",
-                document["id"] == entered.get("document_id")
-                and document["revision"] == entered.get("revision")
-                and script is not None and script["source"] == intended,
-                f"id={document['id']} revision={document['revision']} script={script}")
+    # Keep the archive with the session's other owned outputs: delete only after
+    # confirmed close, or retain it with the profile for --keep-artifacts/uncertain close.
+    if d.session_dir is None:
+        raise Failure("geometry export requires an owned session directory")
+    document = export_project_document(d, d.session_dir, label)
+    script = next((s for s in document["scripts"] if s["name"] == GEO_BASE_NAME), None)
+    d.check(f"{label}: exact reopened saved project/source/revision",
+            document["id"] == entered.get("document_id")
+            and document["revision"] == entered.get("revision")
+            and script is not None and script["source"] == intended,
+            f"id={document['id']} revision={document['revision']} script={script}")
 
 
 def leg_persist_fail(ctx: Ctx) -> None:
@@ -1931,7 +2022,7 @@ def leg_takeover_draft(ctx: Ctx) -> None:
     d = ctx.d
     d.cmd("LEG takeover-draft: newer input while an Update Now attempt waits on a held save")
     ctx.server.swap(d, ctx.a, "serve A")
-    directory = Path(tempfile.mkdtemp(prefix="boardstudio-010-takeover-", dir="/tmp"))
+    directory = make_session_dir(d, "boardstudio-010-takeover-")
     try:
         start_session(d, "010-takeover", route_url(d.port, "root"), directory / "profile")
         open_demo(d)
@@ -2160,8 +2251,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=4733)
     parser.add_argument("--src-dir", type=Path, default=ROOT / "web" / "target" / "site-019-a",
                         help="one real build-web.py output (--routes root,subpath)")
-    parser.add_argument("--work-dir", type=Path, default=ROOT / "web" / "target" / "site-019-ab",
-                        help="ephemeral stamped A/B copies (git-ignored web/target)")
+    parser.add_argument("--work-dir", type=Path, default=None,
+                        help="output workspace for the stamped A/B copies: a path that does not "
+                             "exist yet, created and removed by this command (default: a new "
+                             "unique directory under the git-ignored web/target)")
     parser.add_argument("--legacy-a-dir", type=Path, default=ROOT / "web" / "target" / "site-018-a")
     parser.add_argument("--legacy-b-dir", type=Path, default=ROOT / "web" / "target" / "site-018-b")
     parser.add_argument("--legacy010-a-dir", type=Path,
@@ -2171,6 +2264,10 @@ def main(argv: list[str] | None = None) -> int:
                         default=ROOT / "web" / "target" / "site-002-ab" / "b",
                         help="pre-tracer B for pre010 RED (immutable 002 artifact)")
     parser.add_argument("--legs", default=",".join(ALL_LEGS), help="comma-separated subset of legs")
+    parser.add_argument("--keep-artifacts", action="store_true",
+                        help="diagnosis only: keep this run's generated outputs and browser "
+                             "profiles (after the usual confirmed close) and print their paths; "
+                             "the run exits 3 and is never an acceptance pass")
     parser.add_argument("--serve-log", type=Path,
                         default=ROOT / ".evidence" / "ui-integration-recovery" / "019-adoption-serve.log")
     args = parser.parse_args(argv)
@@ -2201,7 +2298,14 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"incomplete packaged build, missing {site_dir(build, route)}/service-worker.js",
                       flush=True)
                 return 2
-    driver = Driver(args.port, sys.stdout)
+    if args.mode == "post":
+        refusal = workspace_refusal(args.work_dir, [
+            args.src_dir, args.legacy_a_dir, args.legacy_b_dir, args.legacy010_a_dir,
+            args.legacy010_b_dir, ROOT / ".evidence"])
+        if refusal:
+            print(refusal, flush=True)
+            return 2
+    driver = Driver(args.port, sys.stdout, args.keep_artifacts)
     args.serve_log.parent.mkdir(parents=True, exist_ok=True)
     args.serve_log.write_text("")
     if args.mode == "pre":
@@ -2211,6 +2315,13 @@ def main(argv: list[str] | None = None) -> int:
     else:
         first = args.src_dir
     server = Server(first, args.port, args.serve_log)
+    workspace: Path | None = None
+    if args.mode == "post":
+        try:
+            workspace = create_workspace(args.work_dir)
+        except OSError as error:
+            print(f"refusing output workspace: cannot create it: {error}", flush=True)
+            return 2
     try:
         if args.mode == "pre":
             server.start()
@@ -2219,7 +2330,7 @@ def main(argv: list[str] | None = None) -> int:
             server.start()
             scenario_pre010(driver, server, args.legacy010_a_dir, args.legacy010_b_dir)
         else:
-            a, b = args.work_dir / "a", args.work_dir / "b"
+            a, b = workspace / "a", workspace / "b"
             stamp_build(args.src_dir, a, "A", sys.stdout)
             stamp_build(args.src_dir, b, "B", sys.stdout)
             packaged_diff(a, b, sys.stdout, driver)
@@ -2232,7 +2343,7 @@ def main(argv: list[str] | None = None) -> int:
                           f"{sha256_file(site_dir(build, route) / 'index.html')}", flush=True)
             server.build_dir = a
             server.start()
-            ctx = Ctx(driver, server, a, b, args.work_dir,
+            ctx = Ctx(driver, server, a, b, workspace,
                       args.legacy_b_dir if args.legacy_b_dir.is_dir() else None, sys.stdout)
             for leg in legs:
                 try:
@@ -2246,12 +2357,32 @@ def main(argv: list[str] | None = None) -> int:
         end_session(driver)
         server.stop()
         driver.cmd("verify dedicated port is free again")
-        driver.check("port free after run", port_free(args.port))
+        port_ok = port_free(args.port)
+        driver.check("port free after run", port_ok)
+        if workspace is not None:
+            if (driver.session_closed and driver.owned_profile is None
+                    and driver.session_dir is None and port_ok):
+                remove_owned_tree(driver, workspace, "workspace")
+            else:
+                driver.fail("workspace cleanup: browser, profile or server not confirmed gone; "
+                            "retain owned directory", str(workspace))
     failures = driver.failures
     print(f"=== {args.mode}: {len(failures)} failures ===", flush=True)
     for name in failures:
         print(f"FAILED: {name}", flush=True)
-    return 1 if failures else 0
+    for path in (driver.session_dir, workspace):
+        if path is not None and path.exists() and path not in driver.kept:
+            print(f"RETAINED (owned output, remove after inspection): {path}", flush=True)
+    for path in driver.kept:
+        print(f"DIAGNOSTIC ONLY (--keep-artifacts, not an acceptance run): {path}", flush=True)
+    if failures:
+        return 1
+    if args.keep_artifacts:
+        print(f"=== {args.mode}: NOT ACCEPTANCE (--keep-artifacts retains outputs; exit 3) ===",
+              flush=True)
+        return 3
+    print(f"=== {args.mode}: ACCEPTANCE PASS (assertions held, outputs removed) ===", flush=True)
+    return 0
 
 
 if __name__ == "__main__":

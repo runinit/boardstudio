@@ -12,17 +12,28 @@ Seams (agreed in the A/B/C plan): the real session and cleanup helpers and the
 `agent-browser` and `ps` process boundary is stubbed, and the tests assert the
 observable close-invocation counts and which directories actually remain.
 
-Not covered here: the generated-output workspace and `--keep-artifacts` cleanup
-(slice C) and any real-browser lifecycle (one integrated smoke after slice C).
+Proof purpose (slice C): every generated output (stamped A/B builds, worker copies,
+broken variants, leg fixtures and exports) lives in a fresh directory this invocation
+created, which is refused before any write when it already exists, is a symlink or
+overlaps an input, and is removed on completion and on caught failures only once the
+browser is confirmed closed. Unconfirmed or failed cleanup retains and prints the owned
+paths and fails; `--keep-artifacts` retains outputs for diagnosis and never exits 0.
+SIGKILL recovery is deliberately not covered.
+
+Not covered here: any real-browser lifecycle (one integrated smoke after slice C).
 """
 
 import importlib.util
 import io
+import json
 import os
 from pathlib import Path
+import re
+import socket
 import subprocess
 import tempfile
 import unittest
+import zipfile
 from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location(
@@ -42,14 +53,27 @@ class FakeBrowserBoundary:
         self.close_output = "Browser closed\n"
         self.close_returncode = 0
         self.open_error = None
+        self.eval_error = None
+        self.download_document = None
+        self.session_id = "test-session\n"
         self.live_profiles = []
 
     def run(self, args, **kwargs):
+        if args[0] == "curl":  # the owned server's release probe (serve_version)
+            return subprocess.CompletedProcess(args, 0, 'start_offline_worker("boardstudio-0123456789abcdef-1"', "")
         assert args[0] == "agent-browser", f"unexpected process: {args}"
         self.calls.append(tuple(args))
         out = ""
-        if args[1:3] == ["session", "id"]:
-            out = "test-session\n"
+        if args[1] == "snapshot" and self.download_document is not None:
+            out = '\n'.join(f'button "{name}" [ref=e{i}]' for i, name in enumerate(
+                ("Export", "Download .boardstudio project", "Back to Layout"), 1))
+        elif args[1] == "download" and self.download_document is not None:
+            with zipfile.ZipFile(args[3], "w") as bundle:
+                bundle.writestr("project.json", json.dumps(self.download_document))
+        elif args[1:3] == ["session", "id"]:
+            out = self.session_id
+        elif args[1] == "eval" and self.eval_error:
+            raise self.eval_error
         elif args[1] == "open":
             if self.open_error:
                 raise self.open_error
@@ -81,6 +105,8 @@ class JumpingClock:
     def monotonic(self):
         self.now += 20
         return self.now
+
+    time = monotonic  # the owned-server wait polls wall time
 
     def sleep(self, seconds):
         pass
@@ -357,6 +383,328 @@ class SessionOwnershipTests(unittest.TestCase):
         self.assertNotIn("SECRET", out.getvalue())
         self.assertEqual(self.cli.calls, [])
         self.assertEqual(self.made_directories(), [])
+
+
+class GeometryExportOwnershipTests(unittest.TestCase):
+    setUp = SessionOwnershipTests.setUp
+    assert_bystander_kept = SessionOwnershipTests.assert_bystander_kept
+
+    def test_geometry_export_survives_until_confirmed_close_and_diagnostic_retention(self):
+        self.cli.download_document = dict(id="export-project", revision=17,
+                                         scripts=[dict(name=VERIFY.GEO_BASE_NAME, source="user-source")])
+        for keep in (False, True):
+            with self.subTest(keep=keep):
+                self.driver.keep_artifacts = keep
+                VERIFY.start_session(self.driver, "export", URL)
+                directory = self.driver.session_dir
+                VERIFY.check_reopened_geometry_save(
+                    self.driver, "owned-export", dict(document_id="export-project", revision=17),
+                    "user-source")
+                archive = directory / "owned-export.boardstudio"
+                self.assertTrue(archive.is_file(), "export must remain owned until browser close")
+                VERIFY.end_session(self.driver)
+                self.assertEqual(archive.exists(), keep)
+                self.assertEqual(self.driver.failures, [])
+                self.assert_bystander_kept()
+
+
+class FakeServerProcess:
+    def terminate(self):
+        pass
+
+    def wait(self, timeout=None):
+        return 0
+
+    def kill(self):
+        pass
+
+
+class FakeBuildWeb:
+    """build-web.py's embed step: each call re-embeds a distinct release version."""
+
+    def __init__(self):
+        self.embedded = 0
+
+    def embed_offline_worker(self, site, worker):
+        self.embedded += 1
+        path = Path(site) / "service-worker.js"
+        path.write_text(re.sub(r"boardstudio-[0-9a-f]{16}-[0-9]+",
+                               f"boardstudio-{self.embedded:016x}-{self.embedded}", path.read_text()))
+
+
+def write_packaged_source(source):
+    """Smallest `build-web.py --routes root,subpath` shape the stamping reads."""
+    for scope in ("site-root", "site-subpath/boardstudio"):
+        site = source / scope
+        (site / "wasm").mkdir(parents=True)
+        (site / "index.html").write_text("<html><head></head><body></body></html>")
+        (site / "wasm" / "boardstudio-web_bg.wasm").write_bytes(b"\0asm\1\0\0\0")
+        (site / "boardstudio_offline_worker.js").write_text("// worker glue")
+        (site / "service-worker.js").write_text(
+            'start_offline_worker("boardstudio-0000000000000000-0", []);\natob("QUJD");\n')
+
+
+def tree(root):
+    """Every entry under root, symlinks not followed: the independent no-write oracle."""
+    entries = {}
+    for base, names, files in os.walk(root):
+        for name in names + files:
+            path = Path(base) / name
+            relative = path.relative_to(root).as_posix()
+            if path.is_symlink():
+                entries[relative] = ("link", os.readlink(path))
+            else:
+                entries[relative] = ("file", path.read_bytes()) if path.is_file() else ("dir",)
+    return entries
+
+
+class OutputWorkspaceTests(unittest.TestCase):
+    """`main post` against a stub browser, build and server boundary on real directories."""
+
+    def setUp(self):
+        SessionOwnershipTests.setUp(self)  # same boundary, bystander profile and temp root
+        self.created = []  # every mkdtemp this run asked for, wherever it landed
+        real_mkdtemp = tempfile.mkdtemp
+
+        def mkdtemp(prefix=None, dir=None, **kwargs):
+            path = real_mkdtemp(prefix=prefix, dir=self.root if dir in (None, "/tmp") else dir)
+            self.created.append(Path(path))
+            return path
+
+        self.served = []
+        self.build_web = FakeBuildWeb()
+        self.repo = self.root / "repo"
+        (self.repo / "web" / "target").mkdir(parents=True)
+        (self.repo / ".evidence").mkdir()
+        self.source = self.root / "source"
+        write_packaged_source(self.source)
+        self.legacy = self.root / "legacy-b"
+        self.legacy.mkdir()
+        (self.legacy / "package").write_text("immutable")
+        self.serve_log = self.root / "serve.log"
+        self.serve_log.write_text("earlier log")
+        self.work = self.root / "work"
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            self.port = sock.getsockname()[1]
+        for target in (
+                patch.object(tempfile, "mkdtemp", mkdtemp),
+                patch.object(VERIFY, "ROOT", self.repo),
+                patch.object(VERIFY, "load_build_web", lambda: self.build_web),
+                patch.object(VERIFY.subprocess, "Popen", self.popen),
+                patch.object(VERIFY.shutil, "which", lambda name: "/usr/bin/" + name)):
+            target.start()
+            self.addCleanup(target.stop)
+
+    assert_bystander_kept = SessionOwnershipTests.assert_bystander_kept
+
+    def popen(self, args, **kwargs):
+        build = Path(args[2])  # serve-web.py <build dir> <port>
+        self.served.append((build, build.is_dir()))
+        return FakeServerProcess()
+
+    def surviving(self):
+        """Directories this run created that still exist."""
+        return [path for path in self.created if path.exists()]
+
+    def run_main(self, work_dir="work", *extra, legs=""):
+        argv = ["post", "--port", str(self.port), "--src-dir", str(self.source),
+                "--legacy-b-dir", str(self.legacy), "--serve-log", str(self.serve_log),
+                "--legs", legs, *extra]
+        if work_dir is not None:
+            argv += ["--work-dir", str(self.root / work_dir)]
+        out = io.StringIO()
+        with patch.object(VERIFY.sys, "stdout", out):
+            code = VERIFY.main(argv)
+        return code, out.getvalue()
+
+    def assert_workspace_refused(self, work_dir, reason):
+        before = tree(self.root)
+        code, output = self.run_main(work_dir)
+        self.assertEqual(code, 2, output)
+        self.assertIn(reason, output)
+        self.assertEqual(tree(self.root), before, "refusal wrote or deleted something")
+        self.assertEqual((self.created, self.served, self.cli.calls), ([], [], []))
+
+    def test_completed_run_removes_every_generated_output_before_reporting_acceptance(self):
+        protected = {path: tree(path) for path in (self.source, self.legacy, self.bystander)}
+        for name in ("work", None):  # explicit new path, and the default fresh location
+            with self.subTest(name):
+                self.served.clear()
+                code, output = self.run_main(name)
+
+                self.assertEqual(code, 0, output)
+                self.assertEqual([built for _, built in self.served], [True],
+                                 "the server must have served a generated build")
+                self.assertFalse(self.work.exists())
+                self.assertEqual(self.surviving(), [])
+                self.assertEqual(list((self.repo / "web" / "target").iterdir()), [])
+                self.assertEqual({path: tree(path) for path in protected}, protected)
+                self.assertEqual(self.serve_log.exists(), True)
+                self.assertLess(output.index("workspace owned fixture/profile/database removed"),
+                                output.index("ACCEPTANCE PASS"))
+
+    # A leg with no scripted page state aborts in set_marker (eval output is not JSON):
+    # the real leg code, real start_session and real cleanup run against the stub CLI.
+    def test_caught_leg_failure_removes_workspace_and_leg_directory_after_confirmed_close(self):
+        protected = {path: tree(path) for path in (self.source, self.legacy, self.bystander)}
+
+        code, output = self.run_main("work", legs="takeover-draft")
+
+        self.assertEqual({path: tree(path) for path in protected}, protected)
+        self.assertEqual(code, 1, output)
+        self.assertIn("FAILED: leg takeover-draft aborted", output)
+        self.assertNotIn("ACCEPTANCE PASS", output)
+        self.assertEqual(len(self.cli.closes()), 1)
+        self.assertFalse(self.work.exists())
+        self.assertEqual(self.surviving(), [])
+        self.assert_bystander_kept()
+
+    def test_uncaught_exception_still_removes_workspace_and_leg_directory(self):
+        self.cli.eval_error = subprocess.TimeoutExpired("agent-browser eval", 180)
+
+        with self.assertRaises(subprocess.TimeoutExpired):
+            self.run_main("work", legs="takeover-draft")
+
+        self.assertEqual(len(self.cli.closes()), 1)
+        self.assertFalse(self.work.exists())
+        self.assertEqual(self.surviving(), [])
+
+    def test_leg_directory_is_removed_when_its_session_never_started(self):
+        self.cli.session_id = ""  # new_session refuses before any browser is opened
+        for leg in ("layout-constraint", "takeover-draft"):
+            with self.subTest(leg):
+                code, output = self.run_main("work", legs=leg)
+
+                self.assertEqual(code, 1, output)
+                self.assertIn(f"FAILED: leg {leg} aborted", output)
+                self.assertEqual(self.cli.closes(), [])
+                self.assertFalse(self.work.exists())
+                self.assertEqual(self.surviving(), [])
+                self.assertNotIn("not owned", output)
+
+    def test_leg_directory_with_fixtures_is_removed_on_success_and_never_blocks_the_next_session(self):
+        directory = VERIFY.make_session_dir(self.driver, "boardstudio-010-layout-")
+        (directory / "layout.boardstudio").write_text("fixture")
+        VERIFY.start_session(self.driver, "pfx", URL, directory / "profile")
+        (directory / "layout-A.boardstudio").write_text("export")
+
+        VERIFY.cleanup_owned_profile(self.driver, directory, "layout")
+
+        self.assertFalse(directory.exists())
+        self.assertEqual(len(self.cli.closes()), 1)
+        self.assertEqual(self.driver.failures, [])
+        self.assert_bystander_kept()
+        VERIFY.start_session(self.driver, "next", URL)  # nothing left unresolved
+        VERIFY.end_session(self.driver)
+        self.assertEqual(self.surviving(), [])
+
+    def test_leg_directory_is_not_made_while_an_earlier_session_is_unresolved(self):
+        self.cli.close_output = "daemon gone\n"
+        VERIFY.start_session(self.driver, "first", URL)
+        VERIFY.end_session(self.driver)
+        retained = self.created[0]
+        made = list(self.created)
+
+        with self.assertRaises(VERIFY.Failure):
+            VERIFY.make_session_dir(self.driver, "boardstudio-010-layout-")
+
+        self.assertEqual(self.created, made)
+        self.assertEqual(self.driver.session_dir, retained)
+        self.assertTrue((retained / "profile" / "Default" / "IndexedDB").is_dir())
+
+    def test_unconfirmed_close_retains_and_prints_workspace_and_leg_directory(self):
+        self.cli.close_output = "daemon gone\n"
+
+        code, output = self.run_main("work", legs="takeover-draft")
+
+        leg_directory = self.created[0]
+        self.assertEqual(code, 1, output)
+        self.assertEqual(len(self.cli.closes()), 1)
+        self.assertEqual(self.surviving(), [leg_directory])
+        self.assertTrue((self.work / "a").is_dir())
+        self.assertNotIn("ACCEPTANCE PASS", output)
+        self.assertIn(f"RETAINED (owned output, remove after inspection): {leg_directory}", output)
+        self.assertIn(f"RETAINED (owned output, remove after inspection): {self.work}", output)
+
+    def test_workspace_removal_failure_retains_it_and_fails(self):
+        real_rmtree = VERIFY.shutil.rmtree
+
+        def rmtree(path, *args, **kwargs):
+            if Path(path) == self.work:
+                raise OSError("removal denied")
+            real_rmtree(path, *args, **kwargs)
+
+        with patch.object(VERIFY.shutil, "rmtree", rmtree):
+            code, output = self.run_main("work")
+
+        self.assertEqual(code, 1, output)
+        self.assertTrue((self.work / "a").is_dir())
+        self.assertIn("FAILED: workspace cleanup: removal failed; retain owned directory", output)
+        self.assertNotIn("ACCEPTANCE PASS", output)
+        self.assertIn(f"RETAINED (owned output, remove after inspection): {self.work}", output)
+
+    def test_keep_artifacts_retains_outputs_but_is_never_an_acceptance_pass(self):
+        code, output = self.run_main("work", "--keep-artifacts")
+
+        self.assertEqual(code, 3, output)  # distinct from 0 (accepted) and 1 (failed)
+        self.assertNotIn("ACCEPTANCE PASS", output)
+        self.assertNotIn("FAILED:", output)
+        self.assertNotIn("RETAINED", output)  # kept on purpose, not left behind by a failure
+        self.assertTrue((self.work / "a").is_dir() and (self.work / "b").is_dir())
+        self.assertIn(f"DIAGNOSTIC ONLY (--keep-artifacts, not an acceptance run): {self.work}", output)
+        self.assertIn("NOT ACCEPTANCE", output)
+
+    def test_keep_artifacts_keeps_leg_directory_only_after_confirmed_close(self):
+        for confirmed in (True, False):
+            with self.subTest(confirmed=confirmed):
+                self.created.clear()
+                self.cli.calls.clear()
+                self.cli.close_output = "Browser closed\n" if confirmed else "daemon gone\n"
+
+                code, output = self.run_main(f"work-{confirmed}", "--keep-artifacts",
+                                             legs="takeover-draft")
+
+                leg_directory = self.created[0]
+                self.assertEqual(code, 1, output)
+                self.assertEqual(len(self.cli.closes()), 1)
+                self.assertTrue(leg_directory.is_dir())
+                self.assertNotIn("ACCEPTANCE PASS", output)
+                kept = f"DIAGNOSTIC ONLY (--keep-artifacts, not an acceptance run): {leg_directory}"
+                retained = f"RETAINED (owned output, remove after inspection): {leg_directory}"
+                self.assertEqual((kept in output, retained in output), (confirmed, not confirmed))
+
+    def test_existing_output_workspace_is_refused_without_touching_it(self):
+        (self.root / "empty").mkdir()
+        (self.root / "stale").mkdir()
+        (self.root / "stale" / "a").mkdir()
+        (self.root / "stale" / "a" / "old-build").write_text("must survive")
+        (self.root / "plain-file").write_text("must survive")
+        for name in ("empty", "stale", "plain-file"):
+            with self.subTest(name):
+                self.assert_workspace_refused(name, "already exists")
+
+    def test_symlinked_output_workspace_is_refused_without_following_it(self):
+        (self.root / "alias").symlink_to(self.bystander, target_is_directory=True)
+        (self.root / "dangling").symlink_to(self.root / "nowhere")
+        for name in ("alias", "dangling"):
+            with self.subTest(name):
+                self.assert_workspace_refused(name, "symbolic link")
+
+    def test_output_workspace_inside_an_input_or_its_alias_is_refused(self):
+        (self.root / "alias").symlink_to(self.source, target_is_directory=True)
+        for name in ("source/work", "legacy-b/work", "alias/work", "repo/.evidence/work"):
+            with self.subTest(name):
+                self.assert_workspace_refused(name, "overlap")
+
+    def test_unusable_output_workspace_path_is_refused(self):
+        (self.root / "plain-file").write_text("not a directory")
+        for name, reason in (("missing/work", "parent"), ("plain-file/work", "parent"),
+                             ("bystander/../work", "'..'"), (None, "parent")):
+            with self.subTest(name):
+                if name is None:  # default location under a repo with no web/target
+                    (self.repo / "web" / "target").rmdir()
+                self.assert_workspace_refused(name, reason)
 
 
 if __name__ == "__main__":
