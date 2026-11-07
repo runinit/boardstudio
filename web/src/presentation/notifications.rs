@@ -90,26 +90,37 @@ fn UpdateAvailableNotice() -> Element {
 }
 
 /// The words for one deferral cause. Each names what the user must resolve;
-/// the dialog adds the shared retry line below.
-fn blocker_message(blocker: &UpdateBlocker) -> &'static str {
+/// the dialog adds the shared retry line below. Unresolved drafts carry their
+/// per-key area and remedy, so the message names the editing area and how
+/// that key resolves.
+fn blocker_message(blocker: &UpdateBlocker) -> String {
     match blocker {
         UpdateBlocker::PendingWork => {
             "Some edits are still being applied. Wait for them to land, then choose Update Now again."
+                .to_owned()
         }
         UpdateBlocker::SaveInFlight => {
             "A save is still in progress. Wait for it to finish, then choose Update Now again."
+                .to_owned()
         }
         UpdateBlocker::SaveFailed => {
             "The last save did not complete. Resolve the save problem first \u{2014} updating now could lose work."
+                .to_owned()
         }
         UpdateBlocker::StorageNotReady => {
             "Browser storage is not ready, so saves cannot be verified yet. Wait a moment, then choose Update Now again."
+                .to_owned()
         }
         UpdateBlocker::RecoveryRequired => {
             "This session needs recovery before it can update. Recover or reopen a saved keyboard first."
+                .to_owned()
         }
         UpdateBlocker::InvalidDraft => {
             "A field holds an invalid value that is not saved. Fix or clear it, then choose Update Now again."
+                .to_owned()
+        }
+        UpdateBlocker::UnresolvedDraft { area, remedy } => {
+            format!("{area} has an unapplied edit. {remedy}, then choose Update Now again.")
         }
     }
 }
@@ -175,8 +186,11 @@ fn UpdateWarningDialog() -> Element {
     let close_runtime = runtime.clone();
     let (title, body) = match dialog {
         UpdateDialog::Deferred { blockers } => {
-            let mut lines: Vec<&str> = blockers.iter().map(blocker_message).collect();
-            lines.push("The update keeps waiting until you resolve this and choose Update Now again.");
+            let mut lines: Vec<String> = blockers.iter().map(blocker_message).collect();
+            lines.push(
+                "The update keeps waiting until you resolve this and choose Update Now again."
+                    .to_owned(),
+            );
             ("Update deferred", lines.join(" "))
         }
         UpdateDialog::OtherTabs => (
@@ -200,11 +214,14 @@ fn UpdateWarningDialog() -> Element {
 mod tests {
     use super::*;
     use boardstudio_application::Durability;
-    use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, ProjectDoc};
+    use boardstudio_core::model::{
+        Board, EditCommand, EditOperation, EditPhase, ProjectDoc, Script,
+    };
     use boardstudio_web_host::host::{UpdateSignals, UpdateWatch};
     use boardstudio_web_host::offline::{AdoptError, UpdateSnapshot};
     use boardstudio_web_runtime::runtime::firmware_export_test_support as support;
     use boardstudio_web_runtime::runtime::project_name_test_support as pnsupport;
+    use boardstudio_web_ui_shared::geometry_scripts::GeometryScriptsEditor;
     use boardstudio_web_ui_shared::test_role::{all_by_role_name, by_role_name};
     use boardstudio_web_ui_shared::test_wait::{wait_for, wait_until};
     use gloo_timers::future::TimeoutFuture;
@@ -1379,6 +1396,574 @@ mod tests {
         pnsupport::run_pending(&runtime).await;
         by_role_name(&root, "button", "Update Now").unwrap().click();
         wait_until("the header action adopts", || signals.adoptions.get() == 1).await;
+        root.remove();
+    }
+
+    // ---- Ticket 008: Geometry scripts draft-owner tracer at seam S1. ----
+    //
+    // RED: these fail before the registry + Geometry adapter exist (the update
+    // adopts instead of deferring). They assert only external behaviour through
+    // the mounted Update Now seam: deferral/copy, preserved draft and focus,
+    // resolution through the owner's own Apply, and retirement on unmount.
+
+    fn geometry_doc() -> ProjectDoc {
+        let mut document = ProjectDoc::empty("geometry-doc", "Geometry");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.scripts.push(Script {
+            id: "script-1".into(),
+            name: "Script 1".into(),
+            source: "// baseline".into(),
+            enabled: false,
+        });
+        document
+    }
+
+    async fn opened_geometry_runtime() -> Rc<Runtime> {
+        let runtime = pnsupport::new_runtime();
+        pnsupport::open_document(&runtime, geometry_doc()).await;
+        runtime.take_notifications();
+        runtime
+    }
+
+    fn geometry_update_fixture() -> Element {
+        let runtime = use_context::<Rc<Runtime>>();
+        let version = use_signal(|| 0u64);
+        let mut editor_visible = use_signal(|| true);
+        use_context_provider(|| version);
+        use_hook(move || {
+            runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                let next = *version.peek() + 1;
+                version.set(next);
+            }));
+        });
+        let _ = version();
+        rsx! {
+            NotificationProvider { RuntimeNotifications {} }
+            button {
+                onclick: move |_| editor_visible.set(false),
+                "Hide geometry editor"
+            }
+            if editor_visible() {
+                GeometryScriptsEditor { on_back: EventHandler::new(move |_| {}) }
+            } else { p { role: "status", "Geometry editor unmounted" } }
+        }
+    }
+
+    fn production_shell_geometry_fixture() -> Element {
+        let runtime = use_context::<Rc<Runtime>>();
+        let version = use_signal(|| 0u64);
+        let workspace = use_signal(|| "Layout");
+        let settings_open = use_signal(|| false);
+        let palette_open = use_signal(|| false);
+        use_context_provider(|| version);
+        let preference_warning = use_signal(|| false);
+        use_context_provider(|| super::super::PreferenceStorageWarning(preference_warning));
+        let appearance = use_signal(|| "light");
+        use_context_provider(|| super::super::AppearanceState(appearance));
+        let theme = use_signal(|| "original");
+        use_context_provider(|| super::super::ThemeState(theme));
+        let subscriber = runtime.clone();
+        use_hook(move || {
+            subscriber.subscribe(Rc::new(move || {
+                let mut version = version;
+                let next = *version.peek() + 1;
+                version.set(next);
+            }));
+        });
+        let _ = version();
+        rsx! {
+            NotificationProvider { RuntimeNotifications {} }
+            GeometryScriptsEditor { on_back: EventHandler::new(move |_| {}) }
+            super::super::header::Header {
+                project_menu: rsx! {},
+                workspace,
+                show_workspaces: true,
+                has_project: true,
+                save_state: "saved",
+                settings_open,
+                palette_open,
+                on_search: EventHandler::new(move |_| {}),
+                on_undo: EventHandler::new(move |_| {}),
+                on_redo: EventHandler::new(move |_| {}),
+                on_export: EventHandler::new(move |_| {}),
+                panel_controls: rsx! {},
+                update_available: runtime.update_waiting() && runtime.update_notice_dismissed(),
+                on_update: {
+                    let runtime = runtime.clone();
+                    EventHandler::new(move |_| runtime.begin_update(UpdateOpener::Header))
+                },
+            }
+        }
+    }
+
+    async fn select_script_named(root: &web_sys::Element, name: &str) {
+        wait_until("the script picker mounts", || {
+            by_role_name(root, "button", "Active script").is_some()
+        })
+        .await;
+        by_role_name(root, "button", "Active script")
+            .unwrap()
+            .click();
+        wait_until("the script choice opens", || {
+            by_role_name(root, "option", name).is_some()
+        })
+        .await;
+        let option = by_role_name(root, "option", name).unwrap();
+        for phase in ["pointerdown", "pointerup"] {
+            let event = web_sys::PointerEvent::new(phase).unwrap();
+            event.init_event_with_bubbles_and_cancelable(phase, true, true);
+            option.dispatch_event(&event).unwrap();
+        }
+        wait_until("the script source field mounts", || {
+            by_role_name(root, "textbox", "Rhai source").is_some()
+        })
+        .await;
+    }
+
+    fn source_element(root: &web_sys::Element) -> web_sys::HtmlElement {
+        by_role_name(root, "textbox", "Rhai source").expect("the source field mounts")
+    }
+
+    fn source_value(root: &web_sys::Element) -> String {
+        js_sys::Reflect::get(&source_element(root), &"value".into())
+            .unwrap()
+            .as_string()
+            .unwrap_or_default()
+    }
+
+    fn type_source(root: &web_sys::Element, value: &str) {
+        let field = source_element(root);
+        js_sys::Reflect::set(&field, &"value".into(), &value.into()).unwrap();
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        field
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+            .unwrap();
+    }
+
+    /// Whether an Enter keydown on the control is consumed instead of staying
+    /// available for native button activation. Synthetic key events never
+    /// synthesize native clicks (see the button contract tests), so keyboard
+    /// operation is proven here as reachability plus non-interception;
+    /// trusted-key activation belongs to the packaged runs.
+    fn enter_keydown_is_consumed(target: &web_sys::HtmlElement) -> bool {
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key("Enter");
+        init.set_code("Enter");
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        let event =
+            web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap();
+        target.dispatch_event(&event).unwrap();
+        event.default_prevented()
+    }
+
+    fn assert_keyboard_reachable(root: &web_sys::Element, name: &str) -> web_sys::HtmlElement {
+        let control = by_role_name(root, "button", name).expect("the control mounts");
+        assert_eq!(control.tab_index(), 0, "{name} is a keyboard tab stop");
+        control.focus().unwrap();
+        assert_eq!(
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .active_element(),
+            Some(control.clone().into()),
+            "{name} takes keyboard focus"
+        );
+        assert!(
+            !space_keydown_is_consumed(&control),
+            "Space on {name} stays available for activation"
+        );
+        assert!(
+            !enter_keydown_is_consumed(&control),
+            "Enter on {name} stays available for activation"
+        );
+        control
+    }
+
+    fn geometry_deferral_text(root: &web_sys::Element) -> String {
+        dialog_text(root).expect("the deferral warning mounts")
+    }
+
+    fn assert_geometry_deferral_copy(text: &str) {
+        assert!(
+            text.contains("Geometry scripts"),
+            "the deferral names the Geometry scripts area: {text:?}"
+        );
+        assert!(
+            text.contains("Apply the script edit"),
+            "the deferral names the Apply remedy: {text:?}"
+        );
+        assert!(
+            text.contains("Update Now"),
+            "the deferral explains how to retry: {text:?}"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_geometry_draft_defers_update_now_at_the_toast() {
+        let runtime = opened_geometry_runtime().await;
+        let (root, _) = update_root(&runtime, geometry_update_fixture);
+        let signals = FakeUpdateSignals::new(waiting_update());
+        runtime.observe_update_waiting(Rc::new(signals.clone()));
+        shown_update_button(&root).await;
+        select_script_named(&root, "Script 1").await;
+        assert_eq!(source_value(&root), "// baseline");
+        type_source(&root, "// baseline\n// DRAFT-UNAPPLIED-008");
+        let href_before = location_href();
+        by_role_name(&root, "button", "Update Now").unwrap().click();
+        let cancel = shown_cancel_button(&root).await;
+        assert_geometry_deferral_copy(&geometry_deferral_text(&root));
+        assert_eq!(signals.adoptions.get(), 0, "the draft never adopts");
+        assert_eq!(cancel.tab_index(), 0, "cancellation is a keyboard tab stop");
+        cancel.click();
+        wait_until("cancellation closes the warning", || {
+            by_role_name(&root, "button", "Cancel").is_none()
+        })
+        .await;
+        assert_eq!(location_href(), href_before, "cancellation never reloads");
+        assert_eq!(
+            source_value(&root),
+            "// baseline\n// DRAFT-UNAPPLIED-008",
+            "cancellation preserves the exact draft text"
+        );
+        assert!(
+            by_role_name(&root, "button", "Update Now")
+                .unwrap()
+                .matches(":focus")
+                .unwrap(),
+            "cancellation returns focus to Update Now"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_geometry_draft_defers_update_now_at_the_header() {
+        let runtime = opened_geometry_runtime().await;
+        let (root, _) = update_root(&runtime, production_shell_geometry_fixture);
+        let signals = FakeUpdateSignals::new(waiting_update());
+        runtime.observe_update_waiting(Rc::new(signals.clone()));
+        shown_update_button(&root).await;
+        select_script_named(&root, "Script 1").await;
+        type_source(&root, "// baseline\n// DRAFT-UNAPPLIED-008");
+        by_role_name(&root, "button", "close").unwrap().click();
+        wait_until("dismissal hands the notice to the header", || {
+            root.query_selector(".header-update").unwrap().is_some()
+        })
+        .await;
+        let header_update = shown_update_button(&root).await;
+        assert!(
+            header_update
+                .closest(".workbench-header")
+                .unwrap()
+                .is_some(),
+            "the surviving action lives in the header bar"
+        );
+        header_update.click();
+        let cancel = shown_cancel_button(&root).await;
+        assert_geometry_deferral_copy(&geometry_deferral_text(&root));
+        assert_eq!(signals.adoptions.get(), 0, "the draft never adopts");
+        cancel.click();
+        wait_until("cancellation closes the warning", || {
+            by_role_name(&root, "button", "Cancel").is_none()
+        })
+        .await;
+        assert_eq!(
+            source_value(&root),
+            "// baseline\n// DRAFT-UNAPPLIED-008",
+            "cancellation preserves the exact draft text"
+        );
+        let header_update = by_role_name(&root, "button", "Update Now").unwrap();
+        assert!(header_update.matches(":focus").unwrap());
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_geometry_draft_keyboard_reaches_both_checkpoints() {
+        let runtime = opened_geometry_runtime().await;
+        let (root, _) = update_root(&runtime, geometry_update_fixture);
+        let signals = FakeUpdateSignals::new(waiting_update());
+        runtime.observe_update_waiting(Rc::new(signals.clone()));
+        shown_update_button(&root).await;
+        select_script_named(&root, "Script 1").await;
+        type_source(&root, "// baseline\n// DRAFT-UNAPPLIED-008");
+        let update = assert_keyboard_reachable(&root, "Update Now");
+        update.click();
+        let cancel = shown_cancel_button(&root).await;
+        assert_geometry_deferral_copy(&geometry_deferral_text(&root));
+        assert_keyboard_reachable(&root, "Cancel");
+        cancel.click();
+        wait_until("cancellation closes the warning", || {
+            by_role_name(&root, "button", "Cancel").is_none()
+        })
+        .await;
+        assert_eq!(
+            source_value(&root),
+            "// baseline\n// DRAFT-UNAPPLIED-008",
+            "keyboard cancellation preserves the exact draft text"
+        );
+        assert!(
+            by_role_name(&root, "button", "Update Now")
+                .unwrap()
+                .matches(":focus")
+                .unwrap(),
+            "cancellation returns focus to Update Now"
+        );
+        assert_eq!(signals.adoptions.get(), 0, "the draft never adopts");
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_geometry_draft_keyboard_reaches_the_header_checkpoint() {
+        let runtime = opened_geometry_runtime().await;
+        let (root, _) = update_root(&runtime, production_shell_geometry_fixture);
+        let signals = FakeUpdateSignals::new(waiting_update());
+        runtime.observe_update_waiting(Rc::new(signals.clone()));
+        shown_update_button(&root).await;
+        select_script_named(&root, "Script 1").await;
+        type_source(&root, "// baseline\n// DRAFT-UNAPPLIED-008");
+        by_role_name(&root, "button", "close").unwrap().click();
+        wait_until("dismissal hands the notice to the header", || {
+            root.query_selector(".header-update").unwrap().is_some()
+        })
+        .await;
+        let header_update = assert_keyboard_reachable(&root, "Update Now");
+        assert!(
+            header_update
+                .closest(".workbench-header")
+                .unwrap()
+                .is_some(),
+            "the surviving action lives in the header bar"
+        );
+        header_update.click();
+        let cancel = shown_cancel_button(&root).await;
+        assert_geometry_deferral_copy(&geometry_deferral_text(&root));
+        assert_keyboard_reachable(&root, "Cancel");
+        cancel.click();
+        wait_until("cancellation closes the warning", || {
+            by_role_name(&root, "button", "Cancel").is_none()
+        })
+        .await;
+        let header_update = by_role_name(&root, "button", "Update Now").unwrap();
+        assert!(header_update.matches(":focus").unwrap());
+        assert_eq!(signals.adoptions.get(), 0, "the draft never adopts");
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_geometry_invalid_unsubmitted_draft_defers() {
+        let runtime = opened_geometry_runtime().await;
+        let (root, _) = update_root(&runtime, geometry_update_fixture);
+        let signals = FakeUpdateSignals::new(waiting_update());
+        runtime.observe_update_waiting(Rc::new(signals.clone()));
+        shown_update_button(&root).await;
+        select_script_named(&root, "Script 1").await;
+        // A realistic invalid draft: whitespace source can never be submitted
+        // (Apply stays disabled) and marks nothing invalid in the DOM.
+        type_source(&root, "   ");
+        wait_until("the invalid draft disables Apply", || {
+            by_role_name(&root, "button", "Apply script")
+                .is_some_and(|apply| apply.has_attribute("disabled"))
+        })
+        .await;
+        by_role_name(&root, "button", "Update Now").unwrap().click();
+        shown_cancel_button(&root).await;
+        assert_geometry_deferral_copy(&geometry_deferral_text(&root));
+        assert_eq!(signals.adoptions.get(), 0, "an invalid draft never adopts");
+        by_role_name(&root, "button", "Cancel").unwrap().click();
+        wait_until("cancellation closes the warning", || {
+            by_role_name(&root, "button", "Cancel").is_none()
+        })
+        .await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_geometry_apply_landing_clears_the_deferral() {
+        let runtime = opened_geometry_runtime().await;
+        let (root, _) = update_root(&runtime, geometry_update_fixture);
+        let signals = FakeUpdateSignals::new(waiting_update());
+        runtime.observe_update_waiting(Rc::new(signals.clone()));
+        shown_update_button(&root).await;
+        select_script_named(&root, "Script 1").await;
+        type_source(&root, "// applied");
+        by_role_name(&root, "button", "Apply script")
+            .unwrap()
+            .click();
+        pnsupport::run_pending(&runtime).await;
+        assert_eq!(source_value(&root), "// applied");
+        by_role_name(&root, "button", "Update Now").unwrap().click();
+        wait_until("the landed draft adopts", || signals.adoptions.get() == 1).await;
+        root.remove();
+    }
+
+    /// A failed Apply never clears a remaining draft: the helper reverts the
+    /// field only while the live draft still is the submitted value, so newer
+    /// typing during the flight survives the failure and keeps deferring.
+    #[wasm_bindgen_test]
+    async fn mounted_geometry_failed_apply_keeps_newer_typing_deferred() {
+        let runtime = opened_geometry_runtime().await;
+        let (root, _) = update_root(&runtime, geometry_update_fixture);
+        let signals = FakeUpdateSignals::new(waiting_update());
+        runtime.observe_update_waiting(Rc::new(signals.clone()));
+        shown_update_button(&root).await;
+        select_script_named(&root, "Script 1").await;
+        type_source(&root, "// older submission");
+        let (entered, release) =
+            pnsupport::gate_next_core_reply_then_fail(&runtime, "injected apply failure");
+        by_role_name(&root, "button", "Apply script")
+            .unwrap()
+            .click();
+        pnsupport::drive_pending(&runtime);
+        entered.await.unwrap();
+        // Newer input while the older Apply is still in flight.
+        type_source(&root, "// newer typing");
+        release.send(()).unwrap();
+        pnsupport::run_pending(&runtime).await;
+        assert_eq!(
+            source_value(&root),
+            "// newer typing",
+            "the failed settlement never overwrites newer input"
+        );
+        by_role_name(&root, "button", "Update Now").unwrap().click();
+        shown_cancel_button(&root).await;
+        assert_geometry_deferral_copy(&geometry_deferral_text(&root));
+        assert_eq!(signals.adoptions.get(), 0, "a failed Apply never adopts");
+        by_role_name(&root, "button", "Cancel").unwrap().click();
+        wait_until("cancellation closes the warning", || {
+            by_role_name(&root, "button", "Cancel").is_none()
+        })
+        .await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_geometry_revert_to_baseline_clears_the_key() {
+        let runtime = opened_geometry_runtime().await;
+        let (root, _) = update_root(&runtime, geometry_update_fixture);
+        let signals = FakeUpdateSignals::new(waiting_update());
+        runtime.observe_update_waiting(Rc::new(signals.clone()));
+        shown_update_button(&root).await;
+        select_script_named(&root, "Script 1").await;
+        type_source(&root, "// edited then reverted");
+        by_role_name(&root, "button", "Update Now").unwrap().click();
+        shown_cancel_button(&root).await;
+        by_role_name(&root, "button", "Cancel").unwrap().click();
+        wait_until("cancellation closes the warning", || {
+            by_role_name(&root, "button", "Cancel").is_none()
+        })
+        .await;
+        type_source(&root, "// baseline");
+        by_role_name(&root, "button", "Update Now").unwrap().click();
+        wait_until("the reverted draft adopts", || signals.adoptions.get() == 1).await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_geometry_newer_typing_survives_an_older_settlement() {
+        let runtime = opened_geometry_runtime().await;
+        let (root, _) = update_root(&runtime, geometry_update_fixture);
+        let signals = FakeUpdateSignals::new(waiting_update());
+        runtime.observe_update_waiting(Rc::new(signals.clone()));
+        shown_update_button(&root).await;
+        select_script_named(&root, "Script 1").await;
+        type_source(&root, "// older submission");
+        let (entered, release) = pnsupport::gate_next_core_reply(&runtime);
+        by_role_name(&root, "button", "Apply script")
+            .unwrap()
+            .click();
+        pnsupport::drive_pending(&runtime);
+        entered.await.unwrap();
+        // Newer input while the older Apply is still in flight.
+        type_source(&root, "// newer typing");
+        release.send(()).unwrap();
+        pnsupport::run_pending(&runtime).await;
+        assert_eq!(
+            source_value(&root),
+            "// newer typing",
+            "the older settlement never overwrites newer input"
+        );
+        by_role_name(&root, "button", "Update Now").unwrap().click();
+        shown_cancel_button(&root).await;
+        assert_geometry_deferral_copy(&geometry_deferral_text(&root));
+        assert_eq!(
+            signals.adoptions.get(),
+            0,
+            "newer typing re-raises the deferral"
+        );
+        by_role_name(&root, "button", "Cancel").unwrap().click();
+        wait_until("cancellation closes the warning", || {
+            by_role_name(&root, "button", "Cancel").is_none()
+        })
+        .await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_geometry_unmount_retires_the_registration() {
+        let runtime = opened_geometry_runtime().await;
+        let (root, _) = update_root(&runtime, geometry_update_fixture);
+        let signals = FakeUpdateSignals::new(waiting_update());
+        runtime.observe_update_waiting(Rc::new(signals.clone()));
+        shown_update_button(&root).await;
+        select_script_named(&root, "Script 1").await;
+        type_source(&root, "// baseline\n// DRAFT-UNAPPLIED-008");
+        by_role_name(&root, "button", "Update Now").unwrap().click();
+        shown_cancel_button(&root).await;
+        by_role_name(&root, "button", "Cancel").unwrap().click();
+        wait_until("cancellation closes the warning", || {
+            by_role_name(&root, "button", "Cancel").is_none()
+        })
+        .await;
+        // Genuine unmount retires the registration: the gone form never blocks.
+        // The bridge stays mounted; only the editor leaves.
+        by_role_name(&root, "button", "Hide geometry editor")
+            .unwrap()
+            .click();
+        wait_until("the editor unmounts", || {
+            by_role_name(&root, "status", "Geometry editor unmounted").is_some()
+        })
+        .await;
+        by_role_name(&root, "button", "Update Now").unwrap().click();
+        wait_until("the retired owner adopts", || signals.adoptions.get() == 1).await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_hidden_geometry_editor_keeps_blocking() {
+        let runtime = opened_geometry_runtime().await;
+        let (root, _) = update_root(&runtime, geometry_update_fixture);
+        let signals = FakeUpdateSignals::new(waiting_update());
+        runtime.observe_update_waiting(Rc::new(signals.clone()));
+        shown_update_button(&root).await;
+        select_script_named(&root, "Script 1").await;
+        type_source(&root, "// baseline\n// DRAFT-UNAPPLIED-008");
+        // Hidden but mounted: the out-of-sight draft stays protected.
+        let editor = root
+            .query_selector("section[aria-label='Geometry scripts']")
+            .unwrap()
+            .expect("the editor section mounts");
+        editor.set_attribute("style", "display: none").unwrap();
+        by_role_name(&root, "button", "Update Now").unwrap().click();
+        shown_cancel_button(&root).await;
+        assert_geometry_deferral_copy(&geometry_deferral_text(&root));
+        assert_eq!(signals.adoptions.get(), 0, "a hidden owner still blocks");
+        by_role_name(&root, "button", "Cancel").unwrap().click();
+        wait_until("cancellation closes the warning", || {
+            by_role_name(&root, "button", "Cancel").is_none()
+        })
+        .await;
         root.remove();
     }
 }

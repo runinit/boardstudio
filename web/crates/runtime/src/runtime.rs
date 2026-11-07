@@ -1,5 +1,6 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
 use crate::archive_export::{ArchiveExportOptions, ArchiveWorkFuture, archive_filename};
+use crate::draft_owners::{DraftOwnerGuard, DraftOwnerRegistration, DraftOwnerRegistry};
 use crate::export_lease::{ExportKind, ExportLease, ExportLeases};
 use crate::mechanical_package::{
     critical_fit_drawing, mechanical_fabrication_notes, mechanical_filename_component,
@@ -278,6 +279,13 @@ impl PartialEq for CadScene {
 /// a Draft value its panel refuses to commit. It exists only in the page, so no
 /// engine owner can report it; the shared field controls expose it as
 /// `aria-invalid` (ticket 019).
+/// Ticket 008: the one-time diagnostic for a draft-owner entry pruned dead.
+/// Dead entries are dropped, never blockers; this names the retired owner in
+/// the browser console exactly once per entry.
+fn emit_draft_owner_diagnostic(message: &str) {
+    web_sys::console::warn_1(&message.into());
+}
+
 fn visible_invalid_draft() -> bool {
     web_sys::window()
         .and_then(|window| window.document())
@@ -369,6 +377,9 @@ pub struct Runtime {
     update_dialog: RefCell<Option<crate::update_safety::UpdateDialog>>,
     update_phase: Cell<crate::update_safety::UpdatePhase>,
     update_opener: Cell<crate::update_safety::UpdateOpener>,
+    /// Live explicit-submit draft owners (ticket 008). Polled synchronously by
+    /// [`Runtime::update_safety_inputs`] at both Update Now checkpoints.
+    draft_owners: RefCell<DraftOwnerRegistry>,
     open_sequence: Cell<u64>,
     project_deletion_pending: Cell<bool>,
     project_deletion_open: Cell<Option<OperationId>>,
@@ -487,6 +498,7 @@ impl Runtime {
             update_dialog: RefCell::new(None),
             update_phase: Cell::new(crate::update_safety::UpdatePhase::Idle),
             update_opener: Cell::new(crate::update_safety::UpdateOpener::Toast),
+            draft_owners: RefCell::new(DraftOwnerRegistry::new()),
             open_sequence: Cell::new(0),
             project_deletion_pending: Cell::new(false),
             project_deletion_open: Cell::new(None),
@@ -927,6 +939,33 @@ impl Runtime {
             self.changed();
         }
     }
+    /// Register one draft owner's admission key. The entry stays live while
+    /// the returned guard is held; dropping the guard (genuine unmount or
+    /// scope change) retires it at the next poll. Hidden, keep-mounted and
+    /// portal-retained owners keep their guard and keep blocking.
+    pub fn register_draft_owner(&self, registration: DraftOwnerRegistration) -> DraftOwnerGuard {
+        self.draft_owners.borrow_mut().register(registration)
+    }
+    /// Retire one registration silently: the normal path for genuine unmount
+    /// and scope change. Idempotent.
+    pub fn retire_draft_owner(&self, guard: DraftOwnerGuard) {
+        self.draft_owners.borrow_mut().remove(&guard);
+    }
+    /// Poll the live draft owners against the current accepted document,
+    /// pruning dead and stale-scope entries. Each pruned dead entry emits its
+    /// one-time diagnostic; dead entries never block.
+    fn poll_draft_owners(&self) -> Vec<crate::update_safety::UnresolvedDraft> {
+        let scope = self
+            .model()
+            .accepted
+            .map(|accepted| (accepted.document.id.clone(), accepted.session_epoch));
+        let mut registry = self.draft_owners.borrow_mut();
+        let unresolved = registry.poll(scope.as_ref());
+        for diagnostic in registry.take_diagnostics() {
+            emit_draft_owner_diagnostic(&diagnostic);
+        }
+        unresolved
+    }
     fn update_safety_inputs(&self) -> crate::update_safety::UpdateSafetyInputs {
         let model = self.model();
         crate::update_safety::UpdateSafetyInputs {
@@ -942,6 +981,7 @@ impl Runtime {
             storage_initializing: self.storage_initializing.get(),
             storage_failed: self.storage_error.borrow().is_some(),
             invalid_draft: visible_invalid_draft(),
+            unresolved_drafts: self.poll_draft_owners(),
         }
     }
     /// Start adopting the waiting build from the `opener` control. Rechecks the

@@ -10,23 +10,38 @@
 //! ([`Durability`], the Runtime's started-or-retained save buffer and the save
 //! conflict latch), and storage readiness (initialization and its error).
 //!
-//! Draft values live in component-local signals (inspector, layout,
+//! Explicit-submit Draft values live in component-local signals (inspector,
 //! key-selection, PCB, keycaps and mechanical panels plus the setup
-//! project-name draft) with no global registry. Two signals still make them
-//! visible to the gate. A valid typed value converts to detectable engine work
-//! when focus moves: activating Update Now blurs the focused field, which runs
-//! the panels' standard blur-commit. A value its panel refuses to commit never
-//! reaches the engine, but the shared field controls mark it `aria-invalid`;
-//! the Runtime reads that live marker into [`UpdateSafetyInputs::invalid_draft`]
-//! and the gate defers until the user fixes or clears the field.
+//! project-name draft). Live owners register with the Runtime-owned draft
+//! registry ([`crate::draft_owners`]), which the Runtime polls synchronously
+//! into [`UpdateSafetyInputs::unresolved_drafts`] at both Update Now
+//! checkpoints; any unresolved key defers adoption with its area and remedy.
+//! Two further signals still make drafts visible to the gate. A valid typed
+//! value converts to detectable engine work when focus moves: activating
+//! Update Now blurs the focused field, which runs the panels' standard
+//! blur-commit. A value its panel refuses to commit never reaches the engine,
+//! but the shared field controls mark it `aria-invalid`; the Runtime reads
+//! that live marker into [`UpdateSafetyInputs::invalid_draft`] and the gate
+//! defers until the user fixes or clears the field.
 //!
-//! Remaining recorded gap: a component that holds an uncommitted draft without
-//! committing it on blur and without marking the field invalid is not visible.
 //! The warning offers cancellation only: an acknowledgment is never permission
 //! to discard work.
 //!
 //! [`Session::has_pending_work`]: boardstudio_application::Session::has_pending_work
 use boardstudio_application::{Durability, Lifecycle};
+
+/// One unresolved admission key polled from a live draft owner: the editing
+/// area and the remedy that resolves it. Resolution happens only through the
+/// owning form's own Apply/Save or Cancel/Reset; the gate never force-submits
+/// or discards.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnresolvedDraft {
+    /// The editing area named in the deferral, e.g. "Geometry scripts".
+    pub area: String,
+    /// How this key resolves, e.g. "Apply the script edit, or cancel the edit
+    /// in the form".
+    pub remedy: String,
+}
 
 /// One reason adopting the waiting build must defer. Variants name the owning
 /// condition so the warning can tell the user what to resolve.
@@ -47,6 +62,9 @@ pub enum UpdateBlocker {
     /// A visible field holds a value its panel refuses to commit (marked
     /// `aria-invalid`). It lives only in the page, so reloading would discard it.
     InvalidDraft,
+    /// A live draft owner holds an unapplied Draft value for one admission
+    /// key. Names the editing area and its remedy.
+    UnresolvedDraft { area: String, remedy: String },
 }
 
 /// The live refresh-safety owners, read at activation time.
@@ -64,6 +82,9 @@ pub struct UpdateSafetyInputs {
     /// A visible field is marked invalid: an uncommittable Draft value that no
     /// engine owner can see.
     pub invalid_draft: bool,
+    /// Unresolved admission keys polled synchronously from the live draft
+    /// owners at activation time. Empty when no owner reports a draft.
+    pub unresolved_drafts: Vec<UnresolvedDraft>,
 }
 
 impl UpdateSafetyInputs {
@@ -79,6 +100,7 @@ impl UpdateSafetyInputs {
             storage_initializing: false,
             storage_failed: false,
             invalid_draft: false,
+            unresolved_drafts: Vec::new(),
         }
     }
 
@@ -165,6 +187,12 @@ pub fn update_safety(inputs: &UpdateSafetyInputs) -> Result<(), Vec<UpdateBlocke
     }
     if inputs.invalid_draft {
         blockers.push(UpdateBlocker::InvalidDraft);
+    }
+    for draft in &inputs.unresolved_drafts {
+        blockers.push(UpdateBlocker::UnresolvedDraft {
+            area: draft.area.clone(),
+            remedy: draft.remedy.clone(),
+        });
     }
     if blockers.is_empty() {
         Ok(())
@@ -292,6 +320,10 @@ mod tests {
                 save_conflict: true,
                 storage_failed: false,
                 invalid_draft: true,
+                unresolved_drafts: vec![UnresolvedDraft {
+                    area: "Geometry scripts".to_owned(),
+                    remedy: "Apply the script edit, or cancel the edit in the form".to_owned(),
+                }],
             },
             &[
                 UpdateBlocker::RecoveryRequired,
@@ -300,6 +332,39 @@ mod tests {
                 UpdateBlocker::SaveFailed,
                 UpdateBlocker::SaveInFlight,
                 UpdateBlocker::InvalidDraft,
+                UpdateBlocker::UnresolvedDraft {
+                    area: "Geometry scripts".to_owned(),
+                    remedy: "Apply the script edit, or cancel the edit in the form".to_owned(),
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn an_unresolved_draft_key_blocks_with_its_area_and_remedy() {
+        assert_blocked(
+            &UpdateSafetyInputs {
+                unresolved_drafts: vec![
+                    UnresolvedDraft {
+                        area: "Geometry scripts".to_owned(),
+                        remedy: "Apply the script edit, or cancel the edit in the form".to_owned(),
+                    },
+                    UnresolvedDraft {
+                        area: "Layout constraint".to_owned(),
+                        remedy: "Save the constraint or close".to_owned(),
+                    },
+                ],
+                ..UpdateSafetyInputs::settled_saved(3)
+            },
+            &[
+                UpdateBlocker::UnresolvedDraft {
+                    area: "Geometry scripts".to_owned(),
+                    remedy: "Apply the script edit, or cancel the edit in the form".to_owned(),
+                },
+                UpdateBlocker::UnresolvedDraft {
+                    area: "Layout constraint".to_owned(),
+                    remedy: "Save the constraint or close".to_owned(),
+                },
             ],
         );
     }

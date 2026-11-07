@@ -127,6 +127,7 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
     pending.bind_one_shot(ScriptActionKey::Apply(String::new()), apply_disabled);
     pending.bind_field(ScriptActionKey::Apply(String::new()), draft, failure);
     let pending_for_drop = pending.clone();
+    let runtime_for_drop = runtime.clone();
     let new_pending = new_disabled();
     let active_script = scripts.iter().find(|script| script.id == active());
     let current_owner = active_script.map(|script| ScriptOwner {
@@ -154,8 +155,94 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
             .unwrap_or_default(),
         ScriptActionKey::New => String::new(),
     });
+    // Ticket 008: register the Apply admission key with the Runtime-owned
+    // draft registry. The JSON-encoded draft stays unchanged: unresolved means
+    // the live draft differs from the owner-canonical baseline (the
+    // live-projected accepted encode, or the mount-time default snapshot when
+    // no accepted script with this id exists) and from the key's in-flight
+    // submitted value. Hidden and keep-mounted owners keep blocking through
+    // the same guard; genuine unmount and scope change retire explicitly, and
+    // the gate's poll-prune drops anything left dead instead of blocking.
+    let draft_owner_guard =
+        use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let draft_owner_scope = (snapshot.document.id.clone(), snapshot.session_epoch);
+    use_effect(use_reactive((&draft_owner_scope,), {
+        let runtime = runtime.clone();
+        let active = active;
+        let draft = draft;
+        let pending = pending.clone();
+        let mut draft_owner_guard = draft_owner_guard;
+        let draft_owner_scope = draft_owner_scope.clone();
+        move |(scope,)| {
+            let _ = scope;
+            let retired = draft_owner_guard.write().take();
+            if let Some(retired) = retired {
+                runtime.retire_draft_owner(retired);
+            }
+            let scope = draft_owner_scope.clone();
+            // The editor initialises its draft to the empty defaults; that is
+            // the baseline when no accepted script with the active id exists.
+            let mount_defaults = encode_script_draft("", "", true);
+            let probe_runtime = runtime.clone();
+            let probe_pending = pending.clone();
+            let probe_scope = scope.clone();
+            let is_unresolved = std::rc::Rc::new(move || {
+                let active_id = active.peek();
+                if active_id.is_empty() {
+                    return false;
+                }
+                let live = draft.peek().clone();
+                let baseline = probe_runtime
+                    .model()
+                    .accepted
+                    .and_then(|accepted| {
+                        if accepted.document.id != probe_scope.0
+                            || accepted.session_epoch != probe_scope.1
+                        {
+                            return None;
+                        }
+                        accepted
+                            .document
+                            .scripts
+                            .iter()
+                            .find(|script| script.id == *active_id)
+                            .map(|script| {
+                                encode_script_draft(&script.name, &script.source, script.enabled)
+                            })
+                    })
+                    .unwrap_or(mount_defaults.clone());
+                if live == baseline {
+                    return false;
+                }
+                if probe_pending
+                    .submitted_draft(&ScriptActionKey::Apply((*active_id).clone()))
+                    .as_ref()
+                    == Some(&live)
+                {
+                    return false;
+                }
+                true
+            });
+            draft_owner_guard.set(Some(runtime.register_draft_owner(
+                boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                    project_scope: scope,
+                    workspace: "Layout",
+                    owner: "geometry-scripts",
+                    admission_key: "apply",
+                    area: "Geometry scripts".to_owned(),
+                    remedy: "Apply the script edit, or cancel the edit in the form".to_owned(),
+                    is_unresolved,
+                },
+            )));
+        }
+    }));
     use_drop(move || {
         pending_for_drop.settle(false, |_| String::new());
+        let mut draft_owner_guard = draft_owner_guard;
+        let retired = draft_owner_guard.write().take();
+        if let Some(retired) = retired {
+            runtime_for_drop.retire_draft_owner(retired);
+        }
     });
     let active_identity = if active().is_empty() {
         None

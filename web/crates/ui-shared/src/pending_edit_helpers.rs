@@ -357,6 +357,14 @@ where
         self.shared.edits.borrow().is_pending(key)
     }
 
+    /// The draft the key's latest edit was submitted with, if a submission
+    /// record is held. Draft-owner adapters compare the live draft against
+    /// this so an in-flight submission for the current value reads resolved
+    /// while newer typing still reads unresolved.
+    pub fn submitted_draft(&self, key: &K) -> Option<D> {
+        self.submission_of(key).and_then(|(text, _, _)| text)
+    }
+
     /// Drain terminal results once and apply the field policy:
     ///
     /// - *Landed* and *Retired* project the accepted value (via `accepted`) into the
