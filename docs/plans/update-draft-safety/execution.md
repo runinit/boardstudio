@@ -73,7 +73,13 @@ The canonical protocol (proof map, review reports, completion record) is in
   blocks on the unresolved origin-baseline decision. Coordinator diff and documentation checks
   pass; A is complete. The reviews' original conditional/changes-required verdicts are retained,
   not restated as new reviewer PASSes. Review tasks: Standards `768d3dca`, Spec `a5503305`.
-- **B, C:** not started.
+- **B, browser lifecycle:** candidate implemented; independent Spec/Standards reviews pending.
+  Coordinator verified 16 lifecycle tests, 64 check-tool tests and the complete tooling gate.
+  Additional RED/GREEN guards cover absent ownership, retained-profile rollover, failed close
+  status, unknown process state, removal failure and profile paths containing spaces. Evidence:
+  `.evidence/update-draft-safety/abc-b-coordinator-*.log`. Real-browser acceptance remains due in
+  the single integrated lifecycle smoke after C; no new real-browser proof is claimed here.
+- **C, generated-output cleanup:** not started.
 - **012:** paused until A, B and C are complete; 013–015 stay queued behind it.
 
 This sequencing checkpoint does not change ticket scope or waive formal dependencies.

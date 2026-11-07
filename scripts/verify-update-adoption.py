@@ -138,6 +138,11 @@ class Driver:
         self.failures: list[str] = []
         self.env = dict(os.environ)
         self.session_closed = True
+        self.close_attempted = False
+        # Directory this driver created for a profile-less session, and the profile
+        # the live session was started on; cleanup deletes nothing else.
+        self.session_dir: Path | None = None
+        self.owned_profile: Path | None = None
 
     def cmd(self, text: str) -> None:
         print(f"--- cmd: {text} ---", file=self.log, flush=True)
@@ -438,6 +443,44 @@ def derive_broken(b: Path, dst: Path, kind: str, log) -> Path:
 # Shared steps.
 # ---------------------------------------------------------------------------
 
+# Settings that attach the CLI to an existing browser or reuse persisted user state.
+# agent-browser 0.39.1 precedence: ~/.agent-browser/config.json < ./agent-browser.json
+# < AGENT_BROWSER_* environment < flags, except that --config / AGENT_BROWSER_CONFIG
+# replaces both default config files. AGENT_BROWSER_PROFILE is not listed:
+# start_session always overrides it with the session's private profile.
+UNSAFE_ENV = ("AGENT_BROWSER_CDP", "AGENT_BROWSER_AUTO_CONNECT", "AGENT_BROWSER_PROVIDER",
+              "AGENT_BROWSER_RESTORE", "AGENT_BROWSER_SESSION_NAME", "AGENT_BROWSER_STATE")
+UNSAFE_CONFIG_KEYS = ("cdp", "autoConnect", "provider", "restore", "sessionName", "state")
+PROFILE_ARGS = ("--user-data-dir", "--remote-debugging", "--profile-directory")
+
+
+def inherited_settings_refusal() -> str:
+    """Why this process must not start a browser session, naming settings, never values."""
+    found = [f"environment {name}" for name in UNSAFE_ENV if os.environ.get(name)]
+    args = [("environment AGENT_BROWSER_ARGS", os.environ.get("AGENT_BROWSER_ARGS", ""))]
+    explicit = os.environ.get("AGENT_BROWSER_CONFIG")
+    configs = [ROOT / explicit] if explicit else [
+        Path.home() / ".agent-browser" / "config.json", ROOT / "agent-browser.json"]
+    for path in configs:
+        if not path.is_file():
+            continue
+        try:
+            config = json.loads(path.read_text())
+        except (OSError, ValueError):
+            config = None
+        if not isinstance(config, dict):
+            found.append(f"config {path} unreadable")
+            continue
+        found += [f"config {path} key {key}" for key in UNSAFE_CONFIG_KEYS if config.get(key)]
+        args.append((f"config {path} key args", str(config.get("args") or "")))
+    found += [f"{where} (profile or debugging-port argument)" for where, text in args
+              if any(marker in text for marker in PROFILE_ARGS)]
+    if not found:
+        return ""
+    return ("refusing inherited browser settings that could attach to or reuse user browser "
+            "state: " + "; ".join(found))
+
+
 def new_session(prefix: str) -> str:
     done = subprocess.run(["agent-browser", "session", "id", "--scope", "worktree",
                            "--prefix", prefix], cwd=ROOT, capture_output=True, text=True,
@@ -449,25 +492,45 @@ def new_session(prefix: str) -> str:
 
 
 def start_session(driver: Driver, prefix: str, url: str, profile: Path | None = None) -> None:
+    refusal = inherited_settings_refusal()
+    if refusal:
+        raise Failure(refusal)
+    if not driver.session_closed or driver.owned_profile is not None:
+        raise Failure("previous browser/profile cleanup unresolved; retain it before starting another session")
     session = new_session(prefix)
-    driver.env = dict(os.environ, AGENT_BROWSER_SESSION=session)
-    if profile is not None:
-        driver.env["AGENT_BROWSER_PROFILE"] = str(profile)
-        driver.note(f"owned browser profile: {profile}")
+    if profile is None:
+        driver.session_dir = Path(tempfile.mkdtemp(prefix="boardstudio-verify-session-"))
+        profile = driver.session_dir / "profile"
+    driver.env = dict(os.environ, AGENT_BROWSER_SESSION=session,
+                      AGENT_BROWSER_PROFILE=str(profile))
+    driver.owned_profile = profile
+    driver.note(f"owned browser profile: {profile}")
     driver.session_closed = False
+    driver.close_attempted = False
     driver.cmd(f"session: {session} (fresh isolated browser profile)")
     driver.run(["agent-browser", "open", url])
     driver.run(["agent-browser", "wait", "--text", "Your keyboards"], timeout=90)
 
 
 def end_session(driver: Driver) -> None:
+    # A profile-less session's private directory goes through the same confirmed
+    # close, exact-profile process check and removal as an explicit owned profile.
+    if driver.session_dir is None:
+        close_browser(driver)
+    else:
+        cleanup_owned_profile(driver, driver.session_dir, "session")
+
+
+def close_browser(driver: Driver) -> None:
     # A second close can start a new daemon/browser and recreate a just-deleted
     # explicit disk profile. Leg cleanup and main's finally share this guard.
-    if driver.session_closed:
+    if driver.session_closed or driver.close_attempted:
         return
+    driver.close_attempted = True
+    failures_before_close = len(driver.failures)
     try:
         closed = driver.run(["agent-browser", "close"])
-        if "Browser closed" in closed:
+        if "Browser closed" in closed and len(driver.failures) == failures_before_close:
             driver.session_closed = True
         else:
             driver.fail("session cleanup: browser close unconfirmed")
@@ -477,16 +540,27 @@ def end_session(driver: Driver) -> None:
 
 def cleanup_owned_profile(driver: Driver, directory: Path, label: str) -> None:
     """Remove only this fixture's directory after its own Chrome has exited."""
-    end_session(driver)
+    if driver.owned_profile != directory / "profile":
+        driver.fail(f"{label} cleanup: directory not owned by this session; retain it",
+                    str(directory))
+        return
+    close_browser(driver)
     if not driver.session_closed:
         driver.fail(f"{label} cleanup: close unconfirmed; retain owned directory", str(directory))
         return
     deadline = time.monotonic() + 15
     profile_arg = f"--user-data-dir={directory / 'profile'}"
     while True:
-        live = [line for line in subprocess.check_output(
-            ["ps", "-eo", "pid,args"], text=True).splitlines()
-                if profile_arg in line.split()[1:]]
+        try:
+            processes = subprocess.check_output(
+                ["ps", "-eo", "pid,args"], text=True, timeout=15)
+        except (OSError, subprocess.SubprocessError) as error:
+            driver.fail(f"{label} cleanup: process state unknown; retain owned directory",
+                        f"{directory}: {error}")
+            return
+        # ps prints argument text without shell quoting, including spaces in paths.
+        live = [line for line in processes.splitlines()
+                if re.search(r"(?<!\S)" + re.escape(profile_arg) + r"(?=\s|$)", line)]
         if not live or time.monotonic() >= deadline:
             break
         time.sleep(0.5)
@@ -495,8 +569,17 @@ def cleanup_owned_profile(driver: Driver, directory: Path, label: str) -> None:
         driver.fail(f"{label} cleanup: profile still in use; retain owned directory", str(directory))
         return
     driver.note(f"{label} profile IndexedDB before deletion: {list(directory.rglob('IndexedDB'))}")
-    shutil.rmtree(directory)
+    try:
+        shutil.rmtree(directory)
+    except OSError as error:
+        driver.fail(f"{label} cleanup: removal failed; retain owned directory",
+                    f"{directory}: {error}")
+        return
     driver.check(f"{label} owned fixture/profile/database removed", not directory.exists())
+    if not directory.exists():
+        driver.owned_profile = None
+        if driver.session_dir == directory:
+            driver.session_dir = None
 
 
 def find_ref(snapshot: str, pattern: str) -> str | None:
@@ -2093,6 +2176,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if shutil.which("agent-browser") is None:
         print("agent-browser CLI not found", flush=True)
+        return 2
+    refusal = inherited_settings_refusal()
+    if refusal:
+        print(refusal, flush=True)
         return 2
     if not port_free(args.port):
         print(f"dedicated origin port {args.port} is occupied; refusing to disturb it", flush=True)
