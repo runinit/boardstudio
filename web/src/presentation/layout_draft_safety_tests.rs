@@ -620,7 +620,10 @@ fn layout_constraint_fixture() -> Element {
     let model = runtime.model();
     let scope = runtime.scope();
     let next_context = scope.and_then(|scope| {
-        objects::context_for_part(&model, "selected-part")
+        model
+            .selected_part_ids
+            .first()
+            .and_then(|part_id| objects::context_for_part(&model, part_id))
             .map(|context| objects::ScopedTreeContext { scope, context })
     });
     if selected_context.peek().clone() != next_context {
@@ -928,6 +931,65 @@ async fn mounted_layout_constraint_failed_save_keeps_blocking() {
 }
 
 #[wasm_bindgen_test]
+async fn mounted_layout_constraint_newer_kind_and_section_survive_an_older_save() {
+    let (runtime, root, signals) = mounted_layout_constraint().await;
+    let section = by_role_name(&root, "button", "Layout constraint").unwrap();
+    section.click();
+    wait_until("constraint section opens", || {
+        section.get_attribute("aria-expanded").as_deref() == Some("true")
+    })
+    .await;
+    type_number(&root, "Offset X (mm)", "5");
+    support::run_pending(&runtime).await;
+    by_role_name(&root, "button", "Add constraint")
+        .unwrap()
+        .click();
+    let control = by_role_name(&root, "button", "Constraint type").unwrap();
+    control.click();
+    wait_until("constraint choices open", || {
+        by_role_name(&root, "option", "Mirror line").is_some()
+    })
+    .await;
+    let option = by_role_name(&root, "option", "Mirror line").unwrap();
+    for phase in ["pointerdown", "pointerup"] {
+        let pointer = web_sys::PointerEvent::new(phase).unwrap();
+        pointer.init_event_with_bubbles_and_cancelable(phase, true, true);
+        option.dispatch_event(&pointer).unwrap();
+    }
+    wait_until("newer kind selected", || {
+        control
+            .text_content()
+            .unwrap_or_default()
+            .contains("Mirror line")
+    })
+    .await;
+    section.click();
+    wait_until("newer section choice collapses", || {
+        section.get_attribute("aria-expanded").as_deref() == Some("false")
+    })
+    .await;
+    support::run_pending(&runtime).await;
+    assert_eq!(accepted_constraint_offset_x(&runtime), Some(5.0));
+    assert!(
+        control
+            .text_content()
+            .unwrap_or_default()
+            .contains("Mirror line"),
+        "older Save must preserve newer constraint kind"
+    );
+    assert_eq!(
+        section.get_attribute("aria-expanded").as_deref(),
+        Some("false"),
+        "older Save must preserve newer section choice"
+    );
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("newer kind defers", || runtime.update_dialog().is_some()).await;
+    assert_blockers_contain_layout_constraint(&deferred_draft_blockers(&runtime));
+    assert_eq!(signals.adoptions.get(), 0);
+    root.remove();
+}
+
+#[wasm_bindgen_test]
 async fn mounted_layout_constraint_newer_typing_survives_an_older_settlement() {
     let (runtime, root, signals) = mounted_layout_constraint().await;
     type_number(&root, "Offset X (mm)", "5");
@@ -1034,6 +1096,33 @@ async fn mounted_layout_constraint_accepted_update_preserves_the_open_draft() {
         signals.adoptions.get(),
         0,
         "the preserved draft never adopts"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_layout_constraint_reselection_rebinds_the_baseline_without_remount() {
+    let (runtime, root, signals) = mounted_layout_constraint().await;
+    save_constraint_offset(&runtime, &root, "5").await;
+    runtime.submit(Event::SelectParts {
+        operation_id: runtime.operation(),
+        part_ids: vec!["source-part".into()],
+        range_part_ids: vec![],
+        mode: SelectionMode::Replace,
+    });
+    support::run_pending(&runtime).await;
+    wait_until("new component defaults render", || {
+        field_value(&root, "Offset X (mm)") == "0"
+    })
+    .await;
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("untouched rebound owner adopts", || {
+        signals.adoptions.get() == 1
+    })
+    .await;
+    assert!(
+        runtime.update_dialog().is_none(),
+        "retired selected-part baseline must not block source-part"
     );
     root.remove();
 }
@@ -1155,6 +1244,79 @@ async fn mounted_layout_constraint_remove_landing_clears_the_deferral() {
         runtime.update_dialog().is_none(),
         "no deferral remains after the Remove landing"
     );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_layout_constraint_newer_input_survives_an_older_remove() {
+    let (runtime, root, signals) = mounted_layout_constraint().await;
+    save_constraint_offset(&runtime, &root, "5").await;
+    type_number(&root, "Offset X (mm)", "9");
+    support::run_pending(&runtime).await;
+    by_role_name(&root, "button", "Remove").unwrap().click();
+    type_number(&root, "Offset X (mm)", "11");
+    support::run_pending(&runtime).await;
+    assert_eq!(
+        accepted_constraint_offset_x(&runtime),
+        None,
+        "older Remove lands"
+    );
+    assert_eq!(
+        field_value(&root, "Offset X (mm)"),
+        "11",
+        "older Remove must preserve newer input"
+    );
+    runtime.begin_update(UpdateOpener::Header);
+    wait_until("newer Remove-era input defers", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_layout_constraint_deferral(&deferred_draft_blockers(&runtime));
+    assert_eq!(signals.adoptions.get(), 0);
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_layout_constraint_remove_resolves_unchanged_invalid_input() {
+    let (runtime, root, signals) = mounted_layout_constraint().await;
+    save_constraint_offset(&runtime, &root, "5").await;
+    type_number(&root, "Offset X (mm)", "");
+    support::run_pending(&runtime).await;
+    by_role_name(&root, "button", "Remove").unwrap().click();
+    support::run_pending(&runtime).await;
+    assert_eq!(accepted_constraint_offset_x(&runtime), None);
+    assert_eq!(
+        field_value(&root, "Offset X (mm)"),
+        "0",
+        "own Remove resolves unchanged invalid input"
+    );
+    runtime.begin_update(UpdateOpener::Header);
+    wait_until("resolved invalid Remove adopts", || {
+        signals.adoptions.get() == 1
+    })
+    .await;
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_layout_constraint_failed_remove_preserves_input() {
+    let (runtime, root, signals) = mounted_layout_constraint().await;
+    save_constraint_offset(&runtime, &root, "5").await;
+    type_number(&root, "Offset X (mm)", "9");
+    support::run_pending(&runtime).await;
+    support::fail_next_persist(&runtime, "Remove durable write failure");
+    by_role_name(&root, "button", "Remove").unwrap().click();
+    support::run_pending(&runtime).await;
+    assert_eq!(accepted_constraint_offset_x(&runtime), Some(5.0));
+    assert_eq!(
+        field_value(&root, "Offset X (mm)"),
+        "9",
+        "failed Remove never resets the form"
+    );
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("failed Remove defers", || runtime.update_dialog().is_some()).await;
+    assert_blockers_contain_layout_constraint(&deferred_draft_blockers(&runtime));
+    assert_eq!(signals.adoptions.get(), 0);
     root.remove();
 }
 

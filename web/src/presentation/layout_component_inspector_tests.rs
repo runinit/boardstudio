@@ -3945,9 +3945,8 @@ async fn companion_placement_mounted_edit_undo_and_core_refusal() {
     })
     .await;
 
-    // Ticket 011: the first Apply's landing reset the pair default to
-    // unchecked, so there is nothing to toggle here; the refusal is forced by
-    // the scripted invalid pair tweak below, exactly as before.
+    // Preserve the original test: Pair remains checked through Apply and Undo.
+    companion_click(&root, "checkbox", "Also set the pair default");
     choose_inspector_option(&root, "Mode", "Mirror with tweak").await;
     wait_until("the tweak fields mount", || {
         ["X tweak (mm)", "Y tweak (mm)", "Rotation tweak (degrees)"]
@@ -4132,6 +4131,119 @@ impl UpdateSignals for CompanionDraftSafetySignals {
 // `Runtime::begin_update(opener)` (008 proves that chrome), and the opener
 // is the entry-point distinction at the gate.
 
+const SAFETY_COMPANION: &str = "matrix/keys/r0c0/led";
+
+fn configure_draft_safety_companions(document: &mut ProjectDoc) {
+    configure_mirrored_part_pair(document);
+    document.definitions.push(
+        serde_json::from_value(serde_json::json!({
+            "id": "switch:base", "name": "Switch", "kind": "switch",
+            "courtyard": [], "pads": []
+        }))
+        .unwrap(),
+    );
+    document.matrices.push(
+        serde_json::from_value(serde_json::json!({
+            "id": "keys", "rows": 1, "columns": 1,
+            "pitch": {"x": 19.0, "y": 19.0}, "origin": {"x": 0.0, "y": 0.0},
+            "definitionId": "switch:base", "boardId": "board", "partIds": [],
+            "cells": [{"row": 0, "column": 0, "enabled": true,
+                "assemblies": [{"id": "led", "definitionId": "component-definition",
+                    "offset": {"x": 1.0, "y": 2.0}}]}]
+        }))
+        .unwrap(),
+    );
+    let mut mirror_matrix = document.matrices[0].clone();
+    mirror_matrix.id = "mirror-keys".into();
+    mirror_matrix.board_id = Some("mirror-board".into());
+    document.matrices.push(mirror_matrix);
+    let halves = document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    halves.correspondences = vec![
+        MirroredCorrespondence {
+            kind: MirroredItemKind::Matrix,
+            source_id: "keys".into(),
+            mirror_id: "mirror-keys".into(),
+            companion_mode: None,
+            companion_tweak: None,
+        },
+        MirroredCorrespondence {
+            kind: MirroredItemKind::Part,
+            source_id: SAFETY_COMPANION.into(),
+            mirror_id: "matrix/mirror-keys/r0c0/led".into(),
+            companion_mode: None,
+            companion_tweak: None,
+        },
+        MirroredCorrespondence {
+            kind: MirroredItemKind::Part,
+            source_id: "matrix/keys/r0c0".into(),
+            mirror_id: "matrix/mirror-keys/r0c0".into(),
+            companion_mode: None,
+            companion_tweak: None,
+        },
+    ];
+    for (board_index, id) in [
+        (0, SAFETY_COMPANION),
+        (1, "matrix/mirror-keys/r0c0/led"),
+        (0, "matrix/keys/r0c0"),
+        (1, "matrix/mirror-keys/r0c0"),
+    ] {
+        let mut part = document.parts[board_index].clone();
+        part.id = id.into();
+        if !id.ends_with("/led") {
+            part.definition_id = "switch:base".into();
+        }
+        document.parts.push(part);
+        document.boards[board_index].part_ids.push(id.into());
+        document.matrices[board_index].part_ids.push(id.into());
+    }
+}
+
+fn companion_live_runtime_host() -> Element {
+    let runtime = use_context::<Rc<crate::runtime::Runtime>>();
+    let initial = use_context::<inspector::CompanionPlacementProjection>();
+    let refuse = use_context::<Rc<std::cell::Cell<bool>>>();
+    let generation = use_signal(|| 0u64);
+    let _ = generation();
+    use_hook(|| {
+        runtime.subscribe(Rc::new(move || {
+            let mut generation = generation;
+            generation += 1;
+        }))
+    });
+    let model = runtime.model();
+    let selected = objects::ScopedTreeContext {
+        scope: runtime.scope().unwrap(),
+        context: objects::context_for_part(&model, &model.selected_part_ids[0]).unwrap(),
+    };
+    let projection = companion_placement_projection(
+        &model,
+        Some(&selected),
+        initial.owner.context_generation,
+        initial.owner.scope_generation,
+    )
+    .expect("production companion projection");
+    let pending = use_signal(|| false);
+    let error = use_signal(|| None::<String>);
+    let pending_edits = use_signal(layout_component_edits::LayoutComponentInspectorEdits::default);
+    rsx! {
+        inspector::CompanionPlacementInspector {
+            projection, pending, error, pending_edits,
+            on_apply: move |mut action: inspector::CompanionPlacementAction| {
+                if refuse.get() {
+                    action.targets.push(CompanionPlacementTarget::Pair);
+                    action.tweak = Some(boardstudio_core::model::MirroredCompanionTweak { x: 0.5, y: 0.25, rotation: 2.0 });
+                }
+                submit_layout_component_edit(&runtime, pending_edits,
+                    layout_component_edits::InspectorField::CompanionPlacement,
+                    layout_component_edits::companion_placement_resolver(action.pair_id, action.targets, action.mode, action.tweak), None);
+            },
+        }
+    }
+}
+
 async fn mounted_companion_draft_safety() -> (
     Rc<crate::runtime::Runtime>,
     web_sys::Element,
@@ -4158,32 +4270,29 @@ async fn mounted_companion_draft_safety_with(
     crate::runtime::project_name_test_support::install_memory_persistence(&runtime);
     runtime.submit(boardstudio_application::Event::Open {
         operation_id: runtime.operation(),
-        document: runtime_document(configure_mirrored_part_pair),
+        document: runtime_document(configure_draft_safety_companions),
     });
     crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    assert!(
+        runtime.model().accepted.is_some(),
+        "companion fixture Open: {:?}",
+        runtime.model()
+    );
     runtime.submit(boardstudio_application::Event::SelectParts {
         operation_id: runtime.operation(),
-        part_ids: vec!["selected-part".into()],
+        part_ids: vec![SAFETY_COMPANION.into()],
         range_part_ids: Vec::new(),
         mode: boardstudio_application::SelectionMode::Replace,
     });
     crate::runtime::project_name_test_support::run_pending(&runtime).await;
     let model = runtime.model();
-    let snapshot = model.accepted.as_ref().expect("fixture opened");
-    let scope = runtime.scope().expect("fixture scope");
-    let mut projection = companion_placement_component_projection(None);
-    projection.owner.scope = scope.clone();
-    projection.owner.context = objects::ScopedTreeContext {
-        scope,
-        context: objects::context_for_part(&model, "selected-part").expect("selected part context"),
+    let selected = objects::ScopedTreeContext {
+        scope: runtime.scope().expect("fixture scope"),
+        context: objects::context_for_part(&model, SAFETY_COMPANION)
+            .expect("selected companion context"),
     };
-    projection.owner.selected_part_ids = model.selected_part_ids.clone();
-    projection.owner.snapshot_token = snapshot.token;
-    projection.owner.revision = snapshot.document.revision;
-    projection.targets = vec![CompanionPlacementTarget::Item {
-        item_kind: boardstudio_core::model::MirroredItemKind::Part,
-        mirror_id: "source-part".into(),
-    }];
+    let projection = companion_placement_projection(&model, Some(&selected), 7, 7)
+        .expect("real eligible companion projects");
     let reject_pair_tweak = Rc::new(std::cell::Cell::new(false));
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
@@ -4379,14 +4488,47 @@ async fn mounted_companion_apply_landing_clears_the_deferral() {
     use boardstudio_web_ui_shared::test_wait::wait_until_step;
     let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
     choose_inspector_option(&root, "Mode", "Duplicate position").await;
-    // The pair default rides along so the submission lands (established
-    // fixture pattern); the click resets the box so the landed form reads
-    // clean against the baseline.
+    // Pair stays checked; only its own successful submission advances its
+    // safety baseline (the explicit 004 amendment).
     companion_click(&root, "checkbox", "Also set the pair default");
     companion_click(&root, "button", "Apply placement");
     wait_until_step("the apply lands", async || {
         crate::runtime::project_name_test_support::run_pending(&runtime).await;
         companion_pair_mode(&runtime) == MirroredCompanionMode::DuplicatePosition
+    })
+    .await;
+    assert_eq!(
+        by_role_name(&root, "checkbox", "Also set the pair default")
+            .unwrap()
+            .get_attribute("aria-checked")
+            .as_deref(),
+        Some("true"),
+        "successful Apply retains the original sticky Pair checkbox"
+    );
+    companion_click(&root, "checkbox", "Also set the pair default");
+    wait_until("the later Pair change renders", || {
+        by_role_name(&root, "checkbox", "Also set the pair default")
+            .unwrap()
+            .get_attribute("aria-checked")
+            .as_deref()
+            == Some("false")
+    })
+    .await;
+    runtime.begin_update(UpdateOpener::Header);
+    wait_until("a later Pair change blocks again", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_companion_deferral(&companion_deferred_blockers(&runtime));
+    assert_eq!(signals.adoptions.get(), 0);
+    runtime.cancel_update_dialog();
+    companion_click(&root, "checkbox", "Also set the pair default");
+    wait_until("Pair returns to its successful baseline", || {
+        by_role_name(&root, "checkbox", "Also set the pair default")
+            .unwrap()
+            .get_attribute("aria-checked")
+            .as_deref()
+            == Some("true")
     })
     .await;
     runtime.begin_update(UpdateOpener::Toast);
@@ -4476,6 +4618,22 @@ async fn mounted_companion_refused_pair_apply_preserves_pair_intent() {
     .await;
     assert_blockers_contain_companion(&companion_deferred_blockers(&runtime));
     assert_eq!(signals.adoptions.get(), 0);
+    runtime.cancel_update_dialog();
+    refuse.set(false);
+    companion_click(&root, "button", "Apply placement");
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    runtime.begin_update(UpdateOpener::Header);
+    wait_until("successful explicit retry resolves Pair", || {
+        signals.adoptions.get() == 1
+    })
+    .await;
+    assert_eq!(
+        by_role_name(&root, "checkbox", "Also set the pair default")
+            .unwrap()
+            .get_attribute("aria-checked")
+            .as_deref(),
+        Some("true")
+    );
     root.remove();
 }
 
@@ -4528,6 +4686,169 @@ async fn mounted_companion_refused_apply_keeps_blocking() {
             .value(),
         "0.5",
         "the refused draft text survives"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_failed_save_never_advances_the_pair_baseline() {
+    let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
+    choose_inspector_option(&root, "Mode", "Duplicate position").await;
+    companion_click(&root, "checkbox", "Also set the pair default");
+    crate::runtime::project_name_test_support::fail_next_persist(
+        &runtime,
+        "Pair durable write failure",
+    );
+    companion_click(&root, "button", "Apply placement");
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    assert_eq!(
+        companion_pair_mode(&runtime),
+        MirroredCompanionMode::LiteralMirror
+    );
+    choose_inspector_option(&root, "Mode", "Literal mirror").await;
+    assert_eq!(
+        by_role_name(&root, "checkbox", "Also set the pair default")
+            .unwrap()
+            .get_attribute("aria-checked")
+            .as_deref(),
+        Some("true")
+    );
+    runtime.begin_update(UpdateOpener::Header);
+    wait_until("Pair alone stays unresolved after save failure", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_blockers_contain_companion(&companion_deferred_blockers(&runtime));
+    assert_eq!(signals.adoptions.get(), 0);
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_pending_pair_control_rejects_a_queued_toggle() {
+    let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
+    choose_inspector_option(&root, "Mode", "Duplicate position").await;
+    companion_click(&root, "checkbox", "Also set the pair default");
+    companion_click(&root, "button", "Apply placement");
+    // The production control rejects even a second event queued before its
+    // pending-state render. No editable newer parameter exists on this binding.
+    companion_click(&root, "checkbox", "Also set the pair default");
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("pending Pair defers", || runtime.update_dialog().is_some()).await;
+    assert_eq!(
+        companion_deferred_blockers(&runtime),
+        vec![UpdateBlocker::PendingWork]
+    );
+    runtime.cancel_update_dialog();
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    assert_eq!(
+        companion_pair_mode(&runtime),
+        MirroredCompanionMode::DuplicatePosition
+    );
+    assert_eq!(
+        by_role_name(&root, "checkbox", "Also set the pair default")
+            .unwrap()
+            .get_attribute("aria-checked")
+            .as_deref(),
+        Some("true")
+    );
+    runtime.begin_update(UpdateOpener::Toast);
+    wait_until("only the submitted Pair baseline resolves", || {
+        signals.adoptions.get() == 1
+    })
+    .await;
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_old_owner_landing_never_baselines_the_rebound_pair() {
+    use boardstudio_web_ui_shared::test_wait::wait_until_step;
+    let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
+    choose_inspector_option(&root, "Mode", "Duplicate position").await;
+    companion_click(&root, "checkbox", "Also set the pair default");
+    let (entered, release) =
+        crate::runtime::project_name_test_support::gate_next_core_reply(&runtime);
+    companion_click(&root, "button", "Apply placement");
+    crate::runtime::project_name_test_support::drive_pending(&runtime);
+    entered.await.unwrap();
+    runtime.submit(boardstudio_application::Event::SelectParts {
+        operation_id: runtime.operation(),
+        part_ids: vec!["matrix/keys/r0c0".into()],
+        range_part_ids: vec![],
+        mode: boardstudio_application::SelectionMode::Replace,
+    });
+    wait_until("same-scope rebound Pair starts unchecked", || {
+        by_role_name(&root, "checkbox", "Also set the pair default")
+            .unwrap()
+            .get_attribute("aria-checked")
+            .as_deref()
+            == Some("false")
+    })
+    .await;
+    companion_click(&root, "checkbox", "Also set the pair default");
+    release.send(()).unwrap();
+    wait_until_step("old owner's Apply lands", async || {
+        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        companion_pair_mode(&runtime) == MirroredCompanionMode::DuplicatePosition
+    })
+    .await;
+    choose_inspector_option(&root, "Mode", "Duplicate position").await;
+    assert_eq!(
+        by_role_name(&root, "checkbox", "Also set the pair default")
+            .unwrap()
+            .get_attribute("aria-checked")
+            .as_deref(),
+        Some("true"),
+        "old owner's landing never resets the new checkbox"
+    );
+    runtime.begin_update(UpdateOpener::Header);
+    wait_until("new binding's Pair still defers", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_companion_deferral(&companion_deferred_blockers(&runtime));
+    assert_eq!(signals.adoptions.get(), 0);
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_companion_gate_projects_accepted_state_before_rerender() {
+    use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+    let (runtime, root, signals, _) = mounted_companion_draft_safety().await;
+    let armed = Rc::new(std::cell::Cell::new(true));
+    let probe_runtime = runtime.clone();
+    runtime.subscribe(Rc::new(move || {
+        if companion_pair_mode(&probe_runtime) == MirroredCompanionMode::DuplicatePosition
+            && armed.replace(false)
+        {
+            // Runtime subscribers run synchronously: Dioxus has not rerendered
+            // the old literal-mirror form when this real gate poll happens.
+            probe_runtime.begin_update(UpdateOpener::Header);
+        }
+    }));
+    let mut document = (*runtime.model().accepted.unwrap().document).clone();
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .companion_mode = MirroredCompanionMode::DuplicatePosition;
+    crate::runtime::project_name_test_support::submit_fixed_command(
+        &runtime,
+        EditCommand {
+            base_revision: document.revision,
+            transaction_id: "011-before-render".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![document.id.clone()],
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(document),
+            },
+        },
+    );
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    assert_companion_deferral(&companion_deferred_blockers(&runtime));
+    assert_eq!(
+        signals.adoptions.get(),
+        0,
+        "the stale rendered baseline cannot admit adoption"
     );
     root.remove();
 }
@@ -4600,16 +4921,14 @@ async fn mounted_companion_accepted_update_preserves_the_open_draft() {
     root.remove();
 }
 
-// Ticket 011: the draft-safety host toggles mounting for the retirement leg
-// and rebuilds the placed mode/tweak from the live accepted document on every
-// render (mirroring the production parent) so the gate baseline tracks
-// landings. Targets stay selection-derived and the owner identity stays
-// mount-stable (the helper's liveness tracking is not under test here).
+// The safety fixture uses the production projector on each render, including
+// accepted-revision and selection identity changes, just like Editor.
+// Gate freshness is tested separately before any such render can run.
 fn companion_draft_safety_host() -> Element {
     let mut show = use_signal(|| true);
     rsx! {
         if show() {
-            {companion_placement_runtime_host()}
+            {companion_live_runtime_host()}
         }
         button {
             onclick: move |_| show.set(!show()),

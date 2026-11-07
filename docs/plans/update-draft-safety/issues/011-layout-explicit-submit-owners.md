@@ -2,7 +2,7 @@
 
 Status: claimed
 Type: build
-Assignee: PiSol-011-resumed
+Assignee: FreshPiSol-011-approved
 Parent: [Draft-safe update adoption spec](../spec.md)
 Blocked by: [Draft-owner registry and Geometry scripts tracer at both Update Now checkpoints](008-registry-and-geometry-tracer.md)
 
@@ -25,7 +25,151 @@ update currently clobbers an open constraint draft.
 - [x] Hidden or keep-mounted instances of these owners keep blocking; unmount or scope change retires them.
 - [ ] Each adapter change carries its own RED/GREEN evidence through the mounted seam; focused checks pass and evidence logs follow the plan's conventions.
 
-## Resumed review remediation — blocked on Pair policy adjudication
+## Approved correction handoff (2026-11-07) — claimed, awaiting fresh reviews
+
+This section supersedes the historical remediation/progress claims below.
+The five review findings now have source fixes and focused mounted evidence;
+011 remains **claimed, NOT resolved** pending fresh Spec + Standards review
+and coordinator verification. No child subagents, full build or full gate ran.
+
+### Decision authority
+
+The coordinator asked: “Approve this narrow contract amendment? Keep Pair
+checked after Apply, but advance its safety baseline only when that Apply
+succeeds. Failure/refusal would still block, and later changes would block
+again.” The user answered: “Approved. Retry a few times when gortex fails the
+continue”. Recorded first in [004 Answer](004-choose-draft-safety-interface.md#later-user-amendment-sticky-pair-action-parameter-2026-11-07),
+with aligned [map](../map.md) and [spec](../spec.md). The historical
+[004 adversarial check](../inventory/004-contract-check.md) is unchanged.
+Only Pair gets this exception: mount-default initially, then this binding's
+own successful Apply's **submitted Pair parameter**, never a current unsent
+parameter, failure/refusal, other key or retired owner's result. No Apply
+policy or other owner's parameter baseline changed.
+
+### Findings and distinct regression purposes
+
+1. **Pair reset / resolution:** removed the click reset, retained the sticky
+   checkbox through success and Undo, and restored the original refusal test's
+   explicit uncheck before tweak mode. A separate Pair baseline advances only
+   on `Landed(CompanionPlacement)` with the submitted binding and parameter.
+   `mounted_companion_refused_pair_apply_preserves_pair_intent` preserves retry
+   intent and now exercises explicit retry to success. The existing landing
+   test now checks sticky success, later toggle deferral, and restore/clear in
+   one coherent scenario. Added durable-save failure coverage with other fields
+   restored (Pair alone still unresolved); a separate pending-control case
+   proves a queued toggle is rejected, rather than inventing newer editable
+   input while disabled. The held-Core old-owner case protects a new binding's
+   checked parameter from an older owner's successful landing.
+2. **Constraint kind/section clobber:** canonical comparison now runs before
+   kind/section writes, all within the original clean/own-landing guard.
+   `mounted_layout_constraint_newer_kind_and_section_survive_an_older_save`
+   changes Offset to Mirror line and collapses the section across an older Save;
+   both the visible choices and draft deferral survive.
+3. **Remove clobber:** Remove records its click-time canonical form and owner
+   identity. Its landing resets only matching, unchanged input; failure/retirement
+   drops that observation without resetting. Newer editable input survives an
+   older Remove. Separate unchanged-invalid and failed-Remove cases prove the
+   reset is neither disabled entirely nor allowed on failure; the original
+   clean/dirty Remove-resolution tests remain.
+4. **Companion poll freshness:** every gate poll calls the actual
+   `presentation.rs::companion_placement_projection` with the live accepted
+   model and captured owner context/generations. Render-cached accepted baseline
+   is removed; rendered targets still describe the live form, not its accepted
+   baseline. `mounted_companion_gate_projects_accepted_state_before_rerender`
+   invokes the real gate synchronously from a Runtime accepted-state subscriber,
+   before Dioxus can refresh the form. A clean-looking stale form must defer.
+5. **Binding lifetime:** L1 registration rotates on project scope, owner identity
+   and board-target IDs; its reselection test proves an untouched new component
+   no longer compares with the old component's constraint. L15 uses a private
+   binding identity (context, selection, generations, pair and canonical targets),
+   excluding accepted revision/token: revisions refresh admission, not ownership.
+   Registration rotates on this binding and scope. The production-projector
+   landing test exposed the old revision-driven checkbox reset (RED), and now
+   passes. The held-Core same-scope component→key reselection proves an older
+   landing cannot reset or baseline the rebound Pair; no keyed-remount claim is
+   substituted (production mounts in `layout_workspace.rs` are unkeyed).
+
+All new cases protect distinct failures/timing/ownership paths; no new testing
+DSL, configuration modes, ignored tests or baseline/name deletions. Existing
+mounted hosts, real Runtime lifecycle, gate and helpers are reused. The new
+eligible-companion document builder and small live-projection host were essential:
+the earlier synthetic independent-part projection cannot be reconstructed by the
+production projector and froze owner identity, masking the revision bug. Review
+focus: the older synthetic display/action host still has partially duplicated
+subscription/Apply plumbing; it remains for its original test, not broad cleanup.
+
+### RED/GREEN and checks
+
+Isolated runs use the existing `scripts/run-wasm-tests.py` functions
+`runner_environment`, `desktop_webdriver_config` and `run_filter` through a
+Python import, with the exact full test name; each launches its own browser page.
+No panic cascades are treated as independent regressions. Logs all live under
+`.evidence/update-draft-safety/011-approved-`:
+
+| Slice | Expected RED | GREEN |
+| --- | --- | --- |
+| Pair refusal | `red-pair-isolated.log`: checked `false`, expected `true` (1 failed) | `green-pair-refusal.log`: 1 passed |
+| Pair success baseline | `red-pair-success.log`: landed form still deferred | `green-pair-success.log`: 1 passed |
+| Constraint kind | `red-constraint-kind.log`: newer Mirror line overwritten | `green-constraint-kind.log`: 1 passed |
+| Remove newer input | `red-remove-newer.log`: newer `11` reset to `0` | `green-remove-newer.log`: 1 passed |
+| Poll freshness | `red-companion-poll.log`: no deferral before rerender | `green-companion-poll.log`: 1 passed |
+| Constraint reselection | `red-constraint-rebind.log`: untouched rebound owner falsely deferred | `green-constraint-rebind.log`: 1 passed |
+| Production revision binding | `red-companion-binding.log`: sticky Pair became unchecked | `green-companion-binding.log`: 1 passed |
+
+Fixture development failures (missing explicit mirrored parts before Core Open)
+were corrected before the poll RED above; they are not behavioral RED evidence.
+The first additional guard run found two invalid test assumptions (pending toggle
+is rejected; mirror-board selection needs a scope switch). The corrected pending
+control and same-board component→key owner cases pass in
+`pair-guards-recheck.log` (2 isolated passes). Refusal/retry, unchanged-invalid
+Remove and failed Remove pass in `pair-remove-guards.log`; durable Pair failure
+passes in `pair-save-failure.log`. These characterize the fix, not new mutation
+kill claims. The original 8 killed-mutant claims remain historical; 015 owns fresh
+mutation/full-gate closure.
+
+- `python3 scripts/run-wasm-tests.py --files web/src/presentation/layout_draft_safety_tests.rs web/src/presentation/layout_component_inspector_tests.rs web/src/presentation/inspector.rs`:
+  **106 executed, 0 failed**, `focused-final.log` (first integrated pass was 101/0).
+- `rustfmt --check --edition 2024 --config skip_children=true` on the four changed
+  Rust files: PASS, `fmt-final.log`. Formatting was applied through native Gortex.
+- `cargo clippy --package boardstudio-web --target wasm32-unknown-unknown --all-targets --locked --no-deps -- -D warnings`:
+  PASS, `clippy.log`. Builds/checks serialized against the shared target.
+- `python3 scripts/check-doc-links.py`: PASS, **717 Markdown files**, `doclinks.log`.
+  `git diff --check`: PASS. Full owned Rust and documentation diff read before
+  commit; no full acceptance is inferred from these checks.
+
+### Source proof and limits
+
+Native Gortex supplied all source reads/edits, pre-edit impact, post-edit detect,
+tests/guards/contract. Actual checkout `01a1b3cf-a8df-75da-ab9e-d3fe3b2d3378`
+was exact and usable despite the stale discovery banner; no source fallback,
+CLI, tracking, daemon, proxy or reindex changes. No transient retry incident
+occurred. Graph coverage reports zero WASM test edges, guards has no configured
+rules, and contract warns on behavioral complexity/blast lower bounds; contract
+attachment rebuild is **not certified current**. These do not replace mounted
+proof or fresh two-axis review.
+
+Native production proof: WorkbenchApp provides `Rc<Runtime>` at
+`presentation.rs:463` above Editor (`:722`), whose Layout mount passes both
+inspectors through `layout_workspace.rs` (component `:944`, companion `:966`).
+Thus optional-context absence is limited to isolated display fixtures, not a
+production bypass. L8's `submitted_draft` is already pending-gated in the shared
+helper; no redundant `is_pending` patch. Actual canonical enums were inspected:
+`MirrorAxis` is a derived unit enum; `CompanionPlacementTarget` is a derived tagged
+enum over strings/u32/unit/data-free `MirroredItemKind`, not arbitrary floats or
+fallible custom serializers. No concrete serialization-failure collision was
+found; no speculative JSON/typed refactor was introduced.
+
+Coordinator-owned `execution.md` and all other tickets/runtime/helpers/notifications
+were untouched. 008 trusted activation remains owed to 010; 009's 10+1 reviewed
+tests are not packaged acceptance. Worker/cache/Toast debt and umbrella 019 remain
+open. Next queue: **fresh 011 Spec + Standards reviews and coordinator independent
+full diff/reject runs, then 010 packaged proof before 012–014**. Full gate/build
+and final closure belong to coordinator 015.
+
+Authoritative child checkpoint:
+`/01a1b6ae-9da7-76e3-bc0e-8ae69844562a/notes/update-draft-safety/011-approved-fixes.md`.
+
+## Historical resumed remediation — previously blocked on Pair adjudication
 
 011 remains **claimed, NOT resolved**. The earlier progress record below is
 historical, not current acceptance: both review axes requested changes. Its

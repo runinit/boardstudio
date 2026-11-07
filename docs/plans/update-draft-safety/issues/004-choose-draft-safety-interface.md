@@ -99,6 +99,25 @@ loss), [003 persistence hold](003-locate-packaged-persistence-hold.md).
   owners later without redesign. Draft value, Pending edit, Edit preview
   and the new [Unresolved draft](../../../../GLOSSARY.md) term stay distinct.
 
+### Later user amendment: sticky Pair action parameter (2026-11-07)
+
+During [011 remediation](011-layout-explicit-submit-owners.md), the coordinator
+asked: “Approve this narrow contract amendment? Keep Pair checked after Apply,
+but advance its safety baseline only when that Apply succeeds. Failure/refusal
+would still block, and later changes would block again.” The user answered:
+“Approved. Retry a few times when gortex fails the continue”.
+
+Preserve the original sticky checkbox and its mount-time initial baseline.
+Only the Pair action parameter's safety baseline may subsequently advance, and
+only from the submitted parameter of this binding's own successful Apply.
+Failure/refusal, another admission key, an old owner's settlement, or a newer
+unsent checkbox value never advances it. Later checkbox changes block again.
+Mode, tweak and targets still use the live accepted projection at every poll,
+not the last submitted composite. This exception grants no other owner's
+action parameters a successful-submit baseline and changes no Apply policy.
+The [historical adversarial check](../inventory/004-contract-check.md) remains
+unchanged; this is a later explicit user decision, not its original conclusion.
+
 ### Alternatives considered
 
 Extending `PendingEditSignals` alone (misses unbound composite forms, no

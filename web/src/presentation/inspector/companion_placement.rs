@@ -47,6 +47,30 @@ pub struct CompanionPlacementProjection {
     pub disabled_reason: Option<&'static str>,
 }
 
+// Accepted revisions refresh admission, but do not create a new draft owner.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CompanionPlacementBinding {
+    context: crate::presentation::objects::ScopedTreeContext,
+    selected_part_ids: Vec<String>,
+    context_generation: u64,
+    scope_generation: u64,
+    pair_id: String,
+    targets: String,
+}
+
+impl CompanionPlacementProjection {
+    fn binding(&self) -> CompanionPlacementBinding {
+        CompanionPlacementBinding {
+            context: self.owner.context.clone(),
+            selected_part_ids: self.owner.selected_part_ids.clone(),
+            context_generation: self.owner.context_generation,
+            scope_generation: self.owner.scope_generation,
+            pair_id: self.pair_id.clone(),
+            targets: companion_targets_canonical(&self.targets, false),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompanionPlacementAction {
     pub owner: CompanionPlacementOwner,
@@ -68,6 +92,7 @@ pub struct CompanionPlacementInspectorProps {
 #[component]
 pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) -> Element {
     let mut placement_section_open = use_signal(|| false);
+    let binding = props.projection.binding();
 
     use super::super::layout_component_edits::InspectorField;
     let mut mode = use_signal(|| {
@@ -78,6 +103,10 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
         }
     });
     let mut pair_default = use_signal(|| false);
+    // 004's Pair-only amendment: keep the original sticky parameter; advance
+    // its safety baseline only from this binding's own successful submission.
+    let mut pair_baseline = use_signal(|| false);
+    let mut submitted_pair = use_signal(|| None::<(CompanionPlacementBinding, bool)>);
     let mut x = use_signal(|| {
         tweak_value(
             props.projection.tweak.map(|tweak| tweak.x),
@@ -96,25 +125,17 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
             props.projection.mixed_tweak,
         )
     });
-    let mut draft_owner = use_signal(|| props.projection.owner.clone());
+    let mut draft_owner = use_signal(|| binding.clone());
     // Ticket 011: the canonical value the Apply button last submitted (set only
     // on the validated path), the previously seen accepted baseline for the
-    // clean-gated follow, and the draft-owner registry guard. The guard is
-    // registered only when a Runtime is in context; fixtures without one keep
-    // the pre-011 behaviour (production always provides it, as the Geometry
-    // editor's registration proves).
+    // clean-gated follow, and the draft-owner registry guard.
+    // Production mounts inherit WorkbenchApp's Runtime provider; isolated
+    // display-only fixtures may omit it without registering a safety owner.
     let draft_owner_runtime = try_use_context::<Rc<Runtime>>();
     let submitted_companion = use_signal(|| None::<String>);
     let companion_baseline_seen = use_signal(|| companion_baseline_canonical(&props.projection));
-    // Ticket 011: the render-cadence baseline. Production parents rebuild the
-    // projection from the live accepted document on every render (the same
-    // cadence as the existing `settle` projectors); the gate compares the live
-    // form against this signal. Hosts that keep a static projection must
-    // refresh the placed mode/tweak from the accepted document the same way.
-    let mut companion_baseline_live =
-        use_signal(|| companion_baseline_canonical(&props.projection));
     // Ticket 011: the target set the live draft folds the pair default into.
-    // Refreshed from the projection alongside the baseline above.
+    // This is the rendered form's target value, not its accepted baseline.
     let mut companion_form_targets = use_signal(|| props.projection.targets.clone());
     let draft_owner_guard =
         use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
@@ -128,14 +149,16 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
     let observed_projection = props.projection.clone();
     let mut companion_baseline_seen = companion_baseline_seen;
     use_effect(use_reactive!(|observed_projection| {
-        if *draft_owner.peek() != observed_projection.owner {
-            draft_owner.set(observed_projection.owner.clone());
+        if *draft_owner.peek() != observed_projection.binding() {
+            draft_owner.set(observed_projection.binding());
             mode.set(if observed_projection.mixed_mode {
                 String::new()
             } else {
                 observed_projection.mode.map(mode_value).unwrap_or_default()
             });
             pair_default.set(false);
+            pair_baseline.set(false);
+            submitted_pair.set(None);
             x.set(tweak_value(
                 observed_projection.tweak.map(|tweak| tweak.x),
                 observed_projection.mixed_tweak,
@@ -160,11 +183,7 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
     // latest. All reads inside the effect peek so the effect never subscribes
     // to the signals it writes.
     let follow_projection = props.projection.clone();
-    let follow_baseline_now = companion_baseline_canonical(&follow_projection);
-    // The live baseline signal tracks the same value for the gate closure.
-    if follow_baseline_now != *companion_baseline_live.peek() {
-        companion_baseline_live.set(follow_baseline_now.clone());
-    }
+    let follow_baseline_now = companion_baseline_for_pair(&follow_projection, pair_baseline());
     if follow_projection.targets != *companion_form_targets.peek() {
         companion_form_targets.set(follow_projection.targets.clone());
     }
@@ -172,7 +191,6 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
         let follow_projection = follow_projection.clone();
         let follow_baseline_now = follow_baseline_now.clone();
         let mut mode = mode;
-        let mut pair_default = pair_default;
         let mut x = x;
         let mut y = y;
         let mut rotation = rotation;
@@ -196,7 +214,6 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
                     } else {
                         follow_projection.mode.map(mode_value).unwrap_or_default()
                     });
-                    pair_default.set(false);
                     x.set(tweak_value(
                         follow_projection.tweak.map(|tweak| tweak.x),
                         follow_projection.mixed_tweak,
@@ -216,10 +233,10 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
     }));
     let pending_edits = props.pending_edits.peek().clone();
     pending_edits.bind_one_shot(InspectorField::CompanionPlacement, props.pending);
-    let last_owner = use_hook(|| Rc::new(RefCell::new(None::<CompanionPlacementOwner>)));
+    let last_owner = use_hook(|| Rc::new(RefCell::new(None::<CompanionPlacementBinding>)));
     let owner_is_live = {
         let mut previous = last_owner.borrow_mut();
-        let current = props.projection.owner.clone();
+        let current = binding.clone();
         let changed = previous.as_ref().is_some_and(|owner| owner != &current);
         *previous = Some(current);
         !changed
@@ -231,14 +248,28 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
             PendingEditResult::Failed {
                 key: InspectorField::CompanionPlacement,
                 message,
-            } => error.set(Some(message)),
+            } => {
+                submitted_pair.set(None);
+                error.set(Some(message));
+            }
             PendingEditResult::Landed {
                 key: InspectorField::CompanionPlacement,
                 ..
+            } => {
+                if owner_is_live
+                    && let Some((owner, pair)) = submitted_pair.write().take()
+                    && owner == *draft_owner.peek()
+                {
+                    pair_baseline.set(pair);
+                }
+                error.set(None);
             }
-            | PendingEditResult::Retired {
+            PendingEditResult::Retired {
                 key: InspectorField::CompanionPlacement,
-            } => error.set(None),
+            } => {
+                submitted_pair.set(None);
+                error.set(None);
+            }
             _ => {}
         }
     }
@@ -259,14 +290,15 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
     // instances keep blocking through the same guard; genuine unmount retires
     // explicitly, and the gate's poll-prune drops anything left dead.
     // Registration is skipped without a Runtime context.
-    use_effect(use_reactive((&draft_owner_scope,), {
+    use_effect(use_reactive((&draft_owner_scope, &binding), {
         let draft_owner_runtime = draft_owner_runtime.clone();
         let pending_edits = pending_edits.clone();
-        let probe_baseline = companion_baseline_live;
+        let probe_owner = props.projection.owner.clone();
+        let probe_pair_id = props.projection.pair_id.clone();
         let probe_targets_handle = companion_form_targets;
         let mut draft_owner_guard = draft_owner_guard;
         let draft_owner_scope = draft_owner_scope.clone();
-        move |(scope,)| {
+        move |(scope, _binding)| {
             let _ = scope;
             let Some(runtime) = draft_owner_runtime.clone() else {
                 return;
@@ -281,6 +313,8 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
             let probe_runtime = runtime.clone();
             let probe_pending = pending_edits.clone();
             let probe_scope = scope.clone();
+            let probe_owner = probe_owner.clone();
+            let probe_pair_id = probe_pair_id.clone();
             let is_unresolved = std::rc::Rc::new(move || {
                 let pair = *pair_default.peek();
                 let live = companion_state_canonical(
@@ -297,7 +331,18 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
                 }) {
                     return false;
                 }
-                if live == *probe_baseline.peek() {
+                let Some(accepted) = super::super::companion_placement_projection(
+                    &model,
+                    Some(&probe_owner.context),
+                    probe_owner.context_generation,
+                    probe_owner.scope_generation,
+                ) else {
+                    return true;
+                };
+                if accepted.pair_id != probe_pair_id {
+                    return true;
+                }
+                if live == companion_baseline_for_pair(&accepted, *pair_baseline.peek()) {
                     return false;
                 }
                 if probe_pending.is_pending(&InspectorField::CompanionPlacement)
@@ -359,7 +404,6 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
         let projection = props.projection.clone();
         let on_apply = props.on_apply;
         let mut submitted_companion = submitted_companion;
-        let mut pair_default = pair_default;
         move |_| {
             let Some(mode) = parse_mode(&mode()) else {
                 return;
@@ -385,15 +429,8 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
             {
                 return;
             }
-            // Ticket 011: remember the submitted draft so the in-flight
-            // exemption covers exactly the current value: newer typing still
-            // defers, and the exemption dies with the pending record. The pair
-            // checkbox returns to unchecked with the submission: the accepted
-            // baseline never models Pair inclusion, so the form must not hold
-            // a checked box the baseline can never match. Mode/tweak text is
-            // preserved, so a failed Apply keeps blocking (the retry needs the
-            // box checked again).
-            pair_default.set(false);
+            // Remember exactly the submitted draft; refusal must preserve the
+            // original sticky Pair parameter so the designer can retry it.
             let (submitted_x, submitted_y, submitted_rotation) = tweak
                 .map(|tweak| {
                     (
@@ -403,6 +440,7 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
                     )
                 })
                 .unwrap_or(("none".to_owned(), "none".to_owned(), "none".to_owned()));
+            submitted_pair.set(Some((projection.binding(), pair_default())));
             submitted_companion.set(Some(companion_state_canonical(
                 &mode_value(mode),
                 targets
@@ -701,9 +739,12 @@ fn companion_state_canonical(
 
 /// Ticket 011: the canonical baseline — the live-projected placement encoded
 /// through the same canonicalizer as the live draft, so equality means what
-/// the owning form means by "unchanged". The pair default baselines to
-/// unchecked; its resolution after a landing rides the Landed result.
+/// the owning form means by "unchanged". Pair initially baselines to unchecked.
 fn companion_baseline_canonical(projection: &CompanionPlacementProjection) -> String {
+    companion_baseline_for_pair(projection, false)
+}
+
+fn companion_baseline_for_pair(projection: &CompanionPlacementProjection, pair: bool) -> String {
     let mode = if projection.mixed_mode {
         String::new()
     } else {
@@ -711,7 +752,7 @@ fn companion_baseline_canonical(projection: &CompanionPlacementProjection) -> St
     };
     companion_state_canonical(
         &mode,
-        false,
+        pair,
         &tweak_value(
             projection.tweak.map(|tweak| tweak.x),
             projection.mixed_tweak,
@@ -724,7 +765,7 @@ fn companion_baseline_canonical(projection: &CompanionPlacementProjection) -> St
             projection.tweak.map(|tweak| tweak.rotation),
             projection.mixed_tweak,
         ),
-        &companion_targets_canonical(&projection.targets, false),
+        &companion_targets_canonical(&projection.targets, pair),
     )
 }
 

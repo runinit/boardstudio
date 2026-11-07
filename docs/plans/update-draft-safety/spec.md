@@ -126,7 +126,12 @@ auto-committed and nothing is discarded on the designer's behalf.
   values and focus, and never force-submits or discards. Resolution happens
   only through the owning form's own Apply/Save or Cancel/Reset. Successful
   landing updates the baseline; failure or refusal never clears; newer typing
-  re-raises.
+  re-raises. The later user-approved [Pair-only amendment](issues/004-choose-draft-safety-interface.md#later-user-amendment-sticky-pair-action-parameter-2026-11-07)
+  preserves the sticky checkbox and its mount-time initial baseline, advancing
+  only its safety baseline from this binding's own successful Apply's submitted
+  Pair parameter. Failure/refusal, other keys, old owners and newer unsent
+  values never advance it; later changes block again. Mode/tweak/targets stay
+  live accepted projections at each poll. Other owners retain the original rule.
 - **Copy.** The per-(owner, admission-key) label and remedy table is built
   during implementation against the contract's copy rule and reviewed at the
   review gate; the literal strings are implementation content, not an open

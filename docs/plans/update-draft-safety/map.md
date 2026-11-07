@@ -67,6 +67,8 @@ proof. Reaching this destination does not implement the fix or close the adoptio
 - [Locate a deterministic packaged persistence hold](issues/003-locate-packaged-persistence-hold.md): the existing `gate_next_persist` hold is pre-transaction at the `DocumentPersistence` port (real BrowserStore target, demonstrated entered/`Saving`/release/`Saved` in fresh browser tests) but is compiled out of packaged builds and in-process-only, so packaged verification needs the named diagnostic-only gated-persistence adapter and reuse protocol the ticket specifies; no packaged held-save safety is claimed yet.
 - [Agree the verification plan and implementation handoff](issues/006-agree-verification-and-implementation-handoff.md): user-confirmed implementation-ready handoff — the Answer indexes all owning decisions and fixes the mandatory RED/GREEN inventory, native/mounted vs packaged split, checks/mutation/full-gate/evidence obligations, ownership and RED → mounted GREEN → packaged GREEN stopping points, with the Class B revocation trigger recorded and no hidden decision left; implementation still needs a subsequent instruction.
 
+- **2026-11-07 later Pair amendment:** [004 Answer](issues/004-choose-draft-safety-interface.md#later-user-amendment-sticky-pair-action-parameter-2026-11-07) records explicit user approval to preserve sticky Pair after Apply and advance only that binding's Pair safety baseline from its own successfully submitted parameter. Failure/refusal and later changes still block; all accepted fields remain live-projected per poll. No generalized action-parameter exception.
+
 ## Not yet specified
 
 - (Graduated 2026-11-07: the census's named unread regions and untraced lifetimes

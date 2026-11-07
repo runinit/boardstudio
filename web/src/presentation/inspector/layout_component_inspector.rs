@@ -1084,11 +1084,11 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     // (set only on the validated path), the previously seen accepted baseline
     // for the clean-gated resync, the count of drained landings for the
     // constraint admission key, and the draft-owner registry guard. The guard
-    // is registered only when a Runtime is in context; fixtures without one
-    // keep the pre-011 behaviour (production always provides it, as the
-    // Geometry editor's registration proves).
+    // is registered under WorkbenchApp's production Runtime provider;
+    // isolated display-only fixtures may omit it.
     let draft_owner_runtime = try_use_context::<Rc<Runtime>>();
     let mut submitted_constraint = use_signal(|| None::<String>);
+    let mut submitted_remove = use_signal(|| None::<(InspectorOwnerIdentity, String)>);
     let constraint_baseline_seen = use_signal(|| None::<String>);
     let mut constraint_landed_nonce = use_signal(|| 0u64);
     let constraint_landed_seen = use_signal(|| None::<u64>);
@@ -1319,17 +1319,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         let mut constraint_landed_seen = constraint_landed_seen;
         let submitted_constraint = submitted_constraint;
         move |((_, constraint), nonce)| {
-            // Section chrome always follows the accepted document; the draft
-            // fields below only follow while clean (see below).
-            constraint_open.set(constraint.is_some());
-            constraint_kind.set(match constraint.as_ref() {
-                Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
-                Some(Constraint::Framed {
-                    relation: ConstraintRelation::MirrorLine { .. },
-                    ..
-                }) => ConstraintKind::MirrorLine,
-                _ => ConstraintKind::Offset,
-            });
             // Ticket 011: settlement-time draft preservation. The resync runs
             // while the live form still matches the previously seen baseline
             // (a clean form follows a new accepted value). It also runs when
@@ -1367,6 +1356,15 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             let follows_own_landing =
                 just_landed && submitted_constraint.peek().as_ref() == Some(&live);
             if clean || follows_own_landing {
+                constraint_open.set(constraint.is_some());
+                constraint_kind.set(match constraint.as_ref() {
+                    Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
+                    Some(Constraint::Framed {
+                        relation: ConstraintRelation::MirrorLine { .. },
+                        ..
+                    }) => ConstraintKind::MirrorLine,
+                    _ => ConstraintKind::Offset,
+                });
                 let drafts = offset_drafts(constraint.as_ref(), &board_parts, &part_id);
                 source_part_id.set(drafts.source_part_id);
                 offset_axes.set(drafts.axes);
@@ -1500,9 +1498,8 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             .unwrap_or_default(),
         _ => String::new(),
     });
-    // Ticket 011: the owner's own Remove landing resolves the draft — reset
-    // the form to the no-constraint defaults. Failure or refusal drains no
-    // Landed result, so the open draft is preserved and keeps blocking.
+    // Remove resolves only the draft it observed at the click. A newer
+    // editable value survives its older landing; failure/refusal never resets.
     // A Landed Save (or axes conversion, which shares the Constraint key)
     // bumps the landing nonce so the accepted-constraint effect can follow
     // the landed result while the screen still shows the submitted value.
@@ -1518,13 +1515,41 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 key: super::super::layout_component_edits::InspectorField::RemoveConstraint,
                 ..
             } => remove_landed = true,
+            PendingEditResult::Failed {
+                key: super::super::layout_component_edits::InspectorField::RemoveConstraint,
+                ..
+            }
+            | PendingEditResult::Retired {
+                key: super::super::layout_component_edits::InspectorField::RemoveConstraint,
+            } => submitted_remove.set(None),
             _ => {}
         }
     }
     if constraint_landed {
         constraint_landed_nonce.set(constraint_landed_nonce() + 1);
     }
-    if remove_landed {
+    let remove_may_reset = remove_landed
+        && submitted_remove
+            .write()
+            .take()
+            .is_some_and(|(submitted_owner, submitted)| {
+                submitted_owner == identity
+                    && submitted
+                        == constraint_draft_canonical(ConstraintFormState {
+                            kind: *constraint_kind.peek(),
+                            source_part_id: &source_part_id.peek(),
+                            axes: *offset_axes.peek(),
+                            offset_x: &offset_x.peek(),
+                            offset_y: &offset_y.peek(),
+                            rotation: &rotation.peek(),
+                            mirror_axis: &mirror_axis.peek(),
+                            mirror_coordinate: &mirror_coordinate.peek(),
+                            mirror_line_x: &mirror_line_x.peek(),
+                            mirror_line_y: &mirror_line_y.peek(),
+                            mirror_line_angle: &mirror_line_angle.peek(),
+                        })
+            });
+    if remove_may_reset {
         let defaults = offset_drafts(None, &board_parts, &part_id);
         constraint_kind.set(ConstraintKind::Offset);
         source_part_id.set(defaults.source_part_id);
@@ -1552,7 +1577,15 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     // Hidden and keep-mounted instances keep blocking through the same guard;
     // genuine unmount retires explicitly, and the gate's poll-prune drops
     // anything left dead. Registration is skipped without a Runtime context.
-    use_effect(use_reactive((&draft_owner_scope,), {
+    let draft_owner_binding = (
+        draft_owner_scope.clone(),
+        identity.clone(),
+        board_parts
+            .iter()
+            .map(|part| part.id.clone())
+            .collect::<Vec<_>>(),
+    );
+    use_effect(use_reactive((&draft_owner_binding,), {
         let draft_owner_runtime = draft_owner_runtime.clone();
         let constraint_kind = constraint_kind;
         let source_part_id = source_part_id;
@@ -1571,8 +1604,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         let part_id = part_id.clone();
         let mut draft_owner_guard = draft_owner_guard;
         let draft_owner_scope = draft_owner_scope.clone();
-        move |(scope,)| {
-            let _ = scope;
+        move |(_binding,)| {
             let Some(runtime) = draft_owner_runtime.clone() else {
                 return;
             };
@@ -2055,6 +2087,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         .map(|constraint| constraint.id().to_owned());
     let remove_constraint = {
         let latest_capture = latest_capture;
+        let identity = identity.clone();
         let mut submitted_constraint = submitted_constraint;
         let action = props.on_action;
         move |_| {
@@ -2062,6 +2095,22 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 // Ticket 011: a removal carries no draft value; drop any
                 // older submitted memory so it can never exempt newer input.
                 submitted_constraint.set(None);
+                submitted_remove.set(Some((
+                    identity.clone(),
+                    constraint_draft_canonical(ConstraintFormState {
+                        kind: constraint_kind(),
+                        source_part_id: &source_part_id(),
+                        axes: offset_axes(),
+                        offset_x: &offset_x(),
+                        offset_y: &offset_y(),
+                        rotation: &rotation(),
+                        mirror_axis: &mirror_axis(),
+                        mirror_coordinate: &mirror_coordinate(),
+                        mirror_line_x: &mirror_line_x(),
+                        mirror_line_y: &mirror_line_y(),
+                        mirror_line_angle: &mirror_line_angle(),
+                    }),
+                )));
                 action.call(LayoutComponentInspectorAction::RemoveConstraint {
                     owner: latest_capture(),
                     constraint_id: constraint_id.clone(),
