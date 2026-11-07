@@ -356,7 +356,104 @@ impl DiagnosticPersistGateHandle {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wasm_bindgen::{JsCast, JsValue, closure::Closure};
     use wasm_bindgen_test::wasm_bindgen_test;
+
+    const WAIT_BOUND_MS: f64 = 5_000.0;
+    const POLL_MS: u32 = 5;
+
+    // A returned check failure lets the fixture await deletion before the harness
+    // reports it. Panic-abort/traps cannot run asynchronous Drop on wasm.
+    macro_rules! check {
+        ($condition:expr, $($message:tt)+) => {
+            let passed = $condition;
+            if !passed {
+                return Err(format!($($message)+));
+            }
+        };
+    }
+
+    macro_rules! check_eq {
+        ($actual:expr, $expected:expr $(, $message:literal)? $(,)?) => {{
+            let (actual, expected) = ($actual, $expected);
+            check!(
+                actual == expected,
+                "{}: got {actual:?}, expected {expected:?}",
+                concat!(stringify!($actual), $(": ", $message,)?)
+            );
+        }};
+    }
+
+    struct DatabaseCallbacks {
+        request: web_sys::IdbOpenDbRequest,
+        _success: Closure<dyn FnMut(web_sys::Event)>,
+        _error: Closure<dyn FnMut(web_sys::Event)>,
+        _blocked: Closure<dyn FnMut(web_sys::Event)>,
+    }
+
+    impl Drop for DatabaseCallbacks {
+        fn drop(&mut self) {
+            self.request.set_onsuccess(None);
+            self.request.set_onerror(None);
+            self.request.set_onblocked(None);
+        }
+    }
+
+    fn database_factory() -> Result<web_sys::IdbFactory, String> {
+        web_sys::window()
+            .ok_or("no test window")?
+            .indexed_db()
+            .map_err(|error| format!("IndexedDB unavailable: {error:?}"))?
+            .ok_or_else(|| "IndexedDB unavailable".to_owned())
+    }
+
+    async fn database_request(request: web_sys::IdbOpenDbRequest) -> Result<JsValue, String> {
+        let outcome = Rc::new(RefCell::new(None));
+        let success = outcome.clone();
+        let success_request = request.clone();
+        let on_success = Closure::<dyn FnMut(web_sys::Event)>::new(move |_| {
+            success.borrow_mut().get_or_insert_with(|| {
+                success_request
+                    .result()
+                    .map_err(|error| format!("IndexedDB result: {error:?}"))
+            });
+        });
+        let error = outcome.clone();
+        let error_request = request.clone();
+        let on_error = Closure::<dyn FnMut(web_sys::Event)>::new(move |_| {
+            error.borrow_mut().get_or_insert_with(|| {
+                Err(format!(
+                    "IndexedDB request error: {:?}",
+                    error_request.error()
+                ))
+            });
+        });
+        let blocked = outcome.clone();
+        let on_blocked = Closure::<dyn FnMut(web_sys::Event)>::new(move |_| {
+            blocked.borrow_mut().get_or_insert_with(|| {
+                Err("IndexedDB request blocked by an open connection".to_owned())
+            });
+        });
+        request.set_onsuccess(Some(on_success.as_ref().unchecked_ref()));
+        request.set_onerror(Some(on_error.as_ref().unchecked_ref()));
+        request.set_onblocked(Some(on_blocked.as_ref().unchecked_ref()));
+        let _callbacks = DatabaseCallbacks {
+            request,
+            _success: on_success,
+            _error: on_error,
+            _blocked: on_blocked,
+        };
+        let deadline = js_sys::Date::now() + WAIT_BOUND_MS;
+        loop {
+            if let Some(result) = outcome.borrow_mut().take() {
+                return result;
+            }
+            if js_sys::Date::now() >= deadline {
+                return Err("IndexedDB request timed out without a terminal event".to_owned());
+            }
+            pump(POLL_MS).await;
+        }
+    }
 
     fn unique_database(tag: &str) -> String {
         format!("boardstudio-diagnostic-gate-{tag}-{}", js_sys::Date::now())
@@ -368,18 +465,175 @@ mod tests {
             .unwrap()
     }
 
-    async fn delete_database(name: &str) {
-        web_sys::window()
-            .unwrap()
-            .indexed_db()
-            .unwrap()
-            .unwrap()
+    async fn delete_database(name: &str) -> Result<(), String> {
+        let request = database_factory()?
             .delete_database(name)
-            .unwrap();
+            .map_err(|error| format!("delete {name}: {error:?}"))?;
+        database_request(request)
+            .await
+            .map(|_| ())
+            .map_err(|error| format!("delete {name}: {error}"))
+    }
+
+    #[wasm_bindgen_test]
+    async fn cleanup_reports_blocked_instead_of_attesting_deletion() {
+        let name = unique_database("blocked");
+        let request = database_factory().unwrap().open(&name).unwrap();
+        let connection: web_sys::IdbDatabase =
+            database_request(request).await.unwrap().dyn_into().unwrap();
+        let outcome = delete_database(&name).await;
+        connection.close();
+        delete_database(&name).await.unwrap();
+        assert!(
+            outcome.is_err_and(|error| error.contains("blocked")),
+            "an open connection must make cleanup fail honestly"
+        );
     }
 
     async fn pump(milliseconds: u32) {
         gloo_timers::future::TimeoutFuture::new(milliseconds).await;
+    }
+
+    async fn in_database(
+        name: &str,
+        test: impl Future<Output = Result<(), String>>,
+    ) -> Result<(), String> {
+        let outcome = test.await;
+        let cleanup = delete_database(name).await;
+        match (outcome, cleanup) {
+            (Ok(()), Ok(())) => Ok(()),
+            (Err(error), Ok(())) => Err(error),
+            (outcome, Err(error)) => Err(format!(
+                "test outcome: {outcome:?}; cleanup failed: {error}"
+            )),
+        }
+    }
+
+    async fn entered_snapshot(
+        gate: &DiagnosticPersistGate,
+        mut save: Pin<&mut impl Future<Output = Result<StorageToken, SaveError>>>,
+    ) -> Result<GateSnapshot, String> {
+        let deadline = js_sys::Date::now() + WAIT_BOUND_MS;
+        loop {
+            // Own the save rather than detach a task: a failed check drops it
+            // before deletion, so an unreleased hold cannot write later.
+            let ack =
+                std::future::poll_fn(|cx| std::task::Poll::Ready(save.as_mut().poll(cx))).await;
+            check!(
+                ack.is_pending(),
+                "held save acknowledged before release: {ack:?}"
+            );
+            let snapshot = gate.snapshot();
+            if snapshot.entered {
+                return Ok(snapshot);
+            }
+            check!(
+                js_sys::Date::now() < deadline,
+                "save never entered the gate: {snapshot:?}"
+            );
+            pump(POLL_MS).await;
+        }
+    }
+
+    async fn released_ack(
+        mut save: Pin<&mut impl Future<Output = Result<StorageToken, SaveError>>>,
+    ) -> Result<Result<StorageToken, SaveError>, String> {
+        let deadline = js_sys::Date::now() + WAIT_BOUND_MS;
+        loop {
+            if let std::task::Poll::Ready(outcome) =
+                std::future::poll_fn(|cx| std::task::Poll::Ready(save.as_mut().poll(cx))).await
+            {
+                return Ok(outcome);
+            }
+            check!(
+                js_sys::Date::now() < deadline,
+                "released save never acknowledged"
+            );
+            pump(POLL_MS).await;
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn cleanup_awaits_deletion_even_after_a_failed_check() {
+        let name = unique_database("failed-check");
+        let outcome = in_database(&name, async {
+            let store = open_store(&name);
+            let document = probe_document("Cleanup failure-path fixture", 1);
+            store
+                .save_document(&document, &BTreeMap::new())
+                .await
+                .map_err(|error| error.to_string())?;
+            check!(false, "deliberate failed check");
+            Ok(())
+        })
+        .await;
+
+        // Opening an absent database raises upgradeneeded; opening a retained
+        // database would not. Close and delete this verification open as well.
+        let request = database_factory().unwrap().open(&name).unwrap();
+        let recreated = Rc::new(std::cell::Cell::new(false));
+        let observed = recreated.clone();
+        let on_upgrade = Closure::<dyn FnMut(web_sys::Event)>::new(move |_| observed.set(true));
+        request.set_onupgradeneeded(Some(on_upgrade.as_ref().unchecked_ref()));
+        let opened = database_request(request.clone()).await;
+        request.set_onupgradeneeded(None);
+        let connection: web_sys::IdbDatabase = opened.unwrap().dyn_into().unwrap();
+        connection.close();
+        delete_database(&name).await.unwrap();
+        assert_eq!(outcome, Err("deliberate failed check".to_owned()));
+        assert!(
+            recreated.get(),
+            "failed checks must still await actual deletion"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn cleanup_error_event_is_reported_and_callbacks_detach() {
+        let name = unique_database("error-event");
+        let request = database_factory().unwrap().delete_database(&name).unwrap();
+        let mut waiting = std::pin::pin!(database_request(request.clone()));
+        let initial =
+            std::future::poll_fn(|cx| std::task::Poll::Ready(waiting.as_mut().poll(cx))).await;
+        // Synthetic error exercises the handler deterministically, not a claim
+        // that the browser's storage backend suffered a real deletion error.
+        request
+            .dispatch_event(&web_sys::Event::new("error").unwrap())
+            .unwrap();
+        let outcome = waiting.await;
+        let detached = request.onsuccess().is_none()
+            && request.onerror().is_none()
+            && request.onblocked().is_none();
+        delete_database(&name).await.unwrap();
+        assert!(initial.is_pending());
+        assert!(outcome.is_err_and(|error| error.contains("request error")));
+        assert!(
+            detached,
+            "error callbacks must not outlive their Rust closures"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn queued_cleanup_times_out_and_detaches_without_claiming_success() {
+        let name = unique_database("timeout");
+        let open = database_factory().unwrap().open(&name).unwrap();
+        let connection: web_sys::IdbDatabase =
+            database_request(open).await.unwrap().dyn_into().unwrap();
+        let blocked = delete_database(&name).await;
+        // This deletion is queued behind the first, still-blocked deletion: no
+        // event can complete it until the real connection is closed below.
+        let request = database_factory().unwrap().delete_database(&name).unwrap();
+        let outcome = database_request(request.clone()).await;
+        let detached = request.onsuccess().is_none()
+            && request.onerror().is_none()
+            && request.onblocked().is_none();
+        connection.close();
+        delete_database(&name).await.unwrap();
+        assert!(blocked.is_err_and(|error| error.contains("blocked")));
+        assert!(outcome.is_err_and(|error| error.contains("timed out")));
+        assert!(
+            detached,
+            "timeout must detach callbacks before dropping closures"
+        );
     }
 
     fn probe_document(name: &str, revision: u64) -> ProjectDoc {
@@ -391,199 +645,167 @@ mod tests {
     #[wasm_bindgen_test]
     async fn held_save_reports_entered_without_ack_or_durable_write_until_released() {
         let database = unique_database("hold");
-        let store = open_store(&database);
-        let gate = DiagnosticPersistGate::through_store(store.clone());
-        let document = probe_document("Diagnostic hold probe", 7);
+        let result = in_database(&database, async {
+            let store = open_store(&database);
+            let gate = DiagnosticPersistGate::through_store(store.clone());
+            let document = probe_document("Diagnostic hold probe", 7);
+            gate.arm_hold();
+            let mut save = std::pin::pin!(async {
+                // Deliberately enter later than the former 150 ms guess. This is
+                // latency stimulus, not a sleep used to decide readiness.
+                pump(250).await;
+                gate.save_document(&document, &BTreeMap::new(), None).await
+            });
+            let snapshot = entered_snapshot(&gate, save.as_mut()).await?;
+            check_eq!(snapshot.document_id.as_deref(), Some("diagnostic-009"));
+            check_eq!(
+                snapshot.document_name.as_deref(),
+                Some("Diagnostic hold probe")
+            );
+            check_eq!(snapshot.revision, Some(7));
+            check!(!snapshot.released, "nothing released the held save yet");
+            check_eq!(snapshot.acked, None, "the store acknowledged nothing yet");
+            check_eq!(
+                store
+                    .load_document("diagnostic-009".to_owned())
+                    .await
+                    .map_err(|error| error.to_string())?,
+                None,
+                "the entered, unanswered save made no durable change"
+            );
 
-        gate.arm_hold();
-        let completed: Rc<RefCell<Option<Result<StorageToken, SaveError>>>> =
-            Rc::new(RefCell::new(None));
-        let done = completed.clone();
-        let held = gate.clone();
-        let held_document = document.clone();
-        wasm_bindgen_futures::spawn_local(async move {
-            let outcome = held
-                .save_document(&held_document, &BTreeMap::new(), None)
-                .await;
-            *done.borrow_mut() = Some(outcome);
-        });
-        pump(150).await;
-
-        assert!(
-            completed.borrow().is_none(),
-            "the held save receives no acknowledgement while armed"
-        );
-        let snapshot = gate.snapshot();
-        assert!(snapshot.entered, "the save is entered at the gate");
-        assert_eq!(snapshot.document_id.as_deref(), Some("diagnostic-009"));
-        assert_eq!(
-            snapshot.document_name.as_deref(),
-            Some("Diagnostic hold probe")
-        );
-        assert_eq!(snapshot.revision, Some(7));
-        assert!(!snapshot.released, "nothing released the held save yet");
-        assert_eq!(snapshot.acked, None, "the store acknowledged nothing yet");
-        assert_eq!(
-            store
+            gate.release();
+            released_ack(save.as_mut())
+                .await?
+                .map_err(|error| error.to_string())?;
+            let snapshot = gate.snapshot();
+            check!(snapshot.released, "the release is attested");
+            check_eq!(snapshot.acked.as_deref(), Some("completed"));
+            let reopened = store
                 .load_document("diagnostic-009".to_owned())
                 .await
-                .map_err(|error| error.to_string())
-                .unwrap(),
-            None,
-            "the held save made no durable change"
-        );
-
-        gate.release();
-        for _ in 0..100 {
-            if completed.borrow().is_some() {
-                break;
-            }
-            pump(50).await;
-        }
-        let outcome = completed
-            .borrow_mut()
-            .take()
-            .expect("release acks the save");
-        outcome.expect("the released save completes against the real store");
-        let snapshot = gate.snapshot();
-        assert!(snapshot.released, "the release is attested");
-        assert_eq!(snapshot.acked.as_deref(), Some("completed"));
-        let reopened = store
-            .load_document("diagnostic-009".to_owned())
-            .await
-            .map_err(|error| error.to_string())
-            .unwrap()
-            .expect("the released save is durable");
-        assert_eq!(reopened.name, "Diagnostic hold probe");
-        assert_eq!(reopened.revision, 7);
-        delete_database(&database).await;
+                .map_err(|error| error.to_string())?
+                .ok_or("the released save is not durable")?;
+            check_eq!(reopened.name, "Diagnostic hold probe");
+            check_eq!(reopened.revision, 7);
+            Ok(())
+        })
+        .await;
+        assert_eq!(result, Ok(()));
     }
 
     #[wasm_bindgen_test]
     async fn armed_fail_aborts_without_durable_write_and_explicit_retry_succeeds() {
         let database = unique_database("fail");
-        let store = open_store(&database);
-        let gate = DiagnosticPersistGate::through_store(store.clone());
-        let document = probe_document("Diagnostic fail probe", 3);
-
-        gate.arm_fail("diagnostic quota");
-        let outcome = gate.save_document(&document, &BTreeMap::new(), None).await;
-        assert!(
-            matches!(outcome, Err(SaveError::Storage(_))),
-            "the armed fail aborts the save, got {outcome:?}"
-        );
-        assert_eq!(
-            store
+        let result = in_database(&database, async {
+            let store = open_store(&database);
+            let gate = DiagnosticPersistGate::through_store(store.clone());
+            let document = probe_document("Diagnostic fail probe", 3);
+            gate.arm_fail("diagnostic quota");
+            let outcome = gate.save_document(&document, &BTreeMap::new(), None).await;
+            check!(
+                matches!(outcome, Err(SaveError::Storage(_))),
+                "the armed fail must abort, got {outcome:?}"
+            );
+            check_eq!(
+                store
+                    .load_document("diagnostic-009".to_owned())
+                    .await
+                    .map_err(|error| error.to_string())?,
+                None,
+                "the failed save wrote nothing durable"
+            );
+            gate.save_document(&document, &BTreeMap::new(), None)
+                .await
+                .map_err(|error| error.to_string())?;
+            let reopened = store
                 .load_document("diagnostic-009".to_owned())
                 .await
-                .map_err(|error| error.to_string())
-                .unwrap(),
-            None,
-            "the failed save wrote nothing durable"
-        );
-
-        gate.save_document(&document, &BTreeMap::new(), None)
-            .await
-            .expect("an explicit retry succeeds once the single-armed fail is spent");
-        let reopened = store
-            .load_document("diagnostic-009".to_owned())
-            .await
-            .map_err(|error| error.to_string())
-            .unwrap()
-            .expect("the retry is durable");
-        assert_eq!(reopened.name, "Diagnostic fail probe");
-        delete_database(&database).await;
+                .map_err(|error| error.to_string())?
+                .ok_or("the retry is not durable")?;
+            check_eq!(reopened.name, "Diagnostic fail probe");
+            Ok(())
+        })
+        .await;
+        assert_eq!(result, Ok(()));
     }
 
     #[wasm_bindgen_test]
     async fn hold_then_fail_releases_into_failure_atomically_and_disarms() {
         let database = unique_database("hold-fail");
-        let store = open_store(&database);
-        let gate = DiagnosticPersistGate::through_store(store.clone());
+        let result = in_database(&database, async {
+            let store = open_store(&database);
+            let gate = DiagnosticPersistGate::through_store(store.clone());
+            let baseline = probe_document("Diagnostic baseline", 4);
+            gate.save_document(&baseline, &BTreeMap::new(), None)
+                .await
+                .map_err(|error| error.to_string())?;
+            let token = StorageToken::for_document(&baseline).map_err(|error| error.to_string())?;
+            let attempted = probe_document("Diagnostic overwritten", 5);
+            gate.arm_hold_then_fail("diagnostic quota");
+            let assets = BTreeMap::new();
+            let mut save = std::pin::pin!(gate.save_document(&attempted, &assets, Some(&token)));
+            let snapshot = entered_snapshot(&gate, save.as_mut()).await?;
+            check!(
+                snapshot.expected_token_present,
+                "entry records the expected token"
+            );
+            check_eq!(
+                snapshot.acked,
+                None,
+                "the store acknowledged nothing before release"
+            );
+            check_eq!(
+                store
+                    .load_document("diagnostic-009".to_owned())
+                    .await
+                    .map_err(|error| error.to_string())?,
+                Some(baseline.clone()),
+                "the entered hold made no durable change"
+            );
 
-        let baseline = probe_document("Diagnostic baseline", 4);
-        gate.save_document(&baseline, &BTreeMap::new(), None)
-            .await
-            .expect("the baseline save lands first");
-        let token = StorageToken::for_document(&baseline)
-            .map_err(|error| error.to_string())
-            .unwrap();
-
-        let attempted = probe_document("Diagnostic overwritten", 5);
-        gate.arm_hold_then_fail("diagnostic quota");
-        let completed: Rc<RefCell<Option<Result<StorageToken, SaveError>>>> =
-            Rc::new(RefCell::new(None));
-        let done = completed.clone();
-        let held = gate.clone();
-        let attempted_held = attempted.clone();
-        let token_held = token.clone();
-        wasm_bindgen_futures::spawn_local(async move {
-            let outcome = held
-                .save_document(&attempted_held, &BTreeMap::new(), Some(&token_held))
-                .await;
-            *done.borrow_mut() = Some(outcome);
-        });
-        pump(150).await;
-
-        assert!(
-            completed.borrow().is_none(),
-            "the held save receives no acknowledgement before release"
-        );
-        let snapshot = gate.snapshot();
-        assert!(snapshot.entered, "the save is entered at the gate");
-        assert!(
-            snapshot.expected_token_present,
-            "entry records the expected token"
-        );
-
-        gate.release();
-        for _ in 0..100 {
-            if completed.borrow().is_some() {
-                break;
-            }
-            pump(50).await;
-        }
-        let outcome = completed
-            .borrow_mut()
-            .take()
-            .expect("release enters failure");
-        assert!(
-            matches!(&outcome, Err(SaveError::Storage(reason)) if reason.as_str() == "diagnostic quota"),
-            "releasing the hold fails atomically without re-arming, got {outcome:?}"
-        );
-        let kept = store
-            .load_document("diagnostic-009".to_owned())
-            .await
-            .map_err(|error| error.to_string())
-            .unwrap()
-            .expect("the baseline is still the durable value");
-        assert_eq!(kept.name, "Diagnostic baseline");
-        assert_eq!(kept.revision, 4);
-
-        gate.save_document(&attempted, &BTreeMap::new(), Some(&token))
-            .await
-            .expect("the gate is reusable after the single-armed hold-then-fail");
-        delete_database(&database).await;
+            gate.release();
+            let outcome = released_ack(save.as_mut()).await?;
+            check!(
+                matches!(&outcome, Err(SaveError::Storage(reason)) if reason == "diagnostic quota"),
+                "release must fail atomically without re-arming, got {outcome:?}"
+            );
+            let kept = store
+                .load_document("diagnostic-009".to_owned())
+                .await
+                .map_err(|error| error.to_string())?
+                .ok_or("the baseline disappeared")?;
+            check_eq!(kept.name, "Diagnostic baseline");
+            check_eq!(kept.revision, 4);
+            gate.save_document(&attempted, &BTreeMap::new(), Some(&token))
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(())
+        })
+        .await;
+        assert_eq!(result, Ok(()));
     }
 
     #[wasm_bindgen_test]
     async fn disarmed_gate_passes_saves_through_transparently() {
         let database = unique_database("passthrough");
-        let store = open_store(&database);
-        let gate = DiagnosticPersistGate::through_store(store.clone());
-        let document = probe_document("Diagnostic passthrough", 1);
-
-        gate.save_document(&document, &BTreeMap::new(), None)
-            .await
-            .expect("a disarmed gate delegates to the real store");
-        let reopened = store
-            .load_document("diagnostic-009".to_owned())
-            .await
-            .map_err(|error| error.to_string())
-            .unwrap()
-            .expect("the delegated save is durable");
-        assert_eq!(reopened.name, "Diagnostic passthrough");
-        delete_database(&database).await;
+        let result = in_database(&database, async {
+            let store = open_store(&database);
+            let gate = DiagnosticPersistGate::through_store(store.clone());
+            let document = probe_document("Diagnostic passthrough", 1);
+            gate.save_document(&document, &BTreeMap::new(), None)
+                .await
+                .map_err(|error| error.to_string())?;
+            let reopened = store
+                .load_document("diagnostic-009".to_owned())
+                .await
+                .map_err(|error| error.to_string())?
+                .ok_or("the delegated save is not durable")?;
+            check_eq!(reopened.name, "Diagnostic passthrough");
+            Ok(())
+        })
+        .await;
+        assert_eq!(result, Ok(()));
     }
 
     #[wasm_bindgen_test]
@@ -597,31 +819,43 @@ mod tests {
     #[wasm_bindgen_test]
     async fn window_surface_exposes_the_named_gate() {
         let database = unique_database("window");
-        let store = open_store(&database);
-        let _gate = wrap_store(store);
-        let window = web_sys::window().expect("a window hosts the gate");
-        let property = wasm_bindgen::JsValue::from_str(WINDOW_PROPERTY);
-        let surface =
-            js_sys::Reflect::get(&window.into(), &property).expect("the gate is registered");
-        assert!(surface.is_object(), "the gate surface is an object");
-        for method in [
-            "arm_hold",
-            "arm_fail",
-            "arm_hold_then_fail",
-            "snapshot",
-            "release",
-            "disarm",
-        ] {
-            let member = js_sys::Reflect::get(&surface, &wasm_bindgen::JsValue::from_str(method))
-                .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
-            assert!(member.is_function(), "the gate surface exposes {method}()");
-        }
-
-        DiagnosticPersistGateHandle.arm_hold();
-        let armed = current_gate()
-            .expect("wrap_store publishes the gate")
-            .snapshot();
-        assert_eq!(armed.armed.as_deref(), Some("hold"));
-        delete_database(&database).await;
+        let result = in_database(&database, async {
+            let store = open_store(&database);
+            let _gate = wrap_store(store);
+            let window = web_sys::window().ok_or("a window must host the gate")?;
+            let surface = js_sys::Reflect::get(&window, &JsValue::from_str(WINDOW_PROPERTY))
+                .map_err(|error| format!("gate property: {error:?}"))?;
+            check!(surface.is_object(), "the gate surface is not an object");
+            for method in [
+                "arm_hold",
+                "arm_fail",
+                "arm_hold_then_fail",
+                "snapshot",
+                "release",
+                "disarm",
+            ] {
+                let member = js_sys::Reflect::get(&surface, &JsValue::from_str(method))
+                    .map_err(|error| format!("gate method {method}: {error:?}"))?;
+                check!(
+                    member.is_function(),
+                    "the gate surface must expose {method}()"
+                );
+            }
+            DiagnosticPersistGateHandle.arm_hold();
+            let armed = current_gate()
+                .ok_or("wrap_store must publish the gate")?
+                .snapshot();
+            check_eq!(armed.armed.as_deref(), Some("hold"));
+            Ok(())
+        })
+        .await;
+        CURRENT_GATE.with(|slot| slot.borrow_mut().take());
+        let window = web_sys::window().unwrap();
+        let removed = js_sys::Reflect::delete_property(
+            window.unchecked_ref::<js_sys::Object>(),
+            &JsValue::from_str(WINDOW_PROPERTY),
+        );
+        assert_eq!(removed, Ok(true));
+        assert_eq!(result, Ok(()));
     }
 }

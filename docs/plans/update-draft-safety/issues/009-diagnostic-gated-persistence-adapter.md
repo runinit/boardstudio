@@ -28,7 +28,8 @@ as part of this ticket.
 
 ## Implementation (009 delegate, 2026-11-07, HEAD `02ec0b6`)
 
-Status stays claimed, not resolved: coordinator independent review still due.
+Status stays claimed, not resolved: initial Spec and Standards reviews requested
+changes; the Sol follow-up below awaits fresh coordinator review.
 
 ### What landed
 
@@ -87,8 +88,9 @@ Status stays claimed, not resolved: coordinator independent review still due.
   on both routes with distinct versioned manifests (`009-stamp.log` with sha256s).
 - Cleanup attested: agent-browser session closed; servers stopped with ports 4771/4772
   verified free; `web/target/site-009-normal`, `site-009-diag`, `site-009-ab` and the
-  `/tmp` payloads removed (all git-ignored/disposable); per-test IndexedDBs deleted
-  inside the tests; no project was ever opened in packaged probing. No source
+  `/tmp` payloads removed (all git-ignored/disposable); per-test IndexedDB deletion
+  was only scheduled in this initial run, not completion-attested (corrected by the
+  follow-up below); no project was ever opened in packaged probing. No source
   trees/targets/manifests were placed under `.evidence/` (logs only).
 
 ### Acceptance mapping and honest gaps
@@ -106,3 +108,107 @@ Status stays claimed, not resolved: coordinator independent review still due.
   after the HEAD change; restored after ~4 min of independent env/tooling checks with
   bounded retries, no bypass. No new visibility/API was needed beyond the 003-approved
   additive adapter contract.
+
+## Required review follow-up (Pi Sol, 2026-11-07, base `043787ba5`)
+
+Both required findings are implemented, **not independently accepted yet**. Status
+and acceptance checkboxes remain unchanged pending the coordinator's fail-path rerun
+and fresh Spec/Standards recheck. Only this ticket and the adapter's `cfg(test)`
+section changed; all product code, build flags, module metadata, worker/Session
+policy, 011 work and the coordinator's untracked `execution.md` are untouched.
+
+### Finding dispositions
+
+1. **Deterministic entered observation:** both hold tests now poll `snapshot().entered`
+   with a 5-second deadline and 5-ms yielding cadence, matching the existing canonical
+   browser-test wait pattern without adding a dependency on downstream UI support or
+   a general wait framework. Each poll also drives the owned save future and rejects
+   an acknowledgement before release. Only after observed entry do the tests check
+   no acknowledgement and the unchanged real store. The ordinary hold deliberately
+   enters after 250 ms, beyond the old 150-ms guess; that timer supplies latency, not
+   readiness evidence. Release acknowledgement is also deadline-bounded. Save futures
+   are local and dropped on a returned check failure, not detached tasks able to
+   recreate a database after fixture cleanup. This is a test-reliability correction,
+   **not a new product-behavior RED claim**; the original 4-fail/6 → 6-pass evidence
+   above is preserved.
+2. **Real cleanup attestation:** `delete_database` now awaits the actual IndexedDB
+   deletion success event, returns errors on `error` or `blocked`, and fails after a
+   5-second deadline if no outcome arrives. A local RAII guard detaches all three
+   callbacks on return/cancellation; the first observed outcome is retained, so later
+   success cannot erase a reported error/blocked condition. The five original
+   database-owning tests return check/operation failures through `in_database`, which
+   awaits deletion before reporting either the test failure or a cleanup failure
+   (including both when both fail). Window-test registration is also removed.
+
+### Cleanup proof and runtime boundary
+
+- The real open-connection control rejects blocked deletion, then closes the
+  connection and awaits successful deletion. A second real deletion queued behind a
+  blocked request exercises timeout and callback detachment; after closing the
+  blocker, final deletion is awaited before assertions.
+- A deliberately failed check after a real save returns its original failure **after
+  cleanup**. Reopening raises `upgradeneeded`, independently proving the fixture
+  database was absent rather than merely scheduled for deletion. That verification
+  connection is closed and its recreated database is also deletion-acknowledged.
+- The error-handler control dispatches a **synthetic error event** on a real request;
+  it proves error reporting, first-outcome retention and detachment, not a real browser
+  backend deletion fault. A subsequent real deletion is awaited before assertions.
+- Passing runs attest deletion completion for every disposable fixture. Returned
+  assertion-equivalent checks and storage errors take the same awaited cleanup path.
+  Unexpected Rust panic-abort, JavaScript traps, a killed runner, or a never-returning
+  test body cannot execute asynchronous cleanup; no async-`Drop` or all-panics cleanup
+  guarantee is claimed. The controls' final harness assertions occur after cleanup.
+  No live application profile/project was used, and no packaged server/output was
+  created in this follow-up. Earlier packaged-output cleanup is historical evidence,
+  not a newly rerun packaged proof.
+
+### Focused evidence
+
+All paths below are under `.evidence/update-draft-safety/` (logs only).
+
+| Run | Result | Log |
+| --- | --- | --- |
+| Unchanged baseline | 6 passed, 0 failed | `009-sol-baseline.log` |
+| Cleanup RED, scheduling-only helper | 6 passed, 1 expected failure: blocked deletion falsely returned success | `009-sol-cleanup-red.log` |
+| Cleanup GREEN | 7 passed, 0 failed | `009-sol-cleanup-green.log` |
+| Error-event control during helper development | 9 passed, 1 failure: later success overwrote the earlier error; fixed by retaining first outcome | `009-sol-error-event-red.log` |
+| Final adapter suite (original six + four cleanup controls) | 10 passed, 0 failed, 59 filtered | `009-sol-final-wasm.log` |
+| Existing Runtime held-save Saving → Saved regression | 1 passed, 0 failed, 68 filtered | `009-sol-runtime-regression.log` |
+| Diagnostic Clippy, wasm32 all targets, `-D warnings` | passed | `009-sol-clippy-gate.log` |
+| Normal Clippy, wasm32 all targets, `-D warnings` | passed | `009-sol-clippy-plain.log` |
+| Adapter rustfmt check | passed | `009-sol-fmt.log` |
+| Documentation links | 717 Markdown files passed | `009-sol-doc-links.log` |
+| Diff whitespace check | passed | `009-sol-diff-check.log` |
+
+Exact final commands (each stdout/stderr redirected to its matching log above):
+
+```sh
+CARGO_PROFILE_DEV_DEBUG=false WASM_BINDGEN_TEST_TIMEOUT=120 wasm-pack test --headless --chrome web/crates/runtime --lib --features diagnostic-persist-gate -- diagnostic_persistence::tests::
+CARGO_PROFILE_DEV_DEBUG=false WASM_BINDGEN_TEST_TIMEOUT=120 wasm-pack test --headless --chrome web/crates/runtime --lib --features diagnostic-persist-gate -- gated_save_holds_saving_until_released_then_reports_saved
+cargo clippy --locked -p boardstudio-web-runtime --target wasm32-unknown-unknown --all-targets --features diagnostic-persist-gate -- -D warnings
+cargo clippy --locked -p boardstudio-web-runtime --target wasm32-unknown-unknown --all-targets -- -D warnings
+rustfmt --edition 2024 --color never --check web/crates/runtime/src/diagnostic_persistence.rs
+python3 scripts/check-doc-links.py
+git diff --check
+```
+
+Baseline and RED/intermediate adapter runs used the same first command. An initial
+compile-only failure (ambiguous `Reflect::delete_property` object type) is retained in
+`009-sol-compile-initial.log`; it is not behavioral RED evidence. No full gate, full
+build or fresh packaged A/B run was performed; coordinator 015 owns the full gate.
+The unchanged build-tooling 9/9 coordinator result at `86bd4620b` is reused, not
+claimed as a new run.
+
+Native Gortex was used for source inspection and all edits: pre-edit impact,
+`delete_database` signature verification (5 callers checked, clean), post-edit detect,
+tests/guards/contract and caller relations. Automatic route reconciliation temporarily
+blocked exact mutations and recovered without tracking, daemon changes or fallback.
+Detect maps the changes to the test module; guards have no configured rules. Contract
+returns `warn`/high lower-bound blast; caller inspection confines the helpers to this
+private test module. Its tests operation reports 0/5 helper coverage because these
+`wasm_bindgen_test` functions are indexed as `is_test:false`; the executed named
+10-test browser result above supplies coverage evidence, not a fabricated graph pass.
+
+Optional findings were deliberately left alone: fail-arm entered identity, mid-hold
+rearm/disarm semantics, compile-presence versus packaged identity, and arm/reset
+repetition. No new production mode, member visibility or window API was added.
