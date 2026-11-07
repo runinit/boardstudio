@@ -11,6 +11,7 @@
 - Scripted edits: replace one exact, unique string and assert the match count. Read the diff before running tests. Checkpoint with a WIP commit on your branch before a large scripted edit.
 - CAD migration review: follow the [map decisions](docs/plans/cad-backend-replacement/map.md#closure-and-workflow-decisions-2026-10-18-user). Run one combined spec+standards review at ticket closure or when a change touches public API, geometry, allowances or a cross-crate contract; private storage and test-only slices get RED/GREEN evidence and a diff read instead. An explicit `code-review` request and 012's final two-axis review still apply.
 - Verification: mutation checks use `scripts/mutation-check.py`; `check.py test` guards native test counts by test name.
+- Tests: before adding, changing or reviewing test code, read [test economy](CODING_STANDARDS.md#test-economy).
 - Evidence: `.evidence/` holds logs only, except committed handoff records; redirect long check and mutation output there and report only results and relevant failures. Never create Cargo `target` directories or copy crate source trees inside `.evidence/`. Never generate `PREIMAGES.json`, `POSTIMAGES.json`, `before/` or `after/` file copies, or custom SHA-256 manifest files—Git already tracks source state.
 
 ## Environment & Build Guardrails

@@ -5,7 +5,7 @@ The user's direct requests take precedence over these defaults. Select from the 
 | Work | Preferred route |
 | --- | --- |
 | Hardest tasks and complex multi-stage planning | Opus 5.5 high via Claude; Wonder max via the Meta provider as the user-approved fallback. |
-| Ordinary, well-defined implementation | Terra 6.1 high via Pi or Spark 1.3 Contributor xhigh via the Meta provider. |
+| Implementation from well-defined specs or tickets | Spark 1.3 Contributor max via Pi (`providerInstanceId: pi`, model `meta/muse-spark-1.3-contributor`, `thinking=max`). |
 | Predefined builds, tests, reads and research collection | Terra 6.1 low via Pi or Spark 1.3 Contributor low via the Meta provider. |
 | Ordinary independent review | Terra 6.1 high via Pi. |
 | Consequential, disputed or cross-cutting review | Opus 5.5 high via Claude or Wonder max via the Meta provider. |
