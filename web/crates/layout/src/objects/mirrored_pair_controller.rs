@@ -17,7 +17,10 @@ use boardstudio_core::model::{EditOperation, Layout};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone)]
@@ -32,6 +35,30 @@ struct PairFollowUp {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum PairAction {
     Create,
+}
+
+// Placement temporarily unmounts setup. A failed Create returns to the same owner,
+// not a fresh clean form; only a new open identity establishes a new baseline.
+#[derive(Clone, Default)]
+pub(super) struct MirroredPairDraftBaseline(
+    Rc<RefCell<Option<(MirroredPairOwner, MirroredPairFormValues)>>>,
+);
+
+impl MirroredPairDraftBaseline {
+    pub(super) fn starting_values(
+        &self,
+        owner: &MirroredPairOwner,
+        values: &MirroredPairFormValues,
+    ) -> MirroredPairFormValues {
+        let mut baseline = self.0.borrow_mut();
+        if let Some((previous_owner, starting_values)) = baseline.as_ref()
+            && previous_owner == owner
+        {
+            return starting_values.clone();
+        }
+        *baseline = Some((owner.clone(), values.clone()));
+        values.clone()
+    }
 }
 
 /// Resolve creating a mirrored pair against the accepted document at execution time. The
@@ -113,6 +140,7 @@ pub fn use_mirrored_pair(
     });
     let open_id = use_signal(|| 0u64);
     let open = use_signal(|| None::<MirroredPairOwner>);
+    use_context_provider(MirroredPairDraftBaseline::default);
     let form_state = use_signal(|| PairFormState::new(MirroredPairFormValues::default()));
     let preparing = use_signal(|| None::<MirroredPairOwner>);
     let error = use_signal(|| None::<String>);

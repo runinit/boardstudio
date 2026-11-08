@@ -3326,6 +3326,13 @@ mod tests {
                     .is_some_and(|status| status.contains("Saving…")),
                 "settlement clears Rows saving status even while draft 3 stays visible"
             );
+
+            // This test owns the mounted root, including the intentionally invalid Rows field.
+            root.remove();
+            assert!(
+                !rows.is_connected(),
+                "the failed Rows fixture must not leak an invalid field into later tests"
+            );
         }
 
         #[wasm_bindgen_test]

@@ -71,6 +71,13 @@ enum ExistingHalfAction {
     Create,
 }
 
+// Private controller/form bridge; terminal tickets never exempt a draft.
+#[derive(Clone)]
+struct ExistingHalfAdmission {
+    pending: PendingEditSignals<ExistingHalfAction>,
+    submitted: Signal<Option<ExistingHalfCreateRequest>>,
+}
+
 /// Resolve mirroring existing halves against the accepted document at execution time. The
 /// replacement document is built from the snapshot the resolver is handed; the identities
 /// it needs were allocated when the user submitted, so the resolver stays pure.
@@ -125,6 +132,11 @@ pub fn use_existing_half(
     let pending_create = use_signal(|| false);
     pending.bind_one_shot(ExistingHalfAction::Create, pending_create);
     let create_owner = use_signal(|| None::<ExistingHalfOwner>);
+    let submitted_create = use_signal(|| None::<ExistingHalfCreateRequest>);
+    use_context_provider(|| ExistingHalfAdmission {
+        pending: pending.clone(),
+        submitted: submitted_create,
+    });
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -220,6 +232,7 @@ pub fn use_existing_half(
         let runtime = runtime.clone();
         let pending = pending.clone();
         let mut create_owner = create_owner;
+        let mut submitted_create = submitted_create;
         let mut error = error;
         move |request: ExistingHalfCreateRequest| {
             if pending_create()
@@ -302,6 +315,7 @@ pub fn use_existing_half(
                 error.set(Some(message));
                 return;
             }
+            submitted_create.set(Some(request.clone()));
             pending.begin_one_shot(
                 &runtime,
                 ExistingHalfAction::Create,
@@ -572,6 +586,60 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
     let choice = default_choice();
     let default_axis = format!("{:.2}", owner.default_axis_x);
     let mut axis = use_signal(|| default_axis.clone());
+    let starting_values = use_hook(|| (choice.clone(), default_axis.clone()));
+    let admission = try_use_context::<ExistingHalfAdmission>();
+    let mut submitted_values = use_signal(|| None::<(ExistingHalfCreateRequest, String, String)>);
+    let runtime = try_use_context::<Rc<Runtime>>();
+    let guard = use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let project_scope = (owner.scope.document_id.clone(), owner.scope.session_epoch);
+    use_effect(use_reactive((&project_scope,), {
+        let runtime = runtime.clone();
+        let mut guard = guard;
+        let admission = admission.clone();
+        move |(project_scope,)| {
+            let Some(runtime) = runtime.as_ref() else {
+                return;
+            };
+            if let Some(old) = guard.write().take() {
+                runtime.retire_draft_owner(old);
+            }
+            let baseline = starting_values.clone();
+            let admission = admission.clone();
+            guard.set(Some(runtime.register_draft_owner(
+                boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                    project_scope,
+                    workspace: "Layout",
+                    owner: "existing-half-setup",
+                    admission_key: "create",
+                    area: "Mirror existing half".into(),
+                    remedy: "Create the linked half or cancel the setup".into(),
+                    is_unresolved: Rc::new(move || {
+                        let changed =
+                            *default_choice.peek() != baseline.0 || *axis.peek() != baseline.1;
+                        let carried = admission.as_ref().is_some_and(|admission| {
+                            admission.pending.is_pending(&ExistingHalfAction::Create)
+                                && submitted_values.peek().as_ref().is_some_and(
+                                    |(request, choice, submitted_axis)| {
+                                        admission.submitted.peek().as_ref() == Some(request)
+                                            && *default_choice.peek() == *choice
+                                            && *axis.peek() == *submitted_axis
+                                    },
+                                )
+                        });
+                        changed && !carried
+                    }),
+                },
+            )));
+        }
+    }));
+    use_drop(move || {
+        let mut guard = guard;
+        if let Some(runtime) = runtime
+            && let Some(old) = guard.write().take()
+        {
+            runtime.retire_draft_owner(old);
+        }
+    });
     let axis_value = axis();
     let axis_number = axis_value
         .trim()
@@ -607,11 +675,22 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                 .map(|option| vec![option.matrix_id.clone()])
                 .unwrap_or_default()
         };
-        on_create.call(ExistingHalfCreateRequest {
+        let request = ExistingHalfCreateRequest {
             owner: owner_submit.clone(),
             matrix_ids,
             axis_x,
-        });
+        };
+        if admission
+            .as_ref()
+            .is_some_and(|admission| !admission.pending.is_pending(&ExistingHalfAction::Create))
+        {
+            submitted_values.set(Some((
+                request.clone(),
+                choice_submit.clone(),
+                axis_submit.clone(),
+            )));
+        }
+        on_create.call(request);
     };
     let cancel = props.on_cancel;
     let owner_escape = owner.clone();
@@ -755,6 +834,276 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                     }
                 }
             }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod draft_safety_tests {
+    use super::super::mirrored_pair::draft_safety_tests::{Chrome, Fixture};
+    use super::*;
+    use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_wait::wait_until;
+    use std::cell::Cell;
+
+    fn form() -> Element {
+        let accepted = use_context::<Rc<Runtime>>().model().accepted.unwrap();
+        let mut mounted = use_signal(|| true);
+        let mut hidden = use_signal(|| false);
+        let mut refused = use_signal(|| false);
+        let requests = use_context::<Rc<Cell<u32>>>();
+        rsx! {
+            div { hidden: hidden(),
+                if mounted() {
+                    ExistingHalfSetup {
+                        projection: ExistingHalfProjection {
+                            owner: ExistingHalfOwner {
+                                editor_instance_id: 1, open_id: 1, scope_generation: 1,
+                                scope: Scope { session_epoch: accepted.session_epoch, document_id: accepted.document.id.clone(), board_id: "board".into(), instance_id: None },
+                                snapshot_token: SnapshotToken(1), revision: 0,
+                                options: vec![ExistingHalfOption { matrix_id: "matrix".into(), label: "Left".into() }],
+                                default_axis_x: 12.125,
+                            },
+                            editable: true, can_cancel: true,
+                            error: refused().then(|| "Creation refused".into()),
+                        },
+                        on_cancel: move |_| mounted.set(false),
+                        on_create: move |_| { requests.set(requests.get() + 1); refused.set(true); },
+                    }
+                }
+            }
+            Chrome {}
+            button { onclick: move |_| hidden.set(true), "Hide form" }
+            button { onclick: move |_| mounted.set(false), "Unmount form" }
+            button { onclick: move |_| mounted.set(true), "Mount form" }
+        }
+    }
+
+    const AREA: &str = "Mirror existing half";
+    const REMEDY: &str = "Create the linked half or cancel the setup";
+
+    // Unlike the rendering fixture above, this mounts the real admission/settlement owner.
+    fn runtime_form() -> Element {
+        let runtime = use_context::<Rc<Runtime>>();
+        let version = use_signal(|| 0u64);
+        use_hook({
+            let runtime = runtime.clone();
+            move || {
+                runtime.subscribe(Rc::new(move || {
+                    let mut version = version;
+                    version += 1;
+                }))
+            }
+        });
+        use_drop({
+            let runtime = runtime.clone();
+            move || runtime.unsubscribe()
+        });
+        let _ = version();
+        let workspace = use_signal(|| "Layout");
+        let generation = use_signal(|| 1u64);
+        let mount = use_existing_half(runtime, version, workspace, generation);
+        rsx! {
+            button { aria_label: "Open half", onclick: move |_| mount.on_open.call(()), "Open half" }
+            if let Some(projection) = mount.projection {
+                ExistingHalfSetup { projection, on_create: mount.on_create, on_cancel: mount.on_cancel }
+            }
+            Chrome {}
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn existing_half_real_create_pending_exempts_only_submitted_draft() {
+        use boardstudio_core::model::Board;
+        use boardstudio_web_runtime::update_safety::{UpdateBlocker, UpdateDialog};
+        let f = Fixture::mount(runtime_form, "Open half").await;
+        let mut document = ProjectDoc::empty("creation-draft", "Creation draft");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            thickness: 1.6,
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            traces: vec![],
+            vias: vec![],
+        });
+        document.matrices.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "matrix-source", "name": "Source half", "rows": 2, "columns": 3,
+                "pitch": {"x": 19.05, "y": 19.05}, "origin": {"x": 0.0, "y": 0.0},
+                "definitionId": "switch", "partIds": [], "boardId": "board", "cells": []
+            }))
+            .unwrap(),
+        );
+        support::replace_document(&f.runtime, "half-source", "board", document).await;
+        f.click("Open half");
+        wait_until("real half owner opens", || {
+            f.root.query_selector("form").unwrap().is_some()
+        })
+        .await;
+        f.input("Mirror axis X", "").await;
+        wait_until("empty axis renders disabled Create", || {
+            f.root
+                .query_selector("button[type=submit]")
+                .unwrap()
+                .unwrap()
+                .has_attribute("disabled")
+        })
+        .await;
+        f.no_invalid_marker();
+        f.deferred("Update Now (toast)", AREA, REMEDY).await;
+        f.submit();
+        support::run_pending(&f.runtime).await;
+        f.deferred("Update Now (header)", AREA, REMEDY).await;
+        f.input("Mirror axis X", "24").await;
+        wait_until("submitted axis renders enabled Create", || {
+            !f.root
+                .query_selector("button[type=submit]")
+                .unwrap()
+                .unwrap()
+                .has_attribute("disabled")
+        })
+        .await;
+        f.deferred("Update Now (toast)", AREA, REMEDY).await;
+        let (entered, release) =
+            support::gate_next_core_reply_then_fail(&f.runtime, "held creation failed");
+        f.click("Create linked half");
+        support::drive_pending(&f.runtime);
+        entered.await.expect("the real Create reached Core");
+        wait_until("real pending owner disables editing", || {
+            f.root
+                .query_selector("input[aria-label='Mirror axis X']")
+                .unwrap()
+                .unwrap()
+                .has_attribute("disabled")
+        })
+        .await;
+        f.click("Update Now (header)");
+        let Some(UpdateDialog::Deferred { blockers }) = f.runtime.update_dialog() else {
+            panic!("held Core work must independently block update");
+        };
+        let unresolved = blockers.iter().any(|blocker| {
+            matches!(blocker,
+            UpdateBlocker::UnresolvedDraft { area, .. } if area == AREA)
+        });
+        f.runtime.cancel_update_dialog();
+        // Always release before the assertion, including RED, so a failed probe leaks no hold.
+        release.send(()).unwrap();
+        support::run_pending(&f.runtime).await;
+        wait_until("real Create failure returns to the form", || {
+            f.root
+                .text_content()
+                .unwrap()
+                .contains("held creation failed")
+        })
+        .await;
+        f.click("Update Now (toast)");
+        assert!(
+            matches!(f.runtime.update_dialog(), Some(UpdateDialog::Deferred { blockers })
+            if blockers.contains(&UpdateBlocker::UnresolvedDraft { area: AREA.into(), remedy: REMEDY.into() })),
+            "failure leaves the draft unresolved even when recovery also blocks"
+        );
+        f.runtime.cancel_update_dialog();
+        assert_eq!(
+            f.value("Mirror axis X"),
+            "24",
+            "failure never clears the draft"
+        );
+        f.click("Cancel");
+        wait_until("real owner cancels", || {
+            f.root.query_selector("form").unwrap().is_none()
+        })
+        .await;
+        f.root.remove();
+        assert!(
+            !unresolved,
+            "same-key in-flight Create carries the live draft; only pending work may block"
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn existing_half_mount_revert_failure_hidden_and_unmount_gate() {
+        let f = Fixture::mount(form, "Mirror axis X").await;
+        assert_eq!(
+            f.value("Mirror axis X"),
+            "12.12",
+            "baseline is the rendered starting axis, not the unrounded owner value"
+        );
+        f.clear("Update Now (toast)").await;
+        f.input("Mirror axis X", "19.123456789").await;
+        for opener in ["Update Now (toast)", "Update Now (header)"] {
+            f.deferred(opener, AREA, REMEDY).await;
+            assert_eq!(f.value("Mirror axis X"), "19.123456789");
+        }
+        f.input("Mirror axis X", "12.12").await;
+        f.clear("Update Now (header)").await;
+        f.input("Mirror axis X", "19.123456789").await;
+        f.click("Create linked half");
+        wait_until("create refusal arrives", || {
+            f.root.text_content().unwrap().contains("Creation refused")
+        })
+        .await;
+        f.deferred("Update Now (toast)", AREA, REMEDY).await;
+        f.click("Hide form");
+        wait_until("half is hidden but mounted", || {
+            f.root.query_selector("[hidden] form").unwrap().is_some()
+        })
+        .await;
+        f.deferred("Update Now (header)", AREA, REMEDY).await;
+        f.click("Unmount form");
+        wait_until("unsubmitted half unmounts", || {
+            f.root.query_selector("form").unwrap().is_none()
+        })
+        .await;
+        f.clear("Update Now (toast)").await;
+        f.root.remove();
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn existing_half_silently_rejected_axis_and_cancel_gate() {
+        let f = Fixture::mount(form, "Mirror axis X").await;
+        // Clearing a number input is realistic browser input; parse returns silently.
+        f.input("Mirror axis X", "").await;
+        f.no_invalid_marker();
+        f.deferred("Update Now (toast)", AREA, REMEDY).await;
+        f.click("Unmount form");
+        wait_until("half unmounts without a submit attempt", || {
+            f.root.query_selector("form").unwrap().is_none()
+        })
+        .await;
+        f.clear("Update Now (header)").await;
+        f.click("Mount form");
+        wait_until("half remounts", || {
+            f.root.query_selector("form").unwrap().is_some()
+        })
+        .await;
+        f.clear("Update Now (toast)").await;
+        f.input("Mirror axis X", "").await;
+        wait_until("empty axis disables create after render", || {
+            f.root
+                .query_selector("button[type=submit]")
+                .unwrap()
+                .unwrap()
+                .has_attribute("disabled")
+        })
+        .await;
+        f.submit();
+        support::run_pending(&f.runtime).await;
+        assert_eq!(
+            f.requests.get(),
+            0,
+            "invalid submit returns without a request"
+        );
+        f.no_invalid_marker();
+        f.deferred("Update Now (header)", AREA, REMEDY).await;
+        assert_eq!(f.value("Mirror axis X"), "");
+        f.click("Cancel");
+        wait_until("cancel retires half form", || {
+            f.root.query_selector("form").unwrap().is_none()
+        })
+        .await;
+        f.clear("Update Now (header)").await;
+        f.root.remove();
+    }
 }
 
 #[cfg(test)]

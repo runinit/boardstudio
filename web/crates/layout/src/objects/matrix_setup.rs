@@ -121,6 +121,78 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
     let hotswap = mounting().is_some_and(|choice| choice.contains(&1));
     let rgb = lighting().is_some_and(|choice| choice.contains(&1));
     let selected_preset = matrix_setup_preset(choc, hotswap, rgb);
+    let starting_values = use_hook(|| (rows_value.clone(), columns_value.clone(), selected_preset));
+    let admission = try_use_context::<super::matrix_setup_controller::MatrixSetupAdmission>();
+    let mut submitted_values = use_signal(|| None::<(MatrixSetupCreateRequest, String, String)>);
+    let runtime = try_use_context::<std::rc::Rc<crate::runtime::Runtime>>();
+    let guard = use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let project_scope = (
+        props.projection.owner.scope.document_id.clone(),
+        props.projection.owner.scope.session_epoch,
+    );
+    use_effect(use_reactive((&project_scope,), {
+        let runtime = runtime.clone();
+        let mut guard = guard;
+        let admission = admission.clone();
+        move |(project_scope,)| {
+            let Some(runtime) = runtime.as_ref() else {
+                return;
+            };
+            if let Some(old) = guard.write().take() {
+                runtime.retire_draft_owner(old);
+            }
+            let baseline = starting_values.clone();
+            let admission = admission.clone();
+            guard.set(Some(runtime.register_draft_owner(
+                boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                    project_scope,
+                    workspace: "Layout",
+                    owner: "matrix-setup",
+                    admission_key: "create",
+                    area: "New matrix".into(),
+                    remedy: "Create the matrix or cancel the setup".into(),
+                    is_unresolved: std::rc::Rc::new(move || {
+                        let preset = matrix_setup_preset(
+                            family
+                                .peek()
+                                .as_ref()
+                                .is_some_and(|choice| choice.contains(&1)),
+                            mounting
+                                .peek()
+                                .as_ref()
+                                .is_some_and(|choice| choice.contains(&1)),
+                            lighting
+                                .peek()
+                                .as_ref()
+                                .is_some_and(|choice| choice.contains(&1)),
+                        );
+                        let changed = *rows.peek() != baseline.0
+                            || *columns.peek() != baseline.1
+                            || preset != baseline.2;
+                        let carried = admission.as_ref().is_some_and(|admission| {
+                            submitted_values.peek().as_ref().is_some_and(
+                                |(request, submitted_rows, submitted_columns)| {
+                                    admission.carries(request)
+                                        && *rows.peek() == *submitted_rows
+                                        && *columns.peek() == *submitted_columns
+                                        && preset == request.preset
+                                },
+                            )
+                        });
+                        changed && !carried
+                    }),
+                },
+            )));
+        }
+    }));
+    use_drop(move || {
+        let mut guard = guard;
+        if let Some(runtime) = runtime
+            && let Some(old) = guard.write().take()
+        {
+            runtime.retire_draft_owner(old);
+        }
+    });
     let owner = props.projection.owner.clone();
     let feedback_error = props.projection.error.clone();
     let feedback_status = props.projection.status.clone();
@@ -136,12 +208,23 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
         let Ok(columns) = submit_columns.trim().parse::<u32>() else {
             return;
         };
-        create_handler.call(MatrixSetupCreateRequest {
+        let request = MatrixSetupCreateRequest {
             owner: submit_owner.clone(),
             rows,
             columns,
             preset: selected_preset,
-        });
+        };
+        if admission
+            .as_ref()
+            .is_some_and(|admission| !admission.is_pending())
+        {
+            submitted_values.set(Some((
+                request.clone(),
+                submit_rows.clone(),
+                submit_columns.clone(),
+            )));
+        }
+        create_handler.call(request);
     };
     let cancel_handler = props.on_cancel;
     let cancel_owner = owner.clone();
@@ -212,6 +295,327 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
                 }
             }
         }
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod draft_safety_tests {
+    use super::*;
+    use crate::objects::mirrored_pair::draft_safety_tests::{Chrome, Fixture};
+    use boardstudio_web_ui_shared::test_wait::wait_until;
+    use std::{cell::Cell, rc::Rc};
+
+    const AREA: &str = "New matrix";
+    const REMEDY: &str = "Create the matrix or cancel the setup";
+
+    fn runtime_form() -> Element {
+        let runtime = use_context::<Rc<crate::runtime::Runtime>>();
+        let version = use_signal(|| 0u64);
+        use_hook({
+            let runtime = runtime.clone();
+            move || {
+                runtime.subscribe(Rc::new(move || {
+                    let mut version = version;
+                    version += 1;
+                }))
+            }
+        });
+        use_drop({
+            let runtime = runtime.clone();
+            move || runtime.unsubscribe()
+        });
+        let _ = version();
+        let selected = use_signal(|| None);
+        let anchor = use_signal(|| None);
+        let workspace = use_signal(|| "Layout");
+        let generation = use_signal(|| 1u64);
+        let mount = super::super::matrix_setup_controller::use_matrix_setup(
+            runtime, version, selected, anchor, workspace, generation,
+        );
+        rsx! {
+            button { aria_label: "Open matrix", onclick: move |_| mount.on_open.call(()), "Open matrix" }
+            if let Some(projection) = mount.projection {
+                MatrixSetup { projection, on_create: mount.on_create, on_cancel: mount.on_cancel }
+            }
+            Chrome {}
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn matrix_real_create_pending_exempts_only_submitted_draft() {
+        use boardstudio_core::model::{Board, ProjectDoc};
+        use boardstudio_web_runtime::runtime::project_name_test_support as support;
+        use boardstudio_web_runtime::update_safety::{UpdateBlocker, UpdateDialog};
+        let f = Fixture::mount(runtime_form, "Open matrix").await;
+        let mut document = ProjectDoc::empty("creation-draft", "Creation draft");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            thickness: 1.6,
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            traces: vec![],
+            vias: vec![],
+        });
+        support::replace_document(&f.runtime, "matrix-board", "board", document).await;
+        f.click("Open matrix");
+        wait_until("real Matrix Setup opens", || {
+            f.root.query_selector("form").unwrap().is_some()
+        })
+        .await;
+        key(&f, "Rows", "ArrowRight", "6").await;
+        f.deferred("Update Now (toast)", AREA, REMEDY).await;
+        let (mut entered, release) =
+            support::gate_next_core_reply_then_fail(&f.runtime, "held matrix failed");
+        f.click("Create matrix");
+        // Preparation is a production async owner, not a synthetic host admission.
+        wait_until("matrix preparation submits a real edit", || {
+            support::drive_pending(&f.runtime);
+            entered
+                .try_recv()
+                .expect("the real matrix Create reaches Core")
+                .is_some()
+        })
+        .await;
+        f.click("Update Now (header)");
+        let Some(UpdateDialog::Deferred { blockers }) = f.runtime.update_dialog() else {
+            panic!("held Core work must independently block update");
+        };
+        let unresolved = blockers.iter().any(|blocker| {
+            matches!(blocker,
+            UpdateBlocker::UnresolvedDraft { area, .. } if area == AREA)
+        });
+        f.runtime.cancel_update_dialog();
+        release.send(()).unwrap();
+        support::run_pending(&f.runtime).await;
+        wait_until("matrix Create failure preserves the mounted form", || {
+            f.root
+                .text_content()
+                .unwrap()
+                .contains("held matrix failed")
+        })
+        .await;
+        f.click("Update Now (toast)");
+        assert!(
+            matches!(f.runtime.update_dialog(), Some(UpdateDialog::Deferred { blockers })
+            if blockers.contains(&UpdateBlocker::UnresolvedDraft { area: AREA.into(), remedy: REMEDY.into() })),
+            "failure never clears the matrix draft"
+        );
+        f.runtime.cancel_update_dialog();
+        f.click("Cancel");
+        wait_until("real matrix owner cancels", || {
+            f.root.query_selector("form").unwrap().is_none()
+        })
+        .await;
+        f.root.remove();
+        assert!(
+            !unresolved,
+            "same-key in-flight matrix Create carries the live draft"
+        );
+    }
+
+    // Reuse the creation-form Update Now fixture; only the owner's controls differ.
+    fn form() -> Element {
+        let accepted = use_context::<Rc<crate::runtime::Runtime>>()
+            .model()
+            .accepted
+            .unwrap();
+        let requests = use_context::<Rc<Cell<u32>>>();
+        let mut mounted = use_signal(|| true);
+        let mut hidden = use_signal(|| false);
+        let mut resolve = use_signal(|| false);
+        let mut refused = use_signal(|| false);
+        rsx! {
+            div { hidden: hidden(),
+                if mounted() {
+                    MatrixSetup {
+                        projection: MatrixSetupProjection {
+                            owner: MatrixSetupOwner {
+                                editor_instance_id: 1, open_id: 1, scope_generation: 1,
+                                scope: Scope { session_epoch: accepted.session_epoch, document_id: accepted.document.id.clone(), board_id: "board".into(), instance_id: None },
+                                board_id: "board".into(), snapshot_token: SnapshotToken(1), revision: 0,
+                            },
+                            editable: true, can_cancel: true,
+                            error: refused().then(|| "Creation refused".into()), status: None,
+                        },
+                        on_cancel: move |_| mounted.set(false),
+                        on_create: move |request: MatrixSetupCreateRequest| {
+                            assert_eq!((request.rows, request.columns), (5, 6));
+                            assert_eq!(request.preset, MatrixSetupPreset::MxHotswap);
+                            requests.set(requests.get() + 1);
+                            if resolve() { mounted.set(false); } else { refused.set(true); }
+                        },
+                    }
+                }
+            }
+            Chrome {}
+            button { onclick: move |_| hidden.set(true), "Hide form" }
+            button { onclick: move |_| mounted.set(false), "Unmount form" }
+            button { onclick: move |_| { hidden.set(false); mounted.set(true); refused.set(false); }, "Mount form" }
+            button { onclick: move |_| resolve.set(true), "Allow creation" }
+            if resolve() { output { "Creation allowed" } }
+        }
+    }
+
+    fn slider(root: &web_sys::Element, label: &str) -> web_sys::Element {
+        root.query_selector(&format!("[role='slider'][aria-label='{label}']"))
+            .unwrap()
+            .unwrap()
+    }
+
+    async fn key(f: &Fixture, label: &str, key: &str, expected: &str) {
+        let target = slider(&f.root, label);
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key(key);
+        init.set_bubbles(true);
+        target
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+        wait_until(
+            "matrix slider changes through its production writer",
+            || {
+                slider(&f.root, label)
+                    .get_attribute("aria-valuenow")
+                    .as_deref()
+                    == Some(expected)
+            },
+        )
+        .await;
+    }
+
+    async fn pick(f: &Fixture, label: &str) {
+        f.click(label);
+        wait_until("matrix preset choice renders", || {
+            boardstudio_web_ui_shared::test_role::by_role_name(&f.root, "button", label)
+                .unwrap()
+                .get_attribute("aria-pressed")
+                .as_deref()
+                == Some("true")
+        })
+        .await;
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn matrix_mount_slider_revert_hidden_and_unmount_gate() {
+        let f = Fixture::mount(form, AREA).await;
+        assert_eq!(
+            slider(&f.root, "Rows")
+                .get_attribute("aria-valuenow")
+                .as_deref(),
+            Some("5")
+        );
+        assert_eq!(
+            slider(&f.root, "Columns")
+                .get_attribute("aria-valuenow")
+                .as_deref(),
+            Some("6")
+        );
+        f.clear("Update Now (toast)").await;
+        f.clear("Update Now (header)").await;
+        for (label, changed, original) in [("Rows", "6", "5"), ("Columns", "7", "6")] {
+            key(&f, label, "ArrowRight", changed).await;
+            f.no_invalid_marker();
+            for opener in ["Update Now (toast)", "Update Now (header)"] {
+                f.deferred(opener, AREA, REMEDY).await;
+                assert_eq!(
+                    slider(&f.root, label)
+                        .get_attribute("aria-valuenow")
+                        .as_deref(),
+                    Some(changed)
+                );
+            }
+            key(&f, label, "ArrowLeft", original).await;
+            f.clear("Update Now (header)").await;
+        }
+        key(&f, "Rows", "ArrowRight", "6").await;
+        f.click("Hide form");
+        wait_until("matrix is hidden but mounted", || {
+            f.root.query_selector("[hidden] form").unwrap().is_some()
+        })
+        .await;
+        f.deferred("Update Now (header)", AREA, REMEDY).await;
+        f.root.remove();
+    }
+
+    // Removal is already safe without an adapter: record this as a proof gap, not RED.
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn matrix_own_controls_and_unsubmitted_unmount_retire_gate() {
+        let f = Fixture::mount(form, AREA).await;
+        f.clear("Update Now (toast)").await;
+        key(&f, "Rows", "ArrowRight", "6").await;
+        f.click("Unmount form");
+        wait_until("unsubmitted matrix retires", || {
+            f.root.query_selector("form").unwrap().is_none()
+        })
+        .await;
+        f.clear("Update Now (header)").await;
+        f.click("Mount form");
+        wait_until("matrix reopens at defaults", || {
+            f.root.query_selector("form").unwrap().is_some()
+        })
+        .await;
+        assert_eq!(
+            slider(&f.root, "Rows")
+                .get_attribute("aria-valuenow")
+                .as_deref(),
+            Some("5")
+        );
+        pick(&f, "Hotswap").await;
+        f.click("Cancel");
+        wait_until("own Cancel retires matrix", || {
+            f.root.query_selector("form").unwrap().is_none()
+        })
+        .await;
+        f.clear("Update Now (toast)").await;
+        f.click("Mount form");
+        wait_until("matrix reopens for creation", || {
+            f.root.query_selector("form").unwrap().is_some()
+        })
+        .await;
+        pick(&f, "Hotswap").await;
+        f.click("Allow creation");
+        wait_until("fixture allows creation", || {
+            f.root.text_content().unwrap().contains("Creation allowed")
+        })
+        .await;
+        f.click("Create matrix");
+        wait_until("own creation resolves matrix", || {
+            f.root.query_selector("form").unwrap().is_none()
+        })
+        .await;
+        assert_eq!(f.requests.get(), 1);
+        f.clear("Update Now (header)").await;
+        f.root.remove();
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn matrix_preset_revert_refusal_cancel_and_creation_gate() {
+        let f = Fixture::mount(form, AREA).await;
+        f.clear("Update Now (toast)").await;
+        for (changed, original) in [
+            ("ChocLow profile", "MXFull height"),
+            ("Hotswap", "Solder"),
+            ("Per-key RGB", "None"),
+        ] {
+            pick(&f, changed).await;
+            f.no_invalid_marker();
+            f.deferred("Update Now (toast)", AREA, REMEDY).await;
+            pick(&f, original).await;
+            f.clear("Update Now (header)").await;
+        }
+        pick(&f, "Hotswap").await;
+        f.click("Create matrix");
+        wait_until("creation refusal arrives", || {
+            f.root.text_content().unwrap().contains("Creation refused")
+        })
+        .await;
+        assert_eq!(f.requests.get(), 1);
+        f.deferred("Update Now (header)", AREA, REMEDY).await;
+        f.root.remove();
     }
 }
 

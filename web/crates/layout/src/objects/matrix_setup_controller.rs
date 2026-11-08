@@ -22,6 +22,23 @@ enum MatrixSetupAction {
     Create,
 }
 
+// The form can observe actual admission without exposing controller internals in its public props.
+#[derive(Clone)]
+pub(super) struct MatrixSetupAdmission {
+    pending: PendingEditSignals<MatrixSetupAction>,
+    submitted: Signal<Option<MatrixSetupCreateRequest>>,
+}
+
+impl MatrixSetupAdmission {
+    pub(super) fn is_pending(&self) -> bool {
+        self.pending.is_pending(&MatrixSetupAction::Create)
+    }
+
+    pub(super) fn carries(&self, request: &MatrixSetupCreateRequest) -> bool {
+        self.is_pending() && self.submitted.peek().as_ref() == Some(request)
+    }
+}
+
 /// Resolve creating a prepared matrix against the accepted document at execution time: the
 /// board must still exist and neither the matrix nor its definitions may already be taken.
 fn create_matrix_resolver(
@@ -138,6 +155,11 @@ pub fn use_matrix_setup(
     let pending_create = use_signal(|| false);
     pending.bind_one_shot(MatrixSetupAction::Create, pending_create);
     let pending_owner = use_signal(|| None::<(MatrixSetupOwner, String)>);
+    let submitted_create = use_signal(|| None::<MatrixSetupCreateRequest>);
+    use_context_provider(|| MatrixSetupAdmission {
+        pending: pending.clone(),
+        submitted: submitted_create,
+    });
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -307,6 +329,7 @@ pub fn use_matrix_setup(
             let mut status = status;
             let pending = pending.clone();
             let mut pending_owner = pending_owner;
+            let mut submitted_create = submitted_create;
             let mut open = open;
             let alive = alive.clone();
             spawn_local(async move {
@@ -406,6 +429,7 @@ pub fn use_matrix_setup(
                 }
                 let matrix_id = matrix.id.clone();
                 pending_owner.set(Some((owner.clone(), matrix_id.clone())));
+                submitted_create.set(Some(request.clone()));
                 pending.begin_one_shot(
                     &runtime,
                     MatrixSetupAction::Create,
