@@ -23,3 +23,36 @@ Mechanism ([ticket 019](../plans/ui-integration-recovery/issues/019-adopt-build-
 - **Draft detection.** Draft values live in component-local signals with no global registry. Two signals reach the gate: a valid typed value converts to detectable engine work when Update Now moves focus (each panel's standard blur-commit), and a value its panel refuses to commit is visible because the shared field controls mark it `aria-invalid`, which the Runtime reads at activation and again before the reload. Remaining recorded gap: a component that holds an uncommitted draft without committing on blur and without marking the field invalid is invisible to the gate. The user decided on 2026-11-06 that drafts which cannot yet be saved defer the update; this gap is recorded, not closed.
 
 Scope remains each registration's own scope: root and subpath routes are isolated, and a failed installation neither waits nor reloads.
+
+## Amendment 2026-11-08: registered draft owners and retained adoption risks
+
+This amendment **supersedes the Draft detection paragraph of 2026-11-07** above,
+not the worker-authoritative adoption protocol or ordinary delayed activation.
+[Draft-safety 008–015](../plans/update-draft-safety/map.md#decisions-so-far) implements
+and verifies a Runtime-owned `DraftOwnerRegistry`. The
+[015 coverage audit](../plans/update-draft-safety/issues/015-coverage-mutation-and-closure.md#answer)
+accounts for all **14 Class A owners / 17 registrations**. Both initial Update Now
+and post-takeover reload synchronously poll live per-(owner, admission-key)
+reports. Owner-canonical comparison with the accepted or initial baseline,
+per-key in-flight submission tracking, and guard-owned registration/retirement
+protect valid unresolved explicit-submit drafts without changing Apply/Save
+semantics. Hidden retained owners still report; genuine unmount/scope changes
+retire them. A completed save or preview alone is not proof that all drafts are safe.
+
+Class B blur-committing owners remain an **explicit, revocable risk acceptance**,
+not registered coverage or a proof of safety for every blur ordering. The
+[accepted handoff](../plans/update-draft-safety/issues/006-agree-verification-and-implementation-handoff.md#risk-acceptance-exclusions-remaining-blockers)
+revokes it on **any observed Class B draft loss, any new Class B owner, or a
+blur-ordering counterexample** (Enter→blur, portal focus-out,
+unmount-without-blur), reopening Class B adapters through a fresh ticket.
+Blur-commit and the visible `aria-invalid` check remain additive safeguards;
+neither replaces Class A registry reporting. Unresolved work still defers with
+cancel-only warnings, never discard permission.
+
+[019's reviewed completion](../plans/ui-integration-recovery/issues/019-adopt-build-safely.md#completion-record-coordinator-2026-11-08)
+adds combined packaged draft + held-save protection and exact saved-project
+reopening after B adoption. It does **not** prove safe worker-restart/`ADOPTER`
+lifetime or navigating-client/cache races: both remain explicit residual risks.
+The stale-precache and failed-install incomplete-cache observations also remain
+open and outside this draft-safety change. No ordinary activation/cache-policy
+redesign or global Layout Space-to-pan button policy is decided here.

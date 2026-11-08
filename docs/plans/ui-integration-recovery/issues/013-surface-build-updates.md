@@ -1,6 +1,6 @@
 # 013: Make a stale or updated build visible to the user
 
-Status: ready-for-agent
+Status: resolved
 Type: umbrella
 Blocked by: none for coordination; completion requires implementation children
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -17,13 +17,14 @@ The Decisions and original Comments remain authoritative and unchanged.
 - [018: Notify the editor when a build is waiting](018-notify-waiting-build.md):
   resolved; detection-to-notification slice, does not alone complete Refresh.
 - [019: Adopt the waiting build through protected Refresh](019-adopt-build-safely.md):
-  018 dependency met; implementation complete (2026-11-07) and **pending independent
-  review**, not resolved. Complete action, work/cache safety and real adoption
-  evidence are recorded in its Evidence section; full gate and review outstanding.
+  reviewed and resolved (2026-11-08), including
+  [draft-safety 008–015](../../update-draft-safety/map.md#decisions-so-far) and combined
+  packaged draft + held-save proof. Its Completion record distinguishes executed
+  checks, reused full gate, flakes and retained risks; final review is Spec PASS /
+  Standards PASS, READY. This supersedes the 2026-11-07 pending-review checkpoint.
 
-Both children must complete before this umbrella can close; this umbrella's
-acceptance boxes stay unchecked until 019 is reviewed and resolved. Neither changes
-the scope or blockers of 010/011.
+Both children are resolved and the acceptance evidence below closes this umbrella.
+Neither changes the scope or blockers of 010/011, nor closes parent 001.
 
 ## What to build
 
@@ -79,19 +80,39 @@ the working assumptions above where they differ:
 
 ## Acceptance criteria
 
-- [ ] The notification and its refresh button behave as in Decisions; any
+- [x] The notification and its refresh button behave as in Decisions; any
   working assumption the implementation changes is recorded here.
-- [ ] When a newer worker is installed and waiting, the interface says so without
+- [x] When a newer worker is installed and waiting, the interface says so without
   interrupting editing, and offers a way to adopt it. Adopting never discards
   pending edits or breaks an open editor's assets (ADR-0022).
-- [ ] RED/GREEN evidence at the real boundary: a mounted or packaged-browser
+- [x] RED/GREEN evidence at the real boundary: a mounted or packaged-browser
   scenario that serves an old build, then a new one, and asserts the waiting-update
   notification, the refresh action and that the new build is then running. Source presence or a changed label is not
   evidence.
-- [ ] Reduced-motion and keyboard access for the new control, using the shared
+- [x] Reduced-motion and keyboard access for the new control, using the shared
   controls and the existing Toast or status patterns where they fit.
-- [ ] If the ADR-0022 trade-off is changed or refined, add a dated amendment
+- [x] If the ADR-0022 trade-off is changed or refined, add a dated amendment
   instead of rewriting it.
+
+### Acceptance evidence and changed assumptions (2026-11-08)
+
+| Criterion | Evidence reused for reconciliation |
+| --- | --- |
+| AC1 — Decisions and changes recorded | 018 notification and 019 actionable Toast + persistent header; changed assumptions below. |
+| AC2 — Protected adoption | 019 worker-authoritative sole-client gating and offline/scope controls; draft-safety 008–015, especially 010's held-save/failure/retry proof and 015's all-14 coverage/optimized closure; 019 AC7 combined proof. |
+| AC3 — Real RED/GREEN | 018 real waiting notification; 019 pre-019 RED / post GREEN packaged A→B receipts, plus draft-safety 010/015 and final combined proof in `019-ac7-legs.log` (takeover PASS, run exit 1 from layout setup, not an all-green run). |
+| AC4 — Keyboard/reduced motion | Review-accepted 019 packaged keyboard-matrix 89 PASS / 0 FAIL, shared controls, cancellation focus and motion/theme/appearance/narrow coverage; mounted fixtures lack app CSS and are not packaged layout proof. |
+| AC5 — ADR refinement | ADR-0022 dated amendments 2026-11-07 and 2026-11-08 (append-only). |
+
+AC1's final assumptions: the **worker**, not a page-side probe, authoritatively
+checks sole-client eligibility; deferral is isolated to each registration scope,
+not all same-origin editors. The Runtime registry defers unresolved Class A drafts
+at both adoption/reload checkpoints; Class B remains revocable risk acceptance
+under the ADR trigger. Warnings are **cancel-only**, never discard authorization.
+The action is **Update Now**; dismissed Toasts leave an actionable persistent header
+notice and reappear on page load from real waiting state. Running identity/time is
+**omitted**, as permitted: no identity is inferred from a server response or notice.
+These refinements supersede the original working assumptions only where they differ.
 
 ## Verification and completion
 
@@ -121,3 +142,27 @@ so.
   Decisions): dismissible toast with "Update Now" and a persistent header indicator
   after dismissal; "Please close any other open tabs" when blocked; defer for
   unresolved drafts; drop build identity if it needs plumbing. 018 and 019 updated.
+
+## Completion record (coordinator, 2026-11-08)
+
+HEAD `118e60f1`; Status `resolved`. All five criteria have evidence above.
+Executed in this pass: documentation reconciliation, doc-links PASS (719),
+`git diff --check` PASS and final diff read; no new product/build/full gate run
+claimed. Check log: `019-doc-reconciliation-links.log` under
+`.evidence/ui-integration-recovery/`. Reused: [018](018-notify-waiting-build.md),
+[019's reviewed completion](019-adopt-build-safely.md#completion-record-coordinator-2026-11-08)
+(Sol review `366d5210..5a45a0e39`, AC7 fix `118e60f1`, delta Spec PASS / Standards
+PASS carried, READY), and draft-safety 010/015 receipts. 019 records both layout
+and tooling flakes honestly, the reused `015-coordinator-full-gate-fdlock.log`,
+and final cleanup `019-ac7{,b}-cleanup.log`; none is a new gate for these docs.
+Unmet gates/retained cleanup for this reconciliation: none. Worker-restart,
+navigating-client/cache races and Class B acceptance remain ADR risks, not proven
+safe by resolution. Next: 017 reconciliation in this pass, then parent plan 020/021;
+001 and UI recovery 010/011 remain outside this closure.
+
+## Answer
+
+018's waiting notification and reviewed 019 protected Update Now, strengthened by
+draft-safety 008–015, discharge all five criteria. Changed assumptions and evidence
+are recorded above; ADR amendments preserve the historical decision. 013 is resolved
+without closing parent 001, UI recovery 010/011 or diagnosing the old stale-build incident.

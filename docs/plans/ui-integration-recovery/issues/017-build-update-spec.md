@@ -1,6 +1,6 @@
 # 017: Build update notification specification
 
-Status: ready-for-agent
+Status: resolved
 Type: planning
 Owner: fix/ui-integration-recovery
 Blocked by: none for planning
@@ -21,9 +21,10 @@ Notify the user when an installed update is waiting without interrupting their
 Editor session. Offer Refresh to adopt it safely while preserving local work
 and other open editors' access to required assets.
 
-Persistence until dismissal/adoption, protection of pending or unsaved work and
-optional running version/time display remain 013's working assumptions, not
-additional approved product decisions.
+At specification time, persistence until dismissal/adoption, protection of pending
+or unsaved work and optional running version/time display were 013's working
+assumptions. The user's 2026-11-06 answers below supersede them where they differ;
+013's 2026-11-08 reconciliation records the delivered behavior.
 
 ## User Stories
 
@@ -113,8 +114,9 @@ waiting state cannot prove installation, cache continuity or adoption.
   fixture is a blocker, not permission to substitute a mounted-only pass.
 - Run focused mounted/shared-control checks and the packaged scenario plus
   python3 scripts/check.py quick for touched crates. Record exact invocations
-  and counts in completion comments. No builds/browser tests ran for this planning
-  task, and no RED/GREEN result is claimed. 010/011 gain no blockers.
+  and counts in completion comments. Historical planning-task limit: no builds/browser
+  tests ran in the 2026-11-06 planning task and it claimed no RED/GREEN. Delivered
+  proof is now indexed in the Answer below. 010/011 gain no blockers.
 
 ## Out of Scope
 
@@ -139,8 +141,12 @@ certification; changes to tickets 001–012 or their acceptance scope.
   Pending edit, Accepted document, Theme, Appearance and Workspace.
 - **S3:** [Worker](../../../../web/src/service_worker.rs) caches manifest assets at
   install and waits; activation deletes other matching scoped caches and claims
-  clients; fetch prefers its current cache including the shell. The message
-  handler handles storage-window queries, not update adoption.
+  clients; fetch prefers its current cache including the shell. **2026-11-08
+  superseded observation:** the original "storage-window queries, not update adoption"
+  description predates 019. The handler now accepts `ADOPT_WAITING_MESSAGE` and
+  authoritatively gates opt-in adoption on the requesting page being its sole
+  window client, with guarded cleanup; ordinary delayed activation is unchanged.
+  See 019 and the dated ADR-0022 amendments for proof and residual risks.
   [Manifest policy](../../../../web/crates/host/src/offline.rs) validates versions
   and normalized assets and isolates cache names by scope path.
 - **S4:** [Registration](../../../../web/crates/host/src/host/offline.rs) returns a
@@ -151,21 +157,29 @@ certification; changes to tickets 001–012 or their acceptance scope.
 - **S5:** [Notification bridge/tests](../../../../web/src/presentation/notifications.rs)
   drain transient results once, keep reports inline and test expiry/unmount.
 - **S6:** [Toast wrapper](../../../../web/crates/ui-shared/src/ui/toast.rs) forwards
-  permanence, defaults to five-second expiry and renders title/description/close,
-  but no Refresh/action slot.
-  [Mounted tests](../../../../web/crates/ui-shared/src/toolbar_toggle_slider_toast_tests.rs)
-  cover atomic status and dismissal.
+  permanence, defaults to five-second expiry and renders title/description/close.
+  **2026-11-08 superseded observation:** "no Refresh/action slot" was the original
+  inspected-source limit; 019 adds `ToastActionSlot` for the reachable Update Now
+  action. [Mounted tests](../../../../web/crates/ui-shared/src/toolbar_toggle_slider_toast_tests.rs)
+  now cover the action as well as atomic status and dismissal; packaged keyboard
+  proof is recorded in 019.
 - **S7:** [Keyboard scenario](../../../../web/crates/ui-shared/ticket-008-keyboard.py)
   covers retained focus, Tab, Enter/Space dismissal and Escape not being captured.
 - **S8:** [Header](../../../../web/src/presentation/header.rs) distinguishes local
-  saved/saving/failed/unavailable states. A complete global draft inventory,
-  safe multi-tab adoption protocol and deployed behavior have not been verified.
+  saved/saving/failed/unavailable states. **2026-11-08 superseded observation:**
+  the original unverified inventory/multi-tab/deployed-behavior limit is discharged
+  by draft-safety 008–015's census and Runtime registry (14 Class A owners /
+  17 registrations), and 019's packaged second-editor/offline/registration-scope
+  and adoption proof. Class B is revocable risk acceptance; worker-restart and
+  navigating-client/cache races remain explicit risks, not verified-safe claims.
 - **S9:** [Release builder](../../../../scripts/build-web.py), embed_offline_worker,
   inventories route assets and embeds version/assets in the generated bootstrap.
   Version contains a content digest prefix and time.time_ns(). A separate readable
   timestamp and loaded-page identity binding were not verified.
 
-These are source observations, not current passing test results.
+The original entries are planning-time source observations, not current passing
+test results. The dated superseding notes and Answer point to delivered proof;
+unchanged historical observations are not a fresh source audit.
 
 ### Open questions, not new decisions
 
@@ -198,3 +212,32 @@ a new product choice rather than inventing one.
 - 2026-11-06: Documentation-only to-spec synthesis. The user explicitly requested
   publication and breakdown; source citations are included as requested.
   Ready for agent work is not feature completion or product acceptance.
+
+## Completion record (coordinator, 2026-11-08)
+
+HEAD `118e60f1`; Status `resolved`. Executed in this pass: documentation reconciliation,
+doc-links PASS (719; `.evidence/ui-integration-recovery/019-doc-reconciliation-links.log`),
+`git diff --check` PASS and final diff read; no product tests or new full gate claimed.
+Reused: reviewed 018/019 and
+[draft-safety 008–015](../../update-draft-safety/map.md#decisions-so-far), especially
+[010 packaged proof](../../update-draft-safety/issues/010-packaged-a-to-b-proof.md#answer)
+and [015 closure](../../update-draft-safety/issues/015-coverage-mutation-and-closure.md#answer).
+[019's completion record](019-adopt-build-safely.md#completion-record-coordinator-2026-11-08)
+records the fixed combined-review endpoints, final delta PASS/READY, combined AC7
+proof, failed/flake runs, reused full gate and owned cleanup. No unmet gate or
+retained cleanup for 017; ADR residual risks and the exact Layout Space-to-pan
+product question remain, outside this closure. Next: parent plan 020/021; no change
+to parent 001 or UI recovery 010/011 acceptance.
+
+## Answer
+
+Stories and seams are discharged by [018 notification](018-notify-waiting-build.md),
+[019 protected adoption](019-adopt-build-safely.md) and draft-safety 008–015:
+notification/persistence/dismissal (stories 1–5), draft/pending-save/failure/Cancel
+protection (6–9), packaged other-editor/offline continuity (10), keyboard and
+reduced-motion controls (11–12), and loaded B plus exact saved-project reopening
+(13). Draft-safety 010/015 packaged receipts and 019's combined AC7 proof are the
+real-boundary evidence, not source-presence assertions. Story 14's optional running
+identity/time was omitted under the user's answer. S3/S6/S8 above mark superseded
+source limits explicitly. ADR-0022 amendments 2026-11-07/08 record the refinements
+and retained risks. 017 is resolved; historical stale-build causation remains unproven.

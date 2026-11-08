@@ -80,7 +80,11 @@ proof. Reaching this destination does not implement the fix or close the adoptio
 - **2026-11-08 015 closure:** [015 coverage/mutation/closure](issues/015-coverage-mutation-and-closure.md#answer)
   reviewed (combined Spec PASS / Standards resolved, 14/14 owners, 6+1 mutations killed,
   full gate passed) and coordinator-accepted — verification closure for draft-safe Update Now.
-  Next: coordinator commit, then parent 019; umbrella not closed.
+  At that checkpoint: coordinator commit, then parent 019; umbrella not closed by 015.
+- **2026-11-08 parent 019 closure:** [019 protected adoption](../ui-integration-recovery/issues/019-adopt-build-safely.md#answer)
+  reviewed and resolved at `118e60f1` (Spec PASS / Standards PASS, READY), including
+  combined packaged draft + held-save proof. Its completion record retains failed-run
+  receipts and ADR residual risks; 013/017 reconciled in the same documentation pass.
 
 ## Not yet specified
 
