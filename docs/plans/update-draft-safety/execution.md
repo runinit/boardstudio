@@ -83,27 +83,35 @@ The canonical protocol (proof map, review reports, completion record) is in
   `abc-b-coordinator-red.log`, `abc-b-coordinator-red-io-path.log`,
   `abc-b-coordinator-green.log`, `abc-b-coordinator-test-check.log`,
   `abc-b-coordinator-tooling.log`, `abc-b-coordinator-doclinks.log`.
-  Optional suggestions are not acceptance blockers. No new real-browser proof is claimed:
-  the single integrated smoke after C must show Chrome using the exact private profile before
-  close, then its process/profile/IndexedDB removal. Overall A/B/C acceptance remains pending.
-- **C, generated-output cleanup:** candidate implemented; independent Spec/Standards reviews
-  pending. Fresh command-owned workspaces refuse existing, symlinked, unusable and input-overlapping
-  paths before writes. Normal/caught-failure cleanup waits for browser/profile/server safety;
-  uncertain cleanup retains paths and fails. `--keep-artifacts` is diagnostic-only, never acceptance
+  Optional suggestions are not acceptance blockers. B's code/unit checkpoint deferred real-browser
+  acceptance to the integrated C smoke below, which now discharges that lifecycle gate.
+- **C, generated-output cleanup:** code/unit checkpoint `5ef7b778` accepted. Independent Standards
+  (`2e9a7f5c`) and Spec (`da05402b`) PASS, no Critical/Required findings; both read all three changed
+  files to EOF and the full diff. Fresh command-owned workspaces validate existing, symlinked,
+  unusable and input-overlapping paths before writes. Normal/caught-failure cleanup waits for
+  browser/profile/server safety; uncertain cleanup retains paths and fails. `--keep-artifacts` is diagnostic-only, never acceptance
   (exit 3 without failures). Geometry exports now share session ownership and retention; coordinator
   RED/GREEN corrected their premature deletion. Coordinator verified 31 focused tests, seven named
   refusal/failure/retention guards and the full tooling gate. Evidence under
   `.evidence/update-draft-safety/`: `abc-c-coordinator-focused.log`, `abc-c-coordinator-guards.log`,
   `abc-c-coordinator-export-red.log`, `abc-c-coordinator-export-green.log`,
-  `abc-c-coordinator-tooling.log`, `abc-c-coordinator-lifecycle.log`.
+  `abc-c-coordinator-tooling.log`, `abc-c-coordinator-doclinks.log`,
+  `abc-c-coordinator-lifecycle.log`.
   The single integrated real-browser smoke passed using existing `site-019-fix` read-only as input:
   main created/stamped its A/B workspace, Chrome ran on the exact private profile before close,
   normal project import created IndexedDB, normal export observed the imported project, and one
   confirmed close removed profile/database/fixture/export. Repeated cleanup issued no second close;
   main removed its generated workspace and released port 4746. No rebuild, input deletion, cache
   clearing or worker unregister was used. This lifecycle proof is not a new product matrix or any
-  015/019 closure. Overall A/B/C acceptance awaits the complete independent reviews.
-- **012:** paused until A, B and C are complete; 013–015 stay queued behind it.
+  015/019 closure. No invocation-owned smoke outputs remain. Build-phase owners still attest
+  diagnostic-source cleanup separately; this smoke created no source input requiring cleanup.
+  Optional review suggestions are deferred without changing acceptance criteria. The Spec reviewer
+  did not load the review skills or inspect logs; coordinator skill reads and executed evidence
+  are recorded separately, not attributed to that reviewer. Runtime workspace-creation I/O failure
+  can reset the serve log after validation; no general zero-write runtime-error guarantee is claimed.
+  Coordinator acceptance: A/B/C preparation complete; source checks and smoke are reused unchanged.
+- **012:** next, not started. The user approved a new-thread handoff for the remaining 012–015
+  implementation. 013 still requires its explicit human origin-baseline decision; no policy is waived.
 
 This sequencing checkpoint does not change ticket scope or waive formal dependencies.
 The reviewed 008 implementation can feed dependent work while 010 discharges its
