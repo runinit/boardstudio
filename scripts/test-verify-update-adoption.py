@@ -458,6 +458,133 @@ def tree(root):
     return entries
 
 
+class PageWasmResolutionTests(unittest.TestCase):
+    def test_page_wasm_resolves_both_packaging_layouts_and_fails_closed(self):
+        # write_packaged_source only builds the fast two-route shape, so the layout
+        # variants this resolver must distinguish are built inline as single sites.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fast = root / "fast-site"
+            (fast / "wasm").mkdir(parents=True)
+            (fast / "wasm" / "boardstudio-web_bg.wasm").write_bytes(b"\0asm\1\0\0\0")
+            optimized = root / "optimized-site"
+            (optimized / "assets").mkdir(parents=True)
+            hashed = optimized / "assets" / "boardstudio-web_bg-dxhTEST.wasm"
+            hashed.write_bytes(b"\0asm\1\0\0\0")
+            (optimized / "assets" / "boardstudio-web-dxhTEST.js").write_text(
+                "// hashed JS references the hashed wasm by URL")
+            both = root / "both-site"
+            (both / "wasm").mkdir(parents=True)
+            (both / "wasm" / "boardstudio-web_bg.wasm").write_bytes(b"\0asm\1\0\0\0")
+            (both / "assets").mkdir()
+            (both / "assets" / "boardstudio-web_bg-dxhTEST.wasm").write_bytes(b"\0asm\1\0\0\0")
+            empty = root / "empty-site"
+            empty.mkdir()
+            multiple = root / "multiple-site"
+            (multiple / "assets").mkdir(parents=True)
+            (multiple / "assets" / "boardstudio-web_bg-dxhAAA.wasm").write_bytes(b"\0asm")
+            (multiple / "assets" / "boardstudio-web_bg-dxhBBB.wasm").write_bytes(b"\0asm")
+            with self.subTest("fast layout keeps the historical path"):
+                self.assertEqual(VERIFY.page_wasm(fast),
+                                 fast / "wasm" / "boardstudio-web_bg.wasm")
+            with self.subTest("optimized layout resolves the hashed binary and stamps in place"):
+                self.assertEqual(VERIFY.page_wasm(optimized), hashed)
+                VERIFY.stamp_wasm(hashed, "B")
+                self.assertTrue(hashed.read_bytes().endswith(b"boardstudio-buildB"))
+                self.assertEqual(hashed.name, "boardstudio-web_bg-dxhTEST.wasm")
+            with self.subTest("fast layout wins when both exist"):
+                self.assertEqual(VERIFY.page_wasm(both),
+                                 both / "wasm" / "boardstudio-web_bg.wasm")
+            with self.subTest("zero matches fails closed naming the site"):
+                with self.assertRaises(VERIFY.Failure) as ctx:
+                    VERIFY.page_wasm(empty)
+                self.assertIn("empty-site", str(ctx.exception))
+            with self.subTest("multiple matches fail closed naming the candidates"):
+                with self.assertRaises(VERIFY.Failure) as ctx:
+                    VERIFY.page_wasm(multiple)
+                message = str(ctx.exception)
+                self.assertIn("multiple-site", message)
+                self.assertIn("dxhAAA", message)
+                self.assertIn("dxhBBB", message)
+
+
+class LoadedBinaryPayloadTests(unittest.TestCase):
+    def test_check_loaded_binary_fetches_each_layout_page_wasm(self):
+        # The loaded-binary payload must fetch the site's actual page wasm: the
+        # historical fast path, or the hashed optimized binary. The browser
+        # transport (eval_file) is captured, never executed; the production
+        # derive-and-render path (page_wasm + loaded_binary_script) runs for real.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fast = root / "fast-site"
+            (fast / "wasm").mkdir(parents=True)
+            (fast / "wasm" / "boardstudio-web_bg.wasm").write_bytes(b"\0asm\1\0\0\0")
+            optimized = root / "optimized-site"
+            (optimized / "assets").mkdir(parents=True)
+            (optimized / "assets" / "boardstudio-web_bg-dxhTEST.wasm").write_bytes(
+                b"\0asm\1\0\0\0")
+            for layout, site, wasm_rel in (
+                    ("fast", fast, "wasm/boardstudio-web_bg.wasm"),
+                    ("optimized", optimized, "assets/boardstudio-web_bg-dxhTEST.wasm")):
+                with self.subTest(layout):
+                    rendered = {}
+                    driver = VERIFY.Driver(4733, io.StringIO())
+
+                    def capture(payload, text=None):
+                        rendered["payload"] = payload
+                        rendered["text"] = text
+                        return {"wasmBuild": "B", "requestedByThisDocument": True,
+                                "url": "http://127.0.0.1:4733/" + wasm_rel,
+                                "status": 200, "size": 8}
+
+                    driver.eval_file = capture
+                    VERIFY.check_loaded_binary(driver, layout, "B", site)
+                    self.assertEqual(rendered["payload"], "loaded-binary.js")
+                    self.assertIn(f"reg.scope + '{wasm_rel}'", rendered["text"])
+                    self.assertNotIn(VERIFY.PAGE_WASM_PLACEHOLDER, rendered["text"])
+                    self.assertEqual(driver.failures, [])
+            with self.subTest("unresolvable site fails closed before any browser fetch"):
+                empty = root / "empty-site"
+                empty.mkdir()
+                calls = []
+                driver = VERIFY.Driver(4733, io.StringIO())
+                driver.eval_file = lambda *args, **kwargs: calls.append((args, kwargs))
+                with self.assertRaises(VERIFY.Failure):
+                    VERIFY.check_loaded_binary(driver, "empty", "B", empty)
+                self.assertEqual(calls, [])
+
+
+class PackagedDiffTests(unittest.TestCase):
+    def test_packaged_diff_accepts_optimized_layout_sort_order(self):
+        # write_packaged_source only builds the fast two-route shape, so the
+        # optimized A/B pair this order check must accept is built inline.
+        # Only index.html, service-worker.js and the hashed page wasm differ;
+        # the hashed assets/ path sorts first, unlike the fast wasm/ path.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            builds = {}
+            for label, name, version in (
+                    ("A", "a", "boardstudio-000000000000000a-1"),
+                    ("B", "b", "boardstudio-000000000000000b-2")):
+                build = root / name
+                builds[label] = build
+                for scope in ("site-root", "site-subpath/boardstudio"):
+                    site = build / scope
+                    (site / "assets").mkdir(parents=True)
+                    (site / "index.html").write_text(
+                        f"<html><head></head><body>{label}</body></html>")
+                    (site / "service-worker.js").write_text(
+                        f'start_offline_worker("{version}", []);\n')
+                    (site / "assets" / "boardstudio-web_bg-dxhTEST.wasm").write_bytes(
+                        b"\0asm\1\0\0\0" + label.encode())
+                    (site / "boardstudio_offline_worker.js").write_text("// worker glue")
+                    (site / "assets" / "boardstudio-web-dxhTEST.js").write_text(
+                        "// hashed JS references the hashed wasm by URL")
+            driver = VERIFY.Driver(4733, io.StringIO())
+            VERIFY.packaged_diff(builds["A"], builds["B"], io.StringIO(), driver)
+            self.assertEqual(driver.failures, [])
+
+
 class OutputWorkspaceTests(unittest.TestCase):
     """`main post` against a stub browser, build and server boundary on real directories."""
 

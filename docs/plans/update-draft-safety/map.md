@@ -77,6 +77,11 @@ proof. Reaching this destination does not implement the fix or close the adoptio
   [013 human origin-baseline decision](issues/013-pcb-placement-attach-assembly-net-owners.md#decision-required-before-implementation),
   then 014; see [execution](execution.md).
 
+- **2026-11-08 015 closure:** [015 coverage/mutation/closure](issues/015-coverage-mutation-and-closure.md#answer)
+  reviewed (combined Spec PASS / Standards resolved, 14/14 owners, 6+1 mutations killed,
+  full gate passed) and coordinator-accepted — verification closure for draft-safe Update Now.
+  Next: coordinator commit, then parent 019; umbrella not closed.
+
 ## Not yet specified
 
 - (Graduated 2026-11-07: the census's named unread regions and untraced lifetimes

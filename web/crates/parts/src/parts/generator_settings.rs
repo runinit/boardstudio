@@ -1058,10 +1058,7 @@ pub fn GeneratorSettingsEditor(
         (&draft_owner_scope, &owner, &draft_owner_schema),
         {
             let runtime = runtime.clone();
-            let edits = edits;
             let pending_edits = pending_edits.clone();
-            let apply_intent = apply_intent;
-            let upload_intent = upload_intent;
             let draft_generation = draft_generation.clone();
             let mut draft_owner_guard = draft_owner_guard;
             let mut upload_owner_guard = upload_owner_guard;

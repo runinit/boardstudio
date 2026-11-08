@@ -1189,7 +1189,6 @@ fn AssemblyDraftFields(
                 runtime.retire_draft_owner(old);
             }
             let probe_runtime = runtime.clone();
-            let edits = edits.clone();
             let owner_scope = registry_scope.2.clone();
             guard.set(Some(runtime.register_draft_owner(
                 boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {

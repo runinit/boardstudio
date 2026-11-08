@@ -12,7 +12,8 @@ Packaged identities (so the A/B claim is checkable):
   * `--src-dir` is one real `scripts/build-web.py --routes root,subpath` output.
   * A and B are stamped copies of it: each copy's `index.html` receives a
     `<meta name="boardstudio-build" content="A|B">`, its page application binary
-    `wasm/boardstudio-web_bg.wasm` receives a trailing wasm custom section
+    (`wasm/boardstudio-web_bg.wasm`, or the hashed `assets/boardstudio-web_bg-*.wasm`
+    in optimized builds) receives a trailing wasm custom section
     `boardstudio-build<A|B>` (a valid, ignored section, so the application runs
     unchanged but the two binaries genuinely differ), and the production
     `embed_offline_worker` re-embeds the service-worker bootstrap, so each copy
@@ -219,15 +220,17 @@ class Driver:
     def click_selector(self, selector: str) -> None:
         self.run(["agent-browser", "click", selector])
 
-    def eval_file(self, payload: str):
+    def eval_file(self, payload: str, text: str | None = None):
+        # text renders the one parameterized payload; None keeps the file bytes.
+        # Either way the evaluated body is logged verbatim below.
         path = PAYLOADS / payload
+        body = path.read_text() if text is None else text
         self.cmd(f"$ agent-browser eval --stdin < {path}")
         print(f"--- payload {path} ---", file=self.log, flush=True)
-        print(path.read_text(), file=self.log, flush=True)
+        print(body, file=self.log, flush=True)
         print("--- output ---", file=self.log, flush=True)
-        with open(path) as handle:
-            done = subprocess.run(["agent-browser", "eval", "--stdin"], cwd=ROOT, env=self.env,
-                                  stdin=handle, capture_output=True, text=True, timeout=180)
+        done = subprocess.run(["agent-browser", "eval", "--stdin"], cwd=ROOT, env=self.env,
+                              input=body, capture_output=True, text=True, timeout=180)
         print(done.stdout or "", file=self.log, flush=True)
         if done.stderr:
             print(done.stderr, file=self.log, flush=True)
@@ -375,8 +378,10 @@ class Server:
         # correct revalidation headers). This also stops poisoned script entries
         # from revalidating 304.
         for route in ROUTES:
-            for name in ("service-worker.js", "index.html", "wasm/boardstudio-web_bg.wasm"):
-                target = site_dir(build_dir, route) / name
+            site = site_dir(build_dir, route)
+            wasm_name = page_wasm(site).relative_to(site).as_posix()
+            for name in ("service-worker.js", "index.html", wasm_name):
+                target = site / name
                 if target.is_file():
                     os.utime(target, None)
         self.start()
@@ -404,6 +409,53 @@ def leb128(value: int) -> bytes:
         else:
             out.append(byte)
             return bytes(out)
+
+
+def page_wasm(site: Path) -> Path:
+    """Page application binary inside a packaged `site` dir, either packaging layout.
+
+    Fast/debug `dx build` emits `wasm/boardstudio-web_bg.wasm`; optimized/release
+    `dx build --release` emits one content-hashed `assets/boardstudio-web_bg-*.wasm`
+    referenced from its hashed JS by URL. The fast path wins when present
+    (byte-identical to the historical behavior); otherwise exactly one hashed match
+    is required, so zero or multiple matches fail closed instead of stamping or
+    asserting the wrong bytes. The hashed file is stamped in place under its
+    existing name, so its JS reference stays valid.
+    """
+    fast = site / "wasm" / "boardstudio-web_bg.wasm"
+    if fast.is_file():
+        return fast
+    assets = site / "assets"
+    matches = sorted(p for p in assets.glob("boardstudio-web_bg-*.wasm")
+                     if p.is_file()) if assets.is_dir() else []
+    if len(matches) != 1:
+        found = ", ".join(p.name for p in matches) or "none"
+        raise Failure(f"page wasm unresolved in {site}: "
+                      f"wasm/boardstudio-web_bg.wasm is absent and "
+                      f"assets/boardstudio-web_bg-*.wasm matched {found}")
+    return matches[0]
+
+
+# Sentinel inside loaded-binary.js replaced with the site-relative page wasm path.
+# No other payload is parameterized (every other eval_file call passes one literal),
+# so this single exact-count replacement is the whole mechanism: one browser
+# round-trip, the rendered body logged verbatim like every payload.
+PAGE_WASM_PLACEHOLDER = "__BOARDSTUDIO_PAGE_WASM__"
+
+
+def loaded_binary_script(site: Path) -> str:
+    """Render loaded-binary.js so it fetches this site's actual page wasm.
+
+    Fast layouts render the historical `wasm/boardstudio-web_bg.wasm` URL;
+    optimized layouts render their hashed `assets/boardstudio-web_bg-*.wasm` URL.
+    The page_wasm() Failure propagates before any browser fetch, and a payload
+    without exactly one placeholder fails closed instead of fetching a bogus URL.
+    """
+    wasm_rel = page_wasm(site).relative_to(site).as_posix()
+    text = (PAYLOADS / "loaded-binary.js").read_text()
+    if text.count(PAGE_WASM_PLACEHOLDER) != 1:
+        raise Failure(f"loaded-binary.js must contain exactly one {PAGE_WASM_PLACEHOLDER}")
+    return text.replace(PAGE_WASM_PLACEHOLDER, wasm_rel)
 
 
 def stamp_wasm(wasm: Path, label: str) -> None:
@@ -443,7 +495,7 @@ def stamp_build(src: Path, dst: Path, label: str, log) -> None:
             raise Failure(f"no <head> to stamp in {index}")
         stamp = f'<head><meta name="boardstudio-build" content="{label}">'
         index.write_text(html.replace("<head>", stamp, 1))
-        stamp_wasm(site / "wasm" / "boardstudio-web_bg.wasm", label)
+        stamp_wasm(page_wasm(site), label)
         worker = extract_worker(site_dir(src, route), dst.parent / f"{dst.name}-worker-{route}")
         build_web.embed_offline_worker(site, worker)
     print(f"stamped {label}: {dst}", file=log, flush=True)
@@ -461,8 +513,9 @@ def packaged_diff(a: Path, b: Path, log, driver: Driver) -> None:
         va, vb = worker_version(a, route), worker_version(b, route)
         print(f"packaged-version {route}: A={va} B={vb}", file=log, flush=True)
         driver.check(f"{route}: A and B file sets are identical", files_a == files_b)
+        wasm_rel = page_wasm(sa).relative_to(sa).as_posix()
         driver.check(f"{route}: packaged diff is exactly index.html + service-worker.js + page wasm",
-                     differing == ["index.html", "service-worker.js", "wasm/boardstudio-web_bg.wasm"],
+                     differing == sorted(["index.html", "service-worker.js", wasm_rel]),
                      str(differing))
         driver.check(f"{route}: A and B versions differ", va != vb, f"A={va} B={vb}")
 
@@ -777,17 +830,18 @@ def wait_for_adoption_reload(driver: Driver, label: str, timeout_s: int = 60) ->
                 timeout_s)
 
 
-def check_loaded_binary(driver: Driver, label: str, build: str) -> None:
-    binary = driver.eval_file("loaded-binary.js") or {}
+def check_loaded_binary(driver: Driver, label: str, build: str, site: Path) -> None:
+    binary = driver.eval_file("loaded-binary.js", loaded_binary_script(site)) or {}
     driver.check(f"{label}: application binary served to this page is build {build}",
                  binary.get("wasmBuild") == build, str(binary))
     driver.check(f"{label}: this document requested that application binary",
                  binary.get("requestedByThisDocument") is True, str(binary.get("url")))
 
 
-def expect_adopted(driver: Driver, label: str, build: str, expected_caches: dict[str, str]) -> dict:
+def expect_adopted(driver: Driver, label: str, build: str, expected_caches: dict[str, str],
+                   site: Path) -> dict:
     s = driver.state()
-    check_loaded_binary(driver, label, build)
+    check_loaded_binary(driver, label, build, site)
     driver.check(f"{label}: loaded document is {build}", s.get("build") == build, str(s.get("build")))
     driver.check(f"{label}: navigation was a reload", s.get("navType") == "reload", str(s.get("navType")))
     driver.check(f"{label}: controlled by the new worker", bool(s.get("controller")))
@@ -861,7 +915,7 @@ def leg_adopt(ctx: Ctx) -> None:
             f"build={s.get('build')} waiting={s.get('waiting')}")
     d.check("A: single A cache", s.get("caches") == [ctx.names("root", "A")], str(s.get("caches")))
     d.check("A: served version is A's", serve_version(d.port) == ctx.va["root"])
-    check_loaded_binary(d, "A", "A")
+    check_loaded_binary(d, "A", "A", site_dir(ctx.a, "root"))
     d.note(f"save label before update: {s.get('saveLabel')}")
     check_caches(d, "A installed", {ctx.names("root", "A"): ctx.va["root"]})
 
@@ -884,7 +938,8 @@ def leg_adopt(ctx: Ctx) -> None:
     d.cmd("click header Update Now (sole editor, work settled)")
     d.click_selector(UPDATE_NOW_HEADER)
     wait_for_adoption_reload(d, "adopt")
-    expect_adopted(d, "adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+    expect_adopted(d, "adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]},
+                   site_dir(ctx.b, "root"))
     d.check("adopted: served version is still B's", serve_version(d.port) == ctx.vb["root"])
     reopen_saved_project(d, "adopted B")
     end_session(d)
@@ -961,7 +1016,8 @@ def leg_second_editor(ctx: Ctx) -> None:
     time.sleep(3)
     d.click_selector(UPDATE_NOW_TOAST)
     wait_for_adoption_reload(d, "second-editor adopt")
-    expect_adopted(d, "adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+    expect_adopted(d, "adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]},
+                   site_dir(ctx.b, "root"))
     end_session(d)
 
 
@@ -1133,7 +1189,8 @@ def leg_unavailable_target(ctx: Ctx) -> None:
     s = expect_waiting_state(d, "repaired B waiting", mark, "A")
     d.click_selector(UPDATE_NOW_TOAST if s.get("toastUpdateNow") else UPDATE_NOW_HEADER)
     wait_for_adoption_reload(d, "recovery adopt")
-    expect_adopted(d, "recovered to B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+    expect_adopted(d, "recovered to B", "B", {ctx.names("root", "B"): ctx.vb["root"]},
+                   site_dir(ctx.b, "root"))
     end_session(d)
 
 
@@ -1187,7 +1244,8 @@ def leg_late_adopt(ctx: Ctx) -> None:
     time.sleep(3)
     d.click_selector(UPDATE_NOW_TOAST)
     wait_for_adoption_reload(d, "late-adopt adopt")
-    expect_adopted(d, "adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+    expect_adopted(d, "adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]},
+                   site_dir(ctx.b, "root"))
     end_session(d)
 
 
@@ -1239,7 +1297,8 @@ def leg_draft_safety(ctx: Ctx) -> None:
     time.sleep(1)
     d.click_selector(UPDATE_NOW_TOAST)
     wait_for_adoption_reload(d, "draft-safety adopt")
-    expect_adopted(d, "adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+    expect_adopted(d, "adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]},
+                   site_dir(ctx.b, "root"))
     d.poll("the saved project is restored in the reloaded document",
            "!!document.querySelector('[aria-label=\"Board Inspector\"] input[type=text]')", 60)
     name = d.eval_file("board-name.js")
@@ -1664,7 +1723,8 @@ def leg_layout_constraint(ctx: Ctx) -> None:
                 str(saved_a["constraints"]))
         d.click_selector(UPDATE_NOW_HEADER)
         wait_for_adoption_reload(d, "layout adopt")
-        expect_adopted(d, "layout adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+        expect_adopted(d, "layout adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]},
+                       site_dir(ctx.b, "root"))
         reopen_saved_project(d, "layout adopted B")
         form = select_layout_constraint(d)
         d.check("layout B: reopened real form holds saved constraint",
@@ -1779,7 +1839,8 @@ def leg_geometry_tracer(ctx: Ctx) -> None:
     d.cmd("adopt from header (toast dismissed) after Apply+Saved")
     d.click_selector(UPDATE_NOW_HEADER)
     wait_for_adoption_reload(d, "tracer adopt")
-    expect_adopted(d, "tracer adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+    expect_adopted(d, "tracer adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]},
+                   site_dir(ctx.b, "root"))
     reopen_saved_project(d, "tracer adopted B")
     open_geometry_editor(d)
     select_baseline_script(d, "tracer")
@@ -1853,7 +1914,8 @@ def leg_persist_hold(ctx: Ctx) -> None:
     d.check("hold: applied v1 in editor", gv.get("source") == v1, str(gv))
     d.click_selector(UPDATE_NOW_TOAST)
     wait_for_adoption_reload(d, "hold adopt")
-    expect_adopted(d, "hold adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+    expect_adopted(d, "hold adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]},
+                   site_dir(ctx.b, "root"))
     reopen_saved_project(d, "hold adopted B")
     open_geometry_editor(d)
     select_baseline_script(d, "hold")
@@ -1957,7 +2019,8 @@ def leg_persist_fail(ctx: Ctx) -> None:
     wait_for_adoption_reload(d, "fail adopt")
     if d.state().get("build") != "B":
         raise Failure("literal Retry did not permit direct adoption")
-    expect_adopted(d, "fail adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+    expect_adopted(d, "fail adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]},
+                   site_dir(ctx.b, "root"))
     reopen_saved_project(d, "fail adopted B")
     open_geometry_editor(d)
     select_baseline_script(d, "fail")
@@ -2008,7 +2071,8 @@ def leg_persist_hold_fail(ctx: Ctx) -> None:
     wait_for_adoption_reload(d, "holdfail adopt")
     if d.state().get("build") != "B":
         raise Failure("literal Retry did not permit direct adoption")
-    expect_adopted(d, "holdfail adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+    expect_adopted(d, "holdfail adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]},
+                   site_dir(ctx.b, "root"))
     reopen_saved_project(d, "holdfail adopted B")
     open_geometry_editor(d)
     select_baseline_script(d, "holdfail")
@@ -2079,7 +2143,8 @@ def leg_takeover_draft(ctx: Ctx) -> None:
         wait_save(d, "takeover resolved", "Saved locally")
         d.click_selector(UPDATE_NOW_TOAST)
         wait_for_adoption_reload(d, "takeover adopt")
-        expect_adopted(d, "takeover adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]})
+        expect_adopted(d, "takeover adopted B", "B", {ctx.names("root", "B"): ctx.vb["root"]},
+                       site_dir(ctx.b, "root"))
         reopen_saved_project(d, "takeover adopted B")
         open_geometry_editor(d)
         select_baseline_script(d, "takeover")

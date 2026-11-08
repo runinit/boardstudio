@@ -969,7 +969,7 @@ mod mounted_tests {
             .iter()
             .find(|item| item.id == definition().id)
             .cloned()
-            .unwrap_or_else(|| definition());
+            .unwrap_or_else(&*definition);
         *handles.borrow_mut() = Some(FitProfileMountedSignals012 {
             definition,
             selection,

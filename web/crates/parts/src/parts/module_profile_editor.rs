@@ -2484,7 +2484,7 @@ mod settlement_tests {
             .iter()
             .find(|item| item.id == definition().id)
             .cloned()
-            .unwrap_or_else(|| definition());
+            .unwrap_or_else(&*definition);
         *handles.borrow_mut() = Some(ModuleProfileMountedSignals012 {
             definition,
             selected,
