@@ -54,7 +54,7 @@ standards findings remain gates; optional review cleanup is not extra scope.
 | [009 Persistence adapter](issues/009-diagnostic-gated-persistence-adapter.md) | Resolved | Reviewed corrections; coordinator adapter 10/10, Runtime 1/1, tooling 9/9; real packaged integration and cleanup in 010 |
 | [011 Layout owners](issues/011-layout-explicit-submit-owners.md) | Resolved | Spec/Standards PASS at `16b85737`; coordinator complete diffs and 106/106; packaged Layout proof in 010 |
 | [010 Packaged A→B proof](issues/010-packaged-a-to-b-proof.md) | Resolved; composite checkpoint accepted | Complete code reviews through `c5a876ec`, seven behavioral criteria and final owned profile/database/output cleanup pass |
-| [012 Parts owners](issues/012-parts-single-draft-owners.md) | Ready; not started; paused until the A/B/C preparation below completes | Next fresh owner-cluster agent under existing authorization, after that preparation |
+| [012 Parts owners](issues/012-parts-single-draft-owners.md) | Resolved 2026-11-08 | Reviewed + coordinator-accepted; 013 decision next, then 014 |
 | [013 PCB owners](issues/013-pcb-placement-attach-assembly-net-owners.md) | Not started; ready for human; queued after 012 | Matrix-origin baseline decision required before implementation; source/build ownership stays serialized |
 | [014 Creation forms](issues/014-creation-form-owners.md) | Not started; queued after 013 | Fresh owner-cluster agent, no creation-policy change |
 | [015 Coverage and closure](issues/015-coverage-mutation-and-closure.md) | Not started | Coordinator owns full build/gate; all specified evidence and reviews remain required |
@@ -209,3 +209,13 @@ explicit composite acceptance debt. No partial owner coverage is final acceptanc
   Optimized validation, all-14 coverage and 015 integrated gate/mutations/final
   review remain due; deleted disposable packages must be rebuilt for those runs.
   No final all-owner acceptance or parent umbrella closure is claimed.
+- **012 resolved 2026-11-08.** Generator (Apply+Upload), module profile
+  (save+save-rotary) and fit profile (Save) adapters with per-key copy;
+  25 mounted tests GREEN, full parts suite 97/97 GREEN, fresh
+  Spec/Standards PASS with full four-file coverage and no Required
+  findings. Two user-approved failure preserves (generator Failed arm +
+  2 oracle corrections; module snapshot-restore, zero corrections) and
+  three evidenced N/A classifications (staged-shape, fit invalid, fit
+  P3(b)/(d)) all held under Spec scrutiny. Full project gate remains
+  015 scope per plan. Next: 013 human origin-baseline decision, then
+  014; see the 012 completion record.

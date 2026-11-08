@@ -71,6 +71,12 @@ proof. Reaching this destination does not implement the fix or close the adoptio
 
 - **2026-11-07 authorized implementation checkpoint:** [008 registry/tracer](issues/008-registry-and-geometry-tracer.md#answer), [009 diagnostic adapter](issues/009-diagnostic-gated-persistence-adapter.md#answer), [011 Layout owners](issues/011-layout-explicit-submit-owners.md#answer) and [010 packaged A→B proof](issues/010-packaged-a-to-b-proof.md#answer) are reviewed and coordinator-accepted, including literal Retry, held-save/newer-input timing and final owned profile/database/output cleanup. The later implementation authorization and next 012→013→014→015 order live in [execution](execution.md); all-14/optimized/mutation/full-gate/final-review obligations and umbrella 019 remain open.
 
+- **2026-11-08 012 closure:** [012 Parts owners](issues/012-parts-single-draft-owners.md#answer)
+  reviewed (Spec/Standards PASS, full coverage, no Required findings) and
+  coordinator-accepted — 25 mounted tests, full parts 97/97. Next is the
+  [013 human origin-baseline decision](issues/013-pcb-placement-attach-assembly-net-owners.md#decision-required-before-implementation),
+  then 014; see [execution](execution.md).
+
 ## Not yet specified
 
 - (Graduated 2026-11-07: the census's named unread regions and untraced lifetimes

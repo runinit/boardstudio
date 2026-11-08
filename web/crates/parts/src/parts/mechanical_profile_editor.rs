@@ -5,6 +5,7 @@ use crate::parts_mechanical_profile::{
     displayed_mounting_gap, initial_profile, merge_standard_profile, standard_profile_controls,
     standard_profile_request_is_current, standard_profile_source_and_gap,
 };
+use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::model::{
     MechanicalExtraction, MechanicalGeometry, MechanicalPartProfile, MechanicalPurpose,
@@ -60,6 +61,8 @@ pub struct ManualProfileEditorPorts {
     pub spawn_detached: DetachedProfileSpawner,
     pub current_scope: CurrentProfileScope,
     pub accepted_owner_is_current: AcceptedProfileOwner,
+    pub save_is_pending: Rc<dyn Fn() -> bool>,
+    pub submitted_save: Rc<dyn Fn() -> Option<MechanicalPartProfile>>,
 }
 
 impl PartialEq for ManualProfileEditorPorts {
@@ -77,6 +80,8 @@ impl PartialEq for ManualProfileEditorPorts {
                 &self.accepted_owner_is_current,
                 &other.accepted_owner_is_current,
             )
+            && Rc::ptr_eq(&self.save_is_pending, &other.save_is_pending)
+            && Rc::ptr_eq(&self.submitted_save, &other.submitted_save)
     }
 }
 
@@ -96,7 +101,9 @@ pub fn ManualProfileEditor(
     on_close: EventHandler<()>,
     ports: ManualProfileEditorPorts,
 ) -> Element {
-    let mut draft = use_signal(|| initial_profile(&definition, initial.as_ref()));
+    let runtime = use_context::<Rc<Runtime>>();
+    let baseline = initial_profile(&definition, initial.as_ref());
+    let mut draft = use_signal(|| baseline.clone());
     let mut pending_standard = use_signal(|| None::<StandardProfileRequestCapture>);
     let mut standard_error = use_signal(String::new);
     let mut extraction_pending = use_signal(|| None::<boardstudio_application::OperationId>);
@@ -132,6 +139,114 @@ pub fn ManualProfileEditor(
     use_drop({
         let lifetime = lifetime.clone();
         move || lifetime.retire()
+    });
+    // Ticket 012 eighteenth slice P4 (b): reset the draft when the owner changes
+    // (module precedent: draft_owner effect with processed guard). The editor stays
+    // mounted across definition/scope switches (key does not remount single children),
+    // so without this the old owner's cutouts leak into the new owner's baseline and
+    // the rotated registration still defers. Only the draft resets; async request
+    // currency is already owner-guarded, and purposes/errors stay owner-local.
+    let draft_owner = (
+        owner.session_epoch,
+        owner.document_id.clone(),
+        owner.scope.clone(),
+        owner.definition_id.clone(),
+    );
+    let processed_draft_owner = use_signal(|| None);
+    use_effect(use_reactive((&draft_owner,), {
+        let baseline = baseline.clone();
+        let mut draft = draft;
+        let mut processed_draft_owner = processed_draft_owner;
+        move |(next_owner,)| {
+            if processed_draft_owner.peek().as_ref() == Some(&next_owner) {
+                return;
+            }
+            processed_draft_owner.set(Some(next_owner));
+            draft.set(baseline.clone());
+        }
+    }));
+    // Ticket 012 fifteenth slice: register the Save admission key with the
+    // Runtime-owned draft registry. Judges the live fit draft (the value Save
+    // fit profile would submit) against the live-projected accepted profile
+    // under owner-canonical equality (PartialEq; mount base only where no
+    // accepted value exists) and against this key's own in-flight submission
+    // observed via ports (shell owns the one-shot). Terminal records never
+    // exempt; newer typing re-raises by mismatch. Hidden/keep-mounted keeps
+    // blocking; genuine unmount and scope/owner change retire explicitly, and
+    // the gate's poll-prune drops anything left dead instead of blocking.
+    let save_owner_guard =
+        use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let save_owner_scope = (snapshot.document.id.clone(), snapshot.session_epoch);
+    use_effect(use_reactive((&save_owner_scope, &owner), {
+        let runtime = runtime.clone();
+        let draft = draft;
+        let save_is_pending = ports.save_is_pending.clone();
+        let submitted_save = ports.submitted_save.clone();
+        let mut save_owner_guard = save_owner_guard;
+        let save_owner_scope = save_owner_scope.clone();
+        let save_owner = owner.clone();
+        let save_baseline = baseline.clone();
+        move |_| {
+            let retired = save_owner_guard.write().take();
+            if let Some(retired) = retired {
+                runtime.retire_draft_owner(retired);
+            }
+            let probe_runtime = runtime.clone();
+            let probe_draft = draft;
+            let probe_is_pending = save_is_pending.clone();
+            let probe_submitted = submitted_save.clone();
+            let probe_scope = save_owner_scope.clone();
+            let probe_definition = save_owner.definition_id.clone();
+            let probe_base = save_baseline.clone();
+            let is_unresolved = Rc::new(move || {
+                let live = probe_draft.peek().clone();
+                let Some(accepted) = probe_runtime.model().accepted.clone() else {
+                    return false;
+                };
+                if accepted.document.id != probe_scope.0 || accepted.session_epoch != probe_scope.1
+                {
+                    return false;
+                }
+                let accepted_profile = accepted
+                    .document
+                    .definitions
+                    .iter()
+                    .find(|definition| definition.id == probe_definition)
+                    .and_then(|definition| definition.mechanical_profile.clone())
+                    .unwrap_or_else(|| probe_base.clone());
+                if live == accepted_profile {
+                    return false;
+                }
+                // Same-key current in-flight exemption only: pending + submitted
+                // equals live. Terminal records never exempt (is_pending false
+                // after settle, submitted cleared); newer typing re-raises by mismatch.
+                if probe_is_pending() && probe_submitted().as_ref() == Some(&live) {
+                    return false;
+                }
+                true
+            });
+            save_owner_guard.set(Some(runtime.register_draft_owner(
+                boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                    project_scope: save_owner_scope.clone(),
+                    workspace: "Parts",
+                    owner: "fit-profile",
+                    admission_key: "save",
+                    area: "Fit profile".to_owned(),
+                    remedy: "Save the fit profile, or restore its saved values".to_owned(),
+                    is_unresolved,
+                },
+            )));
+        }
+    }));
+    use_drop({
+        let runtime = runtime.clone();
+        let mut save_owner_guard = save_owner_guard;
+        move || {
+            let retired = save_owner_guard.write().take();
+            if let Some(retired) = retired {
+                runtime.retire_draft_owner(retired);
+            }
+        }
     });
     let profile = draft.read().clone();
     let family_details = profile.switch_family.map(|family| match family {
@@ -505,6 +620,7 @@ fn parse_purpose(value: &str) -> Option<MechanicalPurpose> {
 mod mounted_tests {
     use super::*;
     use crate::parts_mechanical_profile::ProfileDefinitionSource;
+    use crate::runtime::project_name_test_support as support;
     use boardstudio_application::{OperationId, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{
         MechanicalGeometryKind, MechanicalPrimitive, MechanicalProfileSource, MechanicalShape,
@@ -694,6 +810,8 @@ mod mounted_tests {
                 spawn_detached: Rc::new(wasm_bindgen_futures::spawn_local),
                 current_scope: Rc::new(move || current_scope_port.borrow().clone()),
                 accepted_owner_is_current: Rc::new(move |_| owner_current_port.get()),
+                save_is_pending: Rc::new(|| false),
+                submitted_save: Rc::new(|| None),
             },
         })
     }
@@ -729,6 +847,7 @@ mod mounted_tests {
     #[wasm_bindgen_test]
     async fn mounted_extraction_reply_cannot_mutate_profile_after_scope_and_selection_retire() {
         let fixture = fixture();
+        let runtime = support::new_runtime();
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("parts-mechanical-extraction-owner-test");
@@ -737,6 +856,7 @@ mod mounted_tests {
         let dom = VirtualDom::new(ManualProfileMountedHost);
         dom.provide_root_context(fixture.clone());
         dom.provide_root_context(handles.clone());
+        dom.provide_root_context(runtime.clone());
         dioxus_web::launch::launch_virtual_dom(
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
@@ -789,6 +909,7 @@ mod mounted_tests {
         assert!(saved.source_geometry.is_none());
         assert!(saved.cutouts.is_empty());
         assert!(saved.clearances.is_none());
+        runtime.unsubscribe();
         root.remove();
     }
 }
