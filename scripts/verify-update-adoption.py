@@ -2120,6 +2120,16 @@ def leg_takeover_draft(ctx: Ctx) -> None:
                 gv.get("source") == newer_value and gv.get("invalid") == 0
                 and held.get("acked") is None and held.get("released") is False
                 and save_state(d).get("saving") is True, f"draft={gv} gate={held}")
+        d.click_selector(UPDATE_NOW_TOAST)
+        expect_save_deferral(d, "takeover combined draft+held-save", mark, SAVE_IN_PROGRESS)
+        expect_draft_deferral(d, "takeover combined draft+held-save", mark)
+        cancel_preserves_draft(d, "takeover combined draft+held-save Cancel", mark, newer_value)
+        gv = geo_values(d)
+        held = gate_snapshot(d)
+        d.check("takeover combined draft+held-save: Cancel preserves valid draft and unanswered save",
+                gv.get("source") == newer_value and gv.get("invalid") == 0
+                and held.get("acked") is None and held.get("released") is False
+                and save_state(d).get("saving") is True, f"draft={gv} gate={held}")
         gate_release(d)
         ack = wait_gate_acked(d, "takeover older Apply")
         d.check("takeover: older save completed", ack.get("acked") == "completed", str(ack))
