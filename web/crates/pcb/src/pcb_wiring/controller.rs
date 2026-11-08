@@ -392,6 +392,7 @@ pub fn use_pcb_part_net_edits(
     let submissions = use_signal(Vec::<(PartNetEditKey, Option<String>)>::new);
     // Preparation is caller-owned; the shared helper owns the submitted action.
     let preparing_create = use_signal(|| false);
+    let mut create_submission = use_signal(|| None::<super::NewNetSubmission>);
     let create_edits = use_hook(PendingEditSignals::<PartNetActionKey>::new);
     let create_disabled = use_signal(|| false);
     create_edits.bind_one_shot(PartNetActionKey::CreateNet, create_disabled);
@@ -411,6 +412,7 @@ pub fn use_pcb_part_net_edits(
             String,
             Option<String>,
             bool,
+            Option<super::NewNetSubmission>,
         )>::new()))
     });
     let preparing = use_hook(|| Rc::new(Cell::new(false)));
@@ -449,6 +451,17 @@ pub fn use_pcb_part_net_edits(
             // The latest key remembers the submitted part only for inline attribution;
             // the helper owns its ticket and releases the panel's disabled Signal.
             for result in create_results {
+                if let Some(mut receipt) = create_submission.write().take() {
+                    receipt.admitted.set(false);
+                    if matches!(&result, PendingEditResult::Landed { .. })
+                        && receipt
+                            .draft
+                            .try_peek()
+                            .is_ok_and(|live| *live == receipt.value)
+                    {
+                        receipt.draft.set(String::new());
+                    }
+                }
                 let failure = match result {
                     PendingEditResult::Failed { message, .. } => Some(message),
                     PendingEditResult::Landed { .. } | PendingEditResult::Retired { .. } => None,
@@ -464,7 +477,7 @@ pub fn use_pcb_part_net_edits(
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
         let create_edits = create_edits.clone();
-        move |request: PartNetEditRequest| {
+        move |(request, receipt): (PartNetEditRequest, Option<super::NewNetSubmission>)| {
             if workspace() != "PCB" || scope_generation() != generation || !instance_is_current() {
                 return;
             }
@@ -511,7 +524,7 @@ pub fn use_pcb_part_net_edits(
             feedback.set(None);
             queue
                 .borrow_mut()
-                .push_back((request, definition_id, source, create));
+                .push_back((request, definition_id, source, create, receipt));
             if preparing.replace(true) {
                 return;
             }
@@ -526,7 +539,7 @@ pub fn use_pcb_part_net_edits(
             spawn_local(async move {
                 loop {
                     let item = queue.borrow_mut().pop_front();
-                    let Some((request, definition_id, source, create)) = item else {
+                    let Some((request, definition_id, source, create, receipt)) = item else {
                         preparing.set(false);
                         break;
                     };
@@ -582,6 +595,12 @@ pub fn use_pcb_part_net_edits(
                             Some("connection".into()),
                             resolver,
                         );
+                        if let Some(receipt) = receipt.as_ref() {
+                            receipt
+                                .admitted
+                                .set(create_edits.is_pending(&PartNetActionKey::CreateNet));
+                        }
+                        create_submission.set(receipt);
                     } else {
                         let mut entries = submissions.write();
                         match entries.iter_mut().find(|(existing, _)| existing == &key) {
@@ -601,6 +620,9 @@ pub fn use_pcb_part_net_edits(
             });
         }
     });
+    use_context_provider(|| super::NewNetSubmitter(on_edit));
+    let public_on_edit =
+        use_callback(move |request: PartNetEditRequest| on_edit.call((request, None)));
     let identity = current_part_net_identity(&runtime, generation, instance_is_current());
     let editable = identity.is_some() && workspace() == "PCB";
     let create_pending = preparing_create() || create_disabled();
@@ -614,7 +636,7 @@ pub fn use_pcb_part_net_edits(
         editable,
         feedback: visible_feedback,
         create_pending,
-        on_edit,
+        on_edit: public_on_edit,
     }
 }
 

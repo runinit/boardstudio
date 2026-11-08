@@ -49,7 +49,7 @@ pub struct InspectorInput {
     pub on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq)]
 struct SupportDraft {
     mount_id: String,
     outer_diameter: String,
@@ -118,11 +118,64 @@ fn PcbMountedModuleInspector(
     let mut draft_dirty = use_signal(|| false);
     let mut feedback = use_signal(String::new);
     let mut support_draft = use_signal(SupportDraft::default);
+    // Invalid numeric input has no typed MountedModule value, but is still a
+    // draft. Retain its exact text across accepted projection and settlement.
+    let invalid_numbers = use_signal(BTreeMap::<&'static str, String>::new);
     let mut joins = use_signal(BTreeMap::<String, String>::new);
     // Typed placement and bounded action kinds share submitted-value restoration,
     // inline failures, one-shot disabling and binding lifetime in one helper.
     let edits =
         use_hook(PendingEditSignals::<ModuleEditKey, boardstudio_core::model::MountedModule>::new);
+    let placement_guard =
+        use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let registry_owner = (
+        input.snapshot.document.id.clone(),
+        input.snapshot.session_epoch,
+        input.scope.clone(),
+        input.module_id.clone(),
+    );
+    use_effect(use_reactive((&registry_owner,), {
+        let runtime = input.runtime.clone();
+        let edits = edits.clone();
+        let owner = registry_owner.clone();
+        let mut guard = placement_guard;
+        move |_| {
+            if let Some(old) = guard.write().take() {
+                runtime.retire_draft_owner(old);
+            }
+            let probe_runtime = runtime.clone();
+            let edits = edits.clone();
+            let scope = owner.2.clone();
+            let module_id = owner.3.clone();
+            guard.set(Some(runtime.register_draft_owner(
+                boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                    project_scope: (owner.0.clone(), owner.1),
+                    workspace: "PCB",
+                    owner: "mounted-module",
+                    admission_key: "placement",
+                    area: "Mounted module placement".into(),
+                    remedy: "Save placement (add any pending support first), restore the fields, or close".into(),
+                    is_unresolved: Rc::new(move || {
+                        if probe_runtime.scope().as_ref() != Some(&scope) { return false; }
+                        let Some(accepted) = probe_runtime.model().accepted else { return false; };
+                        let Some(baseline) = accepted.document.modules.iter().find(|module| module.id == module_id && module.host_board_id == scope.board_id) else { return false; };
+                        if !invalid_numbers.peek().is_empty() || *support_draft.peek() != SupportDraft::default() { return true; }
+                        let live = draft.peek().clone();
+                        live != *baseline && edits.submitted_draft(&ModuleEditKey::Placement).as_ref() != Some(&live)
+                    }),
+                },
+            )));
+        }
+    }));
+    use_drop({
+        let runtime = input.runtime.clone();
+        let mut guard = placement_guard;
+        move || {
+            if let Some(old) = guard.write().take() {
+                runtime.retire_draft_owner(old);
+            }
+        }
+    });
     let placement_failure = use_signal(|| None::<String>);
     let remove_disabled = use_signal(|| false);
     let embed_disabled = use_signal(|| false);
@@ -582,31 +635,31 @@ fn PcbMountedModuleInspector(
             PcbInput {
                 label: "X (mm)", aria_label: "X (mm)", r#type: InputType::Number,
                 step: Some("any".into()),
-                value: "{draft().at.x}",
+                value: invalid_numbers().get("x").cloned().unwrap_or_else(|| draft().at.x.to_string()),
                 disabled: !editable,
-                oninput: move |event: FormEvent| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { edit_module_draft(draft, draft_dirty, |value| value.at.x = number); },
+                oninput: move |event: FormEvent| edit_module_number(draft, draft_dirty, invalid_numbers, "x", event.value(), false, |value, number| value.at.x = number),
             }
             PcbInput {
                 label: "Y (mm)", aria_label: "Y (mm)", r#type: InputType::Number,
                 step: Some("any".into()),
-                value: "{draft().at.y}",
+                value: invalid_numbers().get("y").cloned().unwrap_or_else(|| draft().at.y.to_string()),
                 disabled: !editable,
-                oninput: move |event: FormEvent| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { edit_module_draft(draft, draft_dirty, |value| value.at.y = number); },
+                oninput: move |event: FormEvent| edit_module_number(draft, draft_dirty, invalid_numbers, "y", event.value(), false, |value, number| value.at.y = number),
             }
             PcbInput {
                 label: "Yaw (degrees)", aria_label: "Yaw (degrees)", r#type: InputType::Number,
                 step: Some("any".into()),
-                value: "{draft().rotation}",
+                value: invalid_numbers().get("rotation").cloned().unwrap_or_else(|| draft().rotation.to_string()),
                 disabled: !editable,
-                oninput: move |event: FormEvent| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { edit_module_draft(draft, draft_dirty, |value| value.rotation = number); },
+                oninput: move |event: FormEvent| edit_module_number(draft, draft_dirty, invalid_numbers, "rotation", event.value(), false, |value, number| value.rotation = number),
             }
             PcbInput {
                 label: "Gap (mm)", aria_label: "Gap (mm)", r#type: InputType::Number,
                 min: Some("0".into()),
                 step: Some("any".into()),
-                value: "{draft().gap}",
+                value: invalid_numbers().get("gap").cloned().unwrap_or_else(|| draft().gap.to_string()),
                 disabled: !editable,
-                oninput: move |event: FormEvent| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() && number >= 0.0 { edit_module_draft(draft, draft_dirty, |value| value.gap = number); },
+                oninput: move |event: FormEvent| edit_module_number(draft, draft_dirty, invalid_numbers, "gap", event.value(), true, |value, number| value.gap = number),
             }
             PcbChoice {
                 label: "Attachment",
@@ -621,15 +674,9 @@ fn PcbMountedModuleInspector(
                 r#type: InputType::Number, min: Some("0".into()),
                 step: Some("0.1".into()),
                 aria_label: "Module service clearance",
-                value: "{draft().service_clearance}",
+                value: invalid_numbers().get("clearance").cloned().unwrap_or_else(|| draft().service_clearance.to_string()),
                 disabled: !editable,
-                oninput: move |event: FormEvent| {
-                        let raw = event.value();
-                        let number = if raw.trim().is_empty() { Some(0.0) } else { raw.parse::<f64>().ok() };
-                        if let Some(number) = number.filter(|number| number.is_finite() && *number >= 0.0) {
-                            edit_module_draft(draft, draft_dirty, |value| value.service_clearance = number);
-                        }
-                    },
+                oninput: move |event: FormEvent| edit_module_number(draft, draft_dirty, invalid_numbers, "clearance", event.value(), true, |value, number| value.service_clearance = number),
             }
             section { class: "grid gap-2 min-w-0 p-2.5 border border-border rounded-md bg-card [&_h3]:m-0 [&_h3]:text-xs [&_h3]:text-foreground", "aria-label": "{support_section}",
                 h3 { "{support_section}" }
@@ -943,6 +990,36 @@ fn edit_module_draft(
     draft.with_mut(edit);
     if *draft.peek() != before {
         dirty.set(true);
+    }
+}
+
+fn edit_module_number(
+    draft: Signal<MountedModule>,
+    dirty: Signal<bool>,
+    mut invalid: Signal<BTreeMap<&'static str, String>>,
+    field: &'static str,
+    raw: String,
+    nonnegative: bool,
+    edit: impl FnOnce(&mut MountedModule, f64),
+) {
+    // Empty service clearance has always meant zero; other empty fields are
+    // incomplete input, not a change to the typed placement's last valid value.
+    let number = if field == "clearance" && raw.trim().is_empty() {
+        Some(0.0)
+    } else {
+        raw.parse::<f64>().ok()
+    };
+    if let Some(number) =
+        number.filter(|number| number.is_finite() && (!nonnegative || *number >= 0.0))
+    {
+        invalid.with_mut(|invalid| {
+            invalid.remove(field);
+        });
+        edit_module_draft(draft, dirty, |value| edit(value, number));
+    } else {
+        invalid.with_mut(|invalid| {
+            invalid.insert(field, raw);
+        });
     }
 }
 
@@ -1480,6 +1557,174 @@ mod mounted_save_replacement_tests {
         root.remove();
     }
 
+    struct ModuleUpdate;
+    impl boardstudio_web_host::host::UpdateSignals for ModuleUpdate {
+        fn snapshot(&self) -> boardstudio_web_host::offline::UpdateSnapshot {
+            boardstudio_web_host::offline::UpdateSnapshot {
+                waiting: true,
+                installing: false,
+                controlled: true,
+            }
+        }
+        fn watch(&self, _: Rc<dyn Fn()>) -> Box<dyn boardstudio_web_host::host::UpdateWatch> {
+            struct Stop;
+            impl boardstudio_web_host::host::UpdateWatch for Stop {
+                fn stop(&mut self) {}
+            }
+            Box::new(Stop)
+        }
+        fn adopt_waiting(
+            &self,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<
+                        Output = Result<(), boardstudio_web_host::offline::AdoptError>,
+                    >,
+            >,
+        > {
+            Box::pin(async { Ok(()) })
+        }
+        fn reload(&self) {}
+    }
+
+    fn module_areas(
+        runtime: &Rc<Runtime>,
+        opener: boardstudio_web_runtime::update_safety::UpdateOpener,
+    ) -> Vec<String> {
+        use boardstudio_web_runtime::update_safety::{UpdateBlocker, UpdateDialog};
+        runtime.cancel_update_dialog();
+        runtime.begin_update(opener);
+        match runtime.update_dialog() {
+            Some(UpdateDialog::Deferred { blockers }) => blockers.into_iter().filter_map(|blocker| match blocker {
+                UpdateBlocker::UnresolvedDraft { area, remedy } => {
+                    assert_eq!(area, "Mounted module placement");
+                    assert_eq!(remedy, "Save placement (add any pending support first), restore the fields, or close");
+                    Some(area)
+                }, _ => None,
+            }).collect(),
+            None => Vec::new(),
+            other => panic!("unexpected update dialog: {other:?}"),
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_module_valid_and_invalid_placement_defer_both_openers_013() {
+        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_runtime::update_safety::UpdateOpener;
+        for opener in [UpdateOpener::Toast, UpdateOpener::Header] {
+            for text in ["8", ""] {
+                let runtime = support::new_runtime();
+                support::open_document(
+                    &runtime,
+                    module_document("module-update-013", "Module update", 1.0),
+                )
+                .await;
+                let probe = Rc::new(Probe {
+                    initial_scope: runtime.scope().unwrap(),
+                    runtime: runtime.clone(),
+                    module_id: "placement-collision".into(),
+                });
+                let document = web_sys::window().unwrap().document().unwrap();
+                let root = document.create_element("div").unwrap();
+                document.body().unwrap().append_child(&root).unwrap();
+                let dom = VirtualDom::new(mounted_editor_host);
+                dom.provide_root_context(probe);
+                dioxus_web::launch::launch_virtual_dom(
+                    dom,
+                    dioxus_web::Config::new().rootnode(root.clone().into()),
+                );
+                settle().await;
+                let x = by_role_name(&root, "spinbutton", "X (mm)")
+                    .unwrap()
+                    .dyn_into::<HtmlInputElement>()
+                    .unwrap();
+                x.set_value(text);
+                let init = web_sys::EventInit::new();
+                init.set_bubbles(true);
+                x.dispatch_event(
+                    &web_sys::Event::new_with_event_init_dict("input", &init).unwrap(),
+                )
+                .unwrap();
+                settle().await;
+                runtime.observe_update_waiting(Rc::new(ModuleUpdate));
+                assert_eq!(
+                    module_areas(&runtime, opener),
+                    vec!["Mounted module placement"]
+                );
+                assert_eq!(x.value(), text);
+                root.set_attribute("hidden", "true").unwrap();
+                assert_eq!(
+                    module_areas(&runtime, opener),
+                    vec!["Mounted module placement"],
+                    "hidden is not unmounted"
+                );
+                root.remove_attribute("hidden").unwrap();
+                x.set_value("1");
+                x.dispatch_event(
+                    &web_sys::Event::new_with_event_init_dict("input", &init).unwrap(),
+                )
+                .unwrap();
+                settle().await;
+                assert!(module_areas(&runtime, opener).is_empty());
+                runtime.unsubscribe();
+                root.remove();
+            }
+        }
+    }
+
+    // Scope departure is distinct from the revert story: its safe Update Now
+    // check starts adoption, so a fresh runtime is needed to prove retirement.
+    #[wasm_bindgen_test]
+    async fn mounted_module_scope_departure_retires_unsubmitted_placement_013() {
+        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_runtime::update_safety::UpdateOpener;
+        let runtime = support::new_runtime();
+        let mut document = module_document("module-scope-013", "Module scope", 1.0);
+        let mut other_board = document.boards[0].clone();
+        other_board.id = "other-board".into();
+        document.boards.push(other_board);
+        support::open_document(&runtime, document).await;
+        let probe = Rc::new(Probe {
+            initial_scope: runtime.scope().unwrap(),
+            runtime: runtime.clone(),
+            module_id: "placement-collision".into(),
+        });
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(mounted_editor_host);
+        dom.provide_root_context(probe);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+        let x = by_role_name(&root, "spinbutton", "X (mm)")
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap();
+        x.set_value("8");
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+            .unwrap();
+        settle().await;
+        runtime.observe_update_waiting(Rc::new(ModuleUpdate));
+        assert_eq!(
+            module_areas(&runtime, UpdateOpener::Toast),
+            vec!["Mounted module placement"]
+        );
+        support::navigate(&runtime, "other-board").await;
+        settle().await;
+        assert!(
+            !x.is_connected(),
+            "scope departure unmounts the old placement editor"
+        );
+        assert!(module_areas(&runtime, UpdateOpener::Header).is_empty());
+        runtime.unsubscribe();
+        root.remove();
+    }
+
     #[wasm_bindgen_test]
     async fn placement_fields_queue_two_commits_keep_the_draft_and_undo_in_order() {
         use crate::runtime::project_name_test_support as support;
@@ -1934,6 +2179,19 @@ mod mounted_save_replacement_tests {
             "the accepted read model remains the last durable document while Persist is pending"
         );
         let saved_revision = saving_snapshot.document.revision + 1;
+        runtime.observe_update_waiting(Rc::new(ModuleUpdate));
+        x.set_value("9.5");
+        x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input).unwrap())
+            .unwrap();
+        settle().await;
+        assert_eq!(
+            module_areas(
+                &runtime,
+                boardstudio_web_runtime::update_safety::UpdateOpener::Toast
+            ),
+            vec!["Mounted module placement"],
+            "newer input remains unresolved while the older save persists"
+        );
 
         let (replacement, _replacement_core) = accepted(module_document(
             "new-module-project",
@@ -1953,6 +2211,15 @@ mod mounted_save_replacement_tests {
         assert!(
             by_role_name(&root, "button", "Save placement").is_none(),
             "old placement feedback/editor is absent in the replacement owner"
+        );
+        runtime.observe_update_waiting(Rc::new(ModuleUpdate));
+        assert!(
+            module_areas(
+                &runtime,
+                boardstudio_web_runtime::update_safety::UpdateOpener::Header
+            )
+            .is_empty(),
+            "replacement unmount retires the old placement draft"
         );
         let replacement_before = runtime.model().accepted.expect("replacement accepted");
         assert_eq!(replacement_before.document.id, "new-module-project");

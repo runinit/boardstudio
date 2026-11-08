@@ -248,9 +248,64 @@ pub fn use_part_input_edits(
     )
 }
 
+// A receipt travels with the exact queued create, never inferred from accepted net names.
+#[derive(Clone)]
+struct NewNetSubmission {
+    draft: Signal<String>,
+    value: String,
+    admitted: Rc<std::cell::Cell<bool>>,
+}
+
+#[derive(Clone)]
+struct NewNetSubmitter(EventHandler<(PartNetEditRequest, Option<NewNetSubmission>)>);
+
 #[component]
 pub fn PcbWiringInspector(props: PcbWiringInspectorProps) -> Element {
     let new_net_name = use_signal(String::new);
+    let new_net_submission = use_signal(|| None::<NewNetSubmission>);
+    let runtime = use_context::<Rc<crate::runtime::Runtime>>();
+    let workspace = use_context::<crate::WorkspaceState>().0;
+    let guard = use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let owner = (
+        props.source.document.id.clone(),
+        props.source.ui_scope.session_epoch,
+    );
+    use_effect(use_reactive((&owner,), {
+        let runtime = runtime.clone();
+        let mut guard = guard;
+        move |(owner,)| {
+            if let Some(old) = guard.write().take() {
+                runtime.retire_draft_owner(old);
+            }
+            guard.set(Some(runtime.register_draft_owner(
+                boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                    project_scope: owner,
+                    workspace: "PCB",
+                    owner: "new-net-name",
+                    admission_key: "create",
+                    area: "New net name".into(),
+                    remedy: "Add the net or clear its name".into(),
+                    is_unresolved: Rc::new(move || {
+                        if *workspace.peek() != "PCB" || new_net_name.peek().is_empty() {
+                            return false;
+                        }
+                        !new_net_submission.peek().as_ref().is_some_and(|receipt| {
+                            receipt.admitted.get() && *new_net_name.peek() == receipt.value
+                        })
+                    }),
+                },
+            )));
+        }
+    }));
+    use_drop({
+        let runtime = runtime.clone();
+        let mut guard = guard;
+        move || {
+            if let Some(old) = guard.write().take() {
+                runtime.retire_draft_owner(old);
+            }
+        }
+    });
     let generator_source = props.source.active_part_id.as_ref().and_then(|part_id| {
         let part = props
             .source
@@ -315,6 +370,7 @@ pub fn PcbWiringInspector(props: PcbWiringInspectorProps) -> Element {
             nets,
             standalone_pads_allowed,
             new_net_name,
+            new_net_submission,
         }),
         SelectionView::Unsupported => rsx! {},
     };
@@ -521,6 +577,7 @@ struct GenericPartWiringProps<'a> {
     nets: &'a [NetChoice],
     standalone_pads_allowed: bool,
     new_net_name: Signal<String>,
+    new_net_submission: Signal<Option<NewNetSubmission>>,
 }
 
 fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
@@ -536,6 +593,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
         nets,
         standalone_pads_allowed,
         mut new_net_name,
+        mut new_net_submission,
     } = input;
     let actions = props.part_net_actions.clone();
     let identity = actions.identity.clone().filter(|identity| {
@@ -546,20 +604,29 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
             && source.identity.revision == identity.revision
     });
     let add_identity = identity.clone();
-    let add_handler = actions.on_edit;
-    let mut add_name = new_net_name;
+    let add_handler = try_consume_context::<NewNetSubmitter>();
+    let add_name = new_net_name;
     let add_net = move |event: FormEvent| {
         event.prevent_default();
         let name = add_name().trim().to_owned();
         if name.is_empty() {
             return;
         }
-        if let Some(identity) = add_identity.clone() {
-            add_handler.call(PartNetEditRequest {
-                identity,
-                action: PartNetEditAction::CreateNet { name },
-            });
-            add_name.set(String::new());
+        if let (Some(identity), Some(handler)) = (add_identity.clone(), add_handler.as_ref()) {
+            let receipt = NewNetSubmission {
+                draft: add_name,
+                value: add_name.peek().clone(),
+                admitted: Rc::new(std::cell::Cell::new(false)),
+            };
+            handler.0.call((
+                PartNetEditRequest {
+                    identity,
+                    action: PartNetEditAction::CreateNet { name },
+                },
+                Some(receipt.clone()),
+            ));
+            // Rejection or asynchronous preparation never exempts the draft.
+            new_net_submission.set(Some(receipt));
         }
     };
     rsx! {
@@ -1428,3 +1495,430 @@ pub(crate) mod test_fixtures {
 
 #[cfg(test)]
 mod queued_edit_tests;
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod draft_update_tests {
+    use super::*;
+    use crate::runtime::{Runtime, project_name_test_support as support};
+    use boardstudio_application::Event;
+    use boardstudio_web_runtime::update_safety::{UpdateBlocker, UpdateDialog, UpdateOpener};
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+
+    struct NetUpdate;
+    impl boardstudio_web_host::host::UpdateSignals for NetUpdate {
+        fn snapshot(&self) -> boardstudio_web_host::offline::UpdateSnapshot {
+            boardstudio_web_host::offline::UpdateSnapshot {
+                waiting: true,
+                installing: false,
+                controlled: true,
+            }
+        }
+        fn watch(&self, _: Rc<dyn Fn()>) -> Box<dyn boardstudio_web_host::host::UpdateWatch> {
+            struct Stop;
+            impl boardstudio_web_host::host::UpdateWatch for Stop {
+                fn stop(&mut self) {}
+            }
+            Box::new(Stop)
+        }
+        fn adopt_waiting(
+            &self,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<
+                        Output = Result<(), boardstudio_web_host::offline::AdoptError>,
+                    >,
+            >,
+        > {
+            Box::pin(async { Ok(()) })
+        }
+        fn reload(&self) {}
+    }
+
+    // Reuse the real wiring controllers and accepted-source fixture. Only worker
+    // adoption is substituted: the new-net form and its admission are production.
+    fn host() -> Element {
+        let runtime = use_context::<Rc<Runtime>>();
+        let version = use_signal(|| 0_u64);
+        use_context_provider(|| version);
+        use_hook({
+            let runtime = runtime.clone();
+            move || {
+                runtime.subscribe(Rc::new(move || {
+                    let mut version = version;
+                    version += 1;
+                }))
+            }
+        });
+        let _ = version();
+        let mut workspace = use_signal(|| "PCB");
+        use_context_provider(|| crate::WorkspaceState(workspace));
+        let generation = use_signal(|| 0_u64);
+        let mut show = use_signal(|| true);
+        let mut hidden = use_signal(|| false);
+        let accepted = runtime.model().accepted.unwrap();
+        let source = PcbWiringSource {
+            identity: WiringPlanIdentity {
+                scope: runtime.scope().unwrap(),
+                token: accepted.token,
+                revision: accepted.document.revision,
+                executor_epoch: runtime.electrical_preview_executor_epoch(),
+            },
+            ui_scope: runtime.scope().unwrap(),
+            scope_generation: 0,
+            active_part_id: runtime.model().selected_part_ids.first().cloned(),
+            document: accepted.document.clone(),
+        };
+        let resolution = use_signal(|| PcbWiringResolution::Idle);
+        let mode_actions = use_board_wiring_mode_edits(
+            runtime.clone(),
+            version,
+            workspace,
+            generation,
+            Rc::new(|| true),
+            Some(source.clone()),
+            resolution,
+        );
+        let pin_actions = use_pcb_wiring_pin_edits(
+            runtime.clone(),
+            version,
+            workspace,
+            generation,
+            Rc::new(|| true),
+            Some(source.clone()),
+            resolution,
+        );
+        let apply_actions = use_board_wiring_apply(
+            runtime.clone(),
+            version,
+            workspace,
+            generation,
+            Rc::new(|| true),
+            Some(source.clone()),
+            resolution,
+        );
+        let protected_remap_actions = use_protected_remap_review(
+            runtime.clone(),
+            version,
+            workspace,
+            generation,
+            Rc::new(|| true),
+            Some(source.clone()),
+        );
+        let part_net_actions = use_pcb_part_net_edits(
+            runtime.clone(),
+            version,
+            workspace,
+            generation,
+            Rc::new(|| true),
+        );
+        let part_input_actions = part_input_settings::use_part_input_edits(
+            runtime.clone(),
+            version,
+            workspace,
+            generation,
+            Rc::new(|| true),
+        );
+        let firmware_positions =
+            firmware_position_projection(&source, 0, &PcbWiringResolution::Idle);
+        let switch_runtime = runtime.clone();
+        rsx! {
+            div { hidden: hidden(),
+                if show() {
+                    PcbWiringInspector { source, resolution: PcbWiringResolution::Idle, firmware_positions, firmware_feedback: None, firmware_controls: rsx! {}, part_net_actions, part_input_actions, on_firmware_edit: |_| {}, on_resolve: |_| {}, on_choose_controller: |_| {}, on_edit_board_wiring: |_| {}, mode_actions, pin_actions, apply_actions, protected_remap_actions }
+                }
+            }
+            button { onclick: move |_| switch_runtime.submit(Event::SelectParts { operation_id: switch_runtime.operation(), part_ids: vec!["diode-two".into()], range_part_ids: Vec::new(), mode: boardstudio_application::SelectionMode::Replace }), "Switch part" }
+            button { onclick: move |_| hidden.set(!hidden()), "Collapse wiring" }
+            button { onclick: move |_| workspace.set("Parts"), "Leave PCB" }
+            button { onclick: move |_| show.set(false), "Unmount wiring" }
+        }
+    }
+
+    async fn mounted() -> (Rc<Runtime>, web_sys::Element) {
+        let runtime = support::new_runtime();
+        let mut document = test_fixtures::document();
+        document
+            .parts
+            .push(test_fixtures::test_part("diode-two", "diode-definition"));
+        document.boards[0].part_ids.push("diode-two".into());
+        support::open_document(&runtime, document).await;
+        runtime.submit(Event::Navigate {
+            operation_id: runtime.operation(),
+            board_id: "left".into(),
+            instance_id: None,
+        });
+        runtime.submit(Event::SelectParts {
+            operation_id: runtime.operation(),
+            part_ids: vec!["matrix/m/r0c0/diode".into()],
+            range_part_ids: Vec::new(),
+            mode: boardstudio_application::SelectionMode::Replace,
+        });
+        let doc = web_sys::window().unwrap().document().unwrap();
+        let root = doc.create_element("div").unwrap();
+        doc.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("new-net name mounts", || {
+            by_role_name(&root, "textbox", "New net name").is_some()
+        })
+        .await;
+        runtime.observe_update_waiting(Rc::new(NetUpdate));
+        (runtime, root)
+    }
+
+    fn enter(root: &web_sys::Element, name: &str) -> web_sys::HtmlInputElement {
+        let input = by_role_name(root, "textbox", "New net name")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        input.set_value(name);
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+            .unwrap();
+        input
+    }
+
+    fn areas(runtime: &Rc<Runtime>, opener: UpdateOpener) -> Vec<String> {
+        runtime.cancel_update_dialog();
+        runtime.begin_update(opener);
+        match runtime.update_dialog() {
+            Some(UpdateDialog::Deferred { blockers }) => blockers
+                .into_iter()
+                .filter_map(|blocker| match blocker {
+                    UpdateBlocker::UnresolvedDraft { area, remedy } => {
+                        assert_eq!(area, "New net name");
+                        assert_eq!(remedy, "Add the net or clear its name");
+                        Some(area)
+                    }
+                    _ => None,
+                })
+                .collect(),
+            None => Vec::new(),
+            other => panic!("unexpected update dialog: {other:?}"),
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_new_net_exact_admission_failure_newer_input_and_rejection_013() {
+        use boardstudio_web_ui_shared::test_wait::wait_until_step;
+        let (runtime, root) = mounted().await;
+        let input = enter(&root, "  Submitted net  ");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        let (mut entered, release) = support::gate_next_core_reply(&runtime);
+        by_role_name(&root, "button", "Add net").unwrap().click();
+        assert_eq!(
+            areas(&runtime, UpdateOpener::Header),
+            vec!["New net name"],
+            "queued preparation is not admission"
+        );
+        wait_until_step("new net enters Core", async || {
+            support::drive_pending(&runtime);
+            entered.try_recv().unwrap().is_some()
+        })
+        .await;
+        assert!(
+            areas(&runtime, UpdateOpener::Toast).is_empty(),
+            "only the exact admitted value is exempt"
+        );
+        enter(&root, "Newer net");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert_eq!(areas(&runtime, UpdateOpener::Header), vec!["New net name"]);
+        release.send(()).unwrap();
+        wait_until_step("new-net landing preserves newer input", async || {
+            support::run_pending(&runtime).await;
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .nets
+                .iter()
+                .any(|net| net.name == "Submitted net")
+                && !by_role_name(&root, "button", "Add net")
+                    .unwrap()
+                    .has_attribute("disabled")
+        })
+        .await;
+        assert_eq!(input.value(), "Newer net");
+        assert_eq!(areas(&runtime, UpdateOpener::Toast), vec!["New net name"]);
+
+        by_role_name(&root, "button", "Add net").unwrap().click();
+        wait_until_step("own successful create clears its exact draft", async || {
+            support::run_pending(&runtime).await;
+            input.value().is_empty()
+        })
+        .await;
+
+        enter(&root, "Rejected stale form");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        let count = runtime.model().accepted.unwrap().document.nets.len();
+        // The old mounted form submits before selection's rerender: admission must reject it.
+        runtime.submit(Event::SelectParts {
+            operation_id: runtime.operation(),
+            part_ids: vec!["diode-two".into()],
+            range_part_ids: Vec::new(),
+            mode: boardstudio_application::SelectionMode::Replace,
+        });
+        by_role_name(&root, "button", "Add net").unwrap().click();
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        support::run_pending(&runtime).await;
+        assert_eq!(runtime.model().accepted.unwrap().document.nets.len(), count);
+        assert_eq!(input.value(), "Rejected stale form");
+        assert_eq!(areas(&runtime, UpdateOpener::Header), vec!["New net name"]);
+
+        // An unrelated accepted net with the same name is not evidence of success.
+        enter(&root, "Submitted net");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        support::fail_next_core_reply(&runtime, "controlled new-net failure");
+        by_role_name(&root, "button", "Add net").unwrap().click();
+        wait_until_step("new-net executor failure requires recovery", async || {
+            support::run_pending(&runtime).await;
+            runtime.model().lifecycle == boardstudio_application::Lifecycle::RecoveryRequired
+        })
+        .await;
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert_eq!(input.value(), "Submitted net");
+        assert_eq!(runtime.model().accepted.unwrap().document.nets.len(), count);
+        assert_eq!(areas(&runtime, UpdateOpener::Header), vec!["New net name"]);
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_new_net_pending_unmount_retires_without_touching_dropped_signals_013() {
+        use boardstudio_web_ui_shared::test_wait::wait_until_step;
+        let (runtime, root) = mounted().await;
+        enter(&root, "Unmounted net");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        let (mut entered, release) = support::gate_next_core_reply(&runtime);
+        by_role_name(&root, "button", "Add net").unwrap().click();
+        wait_until_step("pending new net enters Core", async || {
+            support::drive_pending(&runtime);
+            entered.try_recv().unwrap().is_some()
+        })
+        .await;
+        enter(&root, "Newer unsubmitted name");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert_eq!(areas(&runtime, UpdateOpener::Toast), vec!["New net name"]);
+        by_role_name(&root, "button", "Unmount wiring")
+            .unwrap()
+            .click();
+        wait_until("wiring unmounts", || {
+            by_role_name(&root, "textbox", "New net name").is_none()
+        })
+        .await;
+        assert!(areas(&runtime, UpdateOpener::Header).is_empty());
+        release.send(()).unwrap();
+        wait_until_step("unmounted new net still settles durably", async || {
+            support::run_pending(&runtime).await;
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .nets
+                .iter()
+                .any(|net| net.name == "Unmounted net")
+                && matches!(
+                    runtime.model().durability,
+                    boardstudio_application::Durability::Saved { .. }
+                )
+        })
+        .await;
+        assert!(areas(&runtime, UpdateOpener::Toast).is_empty());
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_new_net_own_landing_clears_update_deferral_013() {
+        use boardstudio_web_ui_shared::test_wait::wait_until_step;
+        let (runtime, root) = mounted().await;
+        let input = enter(&root, "Own successful net");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert_eq!(areas(&runtime, UpdateOpener::Toast), vec!["New net name"]);
+        by_role_name(&root, "button", "Add net").unwrap().click();
+        wait_until_step("own net lands and its draft clears", async || {
+            support::run_pending(&runtime).await;
+            input.value().is_empty()
+                && matches!(
+                    runtime.model().durability,
+                    boardstudio_application::Durability::Saved { .. }
+                )
+        })
+        .await;
+        assert!(areas(&runtime, UpdateOpener::Header).is_empty());
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_new_net_workspace_departure_retires_unsubmitted_name_013() {
+        let (runtime, root) = mounted().await;
+        let input = enter(&root, "Unsubmitted departing name");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert_eq!(areas(&runtime, UpdateOpener::Toast), vec!["New net name"]);
+        by_role_name(&root, "button", "Switch part")
+            .unwrap()
+            .click();
+        wait_until("departing name survives part switching", || {
+            runtime.model().selected_part_ids == vec!["diode-two"]
+        })
+        .await;
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert_eq!(areas(&runtime, UpdateOpener::Header), vec!["New net name"]);
+        assert_eq!(input.value(), "Unsubmitted departing name");
+        by_role_name(&root, "button", "Collapse wiring")
+            .unwrap()
+            .click();
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert!(input.closest("[hidden]").unwrap().is_some());
+        assert_eq!(areas(&runtime, UpdateOpener::Toast), vec!["New net name"]);
+        assert_eq!(input.value(), "Unsubmitted departing name");
+        by_role_name(&root, "button", "Leave PCB").unwrap().click();
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert!(areas(&runtime, UpdateOpener::Header).is_empty());
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_new_net_valid_invalid_lifetime_and_revert_013() {
+        for opener in [UpdateOpener::Toast, UpdateOpener::Header] {
+            for name in ["Unapplied net", "   "] {
+                let (runtime, root) = mounted().await;
+                let input = enter(&root, name);
+                gloo_timers::future::TimeoutFuture::new(20).await;
+                assert_eq!(areas(&runtime, opener), vec!["New net name"]);
+                assert_eq!(input.value(), name);
+                by_role_name(&root, "button", "Switch part")
+                    .unwrap()
+                    .click();
+                wait_until("part switches", || {
+                    runtime.model().selected_part_ids == vec!["diode-two"]
+                })
+                .await;
+                gloo_timers::future::TimeoutFuture::new(20).await;
+                assert_eq!(areas(&runtime, opener), vec!["New net name"]);
+                by_role_name(&root, "button", "Collapse wiring")
+                    .unwrap()
+                    .click();
+                gloo_timers::future::TimeoutFuture::new(20).await;
+                assert_eq!(areas(&runtime, opener), vec!["New net name"]);
+                enter(&root, "");
+                gloo_timers::future::TimeoutFuture::new(20).await;
+                assert!(areas(&runtime, opener).is_empty());
+                runtime.unsubscribe();
+                root.remove();
+            }
+        }
+    }
+}

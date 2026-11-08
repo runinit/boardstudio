@@ -107,6 +107,78 @@ class CheckTests(unittest.TestCase):
                 self.assertTrue(check.run_commands("test", commands, os.environ.copy())[1])
                 self.assertEqual(launch.call_count, 2)
 
+    def test_parts_launch_stages_canonical_catalogue_and_cleans_up(self):
+        command = ["wasm-pack", "test", "--chrome", "web/crates/parts"]
+        for parallel in (False, True):
+            for failure in (None, RuntimeError("launch failed"), KeyboardInterrupt()):
+                with self.subTest(parallel=parallel, failure=type(failure).__name__), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    crate = root / "web/crates/parts"
+                    crate.mkdir(parents=True)
+                    staged = crate / "assets"
+                    def launch(*args, **kwargs):
+                        self.assertEqual((staged / "imported-modules.json").read_bytes(),
+                                         (ROOT / "catalogue/modules/imported-modules.json").read_bytes())
+                        if failure is not None:
+                            raise failure
+                        return subprocess.CompletedProcess(command, 0)
+                    # Keep the canonical source real; only the disposable crate destination moves.
+                    with mock.patch.object(check, "ROOT", root), \
+                            mock.patch.object(check, "PARTS_CATALOGUE", ROOT / "catalogue/modules"), \
+                            mock.patch.object(check.subprocess, "run", side_effect=launch), \
+                            mock.patch.object(check, "_parallel_process", side_effect=launch):
+                        if failure is None:
+                            check.launch_command(command, registry={} if parallel else None)
+                        else:
+                            with self.assertRaises(type(failure)):
+                                check.launch_command(command, registry={} if parallel else None)
+                    self.assertFalse(os.path.lexists(staged))
+
+    def test_parts_launch_rejects_existing_paths_without_touching_them(self):
+        command = ["wasm-pack", "test", "web/crates/parts"]
+        for kind in ("file", "directory", "symlink", "dangling"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                crate = root / "web/crates/parts"
+                crate.mkdir(parents=True)
+                staged = crate / "assets"
+                if kind == "file":
+                    staged.write_bytes(b"user content")
+                elif kind == "directory":
+                    staged.mkdir()
+                    (staged / "user").write_bytes(b"user content")
+                else:
+                    staged.symlink_to(ROOT / "catalogue" if kind == "symlink" else root / "missing")
+                before = staged.lstat()
+                with mock.patch.object(check, "ROOT", root), \
+                        mock.patch.object(check.subprocess, "run") as launch:
+                    with self.assertRaises(FileExistsError):
+                        check.launch_command(command)
+                launch.assert_not_called()
+                self.assertEqual(staged.lstat(), before)
+                if kind == "file":
+                    self.assertEqual(staged.read_bytes(), b"user content")
+                elif kind == "directory":
+                    self.assertEqual((staged / "user").read_bytes(), b"user content")
+
+    def test_parts_cleanup_refuses_replaced_staging(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            crate = root / "web/crates/parts"
+            crate.mkdir(parents=True)
+            staged = crate / "assets"
+            retained = crate / "retained"
+            def replace(*args, **kwargs):
+                staged.rename(retained)
+                staged.write_bytes(b"replacement belongs to someone else")
+                return subprocess.CompletedProcess(args[0], 0)
+            with mock.patch.object(check, "ROOT", root), \
+                    mock.patch.object(check.subprocess, "run", side_effect=replace):
+                with self.assertRaisesRegex(RuntimeError, "ownership"):
+                    check.launch_command(["wasm-pack", "test", "web/crates/parts"])
+            self.assertEqual(staged.read_bytes(), b"replacement belongs to someone else")
+            self.assertTrue(retained.is_dir())
+
     def test_scheduler_passes_real_inherited_lock_to_model_lookup(self):
         import fcntl
         with tempfile.TemporaryDirectory() as directory:

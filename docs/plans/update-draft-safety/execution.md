@@ -55,7 +55,7 @@ standards findings remain gates; optional review cleanup is not extra scope.
 | [011 Layout owners](issues/011-layout-explicit-submit-owners.md) | Resolved | Spec/Standards PASS at `16b85737`; coordinator complete diffs and 106/106; packaged Layout proof in 010 |
 | [010 Packaged A→B proof](issues/010-packaged-a-to-b-proof.md) | Resolved; composite checkpoint accepted | Complete code reviews through `c5a876ec`, seven behavioral criteria and final owned profile/database/output cleanup pass |
 | [012 Parts owners](issues/012-parts-single-draft-owners.md) | Resolved 2026-11-08 | Reviewed + coordinator-accepted; 013 decision next, then 014 |
-| [013 PCB owners](issues/013-pcb-placement-attach-assembly-net-owners.md) | Not started; ready for human; queued after 012 | Matrix-origin baseline decision required before implementation; source/build ownership stays serialized |
+| [013 PCB owners](issues/013-pcb-placement-attach-assembly-net-owners.md) | Resolved 2026-11-08 | Full-source Spec/Standards and origin-fix delta reviews PASS; coordinator Parts 106/106, PCB 64/64; 014 next |
 | [014 Creation forms](issues/014-creation-form-owners.md) | Not started; queued after 013 | Fresh owner-cluster agent, no creation-policy change |
 | [015 Coverage and closure](issues/015-coverage-mutation-and-closure.md) | Not started | Coordinator owns full build/gate; all specified evidence and reviews remain required |
 

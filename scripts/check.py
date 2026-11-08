@@ -436,10 +436,43 @@ def format_wasm_failure_summary(output_or_summary: str | dict[str, object] | Non
     return "; ".join(parts)
 
 
+# wasm-bindgen-test serves the crate directory, not the repository's canonical assets.
+PARTS_CATALOGUE = ROOT / "catalogue/modules"
+
+
 def launch_command(command, *, registry=None, **kwargs):
-    if registry is not None:
-        return _parallel_process(command, registry, **kwargs)
-    return subprocess.run(command, **kwargs)
+    staged = None
+    if launch_crate(command) == "parts":
+        staged = ROOT / "web/crates/parts/assets"
+        # Exclusive creation rejects files, directories and even dangling symlinks.
+        # Never adopt or overwrite a pre-existing path, including a matching link.
+        staged.mkdir()
+        owner = staged.lstat()
+        asset = staged / "imported-modules.json"
+        asset_owner = None
+    try:
+        if staged is not None:
+            with asset.open("xb") as destination:
+                asset_owner = os.fstat(destination.fileno())
+                destination.write((PARTS_CATALOGUE / asset.name).read_bytes())
+        if registry is not None:
+            return _parallel_process(command, registry, **kwargs)
+        return subprocess.run(command, **kwargs)
+    finally:
+        if staged is not None:
+            try:
+                current = staged.lstat()
+            except FileNotFoundError:
+                current = None
+            if current is None or (current.st_dev, current.st_ino) != (owner.st_dev, owner.st_ino):
+                raise RuntimeError(f"catalogue staging ownership changed; refusing cleanup: {staged}")
+            if asset_owner is not None:
+                current_asset = asset.lstat()
+                if (current_asset.st_dev, current_asset.st_ino) != (asset_owner.st_dev, asset_owner.st_ino):
+                    raise RuntimeError(f"catalogue staging ownership changed; refusing cleanup: {asset}")
+                asset.unlink()
+            # Never recursively delete: unexpected additions must survive and fail cleanup.
+            staged.rmdir()
 
 
 def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,

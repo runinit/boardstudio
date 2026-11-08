@@ -345,9 +345,89 @@ pub fn SavedAssembliesEditor(
     let assembly_orientation = use_context::<super::PartsAssemblyOrientation>().0;
     let has_preset_definitions = !preset_definitions.is_empty();
     let mut editing = use_signal(|| None::<AssemblyDraft>);
+    let mut mount_defaults = use_signal(|| None::<AssemblyDraft>);
     let mut editor_generation = use_signal(|| 0_u64);
     let pending_edits = use_hook(PendingEditSignals::<AssemblyKey>::new);
+    let place_edits = use_signal(|| pending_edits.clone());
     let mut pending = use_signal(Vec::<AssemblyAction>::new);
+    let mut submitted_save = use_signal(|| None::<AssemblyDraft>);
+    let save_guard = use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let registry_scope = (
+        snapshot.document.id.clone(),
+        snapshot.session_epoch,
+        scope.clone(),
+    );
+    use_effect(use_reactive((&registry_scope,), {
+        let runtime = runtime.clone();
+        let edits = pending_edits.clone();
+        let mut guard = save_guard;
+        let registry_scope = registry_scope.clone();
+        move |_| {
+            if let Some(old) = guard.write().take() {
+                runtime.retire_draft_owner(old);
+            }
+            let probe_runtime = runtime.clone();
+            let edits = edits.clone();
+            let owner_scope = registry_scope.2.clone();
+            guard.set(Some(runtime.register_draft_owner(
+                boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                    project_scope: (registry_scope.0.clone(), registry_scope.1),
+                    workspace: "Parts",
+                    owner: "assembly",
+                    admission_key: "save",
+                    area: "Assembly tree".into(),
+                    remedy: "Save assembly or close".into(),
+                    is_unresolved: Rc::new(move || {
+                        if probe_runtime.scope() != owner_scope {
+                            return false;
+                        }
+                        let Some(draft) = editing.peek().clone() else {
+                            return false;
+                        };
+                        if draft.scope != owner_scope {
+                            return false;
+                        }
+                        let Some(accepted) = probe_runtime.model().accepted else {
+                            return false;
+                        };
+                        let baseline = accepted
+                            .document
+                            .assemblies
+                            .iter()
+                            .find(|saved| saved.id == draft.value.id);
+                        let assets_saved = draft
+                            .assets
+                            .iter()
+                            .all(|asset| accepted.document.assets.contains(asset));
+                        if baseline == Some(&draft.value) && assets_saved {
+                            return false;
+                        }
+                        if baseline.is_none()
+                            && draft.base.is_none()
+                            && mount_defaults.peek().as_ref().is_some_and(|initial| {
+                                initial.value == draft.value && initial.assets == draft.assets
+                            })
+                        {
+                            return false;
+                        }
+                        !(edits.is_pending(&AssemblyKey::Save)
+                            && submitted_save.peek().as_ref().is_some_and(|submitted| {
+                                submitted.value == draft.value && submitted.assets == draft.assets
+                            }))
+                    }),
+                },
+            )));
+        }
+    }));
+    use_drop({
+        let runtime = runtime.clone();
+        let mut guard = save_guard;
+        move || {
+            if let Some(old) = guard.write().take() {
+                runtime.retire_draft_owner(old);
+            }
+        }
+    });
     let owner_seen = use_signal(|| None::<AssemblyOwner>);
     let preparing_apply = use_signal(|| false);
     let preparing_place = use_signal(|| false);
@@ -475,7 +555,7 @@ pub fn SavedAssembliesEditor(
             Ok(id) => {
                 feedback.set(None);
                 editor_generation += 1;
-                editing.set(Some(AssemblyDraft {
+                let draft = AssemblyDraft {
                     base: None,
                     value: AssemblyDefinition {
                         id,
@@ -486,7 +566,9 @@ pub fn SavedAssembliesEditor(
                     document_id: snapshot.document.id.clone(),
                     session_epoch: snapshot.session_epoch,
                     scope: scope.clone(),
-                }));
+                };
+                mount_defaults.set(Some(draft.clone()));
+                editing.set(Some(draft));
             }
             Err(error) => feedback.set(Some(error)),
         }
@@ -570,14 +652,16 @@ pub fn SavedAssembliesEditor(
             );
             feedback.set(None);
             editor_generation += 1;
-            editing.set(Some(AssemblyDraft {
+            let draft = AssemblyDraft {
                 base: None,
                 value,
                 assets: Vec::new(),
                 document_id: current.document.id.clone(),
                 session_epoch: current.session_epoch,
                 scope: scope.clone(),
-            }));
+            };
+            mount_defaults.set(Some(draft.clone()));
+            editing.set(Some(draft));
         }
     };
 
@@ -593,14 +677,16 @@ pub fn SavedAssembliesEditor(
                 };
                 feedback.set(None);
                 editor_generation += 1;
-                editing.set(Some(AssemblyDraft {
+                let draft = AssemblyDraft {
                     base: None,
                     value,
                     assets: Vec::new(),
                     document_id: snapshot.document.id.clone(),
                     session_epoch: snapshot.session_epoch,
                     scope: scope.clone(),
-                }));
+                };
+                mount_defaults.set(Some(draft.clone()));
+                editing.set(Some(draft));
             }
             Err(error) => feedback.set(Some(error)),
         }
@@ -686,6 +772,7 @@ pub fn SavedAssembliesEditor(
                 feedback.set(Some("The project or Parts scope changed while this assembly draft was open. Reopen it before saving.".into()));
                 return;
             }
+            submitted_save.set(Some(draft.clone()));
             pending_edits.begin_one_shot(
                 &runtime,
                 AssemblyKey::Save,
@@ -760,6 +847,7 @@ pub fn SavedAssembliesEditor(
                     save_pending: pending_edits.is_pending(&AssemblyKey::Save),
                     place_pending: preparing_place() || pending_edits.is_pending(&AssemblyKey::Place),
                     matrix_pending: preparing_apply() || pending_edits.is_pending(&AssemblyKey::Matrix),
+                    place_edits,
                     selected_context,
                     on_place,
                     on_place_board: place_on_board,
@@ -1069,6 +1157,7 @@ fn AssemblyDraftFields(
     save_pending: bool,
     place_pending: bool,
     matrix_pending: bool,
+    place_edits: Signal<PendingEditSignals<AssemblyKey>>,
     selected_context: Signal<Option<super::super::objects::ScopedTreeContext>>,
     on_place: EventHandler<super::super::objects::MatrixPlacementSource>,
     on_place_board: EventHandler<(AssemblyDraft, String, String)>,
@@ -1081,6 +1170,64 @@ fn AssemblyDraftFields(
     let assets = use_signal(|| draft.assets.clone());
     let mut origin_x = use_signal(|| "0".to_owned());
     let mut origin_y = use_signal(|| "0".to_owned());
+    let mut submitted_origin = use_signal(|| None::<(String, String)>);
+    let origin_guard =
+        use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let runtime = use_context::<Rc<crate::runtime::Runtime>>();
+    let registry_scope = (
+        draft.document_id.clone(),
+        draft.session_epoch,
+        draft.scope.clone(),
+    );
+    use_effect(use_reactive((&registry_scope,), {
+        let runtime = runtime.clone();
+        let edits = place_edits;
+        let mut guard = origin_guard;
+        let registry_scope = registry_scope.clone();
+        move |_| {
+            if let Some(old) = guard.write().take() {
+                runtime.retire_draft_owner(old);
+            }
+            let probe_runtime = runtime.clone();
+            let edits = edits.clone();
+            let owner_scope = registry_scope.2.clone();
+            guard.set(Some(runtime.register_draft_owner(
+                boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                    project_scope: (registry_scope.0.clone(), registry_scope.1),
+                    workspace: "Parts",
+                    owner: "assembly",
+                    admission_key: "place",
+                    area: "Assembly origin".into(),
+                    remedy: "Place on selected board, restore the origin, or close".into(),
+                    is_unresolved: Rc::new(move || {
+                        if probe_runtime.scope() != owner_scope {
+                            return false;
+                        }
+                        let live = (origin_x.peek().clone(), origin_y.peek().clone());
+                        // Coordinates compare as the Place action parses them. Invalid raw
+                        // input is unresolved even though it cannot be submitted.
+                        let zero = |raw: &str| raw.trim().parse::<f64>().ok() == Some(0.0);
+                        if zero(&live.0) && zero(&live.1) {
+                            return false;
+                        }
+                        // Matrix never consumes the Place-only origin (013 user decision).
+                        // Preparation is not admission: only an in-flight Place carries it.
+                        !(edits.peek().is_pending(&AssemblyKey::Place)
+                            && submitted_origin.peek().as_ref() == Some(&live))
+                    }),
+                },
+            )));
+        }
+    }));
+    use_drop({
+        let runtime = runtime.clone();
+        let mut guard = origin_guard;
+        move || {
+            if let Some(old) = guard.write().take() {
+                runtime.retire_draft_owner(old);
+            }
+        }
+    });
     let import_pending = use_signal(|| false);
     let render_value = value();
     let apply_value = render_value.clone();
@@ -1205,7 +1352,9 @@ fn AssemblyDraftFields(
                     variant: ButtonVariant::Secondary,
                     class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: controls_disabled || place_pending || draft.scope.is_none() || render_value.members.is_empty(),
-                    onclick: move |_| on_place_board.call((
+                    onclick: move |_| {
+                        submitted_origin.set(Some((origin_x(), origin_y())));
+                        on_place_board.call((
                         AssemblyDraft {
                             value: place_render.clone(),
                             assets: assets(),
@@ -1213,7 +1362,8 @@ fn AssemblyDraftFields(
                         },
                         origin_x(),
                         origin_y(),
-                    )),
+                    ));
+                    },
                     "Place on selected board"
                 } } }
             }
@@ -2441,14 +2591,518 @@ mod resolution_tests {
         use_context_provider(|| super::super::PartsPreviewActivation(activation));
         let theme = use_memo(|| "light");
         use_context_provider(|| crate::presentation::ResolvedAppearance(theme));
-        let selected_context = use_signal(|| None);
+        let mut selected_context = use_signal(|| None);
+        let mut shown = use_signal(|| true);
+        let mut hidden = use_signal(|| false);
         let scope = use_signal(|| runtime.scope());
         let adapter = use_hook(|| {
             crate::presentation::SelectionAdapter::new(selected_context, scope, generation)
         });
         use_context_provider(|| adapter.clone());
         let accepted = runtime.model().accepted.unwrap();
-        rsx! { SavedAssembliesEditor { snapshot: accepted.clone(), scope: runtime.scope(), definitions: accepted.document.definitions.clone(), preset_definitions: Vec::new(), selected_context, on_place: |_| {}, on_board_placed: |_| {} } }
+        rsx! {
+            div { hidden: hidden(),
+                if shown() {
+                    SavedAssembliesEditor { snapshot: accepted.clone(), scope: runtime.scope(), definitions: accepted.document.definitions.clone(), preset_definitions: Vec::new(), selected_context, on_place: |_| {}, on_board_placed: |_| {} }
+                }
+            }
+            button { onclick: move |_| selected_context.set(Some(super::super::super::objects::ScopedTreeContext { scope: runtime.scope().unwrap(), context: super::super::super::objects::TreeContext::Matrix { matrix_id: "matrix".into() } })), "Select matrix" }
+            button { onclick: move |_| hidden.set(true), "Hide assembly" }
+            button { onclick: move |_| shown.set(false), "Unmount assembly" }
+        }
+    }
+
+    // Ticket 013 P1: a valid unapplied tree must defer the mounted Update Now seam.
+    // Reuse the assembly host; UpdateSignals substitutes only worker adoption, as in 012.
+    struct AssemblyUpdateSignals {
+        adoptions: std::cell::Cell<u32>,
+    }
+
+    impl boardstudio_web_host::host::UpdateSignals for AssemblyUpdateSignals {
+        fn snapshot(&self) -> boardstudio_web_host::offline::UpdateSnapshot {
+            boardstudio_web_host::offline::UpdateSnapshot {
+                waiting: true,
+                installing: false,
+                controlled: true,
+            }
+        }
+
+        fn watch(
+            &self,
+            _on_change: Rc<dyn Fn()>,
+        ) -> Box<dyn boardstudio_web_host::host::UpdateWatch> {
+            struct Stop;
+            impl boardstudio_web_host::host::UpdateWatch for Stop {
+                fn stop(&mut self) {}
+            }
+            Box::new(Stop)
+        }
+
+        fn adopt_waiting(
+            &self,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<
+                        Output = Result<(), boardstudio_web_host::offline::AdoptError>,
+                    >,
+            >,
+        > {
+            self.adoptions.set(self.adoptions.get() + 1);
+            Box::pin(async { Ok(()) })
+        }
+
+        fn reload(&self) {}
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_assembly_valid_tree_draft_defers_update_now_at_the_toast_013() {
+        use boardstudio_web_runtime::update_safety::{UpdateBlocker, UpdateDialog, UpdateOpener};
+        use boardstudio_web_ui_shared::test_wait::wait_until;
+
+        let runtime = support::new_runtime();
+        let mut document = document();
+        document.assemblies.push(assembly());
+        support::open_document(&runtime, document).await;
+        let dom_document = web_sys::window().unwrap().document().unwrap();
+        let root = dom_document.create_element("div").unwrap();
+        dom_document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(mounted_host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("saved assembly appears", || {
+            by_role_name(&root, "button", "Assembly").is_some()
+        })
+        .await;
+        by_role_name(&root, "button", "Assembly").unwrap().click();
+        wait_until("assembly name editor opens", || {
+            by_role_name(&root, "textbox", "Name").is_some()
+        })
+        .await;
+        let name = by_role_name(&root, "textbox", "Name")
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap();
+        assert_eq!(name.value(), "Assembly");
+        name.set_value("Unapplied assembly");
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        name.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+        wait_until("draft drives the assembly preview", || {
+            root.text_content()
+                .is_some_and(|text| text.contains("Unapplied assembly preview"))
+        })
+        .await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.assemblies[0].name,
+            "Assembly"
+        );
+        let signals = Rc::new(AssemblyUpdateSignals {
+            adoptions: std::cell::Cell::new(0),
+        });
+        runtime.observe_update_waiting(signals.clone());
+        runtime.begin_update(UpdateOpener::Toast);
+        let dialog = runtime.update_dialog();
+        let preserved_name = name.value();
+        runtime.unsubscribe();
+        root.remove();
+
+        assert_eq!(
+            preserved_name, "Unapplied assembly",
+            "deferral preserves the draft"
+        );
+        match dialog {
+            Some(UpdateDialog::Deferred { blockers }) => {
+                assert_eq!(
+                    blockers.len(),
+                    1,
+                    "only the assembly tree defers: {blockers:?}"
+                );
+                match &blockers[0] {
+                    UpdateBlocker::UnresolvedDraft { area, remedy } => {
+                        assert_eq!(area, "Assembly tree");
+                        assert_eq!(remedy, "Save assembly or close");
+                    }
+                    other => panic!("expected assembly tree blocker, got {other:?}"),
+                }
+            }
+            other => panic!("expected assembly tree to defer Update Now, got {other:?}"),
+        }
+        assert_eq!(signals.adoptions.get(), 0, "the draft never adopts");
+    }
+
+    fn enter_update_input(root: &web_sys::Element, selector: &str, text: &str) -> HtmlInputElement {
+        let input = root
+            .query_selector(selector)
+            .unwrap()
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap();
+        input.set_value(text);
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+            .unwrap();
+        input
+    }
+
+    fn assembly_draft_areas(
+        runtime: &Rc<crate::runtime::Runtime>,
+        opener: boardstudio_web_runtime::update_safety::UpdateOpener,
+    ) -> Vec<String> {
+        use boardstudio_web_runtime::update_safety::{UpdateBlocker, UpdateDialog};
+        runtime.cancel_update_dialog();
+        runtime.begin_update(opener);
+        match runtime.update_dialog() {
+            Some(UpdateDialog::Deferred { blockers }) => blockers
+                .into_iter()
+                .filter_map(|blocker| match blocker {
+                    UpdateBlocker::UnresolvedDraft { area, remedy } => {
+                        assert_eq!(
+                            remedy,
+                            if area == "Assembly tree" {
+                                "Save assembly or close"
+                            } else {
+                                "Place on selected board, restore the origin, or close"
+                            }
+                        );
+                        Some(area)
+                    }
+                    _ => None,
+                })
+                .collect(),
+            None => Vec::new(),
+            other => panic!("unexpected Update Now dialog: {other:?}"),
+        }
+    }
+
+    async fn mount_update_assembly() -> (Rc<crate::runtime::Runtime>, web_sys::Element) {
+        use boardstudio_web_ui_shared::test_wait::wait_until;
+        let runtime = support::new_runtime();
+        let mut document = document();
+        document.assemblies.push(assembly());
+        let mut other_board = document.boards[0].clone();
+        other_board.id = "other-board".into();
+        document.boards.push(other_board);
+        // Matrix admission normalizes supported generators; the simpler resolver
+        // fixture deliberately has none and cannot exercise a successful Matrix click.
+        document.definitions[0].generator = Some(
+            serde_json::from_value(serde_json::json!({
+                "source": "ceoloide/switch_mx", "version": "bundled-1", "parameters": {}
+            }))
+            .unwrap(),
+        );
+        document.definitions[0] =
+            super::super::normalize_matrix_definition(document.definitions[0].clone())
+                .await
+                .unwrap();
+        support::open_document(&runtime, document).await;
+        let doc = web_sys::window().unwrap().document().unwrap();
+        let root = doc.create_element("div").unwrap();
+        doc.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(mounted_host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("assembly list mounts", || {
+            by_role_name(&root, "button", "Assembly").is_some()
+        })
+        .await;
+        by_role_name(&root, "button", "Assembly").unwrap().click();
+        wait_until("assembly fields mount", || {
+            by_role_name(&root, "textbox", "Name").is_some()
+        })
+        .await;
+        runtime.observe_update_waiting(Rc::new(AssemblyUpdateSignals {
+            adoptions: std::cell::Cell::new(0),
+        }));
+        (runtime, root)
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_assembly_invalid_and_valid_drafts_survive_both_openers_and_retire_013() {
+        use boardstudio_web_runtime::update_safety::UpdateOpener;
+        use boardstudio_web_ui_shared::test_wait::wait_until;
+        for opener in [UpdateOpener::Toast, UpdateOpener::Header] {
+            for text in ["Unapplied assembly", ""] {
+                let (runtime, root) = mount_update_assembly().await;
+                let name = enter_update_input(&root, "input[type='text']", text);
+                // The registry reads live state; rendering isn't the safety predicate.
+                gloo_timers::future::TimeoutFuture::new(20).await;
+                assert_eq!(
+                    assembly_draft_areas(&runtime, opener),
+                    vec!["Assembly tree"]
+                );
+                assert_eq!(name.value(), text);
+                let origin_text = if text.is_empty() { "" } else { "7" };
+                let origin = enter_update_input(
+                    &root,
+                    "section[aria-label='Assembly editor'] > fieldset:last-of-type input[type='number']",
+                    origin_text,
+                );
+                gloo_timers::future::TimeoutFuture::new(20).await;
+                assert_eq!(
+                    assembly_draft_areas(&runtime, opener),
+                    vec!["Assembly tree", "Assembly origin"]
+                );
+                assert_eq!(name.value(), text);
+                assert_eq!(origin.value(), origin_text);
+                by_role_name(&root, "button", "Hide assembly")
+                    .unwrap()
+                    .click();
+                gloo_timers::future::TimeoutFuture::new(20).await;
+                assert_eq!(
+                    assembly_draft_areas(&runtime, opener),
+                    vec!["Assembly tree", "Assembly origin"]
+                );
+                by_role_name(&root, "button", "Unmount assembly")
+                    .unwrap()
+                    .click();
+                wait_until("assembly genuinely unmounts", || {
+                    by_role_name(&root, "textbox", "Name").is_none()
+                })
+                .await;
+                assert!(assembly_draft_areas(&runtime, opener).is_empty());
+                runtime.unsubscribe();
+                root.remove();
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_assembly_matrix_never_resolves_origin_and_save_keeps_newer_input_013() {
+        use boardstudio_web_runtime::update_safety::UpdateOpener;
+        use boardstudio_web_ui_shared::test_wait::{
+            wait_until, wait_until_future, wait_until_step,
+        };
+        let (runtime, root) = mount_update_assembly().await;
+        by_role_name(&root, "button", "Select matrix")
+            .unwrap()
+            .click();
+        wait_until("matrix apply mounts", || {
+            by_role_name(&root, "button", "Apply to selected matrix").is_some()
+        })
+        .await;
+        let origin = enter_update_input(
+            &root,
+            "section[aria-label='Assembly editor'] > fieldset:last-of-type input[type='number']",
+            "7",
+        );
+        enter_update_input(&root, "input[type='text']", "First draft");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert_eq!(
+            assembly_draft_areas(&runtime, UpdateOpener::Header),
+            vec!["Assembly tree", "Assembly origin"]
+        );
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        by_role_name(&root, "button", "Save assembly")
+            .unwrap()
+            .click();
+        support::drive_pending(&runtime);
+        wait_until_future("Save enters Core", entered)
+            .await
+            .unwrap();
+        assert_eq!(
+            assembly_draft_areas(&runtime, UpdateOpener::Toast),
+            vec!["Assembly origin"]
+        );
+        let (matrix_entered, matrix_release) = support::gate_next_core_reply(&runtime);
+        enter_update_input(&root, "input[type='text']", "Matrix draft");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        by_role_name(&root, "button", "Apply to selected matrix")
+            .unwrap()
+            .click();
+        wait_until("Save and Matrix are independently in flight", || {
+            by_role_name(&root, "button", "Save assembly")
+                .unwrap()
+                .has_attribute("disabled")
+                && by_role_name(&root, "button", "Apply to selected matrix")
+                    .unwrap()
+                    .has_attribute("disabled")
+        })
+        .await;
+        assert_eq!(
+            assembly_draft_areas(&runtime, UpdateOpener::Header),
+            vec!["Assembly tree", "Assembly origin"],
+            "Matrix's different submission cannot exempt Save's unresolved tree or the Place-only origin"
+        );
+        enter_update_input(&root, "input[type='text']", "Newer draft");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert_eq!(
+            assembly_draft_areas(&runtime, UpdateOpener::Header),
+            vec!["Assembly tree", "Assembly origin"]
+        );
+        release.send(()).unwrap();
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        support::drive_pending(&runtime);
+        wait_until_future("Matrix enters Core after Save", matrix_entered)
+            .await
+            .unwrap();
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.assemblies[0].name,
+            "First draft"
+        );
+        assert_eq!(
+            assembly_draft_areas(&runtime, UpdateOpener::Toast),
+            vec!["Assembly tree", "Assembly origin"]
+        );
+        matrix_release.send(()).unwrap();
+        wait_until_step("Save and Matrix land", async || {
+            support::run_pending(&runtime).await;
+            runtime.model().accepted.unwrap().document.assemblies[0].name == "First draft"
+                && root
+                    .text_content()
+                    .unwrap_or_default()
+                    .contains("Assembly applied to the selected matrix.")
+        })
+        .await;
+        assert_eq!(
+            assembly_draft_areas(&runtime, UpdateOpener::Toast),
+            vec!["Assembly tree", "Assembly origin"]
+        );
+        assert_eq!(
+            by_role_name(&root, "textbox", "Name")
+                .unwrap()
+                .dyn_into::<HtmlInputElement>()
+                .unwrap()
+                .value(),
+            "Newer draft"
+        );
+        assert_eq!(origin.value(), "7");
+        support::fail_next_core_reply(&runtime, "controlled assembly failure");
+        by_role_name(&root, "button", "Save assembly")
+            .unwrap()
+            .click();
+        wait_until_step("Save failure settles", async || {
+            support::run_pending(&runtime).await;
+            root.text_content()
+                .unwrap_or_default()
+                .contains("controlled assembly failure")
+        })
+        .await;
+        assert_eq!(
+            assembly_draft_areas(&runtime, UpdateOpener::Header),
+            vec!["Assembly tree", "Assembly origin"]
+        );
+        enter_update_input(&root, "input[type='text']", "First draft");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert_eq!(
+            assembly_draft_areas(&runtime, UpdateOpener::Toast),
+            vec!["Assembly origin"]
+        );
+        enter_update_input(
+            &root,
+            "section[aria-label='Assembly editor'] > fieldset:last-of-type input[type='number']",
+            "0.0",
+        );
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert!(assembly_draft_areas(&runtime, UpdateOpener::Header).is_empty());
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_assembly_creation_revert_uses_mount_defaults_013() {
+        use boardstudio_web_runtime::update_safety::UpdateOpener;
+        use boardstudio_web_ui_shared::test_wait::wait_until;
+        let (runtime, root) = mount_update_assembly().await;
+        by_role_name(&root, "button", "Close editor")
+            .unwrap()
+            .click();
+        wait_until("existing assembly closes", || {
+            by_role_name(&root, "textbox", "Name").is_none()
+        })
+        .await;
+        by_role_name(&root, "button", "New assembly")
+            .unwrap()
+            .click();
+        wait_until("creation defaults mount", || {
+            by_role_name(&root, "textbox", "Name").is_some()
+        })
+        .await;
+        enter_update_input(&root, "input[type='text']", "Entered creation");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert_eq!(
+            assembly_draft_areas(&runtime, UpdateOpener::Toast),
+            vec!["Assembly tree"]
+        );
+        enter_update_input(&root, "input[type='text']", "New assembly");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        // 004: without an accepted value, creation's mount-time defaults are the baseline.
+        assert!(assembly_draft_areas(&runtime, UpdateOpener::Header).is_empty());
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_assembly_rapid_reopen_and_scope_retirement_keep_distinct_lifetimes_013() {
+        use boardstudio_web_runtime::update_safety::UpdateOpener;
+        use boardstudio_web_ui_shared::test_wait::{
+            wait_until, wait_until_future, wait_until_step,
+        };
+        let (runtime, root) = mount_update_assembly().await;
+        enter_update_input(&root, "input[type='text']", "Older submitted tree");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        by_role_name(&root, "button", "Save assembly")
+            .unwrap()
+            .click();
+        support::drive_pending(&runtime);
+        wait_until_future("old assembly Save enters Core", entered)
+            .await
+            .unwrap();
+        by_role_name(&root, "button", "Close editor")
+            .unwrap()
+            .click();
+        wait_until("pending editor closes", || {
+            by_role_name(&root, "textbox", "Name").is_none()
+        })
+        .await;
+        by_role_name(&root, "button", "Assembly").unwrap().click();
+        wait_until("fresh editor opens before old Save lands", || {
+            by_role_name(&root, "textbox", "Name").is_some()
+        })
+        .await;
+        enter_update_input(&root, "input[type='text']", "Older submitted tree");
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert_eq!(
+            assembly_draft_areas(&runtime, UpdateOpener::Toast),
+            vec!["Assembly tree"],
+            "an old owner's pending key cannot exempt a reopened owner"
+        );
+        enter_update_input(&root, "input[type='text']", "Newer reopened tree");
+        release.send(()).unwrap();
+        wait_until_step("old Save lands outside the reopened lifetime", async || {
+            support::run_pending(&runtime).await;
+            runtime.model().accepted.unwrap().document.assemblies[0].name == "Older submitted tree"
+        })
+        .await;
+        assert_eq!(
+            assembly_draft_areas(&runtime, UpdateOpener::Header),
+            vec!["Assembly tree"]
+        );
+        assert_eq!(
+            by_role_name(&root, "textbox", "Name")
+                .unwrap()
+                .dyn_into::<HtmlInputElement>()
+                .unwrap()
+                .value(),
+            "Newer reopened tree"
+        );
+        support::navigate(&runtime, "other-board").await;
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert!(
+            assembly_draft_areas(&runtime, UpdateOpener::Toast).is_empty(),
+            "scope departure retires the old draft"
+        );
+        runtime.unsubscribe();
+        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -2473,8 +3127,35 @@ mod resolution_tests {
         };
         button("Assembly").click();
         gloo_timers::future::TimeoutFuture::new(40).await;
+        runtime.observe_update_waiting(Rc::new(AssemblyUpdateSignals {
+            adoptions: std::cell::Cell::new(0),
+        }));
+        enter_update_input(
+            &root,
+            "section[aria-label='Assembly editor'] > fieldset:last-of-type input[type='number']",
+            "7",
+        );
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert_eq!(
+            assembly_draft_areas(
+                &runtime,
+                boardstudio_web_runtime::update_safety::UpdateOpener::Header
+            ),
+            vec!["Assembly origin"]
+        );
         let (mut entered, release) = support::gate_next_persist(&runtime);
         button("Place on selected board").click();
+        // Do not yield: the real Place handler has set preparing, but its
+        // spawn_local preparation cannot reach begin_one_shot until we yield.
+        assert_eq!(
+            assembly_draft_areas(
+                &runtime,
+                boardstudio_web_runtime::update_safety::UpdateOpener::Toast
+            ),
+            vec!["Assembly origin"],
+            "pre-admission preparation must not exempt the submitted origin"
+        );
+        runtime.cancel_update_dialog();
         let mut held = false;
         for _ in 0..100 {
             support::drive_pending(&runtime);
@@ -2487,12 +3168,45 @@ mod resolution_tests {
         assert!(held, "{}", root.text_content().unwrap_or_default());
         assert!(runtime.model().selected_part_ids.is_empty());
         assert!(button("Place on selected board").has_attribute("disabled"));
+        assert!(
+            assembly_draft_areas(
+                &runtime,
+                boardstudio_web_runtime::update_safety::UpdateOpener::Toast
+            )
+            .is_empty(),
+            "the admitted Place exempts its exact origin while durability still blocks"
+        );
+        enter_update_input(
+            &root,
+            "section[aria-label='Assembly editor'] > fieldset:last-of-type input[type='number']",
+            "8",
+        );
+        assert_eq!(
+            assembly_draft_areas(
+                &runtime,
+                boardstudio_web_runtime::update_safety::UpdateOpener::Header
+            ),
+            vec!["Assembly origin"],
+            "an admitted Place cannot exempt newer origin typing"
+        );
         release.send(()).unwrap();
         gloo_timers::future::TimeoutFuture::new(40).await;
         support::run_pending(&runtime).await;
         gloo_timers::future::TimeoutFuture::new(40).await;
         let model = runtime.model();
         assert_eq!(model.selected_part_ids.len(), 1);
+        assert!(
+            by_role_name(&root, "textbox", "Name").is_none(),
+            "successful Place closes its owner"
+        );
+        assert!(
+            assembly_draft_areas(
+                &runtime,
+                boardstudio_web_runtime::update_safety::UpdateOpener::Header
+            )
+            .is_empty(),
+            "Place's retired origin no longer defers"
+        );
         assert!(
             model
                 .accepted
