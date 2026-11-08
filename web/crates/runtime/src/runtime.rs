@@ -7979,11 +7979,21 @@ pub mod firmware_export_test_support {
         GENERATED_FILES.with(|files| std::mem::take(&mut *files.borrow_mut()))
     }
 
-    /// A wireless split design: physical left half on `board-a`, right half on `board-b`, each
-    /// with its own bindings, with the given roles. Firmware generation runs the real generator.
-    pub async fn split_fixture(left_role: &str, right_role: &str) -> Rc<Runtime> {
+    /// Physical left half on `board-a`, right half on `board-b`, each with its own bindings.
+    /// Optional encoders and the selected transport go through the real electrical resolver
+    /// and firmware generator, with the given roles.
+    pub async fn split_fixture(
+        left_role: &str,
+        right_role: &str,
+        transport: HardwareTransport,
+        encoders: bool,
+    ) -> Rc<Runtime> {
         let runtime = support::new_runtime();
-        support::open_document(&runtime, split_document(left_role, right_role)).await;
+        support::open_document(
+            &runtime,
+            split_document(left_role, right_role, transport, encoders),
+        )
+        .await;
         support::in_process_core(&runtime).script_replies(generated_with_recording);
         take_generated_files();
         runtime
@@ -8168,9 +8178,63 @@ pub mod firmware_export_test_support {
         doc
     }
 
-    fn split_document(left_role: &str, right_role: &str) -> ProjectDoc {
+    fn split_document(
+        left_role: &str,
+        right_role: &str,
+        transport: HardwareTransport,
+        encoders: bool,
+    ) -> ProjectDoc {
         let mut doc = wired_document();
         add_half_board(&mut doc, "board-b", "n", "mcu-right");
+        if transport == HardwareTransport::Wired {
+            doc.definitions.push(definition(
+                "trrs",
+                PartKind::Utility,
+                BTreeMap::from([
+                    ("TP".into(), vec!["TP".into()]),
+                    ("R2".into(), vec!["R2".into()]),
+                    ("SL".into(), vec!["SL".into()]),
+                ]),
+                Some("ceoloide/trrs_pj320a"),
+            ));
+        }
+        if encoders {
+            let mut encoder = definition(
+                "encoder",
+                PartKind::Utility,
+                BTreeMap::from([
+                    ("A".into(), vec!["A".into()]),
+                    ("B".into(), vec!["B".into()]),
+                    ("C".into(), vec!["C".into()]),
+                ]),
+                None,
+            );
+            encoder.matrix_terminals = None;
+            encoder.input_profile = Some(InputProfile {
+                press: None,
+                rotary: Some(RotaryProfile {
+                    a: "A".into(),
+                    b: "C".into(),
+                    common: "B".into(),
+                    steps: Some(80),
+                    triggers_per_rotation: Some(20),
+                    driver: Some(EncoderDriver::Ec11),
+                }),
+            });
+            doc.definitions.push(encoder);
+        }
+        for (board, half) in doc.boards.iter_mut().zip(["left", "right"]) {
+            for (enabled, definition_id, suffix) in [
+                (transport == HardwareTransport::Wired, "trrs", "link"),
+                (encoders, "encoder", "knob"),
+            ] {
+                if enabled {
+                    let id = format!("{half}-{suffix}");
+                    board.part_ids.push(id.clone());
+                    doc.parts.push(part(&id, definition_id));
+                }
+            }
+        }
         let bindings = |matrix: &str, keys: [&str; 4]| {
             ["r0c0", "r0c1", "r1c0", "r1c1"]
                 .into_iter()
@@ -8194,7 +8258,7 @@ pub mod firmware_export_test_support {
         };
         doc.hardware = Some(HardwareConfiguration {
             topology: HardwareTopology::Split,
-            transport: HardwareTransport::Wireless,
+            transport,
             instances: vec![
                 instance("left-half", "board-a", "left", left_role, "mcu-left"),
                 instance("right-half", "board-b", "right", right_role, "mcu-right"),
@@ -8206,12 +8270,28 @@ pub mod firmware_export_test_support {
                     board_id: "board-a".into(),
                     controller_part_id: Some("mcu-left".into()),
                     key_bindings: bindings("m", ["A", "B", "C", "D"]),
+                    locks: if transport == HardwareTransport::Wired {
+                        BTreeMap::from([
+                            ("peripheral/left-link/split-tx".into(), "P14".into()),
+                            ("peripheral/left-link/split-rx".into(), "P15".into()),
+                        ])
+                    } else {
+                        BTreeMap::new()
+                    },
                     ..Default::default()
                 },
                 ElectricalBoardConfiguration {
                     board_id: "board-b".into(),
                     controller_part_id: Some("mcu-right".into()),
                     key_bindings: bindings("n", ["E", "F", "G", "H"]),
+                    locks: if transport == HardwareTransport::Wired {
+                        BTreeMap::from([
+                            ("peripheral/right-link/split-tx".into(), "P18".into()),
+                            ("peripheral/right-link/split-rx".into(), "P19".into()),
+                        ])
+                    } else {
+                        BTreeMap::new()
+                    },
                     ..Default::default()
                 },
             ],
@@ -8802,6 +8882,7 @@ pub mod project_name_test_support {
 mod firmware_export_tests {
     use super::*;
     use crate::runtime::firmware_export_test_support as test_support;
+    use boardstudio_core::model::HardwareTransport;
     use futures_channel::oneshot;
     use std::task::Poll;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -8840,8 +8921,10 @@ mod firmware_export_tests {
     async fn export_split(
         left_role: &str,
         right_role: &str,
+        transport: HardwareTransport,
+        encoders: bool,
     ) -> (Rc<Runtime>, Vec<BTreeMap<String, String>>) {
-        let runtime = test_support::split_fixture(left_role, right_role).await;
+        let runtime = test_support::split_fixture(left_role, right_role, transport, encoders).await;
         let (_, run_effect) = run_export_effect(test_support::start_export(&runtime));
         test_support::run_effects(&runtime, vec![run_effect]).await;
         let generated = test_support::take_generated_files();
@@ -8859,6 +8942,35 @@ mod firmware_export_tests {
         list.split("&kp ").skip(1).map(str::trim).collect()
     }
 
+    fn assert_physical_layout(files: &BTreeMap<String, String>) {
+        let mut positions = bindings(&files[&format!("{SHIELD}boardstudio.keymap")]);
+        assert_eq!(positions.len(), 8);
+        positions[..4].sort();
+        positions[4..].sort();
+        assert_eq!(
+            positions,
+            ["A", "B", "C", "D", "E", "F", "G", "H"],
+            "positions are physical left-then-right whichever half is central"
+        );
+        assert!(files[&format!("{SHIELD}boardstudio_left.overlay")].contains("row-offset = <0>"));
+        assert!(files[&format!("{SHIELD}boardstudio_right.overlay")].contains("row-offset = <2>"));
+    }
+
+    fn assert_physical_files_unchanged(exports: &[BTreeMap<String, String>]) {
+        assert_eq!(exports.len(), 2);
+        for path in [
+            "boardstudio.keymap",
+            "boardstudio_left.overlay",
+            "boardstudio_right.overlay",
+        ] {
+            let path = format!("{SHIELD}{path}");
+            assert_eq!(
+                exports[0][&path], exports[1][&path],
+                "swapping the central role must not change {path}"
+            );
+        }
+    }
+
     #[wasm_bindgen_test]
     async fn split_export_follows_the_central_role_while_keys_keep_physical_left_to_right_order() {
         let mut exports = Vec::new();
@@ -8866,7 +8978,8 @@ mod firmware_export_tests {
             ("central", "peripheral", "y", "n"),
             ("peripheral", "central", "n", "y"),
         ] {
-            let (runtime, generated) = export_split(left_role, right_role).await;
+            let (runtime, generated) =
+                export_split(left_role, right_role, HardwareTransport::Wireless, false).await;
             assert_eq!(generated.len(), 1, "{left_role}/{right_role} exports once");
             assert!(
                 !runtime.status_is_alert(),
@@ -8888,39 +9001,108 @@ mod firmware_export_tests {
                 defconfig.contains(&role("RIGHT", right_central)),
                 "{defconfig}"
             );
-            let mut positions = bindings(&files[&format!("{SHIELD}boardstudio.keymap")]);
-            assert_eq!(positions.len(), 8);
-            positions[..4].sort();
-            positions[4..].sort();
-            assert_eq!(
-                positions,
-                ["A", "B", "C", "D", "E", "F", "G", "H"],
-                "positions are physical left-then-right whichever half is central"
-            );
-            assert!(
-                files[&format!("{SHIELD}boardstudio_left.overlay")].contains("row-offset = <0>")
-            );
-            assert!(
-                files[&format!("{SHIELD}boardstudio_right.overlay")].contains("row-offset = <2>")
-            );
+            assert_physical_layout(files);
             exports.push(generated.into_iter().next().unwrap());
         }
-        for path in [
-            "boardstudio.keymap",
-            "boardstudio_left.overlay",
-            "boardstudio_right.overlay",
-        ] {
-            let path = format!("{SHIELD}{path}");
+        assert_physical_files_unchanged(&exports);
+    }
+
+    #[wasm_bindgen_test]
+    async fn split_export_wired_right_central_preserves_physical_layout_and_uart() {
+        let mut exports = Vec::new();
+        for (left_role, right_role) in [("central", "peripheral"), ("peripheral", "central")] {
+            let (runtime, generated) =
+                export_split(left_role, right_role, HardwareTransport::Wired, false).await;
             assert_eq!(
-                exports[0][&path], exports[1][&path],
-                "swapping the central role must not change {path}"
+                generated.len(),
+                1,
+                "{left_role}/{right_role}: {}",
+                runtime.status()
             );
+            assert!(!runtime.status_is_alert(), "{}", runtime.status());
+            assert_eq!(test_support::take_deliveries(&runtime).len(), 1);
+            let mut files = generated.into_iter().next().unwrap();
+            assert_physical_layout(&files);
+            // The fixture locks different physical pins per half: left P14/P15, right P18/P19.
+            for (half, role, tx, rx) in [
+                ("left", left_role, "1, 11", "1, 13"),
+                ("right", right_role, "1, 15", "0, 2"),
+            ] {
+                let path = format!("{SHIELD}boardstudio_{half}.overlay");
+                let overlay = &files[&path];
+                assert!(
+                    overlay.contains("compatible = \"zmk,wired-split\""),
+                    "{overlay}"
+                );
+                assert!(overlay.contains("current-speed = <115200>"), "{overlay}");
+                assert!(
+                    overlay.contains("&uart0 { pinctrl-0 = <&uart0_default>"),
+                    "{overlay}"
+                );
+                let config = &files[&format!("{SHIELD}boardstudio_{half}.conf")];
+                assert!(config.contains("CONFIG_ZMK_SPLIT_WIRED=y"), "{config}");
+                assert!(
+                    config.contains("CONFIG_ZMK_SPLIT_WIRED_UART_MODE_INTERRUPT=y"),
+                    "{config}"
+                );
+                // Only UART direction follows the role, as in the existing adapter test.
+                let (tx, rx) = if role == "central" {
+                    (tx, rx)
+                } else {
+                    (rx, tx)
+                };
+                let uart = format!("psels = <NRF_PSEL(UART_TX, {tx})>, <NRF_PSEL(UART_RX, {rx})>;");
+                assert!(overlay.contains(&uart), "{half}/{role}: {overlay}");
+                // Pin direction was checked above; byte-compare every other overlay byte,
+                // including matrix GPIOs, against the known-good left-central export.
+                let normalized = overlay.replace(&uart, "psels = <role-directed UART pins>;");
+                files.insert(path, normalized);
+            }
+            exports.push(files);
         }
+        assert_physical_files_unchanged(&exports);
+    }
+
+    #[wasm_bindgen_test]
+    async fn split_export_encoders_stay_physical_left_then_right_with_right_central() {
+        let mut exports = Vec::new();
+        for (left_role, right_role) in [("central", "peripheral"), ("peripheral", "central")] {
+            let (runtime, generated) =
+                export_split(left_role, right_role, HardwareTransport::Wireless, true).await;
+            assert_eq!(
+                generated.len(),
+                1,
+                "{left_role}/{right_role}: {}",
+                runtime.status()
+            );
+            assert!(!runtime.status_is_alert(), "{}", runtime.status());
+            assert_eq!(test_support::take_deliveries(&runtime).len(), 1);
+            let files = generated.into_iter().next().unwrap();
+            assert_physical_layout(&files);
+            // Core labels are the hex-encoded part ids: left-knob, then right-knob.
+            // The literal order pins the adapter/Core sensor-index contract, not role order.
+            for half in ["left", "right"] {
+                let overlay = &files[&format!("{SHIELD}boardstudio_{half}.overlay")];
+                assert!(
+                    overlay.contains(
+                        "sensors = <&encoder_6c6566742d6b6e6f62 &encoder_72696768742d6b6e6f62>;"
+                    ),
+                    "{half}/{left_role}/{right_role}: {overlay}"
+                );
+                assert!(overlay.contains("compatible = \"alps,ec11\"; status = \"okay\";"));
+                assert!(
+                    files[&format!("{SHIELD}boardstudio_{half}.conf")].contains("CONFIG_EC11=y")
+                );
+            }
+            exports.push(files);
+        }
+        assert_physical_files_unchanged(&exports);
     }
 
     #[wasm_bindgen_test]
     async fn split_export_rejects_two_central_halves_and_names_the_role_problem() {
-        let (runtime, generated) = export_split("central", "central").await;
+        let (runtime, generated) =
+            export_split("central", "central", HardwareTransport::Wireless, false).await;
         assert!(generated.is_empty());
         assert!(runtime.status_is_alert());
         assert_eq!(
