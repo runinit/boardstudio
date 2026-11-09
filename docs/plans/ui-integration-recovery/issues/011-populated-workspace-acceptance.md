@@ -360,3 +360,107 @@ earlier; final acceptance depends on 010's verified candidate.
   Dark closed screenshot and packaged metrics; no new source correction needed.
   Remaining full gate, candidate refresh and human acceptance are not waived.
   Next action: commit E, then implement D5's layered scope-strip fill correction.
+- 2026-11-09, **Slice D (D5) proof map — targeted implementation complete**:
+  - Layered scope fills — mounted Layout scope choices → select a scope → group
+    uses `muted`, active item uses `background`, with selected ARIA/state retained
+    · mounted · **RED → GREEN**, extending the existing direct-selection/keyboard
+    test. Logs: `.evidence/011-sliceD/mounted-red.log` (transparent vs muted;
+    later panic-hook failures/timeouts are follow-on poisoning) and
+    `mounted-green.log` in that directory (266 passed, 2 setup-guide tests filtered).
+    Independent oracle: DESIGN's filled Toggle Group and active `background`
+    rule, with known Original Light Theme values; no class-string assertions.
+  - Theme paint and geometry — populated Split 42, 1440×900 → select Column and
+    inspect both Themes/both Appearances → same semantic roles, unchanged control
+    and group dimensions · packaged · **RED** in
+    `.evidence/011-sliceD/before-{original,shadcn}-{light,dark}-red.log`.
+    Before screenshots: `web/target/test-results/011-sliceD/before-*.png`.
+    Reuses source-equivalent Slice E-after package; its scope override and rendered
+    group/selected paint were verified. Existing scope selection, keyboard and
+    retained-owner scenarios are reused, not duplicated at each Theme combination.
+  Scope is CSS fill overrides only plus the focused test/proof: no 005/D10 menu
+  deduplication, motion, chevron, tree, dimension or ghost work. Preserve group
+  metrics, wrapping and contextual actions. **011 remains ready-for-human.**
+  Packaged **GREEN**: matching `after-{original,shadcn}-{light,dark}-green.log`
+  files in the same log directory and `after-*.png` in the same screenshot
+  directory. `packaged-comparison.log` confirms group/strip and all five control
+  rectangles are identical before/after in all four combinations; inactive
+  paint remains transparent and the active Column retains `aria-pressed=true`
+  and `data-state=on`. The four before/after pairs were visually inspected:
+  muted inset and background active fill now show, including the subtle shadcn
+  Light pairing. Captures wait for transient menus/popovers to finish closing;
+  initial in-transition captures were replaced, not treated as passing evidence.
+  Diagnosis: unlayered group/item transparent backgrounds and the scope item's
+  `selected` override defeated the shared layered Tailwind fills. Only these
+  scope overrides were removed; non-scope action fills, dimensions, padding,
+  wrapping, owners and production Rust are unchanged. Existing direct-selection
+  and keyboard, retained-cell and scope-popover tests pass in the targeted run.
+  Newly executed under the shared inherited FD9 build lock:
+  `python3 scripts/check.py browser --only layout` (RED then GREEN), and
+  `python3 scripts/build-web.py --fast --skip-providers --output web/target/site-011-sliceD-after`
+  (`build-after.log`, unchanged providers reused). Changed-file rustfmt,
+  diff whitespace and Impeccable detector passed (`rustfmt.log`,
+  `impeccable-detect.log`). Independent isolated browser sessions used port 4183;
+  browser error logs are empty and own browsers/servers are stopped. Existing
+  candidate port 4173/PID 871065 was not changed.
+  Gortex exact source reads found the owner; initial pre-impact/mutation routing
+  refused `view_building` after six 60-second retry cycles (seven impact calls)
+  and a refused dry-run. The user-authorized native-edit fallback was disclosed
+  and used for the initial test/CSS/proof changes. Automatic routing subsequently
+  recovered at checkout HEAD `1cbc191a`, commit generation 6121/dirty 6123;
+  exact/fresh impact and post detect/tests/guards/contract ran, and final ticket
+  edits used Gortex. Zero graph-mapped tests is not behavioral absence; no guards
+  are configured; CSS contract analysis allows the change. No signature changed.
+  HEAD remains `1cbc191ac41eb0da3527f8a981a6b11b041c7e3e` plus these uncommitted
+  slice changes. Coordinator still owns independent mutation/rejection checks,
+  combined review, full gate, candidate refresh and commits; human re-review and
+  acceptance remain outstanding. No full gate or mutation run claimed here.
+- 2026-11-09, **Slice D combined Spec + Standards review** — fixed endpoints
+  `1cbc191ac41eb0da3527f8a981a6b11b041c7e3e` → current uncommitted working
+  tree in checkout `01a1b3cf-a8df-75da-ab9e-d3fe3b2d3378`; checkout root and
+  HEAD verified. Exact/fresh Gortex reads covered every owned changed hunk:
+  `web/assets/layout-toolbar.css` lines 14 and 26–29; mounted selection test
+  in `web/crates/layout/src/objects/layout_toolbar.rs` lines 382–476; and the
+  Slice D proof map in this ticket lines 363–416. Unread owned hunks: none.
+  External AGENTS/standards diffs and untracked files were not reviewed as slice
+  changes; current standards and test economy were consulted as rules.
+  - **Standards: PASS.** No required findings across correctness, readability,
+    architecture, security, performance or the requested Fowler smell heuristics.
+    The extended scenario uses an independent DESIGN/known-Theme paint oracle;
+    repo test-economy guidance favors this related shared setup.
+  - **Spec: PASS.** No required findings. DESIGN calls for filled Toggle Groups
+    and active `background` (DESIGN Shapes and Primary); deleting the unlayered
+    scope overrides lets the shared `bg-muted` and active `bg-background` win.
+    No production Rust, non-scope action styling, geometry, wrapping or owner
+    changes in the owned hunks; excluded D10/005, motion, chevrons, tree, popover
+    and ghost work is not included.
+  - **Commit D: READY**, not final 011 acceptance. Inspected mounted RED identifies
+    transparent group vs muted; subsequent panic-hook/timeouts are follow-on.
+    GREEN log has **2 setup-guide passes in the separate filtered run plus 266
+    other passes**, 268 total, matching E; the two were not omitted. Inspected
+    all four packaged RED/GREEN paint summaries, comparison and build receipt:
+    desktop Column retains state and geometry across both Themes/Appearances;
+    fast package reused providers. The implementer reports inspecting all eight
+    screenshots; this reviewer did not independently view them. No tests, build,
+    mutation or browser run by this reviewer. Evidence does not establish the
+    full viewport matrix, accessibility or human approval. Coordinator's
+    independent checks, full gate, candidate refresh and affected human re-review
+    remain outstanding; **011 remains ready-for-human and human acceptance is
+    blocked**, with no approval inferred.
+- 2026-11-09, **Coordinator D commit receipt** — pre-commit HEAD `1cbc191a`.
+  Standards PASS / Spec PASS above; every owned changed hunk independently read
+  through exact Gortex (complete CSS, extended mounted selection scenario and
+  all D ticket additions), none unread. Newly executed FD9-locked independent
+  Layout baseline: 268 passes (2 setup-guide + 266 other); mutation-check then
+  reinstated an unlayered transparent scope-item override and was killed by
+  Matrix's selected-background assertion (transparent vs required Original Light
+  background). No compile failure: 1 killed, 0 survived; source restored byte-for-byte.
+  Logs: `.evidence/011-sliceD/coordinator-mutation.log` and
+  `coordinator-mutation/` in that directory; spec outside repo at
+  `~/.cache/tmp/011-d-fill-mutation.json`. Fresh post-restoration check rebuilt
+  test CSS and passed all 268 again (`coordinator-restored-green.log`), ensuring
+  generated assets do not retain the mutant. Whitespace passed; no invalid-input
+  admission guard added, so rejection rerun N/A. Coordinator inspected Original
+  Dark and shadcn Light after captures; all-four-combination packaged comparisons
+  and unchanged geometry evidence above reused. No source correction required.
+  Commit D READY; next is F's tree recovery. Full gate, candidate refresh and
+  affected human re-review remain open; this does not approve or close 011.

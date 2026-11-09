@@ -379,14 +379,40 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn direct_selection_choices_open_scope_panels_and_support_keyboard() {
-        let document = web_sys::window().unwrap().document().unwrap();
+        let window = web_sys::window().unwrap();
+        let document = window.document().unwrap();
+        let stylesheet = document.create_element("style").unwrap();
+        stylesheet.set_text_content(Some(&format!(
+            "{}\n{}",
+            include_str!("../../../../assets/workbench-base.css"),
+            include_str!("../../../../assets/tailwind.css")
+        )));
+        document.head().unwrap().append_child(&stylesheet).unwrap();
         let root = document.create_element("div").unwrap();
+        root.set_attribute("data-theme", "original").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
             VirtualDom::new(direct_selection_fixture),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         gloo_timers::future::TimeoutFuture::new(40).await;
+        let group = boardstudio_web_ui_shared::test_role::by_role_name(
+            &root,
+            "group",
+            "Selection scope choices",
+        )
+        .unwrap();
+        // DESIGN's filled Toggle Group: Original Light muted inset, background active item.
+        // Known Theme role values, not a class/selector oracle (011 D5).
+        assert_eq!(
+            window
+                .get_computed_style(&group)
+                .unwrap()
+                .unwrap()
+                .get_property_value("background-color")
+                .unwrap(),
+            "rgb(247, 248, 250)"
+        );
         for kind in LayoutSelectionKind::ALL {
             let button = boardstudio_web_ui_shared::test_role::by_role_name(
                 &root,
@@ -410,6 +436,18 @@ mod tests {
             assert_eq!(
                 button.get_attribute("aria-expanded").as_deref(),
                 Some("true")
+            );
+            assert_eq!(button.get_attribute("data-state").as_deref(), Some("on"));
+            assert_eq!(
+                window
+                    .get_computed_style(&button)
+                    .unwrap()
+                    .unwrap()
+                    .get_property_value("background-color")
+                    .unwrap(),
+                "rgb(233, 238, 242)",
+                "{} uses the background role when selected",
+                kind.label()
             );
         }
         let matrix =
@@ -435,6 +473,7 @@ mod tests {
                 .as_deref(),
             Some("Select Row")
         );
+        stylesheet.remove();
         root.remove();
     }
 
