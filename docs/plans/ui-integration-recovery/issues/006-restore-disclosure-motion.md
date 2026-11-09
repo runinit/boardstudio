@@ -1,6 +1,6 @@
 # 006: Restore shared disclosure motion
 
-Status: wontfix
+Status: ready-for-agent
 Type: build
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -49,3 +49,7 @@ and original audit unchanged.
   acceptance criteria are retained as historical context, not completed evidence.
 - 2026-11-06: Published with motion, reduced motion and content/focus handling
   together because they define a complete disclosure transition.
+- 2026-11-08: REOPENED by user during 011 human acceptance review (see 011
+  D7-adjacent disclosure motion expectations). Original cancellation preserved
+  above as history. Scoping to follow after 011 defect slices; do not treat the
+  2026-11-06 cancellation rationale as current.

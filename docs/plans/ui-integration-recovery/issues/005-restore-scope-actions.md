@@ -1,6 +1,6 @@
 # 005: Restore nonduplicated scope actions
 
-Status: wontfix
+Status: ready-for-agent
 Type: build
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -48,3 +48,7 @@ specification and original audit unchanged.
   acceptance criteria are retained as historical context, not completed evidence.
 - 2026-11-06: Published from the accepted breakdown; independent of MCU diagnosis
   and the other UI behaviors, with shared-file changes coordinated as necessary.
+- 2026-11-08: REOPENED by user during 011 human acceptance review (see 011
+  D10 dual scope menus). Original cancellation preserved above as history.
+  Scoping to follow after 011 defect slices; do not treat the 2026-11-06
+  cancellation rationale as current.

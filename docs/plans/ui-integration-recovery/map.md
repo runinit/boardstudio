@@ -20,9 +20,9 @@ neither is deferred to a separate cleanup ticket.
 | --- | --- | --- | --- |
 | [002: Diagnose MCU rotation](issues/002-diagnose-mcu-rotation.md) | resolved | none | Closed on the user's stale-build report; original symptom not reproduced |
 | [003: Resolve the diagnosed MCU symptom](issues/003-resolve-mcu-orientation.md) | wontfix | 002 | Not applicable; closed by the user (see 002). Evidence-backed correction and original-scenario verification |
-| [004: Restore placement and Relationships](issues/004-restore-placement-relationships.md) | wontfix | none | Cancelled by the user; no completion evidence |
-| [005: Restore nonduplicated scope actions](issues/005-restore-scope-actions.md) | wontfix | none | Cancelled by the user; no completion evidence |
-| [006: Restore shared disclosure motion](issues/006-restore-disclosure-motion.md) | wontfix | none | Cancelled by the user; no completion evidence |
+| [004: Restore placement and Relationships](issues/004-restore-placement-relationships.md) | ready-for-agent (reopened 2026-11-08) | none | Placement/Relationships; scope to follow 011 defect slices |
+| [005: Restore nonduplicated scope actions](issues/005-restore-scope-actions.md) | ready-for-agent (reopened 2026-11-08) | none | Scope actions including D10; scope to follow 011 defect slices |
+| [006: Restore shared disclosure motion](issues/006-restore-disclosure-motion.md) | ready-for-agent (reopened 2026-11-08) | none | Disclosure motion; scope to follow 011 defect slices |
 | [007: Correct disclosure chevrons](issues/007-correct-disclosure-chevrons.md) | wontfix | none | Cancelled by the user; no completion evidence |
 | [008: Restore real drag/save/Undo proof](issues/008-restore-drag-save-undo-proof.md) | resolved | none | Drag, save, cancel and exact Undo pass on a pinned build; the complete runner still failed later at the unrelated Case collision control at that time (see Answer) |
 | [009: Verify persistence across reload](issues/009-verify-reload-persistence.md) | resolved | 008 | Saved edit and saved Undo result survive an actual reload with exact document/scene/identity/revision proof; the complete runner still failed later at the unrelated Case collision control at that time (see Answer) |
@@ -30,9 +30,10 @@ neither is deferred to a separate cleanup ticket.
 | [011: Populated-workspace human acceptance](issues/011-populated-workspace-acceptance.md) | ready-for-human | 010 | User review of the checked candidate across the complete review matrix |
 
 Dependencies cover 008 through 009. 002 is resolved and 003 is `wontfix`.
-The user cancelled 004–007 on 2026-11-06; they no longer block 010. Their
-cancellation is not evidence the original behaviors were recovered or a waiver
-of findings in final review. Reconcile acceptance scope with that decision.
+The user cancelled 004–007 on 2026-11-06; they did not block the completed 010.
+On 2026-11-08 the user reopened 004–006 during 011 review; 007 remains cancelled.
+Cancellation is not evidence the original behaviors were recovered or a waiver
+of findings in final review. Scope reopened work after the 011 defect slices.
 
 ## Added after the accepted breakdown
 
@@ -84,7 +85,8 @@ in 011 or close parent 001.
 - The original plan retained the newer controls and deliberate shell changes,
   and proposed restoring placement, scope actions, disclosure motion and chevron
   binding with behavioral assertions and documentation. The user subsequently
-  cancelled 004–007; those proposed repairs are not completed work.
+  cancelled 004–007; those proposed repairs are not completed work. The user
+  reopened 004–006 on 2026-11-08; 007 remains cancelled.
 - The original audit recorded MCU rotation (A1) as an unresolved user-observed
   symptom. The heading fix is present. Source-present engine work is integrated
   but has no new browser acceptance from this plan.
@@ -105,8 +107,10 @@ in 011 or close parent 001.
 010 is resolved with the combined technical evidence and explicit review
 coverage disposition in its completion record. 013/017/019/020/021/022/023 are
 resolved; their historical limitations and retained risks remain in their tickets.
-The next step is **011 populated-workspace human acceptance only**, across its
-complete surfaces × Themes/Appearances × widths matrix on the checked candidate.
+011 human acceptance remains open across its complete surfaces ×
+Themes/Appearances × widths matrix. Address the ordered 011 defect slices, then
+scope reopened 004/005/006 as their own work. Corrections require refreshed 010
+verification and affected human re-review per 011 AC7; no approval is recorded.
 011 remains `ready-for-human`; technical completion does not close it or parent 001.
 
 Continue in the already-bound `fix/ui-integration-recovery` worktree. Preserve
