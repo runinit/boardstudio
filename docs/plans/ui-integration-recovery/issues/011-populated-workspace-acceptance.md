@@ -114,3 +114,140 @@ earlier; final acceptance depends on 010's verified candidate.
   sizing, G ghost (D2); then 004/005/006 scoped as their own work. Corrections
   refresh 010 gate + affected human re-review per AC7; 011 stays open (no approval
   yet).
+- 2026-11-09, **Slice B+C (D6+D4) proof map — targeted implementation complete**:
+  user approved toolbar/icon corrections and rounded-box controller cards; this
+  is not final acceptance. Rendered DOM/CSS geometry is the agreed regression
+  seam (no source-class-string oracle).
+  - D6 — populated Layout → inspect 2D, 3D assembly and Footprints icons, plus
+    both visibility-eye states → unfilled current-color strokes at normal icon
+    size · packaged + mounted · RED: `.evidence/011-sliceBC/packaged-toolbar-red.log`
+    and `packaged-eye-red.log`; GREEN: `packaged-toolbar-green.log`,
+    `packaged-eye-green.log` and `mounted-green.log` in the same log directory.
+    Before/after screenshots: `web/target/test-results/011-sliceBC/toolbar-before.png`,
+    `toolbar-after.png` and `eyes-after.png` in the same screenshot directory.
+  - D4 — Controller & wiring picker loaded → inspect compiled MCU footprint and
+    card → footprint fills its 152×116px inner viewport; rounded rectangle,
+    not capsule · packaged · RED: `.evidence/011-sliceBC/packaged-mcu-red.log`
+    (16×16px footprint, pill radius); GREEN: `packaged-mcu-green.log` in the
+    same log directory (both MCU previews 152×116px, card radius 14px).
+    Before/after screenshots: `web/target/test-results/011-sliceBC/mcu-before.png`
+    and `mcu-after.png` in the same screenshot directory.
+  - Shared selector safety — Button/button-link and ToggleItem with direct
+    default/explicit icons and nested geometry → defaults remain 16px, explicit
+    icon sizing and nested viewport dimensions survive · mounted · RED:
+    `.evidence/011-sliceBC/mounted-size-red.log`; GREEN: `mounted-green.log`
+    in the same log directory. Regression tests:
+    `action_icons_keep_default_and_explicit_sizes_without_resizing_nested_geometry`
+    and `visibility_eyes_use_unfilled_current_color_strokes_in_both_states`.
+    The first mounted attempt had a test-fixture type error (corrected); the next
+    observed the eye-paint RED, whose panic poisoned later tests. The isolated
+    size run independently observed the 16×16px nested-geometry RED.
+  Source baseline `ea890dade`; fresh before package:
+  `web/target/site-011-sliceBC-before`, port 4183; build log
+  `.evidence/011-sliceBC/build-before.log`. Exact/fresh Gortex worktree route
+  refused with `view_building` after six 60-second retry cycles (seven calls);
+  native fallback disclosed. No D7/chevron/type or other slice changes made.
+  Completion receipt: unchanged HEAD `ea890dade` plus this slice's uncommitted
+  diff; fresh after package `web/target/site-011-sliceBC-after`, same isolated
+  port 4183 (`build-after.log`). Browser initially retained the old service-worker
+  cache; applying Update Now and waiting for the new SVG markup preceded final
+  captures. Stale-cache attempts are labelled separately, not counted as GREEN.
+  Original Light/Dark and shadcn Dark were visually inspected at 1440×900;
+  supplemental `mcu-after-original-dark.png`, `mcu-after-shadcn-dark.png` and
+  `toolbar-after-shadcn-dark.png` are in the screenshot directory above.
+  Newly executed targeted checks: `check.py browser --only ui-shared parts`
+  passed 93 ui-shared and 106 Parts tests; changed-file rustfmt, diff whitespace
+  and Impeccable detector passed. Cargo/Dioxus builds and check.py runs used
+  the shared FD9 lock.
+  Consumer audit: direct SVG icons keep the 16px default; explicit sizes remain
+  caller-owned; carousel arrows stay 20px. Nested Library previews have their
+  own full-viewport sizing, empty-state icons 30px and Current mark 12px; shared
+  icon components already supply size classes. Only Button/ToggleItem default
+  size selectors were narrowed, not other controls or descendant paint rules.
+  Source/browser audit logs: `selector-source-audit.log` and
+  `selector-consumer-browser-audit.log` in the log directory above.
+  Gortex later recovered exact/fresh worktree routing: source was verified
+  against this checkout; detect/tests/guards/contract ran. It found no mapped
+  test coverage or configured guards and warned about shared-control reach;
+  mounted/rendered evidence above supplies behavioral proof. No signature changes.
+  Remaining gates: coordinator full gate/build identity and affected user
+  re-review under AC7. The complete acceptance matrix is NOT claimed;
+  **011 remains ready-for-human, not resolved, and no approval is inferred**.
+- 2026-11-09, **Independent combined B+C Spec + Standards review** — endpoints:
+  `ea890dadeb925ece27c8b7a6884e75715d7536a4` → current uncommitted worktree,
+  excluding unrelated external changes. Exact Gortex worktree
+  `01a1b3cf-a8df-75da-ab9e-d3fe3b2d3378` returned disk-verified source and
+  checkout-local paths, not main. All changed hunks read: `web/src/presentation/layout_workspace.rs`
+  (toolbar), `web/crates/ui-shared/src/canvas_layers.rs` (eye),
+  `web/crates/ui-shared/src/ui/button.rs`, `toggle_group.rs`,
+  `primitives_mount_tests.rs` (all three under `web/crates/ui-shared/src/ui/`),
+  `web/crates/parts/src/parts.rs` (picker), and this ticket's B+C record.
+  Unread changed slice hunks: none. External AGENTS, standards and untracked
+  documentation changes were not reviewed as part of this slice.
+  - **Standards: CHANGES REQUIRED. Required — theme stroke contract:** the four
+    restored glyphs hardcode `stroke-[1.5]` in `layout_workspace.rs:528,552,581`
+    and `canvas_layers.rs:110`. `DESIGN.md` Colors/Shapes says the Theme supplies
+    icon stroke (Original 1.5, shadcn 2), and
+    `docs/plans/rust-ui-migration/theme-contract.md` section 1 names
+    `--icon-stroke`; `web/tailwind.css:53,111` sets those values. These icons
+    therefore stay 1.5 in shadcn instead of following the active Theme. Use the
+    existing token for these strokes and verify computed width under both Themes;
+    the eye test currently checks only positive width
+    (`primitives_mount_tests.rs:133–141`). This does not require a global icon
+    cleanup. No other correctness, readability, architecture, security,
+    performance or Fowler-smell finding in the owned diff.
+  - **Spec: PASS** for the requested B+C scope, conditional on the standards fix:
+    the three view icons and both eye states gain visible unfilled current-color
+    strokes, shared Button/ToggleItem sizing is narrowed to direct SVGs, and the
+    controller card is a rounded box. No D7, scope strip, tree, dimension-popover
+    or ghost work appears in the owned source diff. D4/D6 and the user disposition
+    are recorded above; `DESIGN.md` Shapes specifies `rounded-xl` for cards.
+  - **Acceptance for committing B+C: BLOCKED** pending the required theme-stroke
+    correction and its targeted verification; this is not a demand to close 011.
+    The coordinator owns the full gate/build identity and affected re-review;
+    011 human acceptance remains blocked and `ready-for-human`, with no approval
+    inferred.
+  - Evidence reviewed: `verification.log`, mounted GREEN and independent size
+    RED, packaged toolbar/MCU RED and GREEN, eye GREEN, source and browser
+    selector audits, and Gortex receipt. They support the recorded 16→152×116
+    geometry, 14px card, toolbar/eye paint, 93+106 targeted tests and 20px carousel
+    arrows. The logs report eye RED and other captures; screenshots were not
+    independently inspected by this reviewer, and no tests/builds/browser were
+    run here. Full matrix and full gate remain pending; the fast package reused
+    providers. Source audit and mounted fixtures reduce, but do not eliminate,
+    shared-selector risk: wrapped bare icons that relied on inherited default
+    sizing elsewhere may now need explicit size; verify affected consumers during
+    coordinator's broader gate/re-review. No mutation test was run in this review.
+- 2026-11-09, **Coordinator B+C correction and commit readiness** — baseline
+  `ea890dade` → corrected working tree. The required review finding above is
+  addressed in all four glyphs with `stroke_width: "var(--icon-stroke, 2)"`,
+  matching shared icons. The existing eye regression now checks both Themes
+  and both visibility states against DESIGN's 1.5/2 widths, not merely >0.
+  Actual RED: `.evidence/011-sliceBC/coordinator-theme-red.log` reports shadcn
+  1.5 vs required 2.0. GREEN: `coordinator-theme-green.log` in that directory,
+  fresh 93 ui-shared + 106 Parts passes; changed-file rustfmt and whitespace pass.
+  Independent sensitivity experiment using `scripts/mutation-check.py`:
+  `coordinator-mutation.log` and `coordinator-mutation/` in that directory;
+  unmutated filtered eye baseline passed, fixed-1.5 mutant killed by shadcn's
+  assertion, source restored byte-for-byte (1 killed, 0 survived, 0 compile failures).
+  No invalid-input admission guard was added by B+C; rejection rerun is not applicable.
+  Fresh corrected fast package `web/target/site-011-sliceBC-after` rebuilt
+  (`coordinator-theme-build.log`, providers reused). Agent-browser verified
+  visible 2D/3D/Footprints glyphs in both Themes: no fill, current-color stroke,
+  16px width, computed stroke 1.5px/2px (`coordinator-packaged-theme.log`).
+  Screenshots `coordinator-toolbar-theme-original.png` and
+  `coordinator-toolbar-theme-shadcn.png` under the B+C screenshot directory;
+  coordinator inspected the latter and MCU after capture. Earlier B+C screenshots
+  remain historical paint/geometry evidence; they precede the Theme-stroke correction.
+  Full owned hunk inventory re-read through exact Gortex: this ticket additions,
+  parts.rs:1251, canvas_layers.rs:110, button.rs:964, toggle_group.rs:60,
+  primitives_mount_tests.rs:38–159, layout_workspace.rs:528/552/581.
+  Unread changed slice hunks: none. Gortex detect/tests/guards/contract rerun:
+  graph test mapping unavailable, no guards configured, shared-renderer reach warning
+  reviewed against rendered evidence; no signature change or extraction needed.
+  **Coordinator delta review: Standards PASS; Spec PASS; B+C commit READY**.
+  This closes the small review correction, not 011 or its human acceptance matrix.
+  Current HEAD before commit remains `ea890dade`; full gate/candidate promotion
+  awaits remaining slices, followed by affected human re-review. Old candidate
+  server was down and restarted unchanged on 4173 (PID 871065); isolated B+C
+  browser/server stopped. Next action: commit B+C and implement fenced D7 Slice E.

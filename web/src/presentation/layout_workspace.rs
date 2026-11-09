@@ -525,7 +525,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                         aria_label: "2D",
                                         class: "min-h-11 min-w-11",
                                         attributes,
-                                        svg { view_box: "0 0 20 20", "aria-hidden": "true",
+                                        svg { class: "fill-none stroke-current", stroke_width: "var(--icon-stroke, 2)", view_box: "0 0 20 20", "aria-hidden": "true",
                                             rect {
                                                 x: "3",
                                                 y: "3",
@@ -549,7 +549,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                         aria_label: "3D assembly",
                                         class: "min-h-11 min-w-11",
                                         attributes,
-                                        svg { view_box: "0 0 20 20", "aria-hidden": "true",
+                                        svg { class: "fill-none stroke-current", stroke_width: "var(--icon-stroke, 2)", view_box: "0 0 20 20", "aria-hidden": "true",
                                             path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" }
                                         }
                                         span { class: "sr-only", "3D assembly" }
@@ -578,7 +578,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                             aria_label: "Footprints",
                                             class: "min-h-11 min-w-11",
                                             attributes,
-                                            svg { view_box: "0 0 20 20", "aria-hidden": "true",
+                                            svg { class: "fill-none stroke-current", stroke_width: "var(--icon-stroke, 2)", view_box: "0 0 20 20", "aria-hidden": "true",
                                                 rect {
                                                     x: "5",
                                                     y: "4",

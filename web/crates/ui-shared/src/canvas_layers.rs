@@ -107,7 +107,7 @@ pub fn LayerToggleButton(
                         let aria_label = aria_label.clone();
                         move |attributes: Vec<Attribute>| rsx! {
                             ToggleItem { index: 0usize, aria_label: aria_label.clone(), class: "min-h-11 min-w-11", attributes,
-                                svg { view_box: "0 0 20 20", "aria-hidden": "true",
+                                svg { class: "fill-none stroke-current", stroke_width: "var(--icon-stroke, 2)", view_box: "0 0 20 20", "aria-hidden": "true",
                                     path { d: "M2 10q8-12 16 0-8 12-16 0Z" }
                                     circle { cx: "10", cy: "10", r: "2.5" }
                                     if !visible { path { d: "m3 17 14-14" } }
