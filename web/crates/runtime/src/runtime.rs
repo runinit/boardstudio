@@ -2407,9 +2407,8 @@ impl Runtime {
                 } else {
                     match outcome {
                         TerminalOutcome::Completed => {
-                            if observed {
-                                self.changed();
-                            }
+                            // Silent completion still wakes views without an outcome observer.
+                            self.changed();
                         }
                         TerminalOutcome::PersistenceFailed(reason) => {
                             self.apply_report(RuntimeReport::status(reason).until_saved());
@@ -9509,6 +9508,31 @@ mod notification_tests {
             runtime.take_notifications().is_empty(),
             "ordinary autosave is header-only"
         );
+    }
+
+    #[wasm_bindgen_test]
+    async fn unobserved_completion_notifies_subscribers_without_a_toast_or_status_change() {
+        let (runtime, _, _) = support::fixture().await;
+        runtime.report("Inline context");
+        runtime.take_notifications();
+        let changes = Rc::new(Cell::new(0));
+        let notified = changes.clone();
+        runtime.subscribe(Rc::new(move || notified.set(notified.get() + 1)));
+        // A runtime subscriber is independent of an operation-specific outcome slot.
+        runtime
+            .run(Effect::Settled {
+                operation_id: runtime.operation(),
+                outcome: TerminalOutcome::Completed,
+                landing: None,
+            })
+            .await;
+        assert_eq!(
+            changes.get(),
+            1,
+            "silent completion must still notify views"
+        );
+        assert!(runtime.take_notifications().is_empty());
+        assert_eq!(runtime.status(), "Inline context");
     }
 
     #[wasm_bindgen_test]
