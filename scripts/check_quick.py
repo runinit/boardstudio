@@ -35,6 +35,8 @@ class Selection:
     rust: bool = False
     cad: bool = False
     full_rust: bool = False
+    # Tooling scripts whose own suite runs in another step (not `tooling`).
+    extra_tests: list[str] = field(default_factory=list)
     packages: set[str] = field(default_factory=set)
     page_files: list[str] = field(default_factory=list)
     unplaced: list[str] = field(default_factory=list)
@@ -102,6 +104,9 @@ def select(files: list[str], packages: dict[str, Package]) -> Selection:
             selection.notes.append(f"{path}: shared build input, every Rust check applies")
         elif path.startswith(TOOLING):
             selection.tooling = True
+            if path == "scripts/test-import-kicad-parts.py":
+                # Its suite moved to the `test` step; tooling alone would never run it.
+                selection.extra_tests.append(path)
             if path in ("cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py",
                         "cad/scripts/measure-cad-worker.cjs", "scripts/model-lookup.js",
                         "scripts/model-lookup-pilot.py", "scripts/model-lookup-pilot.mjs",

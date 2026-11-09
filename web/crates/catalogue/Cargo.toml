@@ -7,14 +7,18 @@ publish = false
 description = "BoardStudio bundled component catalogue: loading, generator normalization and physical setup proposals."
 
 [dependencies]
-boardstudio-application = { path = "../../../application" }
 boardstudio_core = { path = "../../../core" }
 boardstudio-web-host = { path = "../host", features = ["page"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+# Not used by the tests: gives every browser test launch the same features, so one prebuild serves them all.
+boardstudio-web-test-floor = { path = "../test-floor" }
 wasm-bindgen-test = "=0.3.79"
+
+[package.metadata.cargo-machete]
+ignored = ["boardstudio-web-test-floor"]
 
 [lints]
 workspace = true

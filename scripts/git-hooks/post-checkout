@@ -1,0 +1,8 @@
+#!/bin/sh
+# Seed a new worktree's target dirs. `git worktree add` passes an all-zero previous HEAD.
+# Never fails the checkout.
+case "$1" in
+  *[!0]*) exit 0 ;;
+esac
+[ -f scripts/seed-worktree-target.py ] && python3 scripts/seed-worktree-target.py --auto 2>&1 | tail -n 1
+exit 0

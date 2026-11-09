@@ -19,7 +19,6 @@ boardstudio-web-ui-shared = { path = "../ui-shared" }
 boardstudio-web-catalogue = { path = "../catalogue" }
 boardstudio-web-parts = { path = "../parts" }
 dioxus = { version = "=0.7.10", default-features = false, features = ["minimal"] }
-serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -45,7 +44,12 @@ boardstudio-web-ui-shared = { path = "../ui-shared", features = ["test-support"]
 boardstudio-web-parts = { path = "../parts", features = ["test-support"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+# Not used by the tests: gives every browser test launch the same features, so one prebuild serves them all.
+boardstudio-web-test-floor = { path = "../test-floor" }
 wasm-bindgen-test = "=0.3.79"
+
+[package.metadata.cargo-machete]
+ignored = ["boardstudio-web-test-floor"]
 
 [lints]
 workspace = true

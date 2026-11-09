@@ -162,7 +162,7 @@ def binding(root, profile):
              f"status={git(root, 'status', '--porcelain=v1')!r}",
              f"official_provider_inputs={inputs}",
              f"provider_stamp={stamp.read_text().strip() if stamp.is_file() else 'MISSING'}"]
-    for name in ("target", "cad/wasm/target", "web/target", "renderer/target"):
+    for name in ("target", "cad/monstertruck/target", "web/target", "renderer/target"):
         path = root / name
         lines.append(f"resolved_{name}={path.resolve()} exists={path.exists()}")
     if old:
@@ -652,7 +652,7 @@ def main():
         if not args.state:
             parser.error("build requires --state clean/noop/incremental")
         if args.state == "clean" and any((root / p).exists() for p in (
-                "target", "cad/wasm/target", "cad/wasm/pkg", "web/target", "renderer/pkg", "renderer/target")):
+                "target", "cad/monstertruck/target", "cad/wasm/pkg", "web/target", "renderer/pkg", "renderer/target")):
             parser.error("clean cycle requires fresh dedicated output directories; this tool never cleans")
         browser_tools.locate_chrome()
         command = [sys.executable, "scripts/build-web.py", *(["--fast"] if args.profile == "checked" else [])]
